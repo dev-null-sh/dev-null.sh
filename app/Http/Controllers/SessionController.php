@@ -8,6 +8,7 @@ use App\Actions\CreateTomFriendship;
 use App\Actions\DeletePushSubscription;
 use App\Actions\UpdateOrCreateUser;
 use App\Jobs\ImportGitHubFollowsJob;
+use App\Jobs\ImportGitHubStarsJob;
 use App\Jobs\LookUpUserOrganizations;
 use App\Jobs\SyncGitHubSshKeysJob;
 use App\Models\User;
@@ -68,6 +69,12 @@ final readonly class SessionController
         }
 
         dispatch(new SyncGitHubSshKeysJob($user));
+
+        // Ahead of the follows, since onboarding reloads its suggestions once those are in.
+        if ($user->github_stars_imported_at === null) {
+            dispatch(new ImportGitHubStarsJob($user));
+        }
+
         dispatch(new ImportGitHubFollowsJob($user, notify: $user->wasRecentlyCreated));
         LookUpUserOrganizations::dispatchFor($user);
 

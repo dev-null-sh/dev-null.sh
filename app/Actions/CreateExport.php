@@ -52,6 +52,7 @@ use Traversable;
  *     organizations: array<int, array{handle: string, role: string, joined_at: string}>,
  *     followed_organizations: array<int, array{handle: string, followed_at: string}>,
  *     pending_follows: list<string>,
+ *     starred_github_owners: list<array{github_id: string, repositories_count: int}>,
  *     messages: Generator<int, ExportMessage>,
  *     reports: Traversable<int, array<string, mixed>>,
  *     remote_pins: array<int, array{to: string|null, pinned_at: string|null}>,
@@ -124,6 +125,7 @@ final readonly class CreateExport
             'organizations' => $this->organizations($user),
             'followed_organizations' => $this->followedOrganizations($user),
             'pending_follows' => $this->pendingFollows($user),
+            'starred_github_owners' => $this->starredGitHubOwners($user),
             'messages' => $this->messages($user),
             'reports' => CommitReport::query()->where('reporter_id', $user->id)->oldest('id')->cursor()->map(fn (CommitReport $report): array => [
                 'commit_id' => $report->commit_id,
@@ -405,6 +407,22 @@ final readonly class CreateExport
     {
         /** @var list<string> */
         return DB::table('pending_follows')->where('user_id', $user->id)->orderBy('github_id')->pluck('github_id')->all();
+    }
+
+    /**
+     * The GitHub IDs of the people whose repositories the user starred on GitHub, and how many, for suggestions.
+     *
+     * @return list<array{github_id: string, repositories_count: int}>
+     */
+    private function starredGitHubOwners(User $user): array
+    {
+        /** @var Collection<int, object{github_id: string, repositories_count: int}> $owners */
+        $owners = DB::table('starred_github_owners')->where('user_id', $user->id)->orderBy('github_id')->get(['github_id', 'repositories_count']);
+
+        return array_values($owners->map(fn (object $owner): array => [
+            'github_id' => $owner->github_id,
+            'repositories_count' => $owner->repositories_count,
+        ])->all());
     }
 
     /**
