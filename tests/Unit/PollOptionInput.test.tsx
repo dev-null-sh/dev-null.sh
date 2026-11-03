@@ -78,6 +78,43 @@ test('counts a link in a poll option as at most 23 characters, as in the body', 
     assert.equal(isPollOptionTooLong(prose), true);
 });
 
+test('counts each form of link in a poll option as 23 characters, as the server does', () => {
+    const links = [
+        'https://dev-null.example.com/log/latest',
+        'dev-null.example.com/log/latest',
+        'http://intranet/log/latest',
+        'http://192.168.1.176/log/latest',
+        'http://192.168.1.176:8000/log/latest',
+        'http://[::1]:8000/log/latest',
+    ];
+
+    for (const link of links) {
+        assert.equal(
+            isPollOptionTooLong(`${link} ${'a'.repeat(26)}`),
+            false,
+            link,
+        );
+        assert.equal(
+            isPollOptionTooLong(`${link} ${'a'.repeat(27)}`),
+            true,
+            link,
+        );
+    }
+});
+
+test('counts a host name or an address without a scheme as text in a poll option, as the server does', () => {
+    for (const text of [
+        'intranet/log/latest/abcdefgh',
+        '192.168.1.176:8000/log/latest',
+    ]) {
+        assert.equal(
+            isPollOptionTooLong(`${text} ${'a'.repeat(26)}`),
+            true,
+            text,
+        );
+    }
+});
+
 test('keeps an option over 255 characters whole and flags it, as the server rejects it', () => {
     const longest = `https://example.com/${'a'.repeat(235)}`;
     const option = `${longest}a`;
