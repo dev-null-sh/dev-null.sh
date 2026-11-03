@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\User;
 
 it("lists a user's followers", function (): void {
@@ -87,7 +88,7 @@ function loadedDigest(string $route, User $user, array $loaded): mixed
 {
     return test()->get(route($route, ['user' => $user, 'loaded' => $loaded]), [
         'X-Inertia' => 'true',
-        'X-Inertia-Version' => (string) resolve(App\Http\Middleware\HandleInertiaRequests::class)->version(request()),
+        'X-Inertia-Version' => (string) resolve(HandleInertiaRequests::class)->version(request()),
         'X-Inertia-Partial-Component' => 'user/connections',
         'X-Inertia-Partial-Data' => 'loadedDigest',
     ])->assertOk()->assertJsonMissingPath('props.users')->json('props.loadedDigest');

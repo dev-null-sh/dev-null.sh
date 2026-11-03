@@ -23,6 +23,7 @@ use App\Actions\UpdateOrgCall;
 use App\Actions\UpdateScheduledCommitSubmittedAt;
 use App\Actions\UpdateUserLog;
 use App\Actions\UpdateUserTermsAcceptance;
+use App\Actions\UpdateUserTranslationLanguage;
 use App\Contracts\Services\LinkPreviewProvider;
 use App\Dto\AuthorizationCode;
 use App\Enums\CommitStatus;
@@ -412,7 +413,7 @@ it('shares the language the reader reads translations in, live on their own chan
             'events' => ['account'],
         ]);
 
-    resolve(App\Actions\UpdateUserTranslationLanguage::class)->handle($user, 'de');
+    resolve(UpdateUserTranslationLanguage::class)->handle($user, 'de');
 
     expect($this->get('/settings/appearance', [...$headers, 'Accept-Language' => 'pt-BR'])->json('props.auth.translationLanguage'))->toBe('de');
 });

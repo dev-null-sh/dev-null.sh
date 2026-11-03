@@ -5,6 +5,9 @@ declare(strict_types=1);
 use App\Actions\CreateUserGitHubFollows;
 use App\Contracts\Services\GitHubProvider;
 use App\Enums\NotificationType;
+use App\Enums\UserUpdate;
+use App\Events\ProfilesUpdated;
+use App\Events\UsersUpdated;
 use App\Models\Notification;
 use App\Models\Organization;
 use App\Models\User;
@@ -12,6 +15,7 @@ use GuzzleHttp\Psr7\Response as Psr7Response;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 
 it('follows the users they follow on github', function (): void {
     $user = User::factory()->create();
@@ -210,7 +214,7 @@ it('keeps github imports from following across a block in either direction', fun
 });
 
 it('tells everyone whose follows it changed, even importing quietly, as following one by one would', function (): void {
-    Illuminate\Support\Facades\Event::fake([App\Events\UsersUpdated::class, App\Events\ProfilesUpdated::class]);
+    Event::fake([UsersUpdated::class, ProfilesUpdated::class]);
     $user = User::factory()->create();
     $followed = User::factory()->create();
     $alreadyFollowed = User::factory()->create();
@@ -225,19 +229,19 @@ it('tells everyone whose follows it changed, even importing quietly, as followin
 
     resolve(CreateUserGitHubFollows::class)->handle($user, notify: false);
 
-    $usersUpdated = fn (App\Enums\UserUpdate $update): array => Illuminate\Support\Facades\Event::dispatched(App\Events\UsersUpdated::class, fn (App\Events\UsersUpdated $event): bool => $event->update === $update)
+    $usersUpdated = fn (UserUpdate $update): array => Event::dispatched(UsersUpdated::class, fn (UsersUpdated $event): bool => $event->update === $update)
         ->flatMap(fn (array $event): array => $event[0]->userIds)->unique()->sort()->values()->all();
-    $profiles = Illuminate\Support\Facades\Event::dispatched(App\Events\ProfilesUpdated::class, fn (App\Events\ProfilesUpdated $event): bool => $event->changesConnections)
+    $profiles = Event::dispatched(ProfilesUpdated::class, fn (ProfilesUpdated $event): bool => $event->changesConnections)
         ->flatMap(fn (array $event): array => $event[0]->profileIds)->unique()->sort()->values()->all();
     $sorted = fn (string ...$ids): array => collect($ids)->sort()->values()->all();
 
-    expect($usersUpdated(App\Enums\UserUpdate::Account))->toBe($sorted($user->id, $followed->id, $follower->id))
-        ->and($usersUpdated(App\Enums\UserUpdate::Relationships))->toBe($sorted($user->id, $follower->id))
+    expect($usersUpdated(UserUpdate::Account))->toBe($sorted($user->id, $followed->id, $follower->id))
+        ->and($usersUpdated(UserUpdate::Relationships))->toBe($sorted($user->id, $follower->id))
         ->and($profiles)->toBe($sorted($user->id, $followed->id, $follower->id, $organization->id));
 });
 
 it('tells nobody but the user about an import that followed no one', function (): void {
-    Illuminate\Support\Facades\Event::fake([App\Events\UsersUpdated::class, App\Events\ProfilesUpdated::class]);
+    Event::fake([UsersUpdated::class, ProfilesUpdated::class]);
     $user = User::factory()->create();
 
     $github = $this->mock(GitHubProvider::class);
@@ -247,7 +251,7 @@ it('tells nobody but the user about an import that followed no one', function ()
 
     resolve(CreateUserGitHubFollows::class)->handle($user);
 
-    Illuminate\Support\Facades\Event::assertNotDispatched(App\Events\ProfilesUpdated::class);
-    Illuminate\Support\Facades\Event::assertDispatched(App\Events\UsersUpdated::class, fn (App\Events\UsersUpdated $event): bool => $event->update === App\Enums\UserUpdate::Onboarding);
-    Illuminate\Support\Facades\Event::assertNotDispatched(App\Events\UsersUpdated::class, fn (App\Events\UsersUpdated $event): bool => in_array($event->update, [App\Enums\UserUpdate::Account, App\Enums\UserUpdate::Relationships], true));
+    Event::assertNotDispatched(ProfilesUpdated::class);
+    Event::assertDispatched(UsersUpdated::class, fn (UsersUpdated $event): bool => $event->update === UserUpdate::Onboarding);
+    Event::assertNotDispatched(UsersUpdated::class, fn (UsersUpdated $event): bool => in_array($event->update, [UserUpdate::Account, UserUpdate::Relationships], true));
 });
