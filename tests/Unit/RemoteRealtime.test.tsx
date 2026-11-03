@@ -434,3 +434,93 @@ test('a partner reading the conversation refreshes the inbox too, where how far 
 
     assert.equal(inboxReads().length, before + 1);
 });
+
+test("an inbox read still on its way when someone else signs in never shows the previous account's conversations", async () => {
+    let release = () => {};
+    vi.stubGlobal('fetch', async (input: string) => {
+        const url = new URL(input, 'http://localhost');
+        requests.push({ url, method: 'GET' });
+
+        if (url.pathname === '/remotes/inbox' && requests.length <= 2) {
+            await new Promise<void>((resolve) => (release = resolve));
+
+            return Response.json({
+                conversations: [
+                    {
+                        ...summary('private-a'),
+                        name: 'Account A private title',
+                        pinned_at: '2026-11-03T10:00:00Z',
+                        muted_until_at: '2026-12-01T00:00:00Z',
+                    },
+                ],
+                pins: { 'private-a': '2026-11-03T10:00:00Z' },
+                has_more: true,
+                unread: 4,
+                requests: 2,
+            });
+        }
+
+        return Response.json({
+            conversations: [],
+            has_more: false,
+            unread: 0,
+            requests: 0,
+        });
+    });
+    const stopFirst = watchRemoteUpdates('first');
+    const held = loadTab('fetched');
+    await vi.advanceTimersByTimeAsync(0);
+    stopFirst();
+    stops.push(watchRemoteUpdates('second'));
+    const readsBefore = requests.length;
+    release();
+    await held;
+    await vi.advanceTimersByTimeAsync(0);
+
+    const chat = chatSnapshot();
+    assert.equal(JSON.stringify(chat).includes('private-a'), false);
+    assert.equal(chat.requests, null);
+    assert.equal(requests.length, readsBefore);
+});
+
+for (const tab of ['fetched', 'stashed'] as const) {
+    test(`reconnecting reads a loaded ${tab} tab again, even when what changed while away kept its count`, async () => {
+        let current = 'first';
+        respond((url) => {
+            if (url.pathname !== '/remotes/inbox') {
+                return undefined;
+            }
+
+            return {
+                conversations:
+                    url.searchParams.get('tab') === tab
+                        ? [summary(current, 'direct')]
+                        : [],
+                has_more: false,
+                unread: 0,
+                requests: 1,
+            };
+        });
+        stops.push(watchRemoteUpdates('me'), watchInbox());
+        await loadTab(tab);
+        joinAll(fake);
+        await vi.advanceTimersByTimeAsync(500);
+        const list = tab === 'fetched' ? 'fetched' : 'archived';
+        assert.deepEqual(
+            chatSnapshot()[list]?.map(({ id }) => id),
+            ['first'],
+        );
+
+        fake.setStatus('unavailable');
+        current = 'replacement';
+        await vi.advanceTimersByTimeAsync(1_000);
+        fake.setStatus('connected');
+        joinAll(fake);
+        await vi.advanceTimersByTimeAsync(500);
+
+        assert.deepEqual(
+            chatSnapshot()[list]?.map(({ id }) => id),
+            ['replacement'],
+        );
+    });
+}

@@ -474,6 +474,26 @@ export async function request<T>(
     return (response.status === 204 ? null : await response.json()) as T;
 }
 
+/**
+ * A response that came back for remotes no longer watched, as after signing out or in as someone else: it is
+ * dropped before anything is written, never applied to, nor retried for, whoever is watching now.
+ */
+class StaleRemotesError extends Error {}
+
+async function remotesRequest<T>(
+    ...args: Parameters<typeof request>
+): Promise<T> {
+    const generation = remotesGeneration;
+    const owner = remotesOwner;
+    const response = await request<T>(...args);
+
+    if (generation !== remotesGeneration || owner !== remotesOwner) {
+        throw new StaleRemotesError();
+    }
+
+    return response;
+}
+
 function mergeMessages(current: Message[], incoming: Message[]): Message[] {
     if (incoming.length === 0) {
         return current;
@@ -648,7 +668,7 @@ async function fetchInbox(
 > {
     const version = ++muteVersion;
     const pinsVersion = ++pinVersion;
-    const page = await request<
+    const page = await remotesRequest<
         InboxPage & {
             unread: number;
             requests: number;
@@ -730,8 +750,10 @@ export async function loadTab(tab: InboxTab): Promise<void> {
             hasMore: { ...state.hasMore, [tab]: page.has_more },
             requests: page.requests,
         });
-    } catch {
-        update({ [listOf[tab]]: state[listOf[tab]] ?? [] });
+    } catch (error) {
+        if (!(error instanceof StaleRemotesError)) {
+            update({ [listOf[tab]]: state[listOf[tab]] ?? [] });
+        }
     }
 }
 
@@ -1335,7 +1357,11 @@ export function watchRemoteUpdates(userId: string): () => void {
     // Another account's remotes, kept from before signing in as someone else, are never shown to this one.
     if (remotesOwner !== null && remotesOwner !== userId) {
         state = emptyChat;
+        invalidatedInboxTabs.clear();
         listeners.forEach((listener) => listener());
+    } else if (Object.values(state.isLoadingMore).some(Boolean)) {
+        // A page still loading when the remotes stopped being watched was dropped, so it isn't loading any more.
+        update({ isLoadingMore: emptyChat.isLoadingMore });
     }
 
     remotesOwner = userId;
@@ -1343,6 +1369,14 @@ export function watchRemoteUpdates(userId: string): () => void {
 
     const refreshWatched = (payload: unknown) =>
         watchedTargets(payload).forEach(refreshThread);
+    // Requests and the stash can change without their counts changing, so their loaded pages are read again.
+    const invalidateLoadedTabs = () => {
+        for (const tab of ['fetched', 'stashed'] as const) {
+            if (state[listOf[tab]] !== null) {
+                invalidatedInboxTabs.add(tab);
+            }
+        }
+    };
 
     const stopListening = listen(
         userChannel(userId),
@@ -1364,19 +1398,16 @@ export function watchRemoteUpdates(userId: string): () => void {
                 refreshWatched(payload);
             },
             'remotes.inbox': (payload) => {
-                // Requests and the stash can change without their counts changing, so their loaded pages are read again.
-                for (const tab of ['fetched', 'stashed'] as const) {
-                    if (state[listOf[tab]] !== null) {
-                        invalidatedInboxTabs.add(tab);
-                    }
-                }
-
+                invalidateLoadedTabs();
                 forgetUnwatched(payload);
                 refreshInbox();
                 refreshWatched(payload);
             },
         },
+        // Joining, at first or again after the connection dropped, may follow changes nobody heard, so the loaded tabs
+        // are read again whatever their counts say.
         () => {
+            invalidateLoadedTabs();
             refreshInbox();
             refreshWatched(null);
         },
@@ -1387,6 +1418,7 @@ export function watchRemoteUpdates(userId: string): () => void {
         stopListening();
         stopPacing();
         remotesGeneration++;
+        inboxRevision++;
         threadRefreshes.forEach((refresh) => refresh.cancel());
         threadRefreshes.clear();
         typingRechecks.forEach((timer) => window.clearTimeout(timer));
@@ -1495,7 +1527,7 @@ async function pollThread(target: ChatTarget): Promise<void> {
     let fresh: (Thread & { partner: User }) | (OrgThread & { org: OrgRef });
 
     try {
-        fresh = await request(
+        fresh = await remotesRequest(
             urls(target).index(
                 after === null
                     ? undefined
@@ -1790,7 +1822,7 @@ async function deliver(
     const key = targetKey(target);
 
     try {
-        const { message } = await request<{ message: Message }>(
+        const { message } = await remotesRequest<{ message: Message }>(
             urls(target).store,
             'POST',
             payloadOf(pending),
@@ -1811,7 +1843,11 @@ async function deliver(
             head: Math.max(thread.head, message.id),
         }));
         touchInbox(target, message);
-    } catch {
+    } catch (error) {
+        if (error instanceof StaleRemotesError) {
+            return;
+        }
+
         updateThread(key, (thread) => ({
             pending: thread.pending.map((item) =>
                 item.client_id === pending.client_id
@@ -1894,7 +1930,7 @@ export function sendMessage(target: ChatTarget, draft: MessageDraft): void {
  */
 export async function sendPing(target: ChatTarget): Promise<void> {
     const key = targetKey(target);
-    const { message } = await request<{ message: Message }>(
+    const { message } = await remotesRequest<{ message: Message }>(
         urls(target).ping,
         'POST',
     );
@@ -1916,7 +1952,7 @@ async function loadReactionUsage(): Promise<void> {
     isLoadingReactionUsage = true;
 
     try {
-        const { usage } = await request<{ usage: ReactionUsage[] }>(
+        const { usage } = await remotesRequest<{ usage: ReactionUsage[] }>(
             MessageReactionController.index.url(),
         );
 
@@ -2015,7 +2051,9 @@ export async function toggleReaction(
     countReactionUse(emoji, isRemoving ? -1 : 1);
 
     try {
-        const { reactions } = await request<{ reactions: MessageReaction[] }>(
+        const { reactions } = await remotesRequest<{
+            reactions: MessageReaction[];
+        }>(
             isRemoving
                 ? MessageReactionController.destroy.url({ message: messageId })
                 : MessageReactionController.store.url({ message: messageId }),
@@ -2028,7 +2066,11 @@ export async function toggleReaction(
         }
 
         return true;
-    } catch {
+    } catch (error) {
+        if (error instanceof StaleRemotesError) {
+            return false;
+        }
+
         settle();
         setReactions(key, messageId, isRemoving ? add : remove);
         countReactionUse(emoji, isRemoving ? 1 : -1);
@@ -2064,7 +2106,7 @@ export async function setMessagePinned(
     }));
 
     try {
-        const { pinned, reactions_version: version } = await request<{
+        const { pinned, reactions_version: version } = await remotesRequest<{
             pinned: Message[];
             reactions_version: number;
         }>(
@@ -2083,6 +2125,10 @@ export async function setMessagePinned(
             throw new Error('Another pin took the last place first.');
         }
     } catch (error) {
+        if (error instanceof StaleRemotesError) {
+            throw error;
+        }
+
         updateThread(key, (thread) => ({
             pinned: isPinned
                 ? withoutPinnedMessage(thread.pinned, message)
@@ -2208,7 +2254,7 @@ export async function loadOlderMessages(target: ChatTarget): Promise<void> {
 
     const load = (async () => {
         try {
-            const older = await request<Thread | OrgThread>(
+            const older = await remotesRequest<Thread | OrgThread>(
                 urls(target).index({ before: oldest }),
             );
 
@@ -2217,8 +2263,10 @@ export async function loadOlderMessages(target: ChatTarget): Promise<void> {
                 has_older: older.has_older,
                 isLoadingOlder: false,
             }));
-        } catch {
-            updateThread(key, () => ({ isLoadingOlder: false }));
+        } catch (error) {
+            if (!(error instanceof StaleRemotesError)) {
+                updateThread(key, () => ({ isLoadingOlder: false }));
+            }
         }
     })();
     olderLoads.set(key, load);
@@ -2361,7 +2409,7 @@ export async function settleRequest(
     updateThread(key, () => ({ access: isMerging ? 'open' : 'waiting' }));
 
     try {
-        await request(
+        await remotesRequest(
             isMerging
                 ? ConversationMergeController.store.url({ partner: key })
                 : ConversationDropController.store.url({ partner: key }),
@@ -2369,7 +2417,11 @@ export async function settleRequest(
         );
 
         return true;
-    } catch {
+    } catch (error) {
+        if (error instanceof StaleRemotesError) {
+            return false;
+        }
+
         update(previous);
         updateThread(key, () => ({ access: previousAccess }));
 
@@ -2425,13 +2477,17 @@ export async function setConversationArchived(
     updateThread(key, () => ({ is_archived: isArchived }));
 
     try {
-        await request(
+        await remotesRequest(
             isArchived ? urls(target).stash : urls(target).pop,
             isArchived ? 'POST' : 'DELETE',
         );
 
         return true;
-    } catch {
+    } catch (error) {
+        if (error instanceof StaleRemotesError) {
+            return false;
+        }
+
         update(previous);
         updateThread(key, () => ({ is_archived: !isArchived }));
 
@@ -2470,7 +2526,7 @@ export async function setConversationPinned(
 
     applyConversationPin(key, pinned ? new Date().toISOString() : null);
 
-    const preference = await request<{ pinned_at: string | null }>(
+    const preference = await remotesRequest<{ pinned_at: string | null }>(
         urls(target).pin,
         'PUT',
         { pinned },
@@ -2521,7 +2577,7 @@ export async function setConversationMute(
 
     applyConversationMute(key, duration === 'off' ? null : mutedUntilAnswered);
 
-    const preference = await request<{ muted_until_at: string | null }>(
+    const preference = await remotesRequest<{ muted_until_at: string | null }>(
         urls(target).mute,
         'PUT',
         { duration },
@@ -2576,7 +2632,7 @@ export async function createOrg(
     name: string,
     members: string[],
 ): Promise<OrgRef> {
-    const { org } = await request<{ org: { id: string } }>(
+    const { org } = await remotesRequest<{ org: { id: string } }>(
         OrgController.store.url(),
         'POST',
         { name, members },
@@ -2598,7 +2654,7 @@ export async function renameOrg(org: OrgRef, name: string): Promise<void> {
 
     updateThread(key, () => ({ target: { kind: 'org', org: renamed } }));
 
-    await request(OrgController.update.url({ org: org.id }), 'PUT', {
+    await remotesRequest(OrgController.update.url({ org: org.id }), 'PUT', {
         name,
     }).catch((error: unknown) => {
         updateThread(key, () => ({ target: { kind: 'org', org } }));
@@ -2633,10 +2689,14 @@ export async function addOrgMembers(
     members: string[],
     sharesHistory: boolean,
 ): Promise<void> {
-    await request(OrgMemberController.store.url({ org: org.id }), 'POST', {
-        members,
-        share_history: sharesHistory,
-    });
+    await remotesRequest(
+        OrgMemberController.store.url({ org: org.id }),
+        'POST',
+        {
+            members,
+            share_history: sharesHistory,
+        },
+    );
     await refreshOrg(org);
 }
 
