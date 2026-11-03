@@ -1,10 +1,11 @@
 import { Head, Link, usePage } from '@inertiajs/react';
-import { AlertCircleIcon, Link2, MapPin, Settings } from 'lucide-react';
+import { AlertCircleIcon, Flag, Link2, MapPin, Settings } from 'lucide-react';
 import type { CSSProperties } from 'react';
 import { useState } from 'react';
 import { show } from '@/actions/App/Http/Controllers/UserController';
 import { BioText } from '@/components/bio-text';
 import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
+import { useIsFollowing } from '@/components/follow-button';
 import { GitHubIcon } from '@/components/github-icon';
 import { OrganizationAvatar } from '@/components/organization-avatar';
 import { OrganizationFollowButton } from '@/components/organization-follow-button';
@@ -29,7 +30,7 @@ export default function Show({
     isFollowing,
 }: {
     organization: Organization;
-    tab: 'mentions';
+    tab: 'commits' | 'mentions';
     commits: CursorPaginated<Commit>;
     claimUrl: string;
     settingsUrl: string | null;
@@ -45,6 +46,9 @@ export default function Show({
     // Only the first claim makes an admin. While a claim failed, its alert offers to try again instead.
     const claimable = auth.user !== null && admins.length === 0;
     const canClaim = claimable && claimFailed === undefined;
+    const [isFollowingNow] = useIsFollowing(organization, isFollowing);
+    const shownFollowersCount =
+        followersCount + Number(isFollowingNow) - Number(isFollowing);
 
     return (
         <>
@@ -75,22 +79,9 @@ export default function Show({
                     />
 
                     <div className="flex min-w-0 flex-wrap justify-end gap-1.5 sm:gap-2">
-                        {canClaim && (
-                            <Button variant="outline" asChild>
-                                {/* A form, so no other site can claim for the user. */}
-                                <Link
-                                    href={claimUrl}
-                                    method="post"
-                                    as="button"
-                                    preserveState={false}
-                                >
-                                    Claim
-                                </Link>
-                            </Button>
-                        )}
                         {settingsUrl && (
                             <Button variant="outline" asChild>
-                                <Link href={settingsUrl}>
+                                <Link href={settingsUrl} prefetch>
                                     <Settings />
                                     Settings
                                 </Link>
@@ -174,12 +165,12 @@ export default function Show({
                 <p className="mt-4 flex gap-1.5 text-sm">
                     <span
                         className="font-mono font-medium tabular-nums"
-                        title={exactCountTitle(followersCount)}
+                        title={exactCountTitle(shownFollowersCount)}
                     >
-                        {formatCount(followersCount)}
+                        {formatCount(shownFollowersCount)}
                     </span>
                     <span className="text-muted-foreground">
-                        {followersCount === 1 ? 'follower' : 'followers'}
+                        {shownFollowersCount === 1 ? 'follower' : 'followers'}
                     </span>
                 </p>
 
@@ -190,6 +181,7 @@ export default function Show({
                             <Link
                                 key={admin.id}
                                 href={show(admin.handle)}
+                                prefetch
                                 className="flex items-center gap-1.5 text-foreground hover:underline"
                             >
                                 <UserAvatar
@@ -200,6 +192,36 @@ export default function Show({
                                 @{admin.handle}
                             </Link>
                         ))}
+                    </div>
+                )}
+
+                {canClaim && (
+                    <div className="mt-4 flex flex-wrap items-start gap-x-3.5 gap-y-3 rounded-lg border border-primary/25 bg-primary-soft px-4 py-3.5">
+                        <Flag
+                            aria-hidden
+                            className="mt-0.5 size-5 shrink-0 text-primary"
+                        />
+                        <div className="min-w-0 flex-[999_1_16rem]">
+                            <p className="font-semibold">
+                                Nobody has claimed @{organization.handle} yet
+                            </p>
+                            <p className="mt-0.5 text-sm text-pretty">
+                                This page is waiting for its team. A member of{' '}
+                                {organization.name} on GitHub can claim it, then
+                                post as the organization and add teammates.
+                            </p>
+                        </div>
+                        <Button className="ml-8.5 sm:ml-0" asChild>
+                            {/* A form, so no other site can claim for the user. */}
+                            <Link
+                                href={claimUrl}
+                                method="post"
+                                as="button"
+                                preserveState={false}
+                            >
+                                Claim
+                            </Link>
+                        </Button>
                     </div>
                 )}
 
@@ -257,8 +279,15 @@ export default function Show({
                     reset={['commits']}
                     tabs={[
                         {
-                            title: 'Mentions',
+                            title: 'Commits',
                             href: show(organization),
+                            isActive: tab === 'commits',
+                        },
+                        {
+                            title: 'Mentions',
+                            href: show(organization, {
+                                query: { tab: 'mentions' },
+                            }),
                             isActive: tab === 'mentions',
                         },
                     ]}
@@ -267,14 +296,25 @@ export default function Show({
                 <CommitFeed
                     key={`${organization.handle}:${tab}`}
                     commits={commits}
-                    end={`That's the first commit mentioning @${organization.handle}.`}
+                    end={
+                        tab === 'mentions'
+                            ? `That's the first commit mentioning @${organization.handle}.`
+                            : `That's @${organization.handle}'s first commit.`
+                    }
                     empty={
-                        <EmptyFeed
-                            command={`$ git log --grep=@${organization.handle}`}
-                        >
-                            Nobody has mentioned @{organization.handle} yet.
-                            Mention it in a commit and it shows up here.
-                        </EmptyFeed>
+                        tab === 'mentions' ? (
+                            <EmptyFeed
+                                command={`$ git log --grep=@${organization.handle}`}
+                            >
+                                Nobody has mentioned @{organization.handle} yet.
+                                Mention it in a commit and it shows up here.
+                            </EmptyFeed>
+                        ) : (
+                            <EmptyFeed command="fatal: no commits yet">
+                                @{organization.handle} hasn't committed anything
+                                yet.
+                            </EmptyFeed>
+                        )
                     }
                 />
             </div>

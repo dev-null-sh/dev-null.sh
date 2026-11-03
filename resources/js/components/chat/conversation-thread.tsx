@@ -1072,6 +1072,7 @@ const ThreadItem = memo(function ThreadItem({
                 >
                     <Link
                         href={show(item.author)}
+                        prefetch
                         className="flex min-w-0 items-center gap-1.5 rounded-sm text-xs text-muted-foreground"
                         title={item.author.name}
                     >
@@ -2101,18 +2102,12 @@ function AccessBar({
     isCompact: boolean;
     onDropped?: () => void;
 }) {
-    const [isSettling, setIsSettling] = useState(false);
-
-    const settle = async (isMerging: boolean) => {
-        setIsSettling(true);
-        const isSettled = await settleRequest(partner, isMerging);
-        setIsSettling(false);
-
-        if (!isSettled) {
-            toast.error('Could not update the request. Try again.');
-
-            return;
-        }
+    const settle = (isMerging: boolean) => {
+        void settleRequest(partner, isMerging).then((isSettled) => {
+            if (!isSettled) {
+                toast.error('Could not update the request. Try again.');
+            }
+        });
 
         if (!isMerging) {
             onDropped?.();
@@ -2141,16 +2136,14 @@ function AccessBar({
                         <Button
                             variant="outline"
                             className="min-w-16"
-                            disabled={isSettling}
-                            onClick={() => void settle(false)}
+                            onClick={() => settle(false)}
                             data-test="drop-request"
                         >
                             Drop
                         </Button>
                         <Button
                             className="min-w-20"
-                            disabled={isSettling}
-                            onClick={() => void settle(true)}
+                            onClick={() => settle(true)}
                             data-test="merge-request"
                         >
                             Merge

@@ -6,7 +6,7 @@ import OrganizationFollowController from '@/actions/App/Http/Controllers/Organiz
 import {
     FollowLabel,
     useFollowHover,
-    useIsFollowing,
+    useFollow,
 } from '@/components/follow-button';
 import { Button } from '@/components/ui/button';
 import {
@@ -17,9 +17,7 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { useSharedState } from '@/hooks/use-shared-state';
 import { signIn } from '@/lib/auth';
-import { toastWhenThrottled } from '@/lib/throttle';
 import { cn } from '@/lib/utils';
 import type { Organization } from '@/types';
 
@@ -36,20 +34,12 @@ function useOrganizationFollow(
     only: string[],
     onToggled: () => void,
 ) {
-    const [isFollowing, setIsFollowing] = useIsFollowing(
+    const { isFollowing, callbacks } = useFollow(
         organization,
         initialIsFollowing,
     );
-    const [isPending, setIsPending] = useSharedState<boolean>(
-        `follow_pending:${organization.id}`,
-        false,
-    );
 
     const toggle = () => {
-        if (isPending) {
-            return;
-        }
-
         router.visit(
             isFollowing
                 ? OrganizationFollowController.destroy(organization)
@@ -59,19 +49,17 @@ function useOrganizationFollow(
                 preserveState: true,
                 preserveScroll: true,
                 async: true,
-                onStart: () => setIsPending(true),
-                onFinish: () => setIsPending(false),
-                onSuccess: () => {
-                    setIsFollowing(!isFollowing);
-                    router.flushAll();
+                ...callbacks,
+                onStart: (visit) => {
+                    callbacks.onStart(visit);
                     onToggled();
                 },
-                onHttpException: (response) => !toastWhenThrottled(response),
+                onSuccess: () => router.flushAll(),
             },
         );
     };
 
-    return { isFollowing, isPending, toggle };
+    return { isFollowing, toggle };
 }
 
 /**
@@ -99,7 +87,7 @@ export function OrganizationFollowButton({
     const { auth } = usePage().props;
     // Both states share it, so unfollowing from the menu keeps keyboard focus on the button that replaces it.
     const buttonRef = useRef<HTMLButtonElement>(null);
-    const { isFollowing, isPending, toggle } = useOrganizationFollow(
+    const { isFollowing, toggle } = useOrganizationFollow(
         organization,
         initialIsFollowing,
         only,
@@ -134,7 +122,6 @@ export function OrganizationFollowButton({
                         variant="outline"
                         size={size}
                         className={className}
-                        disabled={isPending}
                     >
                         Following
                         <ChevronDown
@@ -193,7 +180,6 @@ export function OrganizationFollowButton({
             variant={isFollowing ? 'outline' : 'default'}
             size={size}
             className={cn('group/follow', className)}
-            disabled={isPending}
             aria-label={
                 isFollowing
                     ? `Unfollow @${organization.handle}`

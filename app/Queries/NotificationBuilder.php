@@ -38,8 +38,15 @@ final class NotificationBuilder extends Builder
             ->orWhere(fn (Builder $query): Builder => $query
                 ->whereIn('type', [NotificationType::Approved, NotificationType::Rejected])
                 ->whereHas('commit', fn (CommitBuilder $commit): CommitBuilder => $commit
-                    ->whereColumn('commits.user_id', 'notifications.recipient_id')
                     ->whereColumn('commits.status', 'notifications.type')
+                    ->where(fn (CommitBuilder $commit): CommitBuilder => $commit
+                        ->whereColumn('commits.user_id', 'notifications.recipient_id')
+                        // An organization's, while the recipient is still one of its members.
+                        ->orWhereExists(fn (QueryBuilder $members): QueryBuilder => $members
+                            ->from('organization_members')
+                            ->whereColumn('organization_members.organization_id', 'commits.author_id')
+                            ->whereColumn('organization_members.organization_id', 'notifications.organization_id')
+                            ->whereColumn('organization_members.user_id', 'notifications.recipient_id')))
                     ->offset(0)))
             ->orWhere('type', NotificationType::LeveledUp))
             ->withoutSilencedActors();

@@ -502,13 +502,6 @@ type FoundDeveloper = { user: User; reason?: string | null };
 
 type FoundOrganization = { organization: Organization };
 
-async function searchRemoteCandidates(
-    term: string,
-    signal: AbortSignal,
-): Promise<FoundDeveloper[]> {
-    return searchCandidates(term, { for: 'remote' }, signal);
-}
-
 /**
  * Organizations come back with the developers, after them, so both arrive together.
  */
@@ -723,6 +716,7 @@ function ResultOption({
                 ) : (
                     <Link
                         href={hrefFor(option, term)}
+                        prefetch
                         tabIndex={-1}
                         onMouseMove={onHover}
                         onClick={onOpen}

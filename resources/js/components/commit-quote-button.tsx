@@ -21,6 +21,7 @@ import InputError from '@/components/input-error';
 import { LinkCardPicker } from '@/components/link-card-picker';
 import { MentionTextarea } from '@/components/mention-textarea';
 import { QuotedCommit } from '@/components/quoted-commit';
+import { StableLabel } from '@/components/stable-label';
 import { StashLabel } from '@/components/stash-label';
 import { Button } from '@/components/ui/button';
 import {
@@ -33,6 +34,7 @@ import { UserAvatar } from '@/components/user-avatar';
 import { useMarkCommitDeleted } from '@/hooks/use-deleted-resources';
 import { useImageAttachments } from '@/hooks/use-image-attachments';
 import { useLinkCard } from '@/hooks/use-link-card';
+import { useOwnsCommit } from '@/hooks/use-owns-commit';
 import { moveCaretToEnd, useHasStash, useStash } from '@/hooks/use-stash';
 import { useUser } from '@/hooks/use-user';
 import { signIn } from '@/lib/auth';
@@ -56,10 +58,11 @@ export function CommitQuoteButton({
     className?: string;
 }) {
     const { auth } = usePage().props;
+    const ownsCommit = useOwnsCommit();
     const [isOpen, setIsOpen] = useState(false);
     const hasStash = useHasStash(auth.user?.id ?? null, `quote-${commit.id}`);
 
-    if (commit.status !== 'approved' && commit.author.id !== auth.user?.id) {
+    if (commit.status !== 'approved' && !ownsCommit(commit)) {
         return null;
     }
 
@@ -378,7 +381,11 @@ function QuoteComposer({
                                     title={`Quote (${keys.combo(keys.mod, keys.enter)})`}
                                     data-test="submit-quote-button"
                                 >
-                                    {processing ? 'Quoting…' : 'Quote'}
+                                    <StableLabel
+                                        label="Quote"
+                                        pendingLabel="Quoting…"
+                                        isPending={processing}
+                                    />
                                 </Button>
                             </div>
                         </div>

@@ -16,11 +16,11 @@ const commit = {
 
 async function desktopActionsClasses(isReply: boolean): Promise<string[]> {
     const result = await createInertiaApp<{
-        auth: { user: { id: string } | null };
+        auth: { organizations: [], user: { id: string } | null };
     }>({
         page: {
             component: 'actions',
-            props: { auth: { user: { id: 'viewer' } }, errors: {} },
+            props: { auth: { organizations: [], user: { id: 'viewer' } }, errors: {} },
             url: '/@author/commit',
             version: null,
             clearHistory: false,

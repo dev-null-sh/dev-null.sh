@@ -18,7 +18,8 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 /**
  * A GitHub account at its "@handle", mirrored from GitHub: what GitHub calls a profile owner. The handle is GitHub's
  * login, which can be renamed, so the account is matched by its GitHub ID. Users and organizations share the ID of
- * their profile, so it names either, and what only they have lives on `User` or `Organization`.
+ * their profile, so it names either, and what only they have lives on `User` or `Organization`. A user's profile with
+ * no user is an unclaimed one: a developer looked up from GitHub, who isn't on /dev/null yet.
  *
  * Like on GitHub, a handle is one whatever its case: the column is `citext`, so a plain `where('handle', ...)` matches
  * any case and its unique index refuses the same handle in another case. Never lowercase it in a query to compare
@@ -140,5 +141,21 @@ final class Profile extends Model
     public function owner(): User|Organization|null
     {
         return $this->user ?? $this->organization;
+    }
+
+    /**
+     * A developer looked up from GitHub who never signed in, so no user owns the profile yet: signing in makes it theirs.
+     */
+    public function isUnclaimed(): bool
+    {
+        return $this->type === ProfileType::User && ! $this->user instanceof User;
+    }
+
+    /**
+     * Changes whenever what an unclaimed profile's link preview draws changes, so a shared link shows the new card.
+     */
+    public function openGraphImageVersion(): string
+    {
+        return hash('xxh3', (string) json_encode([$this->name, $this->handle, $this->avatar_url, $this->bio]));
     }
 }

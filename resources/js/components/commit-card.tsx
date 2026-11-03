@@ -49,6 +49,7 @@ import {
     useIsCommitDeleted,
 } from '@/hooks/use-deleted-resources';
 import { useNow } from '@/hooks/use-now';
+import { useOwnsCommit } from '@/hooks/use-owns-commit';
 import { clickedCommit } from '@/lib/commit-click';
 import { commitMutationOptions } from '@/lib/commit-mutation-options';
 import { measureCommitSize } from '@/lib/commit-size';
@@ -59,7 +60,6 @@ import {
     formatRelativeTime,
     isDeleted,
     isWithinSeconds,
-    laneColor,
     shortHash,
 } from '@/lib/utils';
 import { show } from '@/routes/user';
@@ -153,7 +153,7 @@ export function CommitCard({
     const endsOnDot =
         hasRailTail && railNodePosition !== 'bottom' && endsWithDot;
     const graphEndId = `${commit.id}:end`;
-    const isOwn = commit.author.id === auth.user?.id;
+    const isOwn = useOwnsCommit()(commit);
     const isFresh = isOwn && isWithinSeconds(commit.created_at, 15);
     const isDeletable = isOwn && canDelete;
     const hash = shortHash(commit.id);
@@ -179,6 +179,14 @@ export function CommitCard({
               setDeletion('confirming');
           }
         : undefined;
+
+    const prefetchClickedCommit = (event: MouseEvent<HTMLElement>) => {
+        const click = clickedCommit(event, '', window.location.pathname);
+
+        if (click && !click.newTab) {
+            router.prefetch(click.url, { method: 'get' }, {});
+        }
+    };
 
     const cancelDeletion = () => {
         setDeletion('idle');
@@ -259,6 +267,7 @@ export function CommitCard({
             data-commit={commit.id}
             data-permalink={wasDeleted ? undefined : permalink.url}
             data-test="commit"
+            onMouseDown={prefetchClickedCommit}
             onClick={openClickedCommit}
             onAuxClick={openClickedCommit}
             onPointerMove={
@@ -303,6 +312,7 @@ export function CommitCard({
                                 className="flex"
                             >
                                 <Link
+                                    prefetch
                                     ref={nodeLinkRef}
                                     href={show(commit.author)}
                                     tabIndex={-1}
@@ -347,12 +357,14 @@ export function CommitCard({
                                     onHoverChange={onAuthorHover}
                                 >
                                     <Link
+                                        prefetch
                                         href={show(commit.author)}
                                         className="truncate font-semibold hover:underline"
                                     >
                                         {commit.author.name}
                                     </Link>
                                     <Link
+                                        prefetch
                                         href={show(commit.author)}
                                         tabIndex={-1}
                                         className="shrink-4 truncate font-mono text-[13px] text-muted-foreground"
@@ -375,6 +387,7 @@ export function CommitCard({
                                     }
                                 >
                                     <Link
+                                        prefetch
                                         href={permalink}
                                         className="shrink-0 font-mono text-[13px] text-muted-foreground hover:underline"
                                         data-test="commit-permalink"
@@ -399,6 +412,7 @@ export function CommitCard({
                                     className="relative ml-auto flex shrink-0 items-center self-center"
                                 >
                                     <Link
+                                        prefetch
                                         href={permalink}
                                         tabIndex={-1}
                                         className={cn(
@@ -420,6 +434,7 @@ export function CommitCard({
                             )}
                             {commit.parent && !isDeleted(commit.parent) && (
                                 <Link
+                                    prefetch
                                     href={CommitController.show({
                                         profile: commit.parent.author,
                                         commit: commit.parent,

@@ -10,6 +10,7 @@ import {
     useImagePreviewCleanup,
 } from '@/components/commit-image-picker';
 import InputError from '@/components/input-error';
+import { StableLabel } from '@/components/stable-label';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -22,6 +23,7 @@ import {
 } from '@/components/ui/dialog';
 import { useCommitNotFound } from '@/hooks/use-deleted-resources';
 import { useImageAttachments } from '@/hooks/use-image-attachments';
+import { useOwnsCommit } from '@/hooks/use-owns-commit';
 import type { Commit } from '@/types';
 
 const reasons = [
@@ -33,11 +35,12 @@ const reasons = [
 
 export function useCanReport(commit: Commit): boolean {
     const { auth } = usePage().props;
+    const ownsCommit = useOwnsCommit();
 
     return (
         auth.user !== null &&
         commit.status === 'approved' &&
-        commit.author.id !== auth.user.id
+        !ownsCommit(commit)
     );
 }
 
@@ -273,7 +276,11 @@ function ReportForm({
                             !form.data.reason
                         }
                     >
-                        {form.processing ? 'Sending…' : 'Send report'}
+                        <StableLabel
+                            label="Send report"
+                            pendingLabel="Sending…"
+                            isPending={form.processing}
+                        />
                     </Button>
                 </DialogFooter>
             </form>

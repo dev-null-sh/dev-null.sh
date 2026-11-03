@@ -8,6 +8,7 @@ use App\Contracts\Services\EmbeddingProvider;
 use App\Contracts\Services\RelevanceProvider;
 use App\Models\Commit;
 use App\Models\User;
+use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -39,7 +40,7 @@ final readonly class CommitSearchQuery
      *
      * @return Collection<int, Commit>
      */
-    public function get(string|Commit $term, ?User $viewer, int $limit = 20): Collection
+    public function get(string|Commit $term, ?User $viewer, int $limit = 20, ?CarbonInterface $since = null): Collection
     {
         $source = $term instanceof Commit
             ? Commit::query()->whereKey($term->id)->first(['id', 'body', 'embedding', 'parent_id', 'root_id'])
@@ -58,13 +59,13 @@ final readonly class CommitSearchQuery
         /** @var list<float> $vector */
         $vector = $source->embedding ?? Cache::remember('search-embedding:'.hash('sha256', $term), self::CACHE_SECONDS, fn (): array => $this->embeddings->embed($term));
 
-        $candidates = DB::transaction(function () use ($source, $vector, $viewer, $limit): Collection {
-            if ($source instanceof Commit) {
+        $candidates = DB::transaction(function () use ($source, $vector, $viewer, $limit, $since): Collection {
+            if ($source instanceof Commit || $since instanceof CarbonInterface) {
                 DB::statement('set local hnsw.iterative_scan = strict_order');
             }
 
             return Commit::query()
-                ->whereIn('commits.id', $this->nearest($vector, $viewer, $limit * 2, $source))
+                ->whereIn('commits.id', $this->nearest($vector, $viewer, $limit * 2, $source, $since))
                 ->visibleTo($viewer)
                 ->withoutMutedAuthorsFor($viewer)
                 ->withVisibleReplyCount($viewer)
@@ -87,10 +88,11 @@ final readonly class CommitSearchQuery
      *
      * @param  list<float>  $vector
      */
-    private function nearest(array $vector, ?User $viewer, int $count, ?Commit $source): CommitBuilder
+    private function nearest(array $vector, ?User $viewer, int $count, ?Commit $source, ?CarbonInterface $since): CommitBuilder
     {
         return Commit::query()
             ->select('id')
+            ->when($since, fn (CommitBuilder $query, CarbonInterface $since): CommitBuilder => $query->where('created_at', '>=', $since))
             ->when($source, fn (CommitBuilder $query, Commit $source): CommitBuilder => $query
                 ->topLevel()
                 ->whereKeyNot($source->threadRootId())

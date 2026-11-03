@@ -184,8 +184,9 @@ final readonly class OperationsEventsQuery
     }
 
     /**
-     * Rejections leave a verdict behind, sent to the author as their own actor, so the moderator is unknown. Approvals
-     * no longer do, but the ones sent before still show.
+     * Rejections leave a verdict behind, sent to the author as their own actor, so the moderator is unknown, once for
+     * each member of an organization: only the one its poster got shows. Approvals no longer do, but the ones sent before
+     * still show.
      */
     private function verdicts(CarbonImmutable $since): Builder
     {
@@ -201,6 +202,7 @@ final readonly class OperationsEventsQuery
                 notifications.commit_id::text as commit_id
                 SQL, [NotificationType::Approved->value])
             ->whereIn('notifications.type', [NotificationType::Approved, NotificationType::Rejected])
+            ->where(fn (Builder $query): Builder => $query->whereNull('notifications.organization_id')->orWhereColumn('notifications.recipient_id', 'commits.user_id'))
             ->where('notifications.created_at', '>=', $since);
     }
 

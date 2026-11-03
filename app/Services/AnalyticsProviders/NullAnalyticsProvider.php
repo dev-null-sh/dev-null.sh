@@ -12,11 +12,12 @@ use Carbon\CarbonImmutable;
  */
 final readonly class NullAnalyticsProvider implements AnalyticsProvider
 {
-    public function traffic(CarbonImmutable $from, CarbonImmutable $to): array
+    public function traffic(CarbonImmutable $from, CarbonImmutable $to, array $filters = []): array
     {
         return [
             'current' => 0,
             'totals' => ['visitors' => 0, 'pageviews' => 0, 'avg_duration' => 0, 'bounce_rate' => 0.0],
+            'timeline' => [],
             'breakdowns' => ['pages' => [], 'referrers' => [], 'countries' => [], 'devices' => [], 'browsers' => []],
         ];
     }

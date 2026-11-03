@@ -6,23 +6,27 @@ import type { ReactElement } from 'react';
 import { renderToString } from 'react-dom/server';
 import { test } from 'vite-plus/test';
 import { TooltipProvider } from '../../resources/js/components/ui/tooltip';
-import { laneColor } from '../../resources/js/lib/utils';
+import { authorLaneColor } from '../../resources/js/lib/utils';
 import Index, {
     NotificationContent,
 } from '../../resources/js/pages/notification/index';
 import type {
+    Actor,
     Commit,
     Notification,
     NotificationGroup,
+    Organization,
     User,
 } from '../../resources/js/types';
 
 const actor = {
+    type: 'user',
     id: 'actor',
     name: 'Matthieu Napoli',
     handle: 'mnapoli',
     lane: 2,
-} as User;
+    is_followed: false,
+} as Actor;
 
 const notification = {
     id: 'notification',
@@ -149,8 +153,8 @@ test('colors each notification rail by actor and ends it in a dot', async () => 
         },
     ]);
 
-    assert.ok(body.includes(`--lane:${laneColor(actor.lane)}`));
-    assert.ok(body.includes(`--lane:${laneColor(nextActor.lane)}`));
+    assert.ok(body.includes(`--lane:${authorLaneColor(actor)}`));
+    assert.ok(body.includes(`--lane:${authorLaneColor(nextActor)}`));
     assert.equal(body.match(/group\/rail-node absolute bottom-5/g)?.length, 2);
     assert.doesNotMatch(body, /data-test="rail-previous"/);
     assert.match(body, /border-\(--lane\)/);
@@ -276,6 +280,60 @@ test('links the actor to their profile apart from the commit link', async () => 
     assert.doesNotMatch(links[2], /hover:underline/);
     assert.doesNotMatch(body, /<a\b(?:(?!<\/a>).)*<a\b/s);
     assert.match(body, /starred your commit<\/a>/);
+});
+
+test("says a member hears about the organization's commits and mentions for the organization", async () => {
+    const organization = {
+        id: 'laravel',
+        handle: 'laravel',
+        name: 'Laravel',
+        lane: null,
+    } as Organization;
+    const body = await render(
+        (['replied', 'quoted', 'starred', 'mentioned'] as const).map(
+            (type) =>
+                ({
+                    ...notification,
+                    id: type,
+                    group_id: type,
+                    type,
+                    organization,
+                }) as NotificationGroup,
+        ),
+    );
+
+    assert.match(body, /replied to @laravel&#x27;s commit<\/a>/);
+    assert.match(body, /quoted @laravel&#x27;s commit<\/a>/);
+    assert.match(
+        body,
+        /href="\/@laravel\/commits\/reply"[^>]*>starred @laravel&#x27;s commit<\/a>/,
+    );
+    assert.match(body, /mentioned @laravel<\/a>/);
+    assert.doesNotMatch(body, /your commit|mentioned you/);
+});
+
+test('tells every member of the organization about its rejected commit', async () => {
+    const organization = {
+        id: 'laravel',
+        handle: 'laravel',
+        name: 'Laravel',
+        lane: null,
+    } as Organization;
+    const body = await render([
+        {
+            ...notification,
+            type: 'rejected',
+            reason: 'Spam',
+            organization,
+        } as NotificationGroup,
+    ]);
+
+    assert.match(body, /@laravel&#x27;s commit was rejected/);
+    assert.match(
+        body,
+        /Only @laravel&#x27;s members can see this update and its rejected commit\./,
+    );
+    assert.doesNotMatch(body, /Your commit|Only you/);
 });
 
 test('previews the person of a single reply from the avatar and the name', async () => {
@@ -405,4 +463,30 @@ test('says which level and rank a level-up reached, linking to the profile', asy
     assert.match(body, /You reached level 5: wheel<\/a>\./);
     assert.match(body, /Member of the trusted wheel administrative group/);
     assert.match(body, /<a[^>]*href="\/@mnapoli"/);
+});
+
+test('shows an organization that replied, quoted or mentioned as itself: square, in its color, linked to its page', async () => {
+    const organization = {
+        type: 'organization',
+        id: 'laravel',
+        handle: 'laravel',
+        name: 'Laravel',
+        avatar_url: 'https://avatars.githubusercontent.com/u/958072',
+        lane: null,
+    } as const;
+    const fromOrganization = {
+        ...notification,
+        actor: organization,
+        actors: [organization],
+    } as unknown as NotificationGroup;
+
+    const body = await render([fromOrganization]);
+    const item = await renderItem(fromOrganization);
+
+    assert.match(body, /class="flex bg-card rounded-lg"/);
+    assert.match(body, /--lane:var\(--primary\)/);
+    assert.match(body, /title="Laravel" href="\/@laravel"/);
+    assert.match(body, /rounded-md/);
+    assert.match(item, /href="\/@laravel"/);
+    assert.doesNotMatch(item, /Follow/);
 });

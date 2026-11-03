@@ -58,7 +58,7 @@ async function renderReplies(replies: Commit[], automaticTranslation = true) {
         page: {
             component: 'test',
             props: {
-                auth: {
+                auth: { organizations: [],
                     user: automaticTranslation ? null : original.author,
                     automaticTranslation,
                 },

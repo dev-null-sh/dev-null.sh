@@ -4,9 +4,11 @@ import { useId, useState } from 'react';
 import { toast } from 'sonner';
 import CommitPollVoteController from '@/actions/App/Http/Controllers/CommitPollVoteController';
 import { BodySegments } from '@/components/commit-body';
+import { StableLabel } from '@/components/stable-label';
 import { Button } from '@/components/ui/button';
 import { useCommitNotFound } from '@/hooks/use-deleted-resources';
 import { useNow } from '@/hooks/use-now';
+import { useOwnsCommit } from '@/hooks/use-owns-commit';
 import { bodySegments } from '@/lib/code';
 import { exactCountTitle, formatCount, formatExactCount } from '@/lib/numbers';
 import { cn } from '@/lib/utils';
@@ -69,6 +71,7 @@ export function CommitPoll({
     isStatic?: boolean;
 }) {
     const { auth } = usePage().props;
+    const ownsCommit = useOwnsCommit();
     const commitNotFound = useCommitNotFound();
     const now = useNow();
     const id = useId();
@@ -84,7 +87,7 @@ export function CommitPoll({
     const canVote =
         auth.user !== null &&
         commit.status === 'approved' &&
-        commit.author.id !== auth.user.id &&
+        !ownsCommit(commit) &&
         poll.closes_at !== null &&
         !poll.has_voted &&
         !hasExpired;
@@ -195,7 +198,11 @@ export function CommitPoll({
                                 disabled={choice === '' || request.processing}
                                 data-test="poll-vote-button"
                             >
-                                {request.processing ? 'Voting…' : 'Vote'}
+                                <StableLabel
+                                    label="Vote"
+                                    pendingLabel="Voting…"
+                                    isPending={request.processing}
+                                />
                             </Button>
                         )}
                     </div>

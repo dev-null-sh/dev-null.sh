@@ -26,7 +26,7 @@ final readonly class CreateCommitTranslation
     {
         $key = $this->translations->key($commit);
 
-        Cache::lock($key.':lock', 90)->block(35, function () use ($commit, $language, $key): void {
+        Cache::lock($key.':lock', 90)->block(5, function () use ($commit, $language, $key): void {
             $cached = $this->translations->cached($commit);
 
             if ($cached !== null && ($language === null || isset($cached['translations'][$language]) || in_array($cached['source_language'], [$language, 'und'], true))) {

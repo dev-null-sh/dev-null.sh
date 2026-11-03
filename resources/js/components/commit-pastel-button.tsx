@@ -47,7 +47,8 @@ export function CommitPastelButton({
     const busy = useRef(false);
     const emoji = useRef<HTMLImageElement>(null);
 
-    if (!auth.pasteis || !auth.user) {
+    // An organization's commits take no pastéis: they would go to whoever posted them.
+    if (!auth.pasteis || !auth.user || commit.author.type === 'organization') {
         return null;
     }
 

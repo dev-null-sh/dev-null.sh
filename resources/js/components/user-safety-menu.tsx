@@ -1,7 +1,8 @@
 import type { VisitOptions } from '@inertiajs/core';
-import { router } from '@inertiajs/react';
-import { Ban, Ellipsis, Volume2, VolumeX } from 'lucide-react';
+import { Link, router } from '@inertiajs/react';
+import { Ban, Ellipsis, MessagesSquare, Volume2, VolumeX } from 'lucide-react';
 import { useState } from 'react';
+import ConversationController from '@/actions/App/Http/Controllers/ConversationController';
 import UserBlockController from '@/actions/App/Http/Controllers/UserBlockController';
 import UserMuteController from '@/actions/App/Http/Controllers/UserMuteController';
 import { rememberBlock } from '@/components/follow-button';
@@ -19,27 +20,41 @@ import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
+    DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { useSharedState } from '@/hooks/use-shared-state';
 import { cn } from '@/lib/utils';
 import type { User } from '@/types';
 
+export function useIsMuting(
+    user: Pick<User, 'id'>,
+    isMuting: boolean,
+): [boolean, (isMuting: boolean) => void] {
+    return useSharedState(`is_muting:${user.id}`, isMuting);
+}
+
 export function UserSafetyMenu({
     user,
-    isMuting,
+    isMuting: initialIsMuting,
     isBlocking,
+    canPush = false,
     className,
     onOpenChange,
+    onBlockChange,
 }: {
     user: Pick<User, 'id' | 'handle'>;
     isMuting: boolean;
     isBlocking: boolean;
+    canPush?: boolean;
     className?: string;
     onOpenChange?: (isOpen: boolean) => void;
+    onBlockChange?: () => void;
 }) {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isConfirmingBlock, setIsConfirmingBlock] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
+    const [isMuting, setIsMuting] = useIsMuting(user, initialIsMuting);
 
     const changeOpen = (menu: boolean, dialog: boolean) => {
         setIsMenuOpen(menu);
@@ -47,14 +62,44 @@ export function UserSafetyMenu({
         onOpenChange?.(menu || dialog);
     };
 
-    const visit = (action: Parameters<typeof router.visit>[0]) => {
+    const visit = (
+        action: Parameters<typeof router.visit>[0],
+        options: Pick<
+            VisitOptions,
+            | 'onStart'
+            | 'onSuccess'
+            | 'onCancel'
+            | 'onNetworkError'
+            | 'onHttpException'
+        >,
+    ) => {
         visitSafety(action, {
-            onStart: () => setIsSaving(true),
+            ...options,
+            onStart: (visit) => {
+                setIsSaving(true);
+                options.onStart?.(visit);
+            },
             onFinish: () => {
                 setIsSaving(false);
                 changeOpen(false, false);
             },
         });
+    };
+
+    const toggleMute = () => {
+        const rollBack = () => setIsMuting(isMuting);
+
+        visit(
+            isMuting
+                ? UserMuteController.destroy(user)
+                : UserMuteController.store(user),
+            {
+                onStart: () => setIsMuting(!isMuting),
+                onCancel: rollBack,
+                onNetworkError: rollBack,
+                onHttpException: rollBack,
+            },
+        );
     };
 
     return (
@@ -76,16 +121,21 @@ export function UserSafetyMenu({
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-52">
-                    <DropdownMenuItem
-                        disabled={isSaving}
-                        onSelect={() =>
-                            visit(
-                                isMuting
-                                    ? UserMuteController.destroy(user)
-                                    : UserMuteController.store(user),
-                            )
-                        }
-                    >
+                    {canPush && (
+                        <>
+                            <DropdownMenuItem asChild>
+                                <Link
+                                    href={ConversationController.show(user)}
+                                    data-test="user-remote"
+                                >
+                                    <MessagesSquare />
+                                    Remote @{user.handle}
+                                </Link>
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                        </>
+                    )}
+                    <DropdownMenuItem disabled={isSaving} onSelect={toggleMute}>
                         {isMuting ? <Volume2 /> : <VolumeX />}
                         {isMuting
                             ? `Unmute @${user.handle}`
@@ -96,7 +146,9 @@ export function UserSafetyMenu({
                         disabled={isSaving}
                         onSelect={() =>
                             isBlocking
-                                ? visit(UserBlockController.destroy(user))
+                                ? visit(UserBlockController.destroy(user), {
+                                      onSuccess: () => onBlockChange?.(),
+                                  })
                                 : changeOpen(false, true)
                         }
                     >
@@ -112,6 +164,7 @@ export function UserSafetyMenu({
                 user={user}
                 open={isConfirmingBlock}
                 onOpenChange={(open) => changeOpen(false, open)}
+                onBlockChange={onBlockChange}
             />
         </>
     );
@@ -126,6 +179,7 @@ export function visitSafety(
 ): void {
     router.visit(action, {
         preserveScroll: true,
+        preserveState: true,
         ...options,
         onSuccess: (page) => {
             clearMentionSuggestionsCache();
@@ -133,6 +187,7 @@ export function visitSafety(
             onSuccess?.(page);
 
             router.flushAll();
+            router.reload({ only: ['hotTopics'] });
         },
     });
 }
@@ -141,10 +196,12 @@ export function BlockUserDialog({
     user,
     open,
     onOpenChange,
+    onBlockChange,
 }: {
     user: Pick<User, 'id' | 'handle'>;
     open: boolean;
     onOpenChange: (open: boolean) => void;
+    onBlockChange?: () => void;
 }) {
     const [isSaving, setIsSaving] = useState(false);
 
@@ -175,7 +232,10 @@ export function BlockUserDialog({
                                     setIsSaving(false);
                                     onOpenChange(false);
                                 },
-                                onSuccess: () => rememberBlock(user),
+                                onSuccess: () => {
+                                    rememberBlock(user);
+                                    onBlockChange?.();
+                                },
                             })
                         }
                         data-test="confirm-block-button"

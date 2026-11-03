@@ -70,7 +70,7 @@ async function render(
 }
 
 for (const isPreview of [false, true]) {
-     test(`renders a quoted code block highlighted ${isPreview ? 'in the composer' : 'in the log'}`, async () => {
+    test(`renders a quoted code block highlighted ${isPreview ? 'in the composer' : 'in the log'}`, async () => {
         const body = await render(isPreview);
 
         assert.match(body, /<pre[^>]*><span class="hl-keyword">return<\/span>/);
@@ -78,14 +78,14 @@ for (const isPreview of [false, true]) {
     });
 }
 
- test('keeps the quote a single link', async () => {
+test('keeps the quote a single link', async () => {
     const body = await render(false);
 
     assert.equal(body.match(/<a\b/g)?.length, 1);
     assert.doesNotMatch(body, /<button\b/);
 });
 
- test('shows the images, link card and embed of a quoted commit inside the single quote link', async () => {
+test('shows the images, link card and embed of a quoted commit inside the single quote link', async () => {
     const image = {
         id: 'image',
         url: '/storage/commit-images/sunset.webp',
@@ -132,7 +132,7 @@ for (const isPreview of [false, true]) {
     }
 });
 
- test('cuts a long quoted commit off at its preview', async () => {
+test('cuts a long quoted commit off at its preview', async () => {
     const body = await render(false, {
         ...commit,
         body: 'We now have long posts! You can write long articles on /dev/null.',
@@ -149,7 +149,7 @@ for (const isPreview of [false, true]) {
     assert.doesNotMatch(body, /long articles/);
 });
 
- test('shows the options of a quoted poll without letting anyone vote inside the quote', async () => {
+test('shows the options of a quoted poll without letting anyone vote inside the quote', async () => {
     const body = await render(false, { ...commit, poll });
 
     assert.match(body, /data-test="commit-poll"/);
@@ -159,7 +159,7 @@ for (const isPreview of [false, true]) {
     assert.doesNotMatch(body, /<(input|button|fieldset|label)\b/);
 });
 
- test('shows the results of a quoted poll once the viewer may see them', async () => {
+test('shows the results of a quoted poll once the viewer may see them', async () => {
     const body = await render(true, {
         ...commit,
         poll: {
@@ -175,4 +175,28 @@ for (const isPreview of [false, true]) {
 
     assert.match(body, />75<!-- -->%/);
     assert.match(body, /4 votes/);
+});
+
+test("tells who may see a rejected commit: the person who posted it, or the organization's members", async () => {
+    const personal = await render(false, { ...commit, status: 'rejected' });
+    const organizational = await render(false, {
+        ...commit,
+        status: 'rejected',
+        author: {
+            type: 'organization',
+            id: 'laravel',
+            handle: 'laravel',
+            name: 'Laravel',
+            lane: null,
+        },
+    } as QuotedCommitData);
+
+    assert.match(
+        personal,
+        /title="This commit was rejected. Only you can see it."/,
+    );
+    assert.match(
+        organizational,
+        /title="This commit was rejected. Only @laravel&#x27;s members can see it."/,
+    );
 });

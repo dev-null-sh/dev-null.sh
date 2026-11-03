@@ -361,6 +361,7 @@ function MemberRow({
         router.visit(OrganizationMemberController.update(route), {
             data: { role },
             preserveScroll: true,
+            preserveState: true,
             // Another admin may have changed the members since the page loaded...
             onError: (errors) => toast.error(Object.values(errors)[0]),
             onFinish: () => setPendingRole(null),
@@ -385,6 +386,7 @@ function MemberRow({
 
                 router.visit(OrganizationMemberController.destroy(route), {
                     preserveScroll: true,
+                    preserveState: true,
                     // A removal the server refused, as another admin left meanwhile, keeps the member listed...
                     onSuccess: (page) => {
                         isRemoved = !(
@@ -427,7 +429,11 @@ function MemberRow({
             <div className="min-h-0 overflow-hidden">
                 {/* On phones the controls get their own line under the name, which stays readable. */}
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3">
-                    <Link href={show(member.handle)} className="shrink-0">
+                    <Link
+                        href={show(member.handle)}
+                        prefetch
+                        className="shrink-0"
+                    >
                         <UserAvatar
                             user={member}
                             className="size-9"
@@ -439,6 +445,7 @@ function MemberRow({
                         <p className="truncate font-medium" title={member.name}>
                             <Link
                                 href={show(member.handle)}
+                                prefetch
                                 className="hover:underline"
                             >
                                 {member.name}

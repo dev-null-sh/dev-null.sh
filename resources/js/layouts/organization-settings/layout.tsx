@@ -42,6 +42,7 @@ export default function OrganizationSettingsLayout({
                     <h1 className="shrink-0 font-semibold">Settings</h1>
                     <Link
                         href={show(organization.handle)}
+                        prefetch
                         className="flex min-w-0 items-center gap-1.5 font-mono text-[13px] text-muted-foreground hover:text-foreground"
                     >
                         <OrganizationAvatar

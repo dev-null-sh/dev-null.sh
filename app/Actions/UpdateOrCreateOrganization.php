@@ -52,7 +52,7 @@ final readonly class UpdateOrCreateOrganization
             $organization = Organization::query()->firstOrCreate(['id' => $organizationProfile->id]);
 
             if ($organization->wasRecentlyCreated) {
-                $pending = DB::table('pending_organization_follows')->where('github_id', (string) $githubId);
+                $pending = DB::table('pending_follows')->where('github_id', (string) $githubId);
 
                 DB::table('organization_follows')->insertUsing(
                     ['user_id', 'organization_id', 'created_at'],

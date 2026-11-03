@@ -5,10 +5,10 @@ import { createInertiaApp } from '@inertiajs/react';
 import type { ComponentType } from 'react';
 import { renderToString } from 'react-dom/server';
 import { test } from 'vite-plus/test';
+import { SearchResults } from '../../resources/js/components/commit-search-results';
 import { RelatedCommitList } from '../../resources/js/components/related-commits';
 import { TooltipProvider } from '../../resources/js/components/ui/tooltip';
 import Reports from '../../resources/js/pages/moderation/reports';
-import { SearchResults } from '../../resources/js/pages/search/index';
 import type { Commit } from '../../resources/js/types';
 
 const commit = (id: string, lane: number): Commit =>
@@ -36,7 +36,7 @@ async function render(Page: ComponentType): Promise<string> {
     const result = await createInertiaApp({
         page: {
             component: 'test',
-            props: { auth: { user: null }, errors: {} },
+            props: { auth: { organizations: [], user: null }, errors: {} },
             url: '/',
             version: null,
             clearHistory: false,
