@@ -2,7 +2,6 @@
 
 declare(strict_types=1);
 
-use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\User;
 
 it("lists a user's followers", function (): void {
@@ -83,23 +82,6 @@ it('sends guests to the log, and back to the list once they sign in', function (
 
     expect(session('url.intended'))->toBe(route('user-followers.index', $user));
 });
-
-function loadedDigest(string $route, User $user, array $loaded): mixed
-{
-    return test()->get(route($route, ['user' => $user, 'loaded' => $loaded]), [
-        'X-Inertia' => 'true',
-        'X-Inertia-Version' => (string) resolve(HandleInertiaRequests::class)->version(request()),
-        'X-Inertia-Partial-Component' => 'user/connections',
-        'X-Inertia-Partial-Data' => 'loadedDigest',
-    ])->assertOk()->assertJsonMissingPath('props.users')->json('props.loadedDigest');
-}
-
-function digestOf(string ...$ids): string
-{
-    sort($ids, SORT_STRING);
-
-    return hash('sha256', implode(',', $ids));
-}
 
 it('names which people the loaded followers are, so a page can tell they changed even at the same size', function (): void {
     $user = User::factory()->create();
