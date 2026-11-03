@@ -2,6 +2,7 @@ import { router } from '@inertiajs/react';
 import type { ComponentProps, ReactNode } from 'react';
 import {
     createContext,
+    Fragment,
     useCallback,
     useContext,
     useId,
@@ -13,17 +14,21 @@ import {
 import { flushSync } from 'react-dom';
 import {
     bridgeDuration,
+    cutOuts,
     entranceDelay,
     entranceDraw,
     graphEdges,
     isOnScreen,
     leavingOf,
+    leavingRing,
+    lineArea,
     nodeIdentity,
     nodeStartsIn,
     sameNodes,
     scopedNodeId,
 } from '@/lib/graph';
 import type {
+    CutOut,
     Draw,
     GraphEdge,
     GraphNode,
@@ -676,6 +681,9 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
                 : graphEdges(nodes, new Set(entering.keys())),
         [edges, nodes, entering],
     );
+    const holes = useMemo(() => cutOuts(nodes, leaving), [nodes, leaving]);
+    const maskOf = (index: number) =>
+        index === 0 ? `${id}-nodes` : `${id}-nodes-${index}`;
     const clipOf = (row: number) =>
         row === -1 ? undefined : `url(#${id}-leaving-${row})`;
 
@@ -693,79 +701,41 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
                     data-test="graph-canvas"
                 >
                     <defs>
-                        <mask
-                            id={`${id}-nodes`}
-                            maskUnits="userSpaceOnUse"
-                            x={0}
-                            y={0}
-                            width={size.width}
-                            height={size.height}
-                        >
-                            <rect
-                                width={size.width}
-                                height={size.height}
-                                fill="white"
+                        {holes.map((cutOut, index) => (
+                            <NodeMask
+                                key={index}
+                                id={maskOf(index)}
+                                cutOut={cutOut}
+                                size={size}
+                                within={
+                                    index + 1 < holes.length
+                                        ? maskOf(index + 1)
+                                        : undefined
+                                }
+                                outside={
+                                    cutOut.row === undefined
+                                        ? undefined
+                                        : `${id}-outside-${cutOut.row}`
+                                }
                             />
-                            {nodes.map((node) => (
-                                <circle
-                                    key={node.id}
-                                    cx={node.x}
-                                    cy={node.y}
-                                    r={node.radius}
-                                    fill="black"
-                                    // A node on its way out scales out, and so does its cut-out, so the line
-                                    // running on through it shows as it goes.
-                                    className={
-                                        node.isLeaving
-                                            ? 'motion-safe:animate-node-out'
-                                            : undefined
-                                    }
-                                    style={
-                                        node.isLeaving
-                                            ? {
-                                                  transformBox: 'fill-box',
-                                                  transformOrigin: 'center',
-                                                  animationDuration: `${bridgeDuration}ms`,
-                                              }
-                                            : undefined
-                                    }
-                                    clipPath={clipOf(
-                                        leaving.findIndex((row) =>
-                                            row.ids.has(node.id),
-                                        ),
-                                    )}
-                                />
-                            ))}
-                            {nodes.flatMap((node) =>
-                                (node.overhangs ?? []).map(
-                                    (overhang, index) => (
-                                        <rect
-                                            key={`${node.id}-${index}`}
-                                            x={overhang.x}
-                                            y={overhang.y}
-                                            width={overhang.width}
-                                            height={overhang.height}
-                                            rx={overhang.radius}
-                                            fill="black"
-                                            clipPath={clipOf(
-                                                leaving.findIndex((row) =>
-                                                    row.ids.has(node.id),
-                                                ),
-                                            )}
-                                        />
-                                    ),
-                                ),
-                            )}
-                        </mask>
+                        ))}
                         {leaving.map((row, index) => (
-                            <clipPath key={index} id={`${id}-leaving-${index}`}>
-                                <rect
-                                    x={row.x}
-                                    y={row.y}
-                                    width={row.width}
-                                    height={row.height}
-                                />
-                            </clipPath>
+                            <Fragment key={index}>
+                                <clipPath id={`${id}-leaving-${index}`}>
+                                    <rect
+                                        x={row.x}
+                                        y={row.y}
+                                        width={row.width}
+                                        height={row.height}
+                                    />
+                                </clipPath>
+                                <clipPath id={`${id}-outside-${index}`}>
+                                    <path
+                                        d={`M 0 0 H ${size.width} V ${size.height} H 0 Z M ${row.x} ${row.y} h ${row.width} v ${row.height} h ${-row.width} Z`}
+                                        clipRule="evenodd"
+                                    />
+                                </clipPath>
+                            </Fragment>
                         ))}
                         {drawn.map((edge, index) => (
                             <EdgeDefs
@@ -825,6 +795,82 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
     );
 }
 
+/**
+ * Where the lines show, cut out by shape rather than by colour: an alpha mask holds whatever colours a dark mode
+ * extension paints over the page. Within the next cut-out's mask, all it shows, lines it lets back in included, shows
+ * only where that one does too, so their cut-outs add up.
+ */
+function NodeMask({
+    id,
+    cutOut,
+    size,
+    within,
+    outside,
+}: {
+    id: string;
+    cutOut: CutOut;
+    size: Size;
+    within?: string;
+    outside?: string;
+}) {
+    const { leaving } = cutOut;
+
+    return (
+        <>
+            <mask
+                id={id}
+                maskUnits="userSpaceOnUse"
+                x={0}
+                y={0}
+                width={size.width}
+                height={size.height}
+                style={{ maskType: 'alpha' }}
+            >
+                <g mask={within && `url(#${within})`}>
+                    <path
+                        d={lineArea(cutOut.holes, size.width, size.height)}
+                        fill="white"
+                        fillRule="evenodd"
+                    />
+                    {leaving && (
+                        // A ring around the node scales out with it: the line running on through it shows wherever
+                        // the node no longer covers it.
+                        <g clipPath={`url(#${id}-swell)`}>
+                            <circle
+                                cx={leaving.x}
+                                cy={leaving.y}
+                                r={leaving.radius * (1 + leavingRing / 2)}
+                                fill="none"
+                                stroke="white"
+                                strokeWidth={leaving.radius * leavingRing}
+                                className="motion-safe:animate-node-out-ring"
+                                style={{
+                                    transformBox: 'fill-box',
+                                    transformOrigin: 'center',
+                                    animationDuration: `${bridgeDuration}ms`,
+                                }}
+                            />
+                        </g>
+                    )}
+                    {outside && (
+                        // A cut-out in a collapsing row holds only within it.
+                        <path
+                            d={cutOut.holes.join(' ')}
+                            fill="white"
+                            clipPath={`url(#${outside})`}
+                        />
+                    )}
+                </g>
+            </mask>
+            {leaving && (
+                <clipPath id={`${id}-swell`}>
+                    <path d={cutOut.holes.join(' ')} />
+                </clipPath>
+            )}
+        </>
+    );
+}
+
 function EdgeDefs({
     id,
     edge,
@@ -858,7 +904,11 @@ function EdgeDefs({
     }
 
     return (
-        <mask id={`${id}-draw`} maskUnits="userSpaceOnUse">
+        <mask
+            id={`${id}-draw`}
+            maskUnits="userSpaceOnUse"
+            style={{ maskType: 'alpha' }}
+        >
             <path
                 ref={startAt}
                 d={edge.d}
