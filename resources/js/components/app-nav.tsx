@@ -110,7 +110,6 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
             title: 'Lists',
             href: hrefFor(() => UserListController.index()),
             icon: ListChecks,
-            prefetch: false,
         },
         ...(auth.isAdmin
             ? [
