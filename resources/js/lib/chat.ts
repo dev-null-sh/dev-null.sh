@@ -427,16 +427,49 @@ export class ChatRequestError extends Error {
 }
 
 /**
+ * A response that came back for remotes no longer watched, as after signing out or in as someone else: dropped before
+ * anything is written or shown, whether it succeeded or failed, and never applied to, nor retried for, whoever is
+ * watching now.
+ */
+class StaleRemotesError extends Error {}
+
+function isStaleRemotes(error: unknown): boolean {
+    return error instanceof StaleRemotesError;
+}
+
+/**
+ * Whether the remotes are still watched for the same account as when it was called.
+ */
+function ownership(): () => boolean {
+    const generation = remotesGeneration;
+    const owner = remotesOwner;
+
+    return () => generation === remotesGeneration && owner === remotesOwner;
+}
+
+/**
  * Sends JSON, or a form when there are files in it, which gets longer to upload.
  */
 export async function request<T>(
     url: string,
     method: 'GET' | 'POST' | 'PUT' | 'DELETE' = 'GET',
     body?: object | FormData,
+    isCurrent: () => boolean = () => true,
 ): Promise<T> {
     const isForm = body instanceof FormData;
     const socket = liveTransport.socketId?.() ?? null;
-    const response = await fetch(url, {
+    // Every outcome is checked against who asked, before it is told, shown or applied.
+    const owned = <V>(value: V): V => {
+        if (!isCurrent()) {
+            throw new StaleRemotesError();
+        }
+
+        return value;
+    };
+    const failed = (error: unknown): never => {
+        throw isCurrent() ? error : new StaleRemotesError();
+    };
+    const fetched = fetch(url, {
         method,
         headers: {
             Accept: 'application/json',
@@ -453,12 +486,15 @@ export async function request<T>(
         credentials: 'same-origin',
         signal: AbortSignal.timeout(isForm ? 60_000 : 10_000),
     });
+    const response = owned(await fetched.catch(failed));
 
     if (!response.ok) {
-        const body = (await response.json().catch(() => ({}))) as {
-            message?: string;
-            banned?: boolean;
-        };
+        const body = owned(
+            (await response.json().catch(() => ({}))) as {
+                message?: string;
+                banned?: boolean;
+            },
+        );
         const timeout = timeoutFrom(response.status, body);
 
         // A timeout or a ban stops every remote the same way, so the user is told wherever they tried...
@@ -471,27 +507,17 @@ export async function request<T>(
         throw new ChatRequestError(response.status, body);
     }
 
-    return (response.status === 204 ? null : await response.json()) as T;
+    return owned(
+        (response.status === 204
+            ? null
+            : await response.json().catch(failed)) as T,
+    );
 }
-
-/**
- * A response that came back for remotes no longer watched, as after signing out or in as someone else: it is
- * dropped before anything is written, never applied to, nor retried for, whoever is watching now.
- */
-class StaleRemotesError extends Error {}
 
 async function remotesRequest<T>(
     ...args: Parameters<typeof request>
 ): Promise<T> {
-    const generation = remotesGeneration;
-    const owner = remotesOwner;
-    const response = await request<T>(...args);
-
-    if (generation !== remotesGeneration || owner !== remotesOwner) {
-        throw new StaleRemotesError();
-    }
-
-    return response;
+    return request<T>(args[0], args[1], args[2], ownership());
 }
 
 function mergeMessages(current: Message[], incoming: Message[]): Message[] {
@@ -1930,10 +1956,22 @@ export function sendMessage(target: ChatTarget, draft: MessageDraft): void {
  */
 export async function sendPing(target: ChatTarget): Promise<void> {
     const key = targetKey(target);
-    const { message } = await remotesRequest<{ message: Message }>(
+    const sent = await remotesRequest<{ message: Message }>(
         urls(target).ping,
         'POST',
-    );
+    ).catch((error: unknown) => {
+        if (isStaleRemotes(error)) {
+            return null;
+        }
+
+        throw error;
+    });
+
+    if (sent === null) {
+        return;
+    }
+
+    const { message } = sent;
 
     lastActivity.set(key, Date.now());
     updateThread(key, (thread) => ({
@@ -2089,6 +2127,7 @@ export async function setMessagePinned(
     message: Message,
     isPinned: boolean,
 ): Promise<void> {
+    const isCurrent = ownership();
     const key = targetKey(target);
     const shown = state.threads[key]?.pinned ?? [];
     const index = shown.findIndex((item) => item.id === message.id);
@@ -2126,7 +2165,7 @@ export async function setMessagePinned(
         }
     } catch (error) {
         if (error instanceof StaleRemotesError) {
-            throw error;
+            return;
         }
 
         updateThread(key, (thread) => ({
@@ -2146,7 +2185,7 @@ export async function setMessagePinned(
             messagePinsInFlight.delete(key);
             newestPinnedMessages.delete(key);
 
-            if (newest !== undefined) {
+            if (newest !== undefined && isCurrent()) {
                 updateThread(key, (thread) =>
                     pinnedMessagesFrom(
                         key,
@@ -2211,7 +2250,7 @@ export function markThreadRead(target: ChatTarget): void {
 
     update({ conversations, unread: unreadOf(conversations) });
 
-    void request(urls(target).read, 'PUT', { through: latest }).catch(
+    void remotesRequest(urls(target).read, 'PUT', { through: latest }).catch(
         () => undefined,
     );
 }
@@ -2225,7 +2264,7 @@ export function pingTyping(target: ChatTarget): void {
     }
 
     lastTypingPing.set(key, now);
-    void request(urls(target).typing, 'PUT').catch(() => undefined);
+    void remotesRequest(urls(target).typing, 'PUT').catch(() => undefined);
 }
 
 const olderLoads = new Map<string, Promise<void>>();
@@ -2321,16 +2360,32 @@ export async function searchConversations(
 ): Promise<ConversationSummary[]> {
     const version = ++muteVersion;
     const pinsVersion = ++pinVersion;
+    const isCurrent = ownership();
     const response = await fetch(
         InboxController.index.url({ query: { q: term, tab } }),
         { headers: { Accept: 'application/json' }, cache: 'no-store', signal },
-    );
+    ).catch((error: unknown) => {
+        if (!isCurrent()) {
+            return null;
+        }
+
+        throw error;
+    });
+
+    if (response === null || !isCurrent()) {
+        return [];
+    }
 
     if (!response.ok) {
         throw new Error(`Conversation search failed: ${response.status}`);
     }
 
     const { conversations } = (await response.json()) as InboxPage;
+
+    if (!isCurrent()) {
+        return [];
+    }
+
     update({
         pinPreferences: withPinPreferences(
             conversations.map((item) => [summaryKey(item), item.pinned_at]),
@@ -2356,18 +2411,23 @@ export async function searchCandidates(
     scope: { for: 'remote' | 'org' | 'share' } | { org: string },
     signal: AbortSignal,
 ): Promise<Candidate[]> {
+    const isCurrent = ownership();
     const response = await fetch(
         RemoteCandidateController.index.url({ query: { q: term, ...scope } }),
         { headers: { Accept: 'application/json' }, cache: 'no-store', signal },
     );
 
-    if (!response.ok) {
+    if (!response.ok || !isCurrent()) {
         return [];
     }
 
     const { candidates } = (await response.json()) as {
         candidates: Candidate[];
     };
+
+    if (!isCurrent()) {
+        return [];
+    }
 
     return candidates.toSorted(
         (a, b) => Number(a.reason !== null) - Number(b.reason !== null),
@@ -2531,10 +2591,18 @@ export async function setConversationPinned(
         'PUT',
         { pinned },
     ).catch((error: unknown) => {
+        if (isStaleRemotes(error)) {
+            return null;
+        }
+
         applyConversationPin(key, previous);
 
         throw error;
     });
+
+    if (preference === null) {
+        return;
+    }
 
     invalidateConversationPages();
     applyConversationPin(key, preference.pinned_at);
@@ -2582,12 +2650,18 @@ export async function setConversationMute(
         'PUT',
         { duration },
     ).catch((error: unknown) => {
+        if (isStaleRemotes(error)) {
+            return null;
+        }
+
         applyConversationMute(key, previous);
 
         throw error;
     });
 
-    applyConversationMute(key, preference.muted_until_at);
+    if (preference !== null) {
+        applyConversationMute(key, preference.muted_until_at);
+    }
 }
 
 /**
@@ -2595,6 +2669,7 @@ export async function setConversationMute(
  * that conversation no longer exists for either of them.
  */
 export async function blockPartner(partner: User): Promise<boolean> {
+    const isCurrent = ownership();
     const response = await fetch(UserBlockController.store.url(partner), {
         method: 'POST',
         headers: {
@@ -2607,6 +2682,7 @@ export async function blockPartner(partner: User): Promise<boolean> {
 
     if (
         response === null ||
+        !isCurrent() ||
         (response.type !== 'opaqueredirect' && !response.ok)
     ) {
         return false;
@@ -2631,13 +2707,24 @@ export async function blockPartner(partner: User): Promise<boolean> {
 export async function createOrg(
     name: string,
     members: string[],
-): Promise<OrgRef> {
-    const { org } = await remotesRequest<{ org: { id: string } }>(
+): Promise<OrgRef | null> {
+    const created = await remotesRequest<{ org: { id: string } }>(
         OrgController.store.url(),
         'POST',
         { name, members },
-    );
+    ).catch((error: unknown) => {
+        if (isStaleRemotes(error)) {
+            return null;
+        }
 
+        throw error;
+    });
+
+    if (created === null) {
+        return null;
+    }
+
+    const { org } = created;
     void pollInbox();
 
     return { id: org.id, name: name.trim() || null };
@@ -2654,15 +2741,26 @@ export async function renameOrg(org: OrgRef, name: string): Promise<void> {
 
     updateThread(key, () => ({ target: { kind: 'org', org: renamed } }));
 
-    await remotesRequest(OrgController.update.url({ org: org.id }), 'PUT', {
-        name,
-    }).catch((error: unknown) => {
-        updateThread(key, () => ({ target: { kind: 'org', org } }));
+    const isRenamed = await remotesRequest(
+        OrgController.update.url({ org: org.id }),
+        'PUT',
+        { name },
+    ).then(
+        () => true,
+        (error: unknown) => {
+            if (isStaleRemotes(error)) {
+                return false;
+            }
 
-        throw error;
-    });
+            updateThread(key, () => ({ target: { kind: 'org', org } }));
 
-    await refreshOrg(renamed);
+            throw error;
+        },
+    );
+
+    if (isRenamed) {
+        await refreshOrg(renamed);
+    }
 }
 
 async function changeOrgMembers(
@@ -2675,13 +2773,22 @@ async function changeOrgMembers(
 
     updateThread(key, (thread) => ({ members: change(thread.members) }));
 
-    await save().catch((error: unknown) => {
-        updateThread(key, () => ({ members: previous }));
+    const isSaved = await save().then(
+        () => true,
+        (error: unknown) => {
+            if (isStaleRemotes(error)) {
+                return false;
+            }
 
-        throw error;
-    });
+            updateThread(key, () => ({ members: previous }));
 
-    await refreshOrg(org);
+            throw error;
+        },
+    );
+
+    if (isSaved) {
+        await refreshOrg(org);
+    }
 }
 
 export async function addOrgMembers(
@@ -2689,15 +2796,27 @@ export async function addOrgMembers(
     members: string[],
     sharesHistory: boolean,
 ): Promise<void> {
-    await remotesRequest(
+    const isAdded = await remotesRequest(
         OrgMemberController.store.url({ org: org.id }),
         'POST',
         {
             members,
             share_history: sharesHistory,
         },
+    ).then(
+        () => true,
+        (error: unknown) => {
+            if (isStaleRemotes(error)) {
+                return false;
+            }
+
+            throw error;
+        },
     );
-    await refreshOrg(org);
+
+    if (isAdded) {
+        await refreshOrg(org);
+    }
 }
 
 export async function setOrgMemberRole(
@@ -2712,7 +2831,7 @@ export async function setOrgMemberRole(
                 item.user.id === member.id ? { ...item, role } : item,
             ),
         () =>
-            request(
+            remotesRequest(
                 OrgMemberController.update.url({
                     org: org.id,
                     member: member.handle,
@@ -2732,7 +2851,7 @@ export async function removeOrgMember(
     isLeaving: boolean,
 ): Promise<void> {
     const remove = () =>
-        request(
+        remotesRequest(
             OrgMemberController.destroy.url({
                 org: org.id,
                 member: member.handle,
