@@ -44,7 +44,7 @@ const request: ConversationSummary = {
 
 const directThread: Thread = {
     messages: [],
-    has_older: false, has_newer: false,
+    has_older: false,
     reactions_version: 0,
     reaction_changes: [],
     read_through_id: 0,
@@ -67,7 +67,7 @@ const contributor: OrgMember = {
 
 const orgThread: OrgThread = {
     messages: [],
-    has_older: false, has_newer: false,
+    has_older: false,
     reactions_version: 0,
     reaction_changes: [],
     read_through_id: 0,

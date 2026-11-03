@@ -1032,3 +1032,32 @@ it('lists replies in pages of any size up to 50', function (int $limit, int $sta
     'none' => [0, 422],
     'too many' => [51, 422],
 ]);
+
+it('reads again only the replies a thread heard changed, leaving out those the viewer may no longer see', function (): void {
+    $viewer = User::factory()->create();
+    $commit = Commit::factory()->create();
+    $kept = Commit::factory()->for($commit, 'parent')->create();
+    $hidden = Commit::factory()->for($commit, 'parent')->pending()->create();
+    $deleted = Commit::factory()->for($commit, 'parent')->create();
+    $deleted->delete();
+    $quote = Commit::factory()->create(['quoted_commit_id' => $commit->id]);
+    $unrelated = Commit::factory()->create();
+
+    $response = $this->actingAs($viewer)->getJson(route('commit-reply.index', [
+        'commit' => $commit,
+        'ids' => [$kept->id, $hidden->id, $deleted->id, $quote->id, $unrelated->id],
+    ]))->assertOk();
+
+    expect($response->json('data.*.id'))->toEqualCanonicalizing([$kept->id, $quote->id])
+        ->and($response->json('parent'))->toBe(['id' => $commit->id, 'replies_count' => 2]);
+});
+
+it('counts the replies of a deleted commit that stays in its thread', function (): void {
+    $commit = Commit::factory()->create();
+    $reply = Commit::factory()->for($commit, 'parent')->create();
+    $commit->delete();
+
+    $this->getJson(route('commit-reply.index', ['commit' => $commit, 'ids' => [$reply->id]]))
+        ->assertOk()
+        ->assertJsonPath('parent.replies_count', 1);
+});

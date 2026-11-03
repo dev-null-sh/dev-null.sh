@@ -7,7 +7,7 @@ import type { Message, Thread, User } from '../../resources/js/types';
 let sequence = 0;
 const message = (id: number) => ({ id, user_id: 'partner', client_id: `message-${id}` }) as Message;
 const page = (ids: number[], hasOlder = true): Thread => ({
-    messages: ids.map(message), has_older: hasOlder, has_newer: false, reactions_version: 0, reaction_changes: [],
+    messages: ids.map(message), has_older: hasOlder, reactions_version: 0, reaction_changes: [],
     read_through_id: 0, partner_read_through_id: 0, partner_read_at: null,
     partner_typing: false, is_archived: false, pinned_at: null, muted_until_at: null, access: 'open',
 });

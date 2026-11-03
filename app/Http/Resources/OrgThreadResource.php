@@ -21,7 +21,6 @@ use Illuminate\Http\Resources\Json\JsonResource;
  *     org: Conversation,
  *     messages: OrgThread['messages'],
  *     has_older: OrgThread['has_older'],
- *     has_newer: OrgThread['has_newer'],
  *     reactions_version: OrgThread['reactions_version'],
  *     reaction_changes: OrgThread['reaction_changes'],
  *     pinned: OrgThread['pinned'],

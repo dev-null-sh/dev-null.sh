@@ -1,10 +1,11 @@
 import { useHttp, usePage } from '@inertiajs/react';
 import { Languages } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import CommitTranslationController from '@/actions/App/Http/Controllers/CommitTranslationController';
 import { useCommitNotFound } from '@/hooks/use-deleted-resources';
 import { signIn } from '@/lib/auth';
+import { coalesce, commitChannel, listen } from '@/lib/realtime';
 import type { Commit, CommitTranslation } from '@/types';
 
 export function useCommitTranslation(commit: Commit) {
@@ -32,6 +33,47 @@ export function useCommitTranslation(commit: Commit) {
         (display === 'translated' ||
             (display === null && auth.automaticTranslation)) &&
         translation?.translated;
+    const language = translation?.language ?? null;
+    const isApproved = commit.status === 'approved';
+
+    // A translation finished for someone else is read again in this reader's language; showing the original stays.
+    useEffect(() => {
+        if (!isApproved || language === null) {
+            return;
+        }
+
+        const controller = new AbortController();
+        const body = commit.body;
+        const read = coalesce(async () => {
+            const response = await fetch(
+                CommitTranslationController.show.url(commit.id, {
+                    query: { language },
+                }),
+                {
+                    headers: { Accept: 'application/json' },
+                    cache: 'no-store',
+                    signal: controller.signal,
+                },
+            );
+
+            if (response.ok) {
+                const fresh = (await response.json()) as {
+                    translation: CommitTranslation | null;
+                };
+
+                setGenerated({ body, translation: fresh.translation });
+            }
+        }, 500);
+        const stop = listen(commitChannel(commit.id), {
+            translation: read.request,
+        });
+
+        return () => {
+            stop();
+            read.cancel();
+            controller.abort();
+        };
+    }, [commit.id, commit.body, isApproved, language]);
 
     const translate = async () => {
         setBodyHeight(bodyRef.current?.getBoundingClientRect().height);

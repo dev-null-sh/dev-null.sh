@@ -28,3 +28,17 @@ void test('notifies subscribers once per newly deleted resource', () => {
 
     assert.equal(notifications, 2);
 });
+
+void test('gives a commit its actions back once it is heard to be back, as after undoing its deletion', () => {
+    const deleted = createDeletedResources();
+    let notifications = 0;
+    deleted.subscribe(() => notifications++);
+
+    deleted.markCommit('commit');
+    deleted.restoreCommit('commit');
+    deleted.restoreCommit('commit');
+    deleted.restoreCommit('never-deleted');
+
+    assert.equal(deleted.hasCommit('commit'), false);
+    assert.equal(notifications, 2);
+});

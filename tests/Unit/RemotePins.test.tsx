@@ -64,7 +64,7 @@ test('pins and unpins straight away, then settles on the pin time the server sav
     const target = orgTarget(older);
     seedThread(target, {
         messages: [],
-        has_older: false, has_newer: false,
+        has_older: false,
         reactions_version: 0,
         reaction_changes: [],
         read_through_id: 0,

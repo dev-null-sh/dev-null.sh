@@ -183,6 +183,10 @@ const listeningInboxPoll = 60_000;
  * Typing is only announced when it starts, so an indicator is read again once it would have expired on the server.
  */
 const typingRecheck = 5_500;
+/**
+ * The most messages one read after a message brings: a full one means there may be more.
+ */
+const catchUpPage = 100;
 
 const listOf = {
     open: 'conversations',
@@ -1525,7 +1529,7 @@ async function pollThread(target: ChatTarget): Promise<void> {
     recheckTyping(target, isTyping);
 
     // A read after a message only brings so many, so whoever was away for longer keeps reading until caught up.
-    if (fresh.has_newer) {
+    if (after !== null && fresh.messages.length >= catchUpPage) {
         await pollThread(target);
     }
 }

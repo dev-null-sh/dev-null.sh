@@ -80,6 +80,7 @@ import { focusCommit } from '@/hooks/use-keyboard-shortcuts';
 import { useLinkCard } from '@/hooks/use-link-card';
 import { useNow } from '@/hooks/use-now';
 import { useOwnsCommit } from '@/hooks/use-owns-commit';
+import { idsOf } from '@/hooks/use-realtime';
 import { useSharedState } from '@/hooks/use-shared-state';
 import { moveCaretToEnd, useHasStash, useStash } from '@/hooks/use-stash';
 import { useUser } from '@/hooks/use-user';
@@ -93,6 +94,8 @@ import {
 import { commitStateKey } from '@/lib/commit-state';
 import { hasModKey } from '@/lib/keyboard';
 import { exactCountTitle, formatCount } from '@/lib/numbers';
+import { coalesce, commitChannel, isListening, listen } from '@/lib/realtime';
+import { reconcileReplies } from '@/lib/thread-replies';
 import {
     characterCount,
     cn,
@@ -482,6 +485,123 @@ export function useThread(
             reload(replies.some((reply) => reply.id === restored.id) ? 0 : 1);
         }
     });
+
+    /**
+     * Reads again only the replies another client changed, so a long thread never reads all it loaded for each one.
+     * False while the thread is loading, whose response would override it, to try again after.
+     */
+    const reconcile = useEffectEvent(
+        async (ids: string[]): Promise<boolean> => {
+            if (replies === null) {
+                return true;
+            }
+
+            if (isLoading) {
+                return false;
+            }
+
+            const request = replyRequest.current;
+            const response = await fetch(
+                CommitReplyController.index(commit, {
+                    query: {
+                        ids,
+                        newest: isPreview ? 1 : 0,
+                        ...(except ? { except } : {}),
+                    },
+                }).url,
+                {
+                    headers: {
+                        Accept: 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                },
+            );
+
+            if (!response.ok) {
+                return true;
+            }
+
+            const page = (await response.json()) as {
+                data: ThreadCommit[];
+                parent: { replies_count: number };
+            };
+
+            if (request !== replyRequest.current) {
+                return true;
+            }
+
+            setThread((current) => ({
+                ...current,
+                replies:
+                    current.replies === null
+                        ? null
+                        : reconcileReplies(
+                              current.replies,
+                              current.nextCursor !== null,
+                              ids,
+                              page.data,
+                              isPreview,
+                          ),
+            }));
+            setCount(page.parent.replies_count);
+
+            return true;
+        },
+    );
+    const onReconnected = useEffectEvent(() => {
+        if (replies !== null) {
+            reload();
+        }
+    });
+    const isLoaded = replies !== null;
+
+    useEffect(() => {
+        if (!isLoaded) {
+            return;
+        }
+
+        const channel = commitChannel(commitId);
+        const changed = new Set<string>();
+        let hasJoined = isListening(channel);
+        const refresh = coalesce(async () => {
+            const ids = [...changed].slice(0, maxRepliesPerRequest);
+            ids.forEach((id) => changed.delete(id));
+
+            if (!(await reconcile(ids).catch(() => true))) {
+                ids.forEach((id) => changed.add(id));
+            }
+
+            if (changed.size > 0) {
+                refresh.request();
+            }
+        }, 250);
+        const stop = listen(
+            channel,
+            {
+                visibility: (payload) => {
+                    idsOf(payload)
+                        .filter((id) => id !== commitId)
+                        .forEach((id) => changed.add(id));
+
+                    if (changed.size > 0) {
+                        refresh.request();
+                    }
+                },
+            },
+            () => {
+                if (hasJoined) {
+                    onReconnected();
+                }
+
+                hasJoined = true;
+            },
+        );
+
+        return () => {
+            stop();
+            refresh.cancel();
+        };
+    }, [commitId, isLoaded]);
 
     useEffect(
         () =>
@@ -1299,6 +1419,7 @@ function CommitReply({
                                     reply.id,
                                 )}
                                 preview={reply.link_preview}
+                                source={{ commitId: reply.id }}
                             />
                         )}
                     <ShowThreadLink thread={thread} />

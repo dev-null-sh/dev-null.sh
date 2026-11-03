@@ -52,9 +52,10 @@ final readonly class LogController
             'newCommitsCount' => Inertia::optional(function () use ($request, $user, $log, $latest): int {
                 $seen = $request->since();
 
-                return $seen instanceof Commit ? $latest->count($log, $user, $seen) : 0;
+                return $seen instanceof Commit || $request->boolean('everything') ? $latest->count($log, $user, $seen) : 0;
             }),
             'removedCommitIds' => Inertia::optional(fn (): array => $latest->missing($log, $user, $request->pending())),
+            'arrivedCommitIds' => Inertia::optional(fn (): array => $latest->arrived($log, $user, $request->arrived(), $request->through())),
             'suggestions' => fn (): Collection => $user instanceof User && $log === Log::Following && ! $user->following()->exists()
                 ? $suggested->get($user)
                 : new Collection(),

@@ -836,3 +836,49 @@ it('rejects malformed pending commit identifiers', function (array $pending, str
     [['pending' => 'bad'], 'pending'],
     [['pending' => ['bad']], 'pending.0'],
 ]);
+
+/**
+ * @param  array<string, mixed>  $query
+ * @param  array<string, string>  $headers
+ */
+function probeLog(Log $log, string $props, array $query, array $headers = []): Illuminate\Testing\TestResponse
+{
+    return test()->get(route('log.show', [$log, ...$query]), [
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) resolve(HandleInertiaRequests::class)->version(request()),
+        'X-Inertia-Partial-Component' => 'log/show',
+        'X-Inertia-Partial-Data' => $props,
+        ...$headers,
+    ])->assertOk();
+}
+
+it('counts the first commits of a log that showed none yet', function (): void {
+    $this->actingAs(User::factory()->create());
+    Commit::factory()->count(2)->create();
+
+    probeLog(Log::Latest, 'newCommitsCount', ['everything' => 1])->assertJsonPath('props.newCommitsCount', 2);
+    probeLog(Log::Latest, 'newCommitsCount', [])->assertJsonPath('props.newCommitsCount', 0);
+});
+
+it('finds the older commits approved since that belong among the ones loaded, but not newer or unseen ones', function (): void {
+    $this->actingAs(User::factory()->create());
+    $oldest = Commit::factory()->create(['created_at' => now()->subHours(3)]);
+    $approvedOlder = Commit::factory()->create(['created_at' => now()->subHours(2)]);
+    $tooOld = Commit::factory()->create(['created_at' => now()->subHours(5)]);
+    $pending = Commit::factory()->pending()->create(['created_at' => now()->subHour()]);
+
+    probeLog(Log::Latest, 'arrivedCommitIds', ['arrived' => [$approvedOlder->id, $tooOld->id, $pending->id]], ['X-Log-Through' => $oldest->id])
+        ->assertJsonPath('props.arrivedCommitIds', [$approvedOlder->id]);
+    probeLog(Log::Trending, 'arrivedCommitIds', ['arrived' => [$approvedOlder->id]], ['X-Log-Through' => $oldest->id])
+        ->assertJsonPath('props.arrivedCommitIds', []);
+});
+
+it('tells the trending log which loaded commits are gone without ranking it again', function (): void {
+    $this->actingAs(User::factory()->create());
+    $stays = Commit::factory()->create(['created_at' => now()->subMonths(2)]);
+    $deleted = Commit::factory()->create();
+    $deleted->delete();
+
+    probeLog(Log::Trending, 'removedCommitIds', ['pending' => [$stays->id, $deleted->id]])
+        ->assertJsonPath('props.removedCommitIds', [$deleted->id]);
+});

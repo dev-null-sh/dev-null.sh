@@ -25,8 +25,11 @@ final class ShowLogRequest extends FormRequest
         return [
             'since' => ['nullable', 'uuid'],
             'through' => ['nullable', 'uuid'],
-            'pending' => ['sometimes', 'array', 'list'],
+            'pending' => ['sometimes', 'array', 'list', 'max:100'],
             'pending.*' => ['required', 'uuid', 'distinct'],
+            'arrived' => ['sometimes', 'array', 'list', 'max:100'],
+            'arrived.*' => ['required', 'uuid', 'distinct'],
+            'everything' => ['sometimes', 'boolean'],
         ];
     }
 
@@ -70,6 +73,20 @@ final class ShowLogRequest extends FormRequest
         $pending = $this->validated('pending', []);
 
         return $pending;
+    }
+
+    /**
+     * Commits the log heard about that it doesn't show, which may belong among the ones it does, as when an older one
+     * was approved.
+     *
+     * @return list<string>
+     */
+    public function arrived(): array
+    {
+        /** @var list<string> $arrived */
+        $arrived = $this->validated('arrived', []);
+
+        return $arrived;
     }
 
     public function prepareForValidation(): void

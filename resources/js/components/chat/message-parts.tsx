@@ -151,6 +151,7 @@ export function MessageLinkCard({ message }: { message: Message }) {
             <LinkPreview
                 refreshUrl={MessageLinkPreviewController.show.url(message.id)}
                 preview={message.link_preview}
+                source={{ isMessage: true }}
             />
         </div>
     );

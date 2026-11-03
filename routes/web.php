@@ -22,6 +22,7 @@ use App\Http\Controllers\CommitOpenGraphImageController;
 use App\Http\Controllers\CommitPastelController;
 use App\Http\Controllers\CommitPhotoController;
 use App\Http\Controllers\CommitPinController;
+use App\Http\Controllers\CommitPollController;
 use App\Http\Controllers\CommitPollVoteController;
 use App\Http\Controllers\CommitPreviewController;
 use App\Http\Controllers\CommitRejectionController;
@@ -305,6 +306,12 @@ Route::get('commits/{commit}/link-preview', [CommitLinkPreviewController::class,
     ->name('commit-link-preview.show');
 Route::get('commits/{commit}/status', [CommitStatusController::class, 'show'])
     ->name('commit-status.show');
+Route::get('commits/{commit}/translation', [CommitTranslationController::class, 'show'])
+    ->middleware('throttle:60,1')
+    ->name('commit-translation.show');
+Route::get('commits/{commit}/poll', [CommitPollController::class, 'show'])
+    ->middleware('throttle:60,1')
+    ->name('commit-poll.show');
 Route::get('commits/{commit}/replies', [CommitReplyController::class, 'index'])
     ->withTrashed()
     ->name('commit-reply.index');

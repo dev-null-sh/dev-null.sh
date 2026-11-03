@@ -4,6 +4,7 @@ import { ArrowUp } from 'lucide-react';
 import {
     useCallback,
     useEffect,
+    useEffectEvent,
     useLayoutEffect,
     useRef,
     useState,
@@ -22,9 +23,11 @@ import { useComposerVisibility } from '@/hooks/use-composer-visibility';
 import { useLaneSwipe } from '@/hooks/use-lane-swipe';
 import { useLastVisit } from '@/hooks/use-last-visit';
 import { useOwnsCommit } from '@/hooks/use-owns-commit';
+import { idsOf, useIsListening } from '@/hooks/use-realtime';
 import AppLayout from '@/layouts/app-layout';
 import { backgroundPollOptions } from '@/lib/background-poll';
 import { emojify } from '@/lib/emoji';
+import { coalesce, isListening, listen, logChannel } from '@/lib/realtime';
 import { cn } from '@/lib/utils';
 import type { Commit, CursorPaginated, Log } from '@/types';
 
@@ -342,6 +345,11 @@ export default function Show({
         }
 
         const known = new Set(commits.data.map((commit) => commit.id));
+        const firstKnownIndex = (incoming: Commit[]) => {
+            const index = incoming.findIndex((commit) => known.has(commit.id));
+
+            return index === -1 ? incoming.length : index;
+        };
         loadingNew.current = true;
         router.reload(
             backgroundPollOptions({
@@ -357,10 +365,14 @@ export default function Show({
                 onSuccess: (page) => {
                     const incoming = page.props
                         .commits as CursorPaginated<Commit>;
-                    const arrivals = incoming.data.filter(
-                        (commit) =>
-                            !known.has(commit.id) && !ownsCommit(commit),
-                    );
+                    // Only what came in above the commits already shown is news: older ones approved since are
+                    // placed among them without a notice.
+                    const arrivals = incoming.data
+                        .slice(0, firstKnownIndex(incoming.data))
+                        .filter(
+                            (commit) =>
+                                !known.has(commit.id) && !ownsCommit(commit),
+                        );
                     if (
                         arrivals.length === 0 ||
                         (document.visibilityState === 'visible' &&
@@ -391,16 +403,35 @@ export default function Show({
         );
     };
 
-    const { stop: stopPolling } = usePoll(
-        30_000,
-        backgroundPollOptions(() => ({
-            only: ['newCommitsCount', 'removedCommitIds'],
+    /**
+     * Asks whether the log has new commits, and which of the commits it shows, or heard about, changed: the ones
+     * gone leave, and older ones approved since are placed among the rest. A log that shows nothing yet asks for
+     * everything, so its first commit is found too.
+     */
+    const probeOptions = (heard: string[] = []) => {
+        const loaded = new Set(commits.data.map((commit) => commit.id));
+        const arrived = isRanked ? [] : heard.filter((id) => !loaded.has(id));
+
+        return backgroundPollOptions(() => ({
+            only: [
+                'newCommitsCount',
+                'removedCommitIds',
+                ...(arrived.length > 0 ? ['arrivedCommitIds'] : []),
+            ],
             data: {
                 since: newestId,
-                pending: notice?.leaving
-                    ? []
-                    : (notice?.commits.map((commit) => commit.id) ?? []),
+                ...(newestId === undefined && !isRanked
+                    ? { everything: 1 }
+                    : {}),
+                pending: [
+                    ...(notice?.leaving
+                        ? []
+                        : (notice?.commits.map((commit) => commit.id) ?? [])),
+                    ...heard.filter((id) => loaded.has(id)),
+                ].slice(0, 100),
+                arrived: arrived.slice(0, 100),
             },
+            headers: { 'X-Log-Through': oldestLoadedId ?? '' },
             preserveUrl: true,
             onSuccess: (page) => {
                 const removed = new Set(
@@ -431,11 +462,73 @@ export default function Show({
                         },
                     );
                 }
-                loadNewest(page.props.newCommitsCount as number);
+                loadNewest(
+                    Math.max(
+                        page.props.newCommitsCount as number,
+                        (
+                            (page.props.arrivedCommitIds as
+                                | string[]
+                                | undefined) ?? []
+                        ).length,
+                    ),
+                );
             },
-        })),
-        { autoStart: newestId !== undefined },
+        }));
+    };
+
+    const canPoll = !isRanked;
+    const isHearingLog = useIsListening(logChannel);
+    const { start: startPolling, stop: stopPolling } = usePoll(
+        30_000,
+        probeOptions(),
+        { autoStart: false },
     );
+
+    // Polling only backs live updates up: it runs while they aren't heard.
+    useEffect(() => {
+        if (canPoll && !isHearingLog) {
+            startPolling();
+        } else {
+            stopPolling();
+        }
+    }, [canPoll, isHearingLog, startPolling, stopPolling]);
+
+    const probe = useEffectEvent((heard: string[]) => {
+        router.reload(probeOptions(heard)());
+    });
+
+    useEffect(() => {
+        const heard = new Set<string>();
+        let hasJoined = isListening(logChannel);
+        const refresh = coalesce(async () => {
+            const ids = [...heard];
+            heard.clear();
+            probe(ids);
+        }, 1_000);
+
+        const stop = listen(
+            logChannel,
+            {
+                visibility: (payload) => {
+                    idsOf(payload).forEach((id) => heard.add(id));
+                    refresh.request();
+                },
+            },
+            () => {
+                // Joining again after a dropped connection catches up on what was missed meanwhile.
+                if (hasJoined) {
+                    refresh.request();
+                }
+
+                hasJoined = true;
+            },
+        );
+
+        return () => {
+            stop();
+            refresh.cancel();
+        };
+    }, [log]);
 
     // Showing a log remembers it, so pages prefetched before it still carry the previous log in their shared props.
     useEffect(() => {

@@ -43,7 +43,6 @@ const orgThread = (
 ) => ({
     messages,
     has_older: false,
-    has_newer: false,
     reactions_version: 0,
     reaction_changes: [],
     read_through_id: 0,
@@ -244,7 +243,7 @@ test('reconnecting drains every message missed in between, beyond a single read'
             .filter(({ id }) => id > after)
             .slice(0, 100);
 
-        return orgThread('drain', missed, { has_newer: missed.at(-1)?.id !== 151 });
+        return orgThread('drain', missed);
     });
     stops.push(watchRemoteUpdates('me'), watchThread(target));
     await vi.advanceTimersByTimeAsync(0);
@@ -263,6 +262,7 @@ test('reconnecting drains every message missed in between, beyond a single read'
         threadReads('drain').slice(-2).map(({ url }) => url.searchParams.get('after')),
         ['1', '101'],
     );
+    assert.equal(threadReads('drain').at(-1)?.url.searchParams.get('after'), '101');
 });
 
 test('typing that stops without another message expires on its own', async () => {

@@ -521,3 +521,19 @@ it('lets readers translate on demand after disabling automatic translations with
     $this->actingAs($other)->get(route('commit.show', ['profile' => $commit->user, 'commit' => $commit]))
         ->assertInertia(fn ($page) => $page->where('auth.automaticTranslation', true));
 });
+
+it('reads a finished translation again in each reader\'s own language, without translating anything itself', function (): void {
+    $this->mock(TranslationProvider::class)->shouldReceive('translate')->once()->with('Guten morgen', 'pt')
+        ->andReturn(['source_language' => 'de', 'body' => 'Bom dia']);
+    $commit = Commit::factory()->create(['body' => 'Guten morgen']);
+    resolve(CreateCommitTranslation::class)->handle($commit, 'pt');
+
+    $this->getJson(route('commit-translation.show', [$commit, 'language' => 'pt']))
+        ->assertOk()->assertHeader('Cache-Control', 'no-store, private')
+        ->assertJsonPath('translation.translated.body_segments.0.text', 'Bom dia');
+    $this->getJson(route('commit-translation.show', [$commit, 'language' => 'en']))
+        ->assertOk()
+        ->assertJsonPath('translation.language', 'en')
+        ->assertJsonPath('translation.translated', null);
+    $this->getJson(route('commit-translation.show', Commit::factory()->pending()->create()).'?language=en')->assertNotFound();
+});
