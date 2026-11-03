@@ -6,6 +6,8 @@ namespace App\Actions;
 
 use App\Enums\ModerationReason;
 use App\Enums\TimeoutDuration;
+use App\Enums\UserUpdate;
+use App\Events\UsersUpdated;
 use App\Models\User;
 use App\Models\UserTimeout;
 
@@ -16,6 +18,8 @@ final readonly class CreateUserTimeout
      */
     public function handle(User $user, ModerationReason $reason, TimeoutDuration $duration): UserTimeout
     {
+        UsersUpdated::dispatch([$user->id], UserUpdate::Account);
+
         return $user->timeouts()->create([
             'reason' => $reason,
             'ends_at' => now()->addMinutes($duration->value),

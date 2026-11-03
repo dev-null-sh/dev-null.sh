@@ -181,11 +181,11 @@ it('shares whether there are unmoderated commits for admins', function (): void 
 
     $shared = $middleware->share($request);
 
-    expect(value($shared['hasUnmoderatedCommits']))->toBeFalse();
+    expect($shared['hasUnmoderatedCommits']())->toBeFalse();
 
     Commit::factory()->pending()->create();
 
-    expect(value($shared['hasUnmoderatedCommits']))->toBeTrue();
+    expect($shared['hasUnmoderatedCommits']())->toBeTrue();
 });
 
 it('does not count deleted pending commits as unmoderated', function (): void {
@@ -199,7 +199,7 @@ it('does not count deleted pending commits as unmoderated', function (): void {
 
     $shared = new HandleInertiaRequests()->share($request);
 
-    expect(value($shared['hasUnmoderatedCommits']))->toBeFalse();
+    expect($shared['hasUnmoderatedCommits']())->toBeFalse();
 });
 
 it('shares hasUnmoderatedCommits as false for non admins', function (): void {

@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Dto\AuthorizationCode;
+use App\Enums\UserUpdate;
+use App\Events\UsersUpdated;
 use App\Models\Device;
 use Illuminate\Support\Facades\Cache;
 
@@ -24,6 +26,8 @@ final readonly class CreateDevice
         }
 
         Cache::forget($authorizationCode->key);
+
+        UsersUpdated::dispatch([$authorizationCode->userId], UserUpdate::Account);
 
         return Device::query()->updateOrCreate(['fingerprint' => $authorizationCode->fingerprint], [
             'user_id' => $authorizationCode->userId,

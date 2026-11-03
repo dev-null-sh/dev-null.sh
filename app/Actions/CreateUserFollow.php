@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Enums\UserUpdate;
+use App\Events\UsersUpdated;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 
@@ -28,6 +30,9 @@ final readonly class CreateUserFollow
             ]);
 
             $this->createFollowNotification->handle($follower, $followed);
+
+            UsersUpdated::dispatch([$follower->id], UserUpdate::Account);
+            UsersUpdated::dispatch([$follower->id], UserUpdate::Live);
         });
     }
 }

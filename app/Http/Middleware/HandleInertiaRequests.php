@@ -8,6 +8,7 @@ use App\Dto\ReaderClock;
 use App\Enums\Feature;
 use App\Enums\Log;
 use App\Enums\RepliesPerPage;
+use App\Enums\UserUpdate;
 use App\Http\Requests\ListNotificationsRequest;
 use App\Models\Commit;
 use App\Models\Organization;
@@ -20,10 +21,13 @@ use App\Queries\LiveFollowingQuery;
 use App\Queries\NotificationGroupsQuery;
 use App\Queries\SuggestedUsersQuery;
 use App\Services\Features;
+use Closure;
+use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Inertia\Inertia;
+use Inertia\LiveProp;
 use Inertia\Middleware;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -90,6 +94,11 @@ final class HandleInertiaRequests extends Middleware
             ))
             : null;
 
+        // Counts the user's private updates refresh, wherever they were changed from. Guests have no channel.
+        $live = fn (Closure $value, UserUpdate ...$updates): Closure|LiveProp => $user instanceof User
+            ? Inertia::live($value, on: array_values(array_map(fn (UserUpdate $update): string => $update->value, $updates)), channel: new PrivateChannel($user))
+            : $value;
+
         return [
             ...parent::share($request),
             'name' => config('app.name'),
@@ -99,31 +108,32 @@ final class HandleInertiaRequests extends Middleware
                 'bioProfiles' => fn (): array => $user instanceof User ? resolve(BioProfilesQuery::class)->get($user) : [],
                 // The organizations the user is a member of, shown like the commits they author: theirs too, and who they
                 // can post as once the feature is on.
-                'organizations' => fn (): array => $user instanceof User ? $user->organizations()->get()
+                'organizations' => $live(fn (): array => $user instanceof User ? $user->organizations()->get()
                     ->map(fn (Organization $organization): array => ['type' => 'organization', ...$organization->toArray()])
-                    ->all() : [],
+                    ->all() : [], UserUpdate::Account),
                 'canPostAsOrganization' => fn (): bool => resolve(Features::class)->enabled(Feature::OrganizationCommits),
                 'isAdmin' => $isAdmin,
                 'automaticTranslation' => $user->automatic_translation ?? true,
                 'mustReadCommitRules' => $user instanceof User && $user->commit_rules_accepted_at === null,
                 'termsToAccept' => $user instanceof User && ! $user->hasAcceptedCurrentTerms() ? config()->string('legal.terms_version') : null,
                 'log' => fn (): ?Log => $request->user()?->log,
-                'unreadNotificationsCount' => fn (): int => $user instanceof User ? resolve(NotificationGroupsQuery::class)->unreadCount($user, ListNotificationsRequest::rememberedType($request, $user)) : 0,
-                'unreadMessagesCount' => fn (): int => $user?->remotes_enabled ? resolve(ConversationsQuery::class)->unreadCount($user) : 0,
-                'remotes' => fn (): ?array => $user?->remotes_enabled ? [
+                // Each browser filters notifications its own way, and reloading the count goes through its cookie.
+                'unreadNotificationsCount' => $live(fn (): int => $user instanceof User ? resolve(NotificationGroupsQuery::class)->unreadCount($user, ListNotificationsRequest::rememberedType($request, $user)) : 0, UserUpdate::Notifications),
+                'unreadMessagesCount' => $live(fn (): int => $user?->remotes_enabled ? resolve(ConversationsQuery::class)->unreadCount($user) : 0, UserUpdate::Messages, UserUpdate::Inbox),
+                'remotes' => $live(fn (): ?array => $user?->remotes_enabled ? [
                     'from' => $user->remotes_from,
                     'pull_receipts' => $user->pull_receipts,
                     'requests' => (bool) config('remotes.requests'),
                     'everyone' => (bool) config('remotes.everyone'),
-                ] : null,
-                'pasteis' => fn (): ?array => $user?->pasteis_mode ? [
+                ] : null, UserUpdate::Account),
+                'pasteis' => $live(fn (): ?array => $user?->pasteis_mode ? [
                     'remaining' => $user->pasteisRemaining(),
                     'day' => today()->toDateString(),
-                ] : null,
+                ] : null, UserUpdate::Account),
             ],
             // Guests see how many developers are here, next to the sign-in button...
             'developersCount' => fn (): ?int => $user instanceof User ? null : resolve(DevelopersCountQuery::class)->get(),
-            'hasUnmoderatedCommits' => fn (): bool => $isAdmin && Commit::query()->pending()->exists(),
+            'hasUnmoderatedCommits' => $isAdmin ? $live(fn (): bool => Commit::query()->pending()->exists(), UserUpdate::Moderation) : false,
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'showsWhoToFollow' => $showsWhoToFollow,
             ...$user instanceof User && $hasAside ? [

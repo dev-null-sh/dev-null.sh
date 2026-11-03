@@ -4,15 +4,18 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Enums\UserUpdate;
+use App\Events\UsersUpdated;
 use App\Models\Commit;
 use App\Models\CommitReport;
 use App\Models\User;
+use App\Queries\AdminsQuery;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 
 final readonly class CreateCommitReport
 {
-    public function __construct(private CreateImageFiles $createImageFiles)
+    public function __construct(private CreateImageFiles $createImageFiles, private AdminsQuery $admins)
     {
         //
     }
@@ -41,6 +44,8 @@ final readonly class CreateCommitReport
                     'images' => $this->createImageFiles->handle($images, $imageDescriptions, 'report-images', encrypted: true),
                 ])->save();
             }
+
+            UsersUpdated::dispatch($this->admins->ids(), UserUpdate::Moderation, ['reports' => [$report->id]]);
         });
     }
 }

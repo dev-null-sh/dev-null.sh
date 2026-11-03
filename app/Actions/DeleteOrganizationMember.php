@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Enums\UserUpdate;
+use App\Events\UsersUpdated;
 use App\Exceptions\OrganizationMustHaveAnAdmin;
 use App\Models\Organization;
 use App\Models\User;
@@ -28,6 +30,8 @@ final readonly class DeleteOrganizationMember
             }
 
             $organization->members()->detach($member->id);
+
+            UsersUpdated::dispatch([$member->id, ...$organization->members()->pluck('users.id')], UserUpdate::Account);
         });
     }
 }

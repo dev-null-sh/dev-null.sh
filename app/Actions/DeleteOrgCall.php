@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Enums\UserUpdate;
+use App\Events\UsersUpdated;
 use App\Models\Conversation;
 use App\Models\User;
 use App\Queries\OrgCallQuery;
@@ -36,6 +38,8 @@ final readonly class DeleteOrgCall
             }
 
             CreateOrgCall::forgetSignals($org, $user, array_keys($call['members']));
+
+            UsersUpdated::dispatch(array_keys($call['members']), UserUpdate::CallSignals, ['conversation' => $org->id]);
         });
     }
 }

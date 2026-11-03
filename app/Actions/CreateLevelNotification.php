@@ -6,6 +6,8 @@ namespace App\Actions;
 
 use App\Enums\NotificationType;
 use App\Enums\UnixRank;
+use App\Enums\UserUpdate;
+use App\Events\UsersUpdated;
 use App\Models\Notification;
 use App\Models\User;
 use App\Queries\UserAchievementsQuery;
@@ -42,5 +44,7 @@ final readonly class CreateLevelNotification
             'created_at' => now(),
             'updated_at' => now(),
         ]);
+
+        UsersUpdated::dispatch([$user->id], UserUpdate::Notifications);
     }
 }

@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Dto\NewPoll;
+use App\Enums\UserUpdate;
+use App\Events\UsersUpdated;
 use App\Models\Organization;
 use App\Models\ScheduledCommit;
 use App\Models\User;
@@ -30,6 +32,8 @@ final readonly class CreateScheduledCommit
     public function handle(User $user, string $body, CarbonImmutable $scheduledAt, array $images = [], array $imageDescriptions = [], ?NewPoll $poll = null, bool|string $linkPreview = true, ?Organization $organization = null): ScheduledCommit
     {
         $body = mb_trim($body);
+
+        UsersUpdated::dispatch([$user->id], UserUpdate::ScheduledCommits);
 
         return DB::transaction(fn (): ScheduledCommit => ScheduledCommit::query()->create([
             'user_id' => $user->id,

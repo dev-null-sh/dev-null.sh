@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Enums\UserUpdate;
+use App\Events\UsersUpdated;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 
@@ -18,6 +20,8 @@ final readonly class UpdateNotificationsReadAt
             ->unread()
             ->where('created_at', '<=', $through)
             ->update(['read_at' => $readAt]);
+
+        UsersUpdated::dispatch([$user->id], UserUpdate::Notifications);
 
         return $readAt;
     }

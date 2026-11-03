@@ -24,7 +24,12 @@ import { MobileAppSuggestion } from '@/components/mobile-app-suggestion';
 import { ProductHuntBanner } from '@/components/product-hunt-banner';
 import { SearchDialog } from '@/components/search-dialog';
 import { TermsDialog } from '@/components/terms-dialog';
-import { useChat, useRemoteAlerts, useUnreadMessages } from '@/hooks/use-chat';
+import {
+    useChat,
+    useRemoteAlerts,
+    useRemoteUpdates,
+    useUnreadMessages,
+} from '@/hooks/use-chat';
 import { useIsComposerInView } from '@/hooks/use-composer-visibility';
 import { usePageDeletion } from '@/hooks/use-deleted-resources';
 import { useFaviconDot } from '@/hooks/use-favicon-dot';
@@ -101,6 +106,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
     const unreadMessages = useUnreadMessages();
     useFixedPage(isMessages);
     useRemoteAlerts(auth.remotes !== null ? (auth.user?.id ?? null) : null);
+    useRemoteUpdates(auth.remotes !== null ? (auth.user?.id ?? null) : null);
     useFaviconDot(auth.unreadNotificationsCount + unreadMessages > 0);
 
     return (

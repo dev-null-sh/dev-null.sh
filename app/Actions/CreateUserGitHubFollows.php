@@ -6,6 +6,8 @@ namespace App\Actions;
 
 use App\Contracts\Services\GitHubProvider;
 use App\Enums\ProfileType;
+use App\Enums\UserUpdate;
+use App\Events\UsersUpdated;
 use App\Models\Profile;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection;
@@ -79,6 +81,11 @@ final readonly class CreateUserGitHubFollows
                 'github_follows_imported_at' => $importsPeople ? now() : null,
                 'github_organization_follows_imported_at' => $importsOrganizations ? now() : null,
             ]));
+
+            // Even importing nobody completes it, so the onboarding stops waiting either way.
+            UsersUpdated::dispatch([$user->id], UserUpdate::Onboarding);
+            UsersUpdated::dispatch([$user->id], UserUpdate::Live);
+            UsersUpdated::dispatch($followers->only($followerIds)->modelKeys(), UserUpdate::Live);
         });
     }
 

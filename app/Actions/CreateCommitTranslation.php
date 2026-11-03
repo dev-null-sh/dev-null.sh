@@ -6,6 +6,10 @@ namespace App\Actions;
 
 use App\Contracts\Services\TranslationProvider;
 use App\Enums\CommitStatus;
+use App\Enums\CommitUpdate;
+use App\Enums\UserUpdate;
+use App\Events\CommitsUpdated;
+use App\Events\UsersUpdated;
 use App\Exceptions\CommitProcessingFailed;
 use App\Exceptions\InvalidTranslation;
 use App\Models\Commit;
@@ -70,6 +74,11 @@ final readonly class CreateCommitTranslation
                 $expiresAt = $cached['expires_at'] ?? now()->getTimestamp() + CommitTranslations::TTL_SECONDS;
 
                 Cache::memo()->put($key, ['source_language' => $source, 'translations' => $translations, 'expires_at' => $expiresAt], max(1, $expiresAt - now()->getTimestamp()));
+
+                // Each reader shows it in their own language, so they read it again.
+                $current->status === CommitStatus::Approved
+                    ? CommitsUpdated::dispatch([$current], CommitUpdate::Translation)
+                    : UsersUpdated::dispatch(array_filter([$current->user_id]), UserUpdate::Commits);
             });
         });
     }

@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Enums\CommitStatus;
+use App\Enums\CommitUpdate;
+use App\Events\CommitsUpdated;
 use App\Jobs\CheckUserLevel;
 use App\Models\Commit;
 use App\Models\User;
@@ -38,6 +41,10 @@ final readonly class CreateCommitStar
             $this->createStarNotification->handle($user, $commit);
 
             $this->updateCommitHotScores->handle([$commit->id]);
+
+            if ($commit->status === CommitStatus::Approved) {
+                CommitsUpdated::dispatch([$commit], CommitUpdate::Engagement);
+            }
 
             if ($commit->user_id !== $user->id) {
                 // Stars on an organization's commit count toward no one's level.

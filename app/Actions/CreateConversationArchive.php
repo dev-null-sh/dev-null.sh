@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Enums\UserUpdate;
+use App\Events\UsersUpdated;
 use App\Models\Conversation;
 use App\Models\ConversationParticipant;
 use App\Models\User;
@@ -20,5 +22,7 @@ final readonly class CreateConversationArchive
             ->where('conversation_id', $conversation->id)
             ->whereNull('archived_at')
             ->update(['archived_at' => now()]);
+
+        UsersUpdated::dispatch([$user->id], UserUpdate::Inbox, ['conversation' => $conversation->id]);
     }
 }

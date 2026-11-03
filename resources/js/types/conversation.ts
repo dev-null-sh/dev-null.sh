@@ -119,6 +119,7 @@ export type ConversationSummary = {
 export type Thread = {
     messages: Message[];
     has_older: boolean;
+    has_newer: boolean;
     reactions_version: number;
     reaction_changes: MessageReactionChange[];
     read_through_id: number;
@@ -134,6 +135,7 @@ export type Thread = {
 export type OrgThread = {
     messages: Message[];
     has_older: boolean;
+    has_newer: boolean;
     reactions_version: number;
     reaction_changes: MessageReactionChange[];
     read_through_id: number;

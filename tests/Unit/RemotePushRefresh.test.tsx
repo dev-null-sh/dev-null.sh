@@ -80,7 +80,7 @@ test.each([['direct', 'on'], ['org', 'on'], ['org', 'off'], ['org', 'muted']] as
             notification_baseline: { [summary().id]: 10 },
         });
         if (url.includes('/messages')) return Response.json({
-            messages: [message()], has_older: false, reactions_version: 0, reaction_changes: [],
+            messages: [message()], has_older: false, has_newer: false, reactions_version: 0, reaction_changes: [],
             read_through_id: 0, partner_read_through_id: 0, partner_read_at: null, partner_typing: false,
             members: [], typing: [], role: 'contributor', access: 'open', pinned: [],
             is_archived: false, pinned_at: null, muted_until_at: mutedUntil,
@@ -176,7 +176,7 @@ test.each(['direct', 'org'] as const)('a push response keeps newer %s reactions 
         : { kind, partner };
     const message = { id: 501, user_id: 'alice', client_id: '', body: 'React to this', created_at: new Date().toISOString(), reactions: [] as MessageReaction[] };
     const payload = (version: number, reactions: MessageReaction[]) => ({
-        messages: [], has_older: false, reactions_version: version,
+        messages: [], has_older: false, has_newer: false, reactions_version: version,
         reaction_changes: [{ id: message.id, reactions }], read_through_id: 0,
         is_archived: false, pinned_at: null, muted_until_at: null, access: 'open' as const,
         ...(kind === 'org'

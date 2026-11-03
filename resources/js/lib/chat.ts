@@ -38,6 +38,13 @@ import type { PinnedMessages } from '@/lib/pinned-messages';
 import type { ReactionUsage } from '@/lib/reactions';
 import { withReactionUse } from '@/lib/reactions';
 import {
+    coalesce,
+    isListening,
+    listen,
+    onRealtimeChange,
+    userChannel,
+} from '@/lib/realtime';
+import {
     createRemoteAlerts,
     isRemoteMuted,
     remoteAlertsEnabled,
@@ -167,6 +174,15 @@ const busyInboxPoll = 6_000;
 const hiddenInboxPoll = 60_000;
 const activeWindow = 60_000;
 const typingPing = 3_000;
+/**
+ * While live updates are heard, polls only back them up, in case one was lost.
+ */
+const listeningPoll = 30_000;
+const listeningInboxPoll = 60_000;
+/**
+ * Typing is only announced when it starts, so an indicator is read again once it would have expired on the server.
+ */
+const typingRecheck = 5_500;
 
 const listOf = {
     open: 'conversations',
@@ -218,6 +234,9 @@ let pendingInboxPush: ReturnType<typeof createRemoteAlerts> | null = null;
 let muteVersion = 0;
 let pinVersion = 0;
 let inboxRevision = 0;
+let remotesUserId: string | null = null;
+const threadRefreshes = new Map<string, ReturnType<typeof coalesce>>();
+const typingRechecks = new Map<string, number>();
 const invalidatedInboxTabs = new Set<InboxTab>();
 
 export function targetKey(target: ChatTarget): string {
@@ -1189,12 +1208,157 @@ function scheduleInbox(): void {
 
     inboxTimer = window.setTimeout(
         () => void pollInbox().finally(scheduleInbox),
-        document.hidden
-            ? hiddenInboxPoll
-            : threadWatchers.size > 0
-              ? busyInboxPoll
-              : inboxPoll,
+        isHearingRemotes()
+            ? listeningInboxPoll
+            : document.hidden
+              ? hiddenInboxPoll
+              : threadWatchers.size > 0
+                ? busyInboxPoll
+                : inboxPoll,
     );
+}
+
+/**
+ * Whether the user's private updates are being heard, so polling can slow down to a safety net.
+ */
+function isHearingRemotes(): boolean {
+    return remotesUserId !== null && isListening(userChannel(remotesUserId));
+}
+
+/**
+ * Calls back when live updates start or stop being heard, and not for every other channel coming and going.
+ */
+function onHearingChange(callback: () => void): () => void {
+    let isHeard = isHearingRemotes();
+
+    return onRealtimeChange(() => {
+        if (isHearingRemotes() !== isHeard) {
+            isHeard = !isHeard;
+            callback();
+        }
+    });
+}
+
+const inboxRefresh = coalesce(() => pollInbox(document.hidden), 150);
+
+/**
+ * A hidden tab reads the inbox on an update only when it is the one alerting and no push does it already: the
+ * others catch up once they are shown.
+ */
+function refreshInbox(): void {
+    if (
+        inboxWatchers === 0 ||
+        (document.hidden && (!isAlertingTab || remotePushEnabled()))
+    ) {
+        return;
+    }
+
+    inboxRefresh.request();
+}
+
+/**
+ * Reads a shown conversation again, once for a burst of updates, through the same incremental read a poll makes.
+ */
+function refreshThread(target: ChatTarget): void {
+    const key = targetKey(target);
+
+    if (!isWatching(key) || document.hidden) {
+        return;
+    }
+
+    let refresh = threadRefreshes.get(key);
+
+    if (refresh === undefined) {
+        refresh = coalesce(
+            () => pollThread(state.threads[key]?.target ?? target),
+            100,
+        );
+        threadRefreshes.set(key, refresh);
+    }
+
+    refresh.request();
+}
+
+/**
+ * The shown conversations an update is about. A direct conversation is known by its partner, so its id is matched
+ * through the inbox, and every shown direct conversation is read again when the inbox doesn't have it.
+ */
+function watchedTargets(payload: unknown): ChatTarget[] {
+    const id =
+        typeof payload === 'object' &&
+        payload !== null &&
+        'conversation' in payload &&
+        typeof payload.conversation === 'string'
+            ? payload.conversation
+            : null;
+    const summary =
+        id === null
+            ? undefined
+            : [
+                  ...(state.conversations ?? []),
+                  ...(state.fetched ?? []),
+                  ...(state.archived ?? []),
+              ].find((conversation) => conversation.id === id);
+
+    return [...threadWatchers.keys()]
+        .filter(
+            (key) =>
+                id === null ||
+                key === `org:${id}` ||
+                (summary === undefined
+                    ? !key.startsWith('org:')
+                    : summaryKey(summary) === key),
+        )
+        .flatMap((key) => state.threads[key]?.target ?? []);
+}
+
+/**
+ * Listens for what changed in the user's remotes, wherever it was changed from: new messages refresh the inbox and
+ * the conversations shown, and changes to a conversation only those. Joining the channel, at first and after a
+ * dropped connection, reads everything shown again, draining whatever arrived in between. Returns the function that
+ * stops listening.
+ */
+export function watchRemoteUpdates(userId: string): () => void {
+    remotesUserId = userId;
+
+    const refreshWatched = (payload: unknown) =>
+        watchedTargets(payload).forEach(refreshThread);
+
+    const stopListening = listen(
+        userChannel(userId),
+        {
+            'remotes.messages': (payload) => {
+                refreshInbox();
+                refreshWatched(payload);
+            },
+            'remotes.conversation': refreshWatched,
+            'remotes.inbox': (payload) => {
+                // Requests and the stash can change without their counts changing, so their loaded pages are read again.
+                for (const tab of ['fetched', 'stashed'] as const) {
+                    if (state[listOf[tab]] !== null) {
+                        invalidatedInboxTabs.add(tab);
+                    }
+                }
+
+                refreshInbox();
+                refreshWatched(payload);
+            },
+        },
+        () => {
+            refreshInbox();
+            refreshWatched(null);
+        },
+    );
+    const stopPacing = onHearingChange(scheduleInbox);
+
+    return () => {
+        stopListening();
+        stopPacing();
+
+        if (remotesUserId === userId) {
+            remotesUserId = null;
+        }
+    };
 }
 
 function isWatching(key: string): boolean {
@@ -1251,20 +1415,33 @@ async function pollThread(target: ChatTarget): Promise<void> {
     const version = ++muteVersion;
     const pinsVersion = ++pinVersion;
 
-    const fresh = await request<
-        (Thread & { partner: User }) | (OrgThread & { org: OrgRef })
-    >(
-        urls(target).index(
-            after === null
-                ? undefined
-                : {
-                      after,
-                      ...(reactionsAfter === null
-                          ? {}
-                          : { reactions_after: reactionsAfter }),
-                  },
-        ),
-    );
+    let fresh: (Thread & { partner: User }) | (OrgThread & { org: OrgRef });
+
+    try {
+        fresh = await request(
+            urls(target).index(
+                after === null
+                    ? undefined
+                    : {
+                          after,
+                          ...(reactionsAfter === null
+                              ? {}
+                              : { reactions_after: reactionsAfter }),
+                      },
+            ),
+        );
+    } catch (error) {
+        if (
+            target.kind === 'org' &&
+            error instanceof ChatRequestError &&
+            [403, 404].includes(error.status) &&
+            threadPollVersions.get(key) === pollVersion
+        ) {
+            revokeThread(target);
+        }
+
+        throw error;
+    }
 
     if (threadPollVersions.get(key) !== pollVersion) {
         return;
@@ -1344,6 +1521,47 @@ async function pollThread(target: ChatTarget): Promise<void> {
             },
         },
     });
+
+    recheckTyping(target, isTyping);
+
+    // A read after a message only brings so many, so whoever was away for longer keeps reading until caught up.
+    if (fresh.has_newer) {
+        await pollThread(target);
+    }
+}
+
+/**
+ * Someone removed from an org no longer sees what it showed them: the messages go, and nothing can be sent.
+ */
+function revokeThread(target: ChatTarget): void {
+    const key = targetKey(target);
+
+    update({
+        threads: {
+            ...state.threads,
+            [key]: { ...emptyThread(target), isLoaded: true, access: 'closed' },
+        },
+        conversations: withoutKey(state.conversations, key),
+        fetched: withoutKey(state.fetched, key),
+        archived: withoutKey(state.archived, key),
+    });
+}
+
+function recheckTyping(target: ChatTarget, isTyping: boolean): void {
+    const key = targetKey(target);
+
+    window.clearTimeout(typingRechecks.get(key));
+    typingRechecks.delete(key);
+
+    if (isTyping && isHearingRemotes()) {
+        typingRechecks.set(
+            key,
+            window.setTimeout(() => {
+                typingRechecks.delete(key);
+                refreshThread(target);
+            }, typingRecheck),
+        );
+    }
 }
 
 /**
@@ -1387,12 +1605,22 @@ export function watchThread(target: ChatTarget): () => void {
             return;
         }
 
+        schedule();
+    };
+
+    const schedule = () => {
+        window.clearTimeout(timer);
+
         const isActive =
             Date.now() - (lastActivity.get(key) ?? 0) < activeWindow;
 
         timer = window.setTimeout(
             () => void tick(),
-            isActive ? activePoll : idlePoll,
+            isHearingRemotes()
+                ? listeningPoll
+                : isActive
+                  ? activePoll
+                  : idlePoll,
         );
     };
 
@@ -1403,6 +1631,12 @@ export function watchThread(target: ChatTarget): () => void {
     };
 
     document.addEventListener('visibilitychange', onVisible);
+    // Losing the live updates brings back the quick polls straight away, instead of after the slow one.
+    const stopPacing = onHearingChange(() => {
+        if (!isStopped) {
+            schedule();
+        }
+    });
     void tick();
     scheduleInbox();
     void loadReactionUsage();
@@ -1410,6 +1644,7 @@ export function watchThread(target: ChatTarget): () => void {
     return () => {
         isStopped = true;
         window.clearTimeout(timer);
+        stopPacing();
         document.removeEventListener('visibilitychange', onVisible);
 
         const watchers = (threadWatchers.get(key) ?? 1) - 1;

@@ -7,6 +7,8 @@ namespace App\Actions;
 use App\Dto\NewPoll;
 use App\Enums\Feature;
 use App\Enums\PollDuration;
+use App\Enums\UserUpdate;
+use App\Events\UsersUpdated;
 use App\Models\ScheduledCommit;
 use App\Services\Features;
 use Illuminate\Database\Eloquent\Builder;
@@ -61,6 +63,8 @@ final readonly class UpdateScheduledCommitSubmittedAt
             $commit->images()->createMany($scheduled->images ?? []);
 
             $scheduled->forceFill(['commit_id' => $commit->id, 'body' => null, 'poll' => null, 'images' => null, 'link_preview_url' => null])->save();
+
+            UsersUpdated::dispatch([$scheduled->user_id], UserUpdate::ScheduledCommits);
 
             return true;
         }, attempts: 5);

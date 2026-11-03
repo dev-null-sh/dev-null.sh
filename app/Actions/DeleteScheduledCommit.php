@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Enums\UserUpdate;
+use App\Events\UsersUpdated;
 use App\Models\ScheduledCommit;
 use App\Models\User;
 use Illuminate\Support\Facades\Storage;
@@ -23,6 +25,8 @@ final readonly class DeleteScheduledCommit
 
         if ($canceled) {
             Storage::disk()->delete($imagePaths);
+
+            UsersUpdated::dispatch([$user->id], UserUpdate::ScheduledCommits);
         }
 
         return $canceled;

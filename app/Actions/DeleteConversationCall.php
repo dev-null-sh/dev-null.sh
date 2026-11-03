@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Enums\OrgEvent;
+use App\Enums\UserUpdate;
+use App\Events\UsersUpdated;
 use App\Models\Conversation;
 use App\Models\User;
 use App\Queries\CallQuery;
@@ -32,6 +34,8 @@ final readonly class DeleteConversationCall
             }
 
             Cache::forget(CreateConversationCall::key($callee));
+
+            UsersUpdated::dispatch([$callee->id, $caller->id], UserUpdate::Calls);
 
             if (! $call->isAnswered()) {
                 $event = match (true) {

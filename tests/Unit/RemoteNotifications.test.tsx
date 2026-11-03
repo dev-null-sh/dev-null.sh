@@ -806,7 +806,7 @@ test('an unfocused window does not mark incoming messages read before it can ale
     vi.stubGlobal('fetch', async () => new Response(null, { status: 204 }));
     const target = { kind: 'org' as const, org: { id: 'unfocused-org', name: 'Team' } };
     seedThread(target, {
-        messages: [conversation(50).last_message!], has_older: false,
+        messages: [conversation(50).last_message!], has_older: false, has_newer: false,
         reactions_version: 0, reaction_changes: [], read_through_id: 0,
         members: [], typing: [], is_archived: false, pinned_at: null, muted_until_at: null,
         role: 'contributor', access: 'open', pinned: [],

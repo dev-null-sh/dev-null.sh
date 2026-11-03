@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Enums\UserUpdate;
+use App\Events\UsersUpdated;
 use App\Models\Device;
 
 final readonly class DeleteDevice
@@ -14,5 +16,7 @@ final readonly class DeleteDevice
     public function handle(Device $device): void
     {
         $device->delete();
+
+        UsersUpdated::dispatch([$device->user_id], UserUpdate::Account);
     }
 }

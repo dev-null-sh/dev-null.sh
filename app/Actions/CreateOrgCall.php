@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Enums\OrgEvent;
+use App\Enums\UserUpdate;
+use App\Events\UsersUpdated;
 use App\Models\Conversation;
 use App\Models\User;
 use App\Queries\OrgCallQuery;
@@ -83,11 +85,15 @@ final readonly class CreateOrgCall
             Cache::put(self::memberKey($user->id), $org->id, self::SECONDS);
             Cache::put(self::key($org), $call, self::SECONDS);
 
+            // Whoever is already in checks in right away, to start talking to the newcomer.
+            UsersUpdated::dispatch(array_keys($call['members']), UserUpdate::CallSignals, ['conversation' => $org->id]);
+
             return $current === null;
         });
 
         if ($isStarting) {
             $this->events->handle($user, $org, OrgEvent::CallStarted);
+            UsersUpdated::dispatch($org->participants()->pluck('user_id'), UserUpdate::Calls, ['conversation' => $org->id]);
         }
     }
 }

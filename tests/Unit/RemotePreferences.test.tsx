@@ -35,7 +35,7 @@ const orgSummary: ConversationSummary = {
     ahead: 0, partner_read_through_id: 0, partner_read_at: null, is_archived: true, pinned_at: null, muted_until_at: null,
 };
 const thread: OrgThread & { org: typeof org } = {
-    org, messages: [], has_older: false, reactions_version: 0, reaction_changes: [],
+    org, messages: [], has_older: false, has_newer: false, reactions_version: 0, reaction_changes: [],
     read_through_id: 0, members: [], typing: [], is_archived: true, pinned_at: null, muted_until_at: null,
     role: 'contributor', access: 'open', pinned: [],
 };

@@ -7,6 +7,8 @@ namespace App\Actions;
 use App\Enums\CommitStatus;
 use App\Enums\NotificationType;
 use App\Enums\TopicType;
+use App\Enums\UserUpdate;
+use App\Events\UsersUpdated;
 use App\Models\Commit;
 use App\Models\Notification;
 use App\Models\User;
@@ -115,6 +117,8 @@ final readonly class CreateMentionNotifications
         }
 
         Notification::query()->insertOrIgnore($notifications);
+
+        UsersUpdated::dispatch(array_column($notifications, 'recipient_id'), UserUpdate::Notifications);
     }
 
     /**

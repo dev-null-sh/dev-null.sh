@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Enums\UserUpdate;
+use App\Events\UsersUpdated;
 use App\Models\User;
 
 final readonly class UpdateUserTimezone
@@ -14,5 +16,7 @@ final readonly class UpdateUserTimezone
             'timezone' => $timezone,
             'show_local_time' => $timezone !== null && $showLocalTime,
         ]);
+
+        UsersUpdated::dispatch([$user->id], UserUpdate::Account);
     }
 }

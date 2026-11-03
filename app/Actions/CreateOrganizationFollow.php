@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Enums\UserUpdate;
+use App\Events\UsersUpdated;
 use App\Models\Organization;
 use App\Models\User;
 
@@ -15,5 +17,7 @@ final readonly class CreateOrganizationFollow
     public function handle(User $user, Organization $organization): void
     {
         $user->followedOrganizations()->syncWithoutDetaching([$organization->id]);
+
+        UsersUpdated::dispatch([$user->id], UserUpdate::Account);
     }
 }

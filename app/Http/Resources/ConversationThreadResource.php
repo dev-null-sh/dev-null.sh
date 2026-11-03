@@ -20,6 +20,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
  *     partner: User,
  *     messages: DirectThread['messages'],
  *     has_older: DirectThread['has_older'],
+ *     has_newer: DirectThread['has_newer'],
  *     reactions_version: DirectThread['reactions_version'],
  *     reaction_changes: DirectThread['reaction_changes'],
  *     read_through_id: DirectThread['read_through_id'],

@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Enums\UserUpdate;
+use App\Events\UsersUpdated;
 use App\Models\Conversation;
+use App\Models\ConversationParticipant;
 use App\Models\Message;
 
 final readonly class UpdateMessageReactionsVersion
@@ -22,5 +25,11 @@ final readonly class UpdateMessageReactionsVersion
         $conversation->increment('reactions_version');
 
         Message::query()->whereKey($message->id)->toBase()->update(['reactions_version' => $conversation->value('reactions_version')]);
+
+        UsersUpdated::dispatch(
+            ConversationParticipant::query()->where('conversation_id', $message->conversation_id)->pluck('user_id'),
+            UserUpdate::Conversation,
+            ['conversation' => $message->conversation_id],
+        );
     }
 }

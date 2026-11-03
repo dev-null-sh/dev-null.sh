@@ -23,6 +23,7 @@ use Illuminate\Support\Facades\Cache;
  * @phpstan-type DirectThread array{
  *     messages: Collection<int, Message>,
  *     has_older: bool,
+ *     has_newer: bool,
  *     reactions_version: int,
  *     reaction_changes: Collection<int, ReactionChange>,
  *     read_through_id: int,
@@ -37,6 +38,7 @@ use Illuminate\Support\Facades\Cache;
  * @phpstan-type OrgThread array{
  *     messages: Collection<int, Message>,
  *     has_older: bool,
+ *     has_newer: bool,
  *     reactions_version: int,
  *     reaction_changes: Collection<int, ReactionChange>,
  *     pinned: Collection<int, Message>|null,
@@ -76,11 +78,12 @@ final readonly class ConversationThreadQuery
         $theirs = $participants->get($partner->id);
         $access = PushAccessQuery::of($user, $partner, $mine, $theirs);
         $sharesReads = $user->pull_receipts && $partner->pull_receipts && $theirs?->status === RemoteStatus::Open;
-        [$messages, $hasOlder] = $conversation instanceof Conversation ? $this->page($conversation, 0, $after, $before) : [new Collection(), false];
+        [$messages, $hasOlder, $hasNewer] = $conversation instanceof Conversation ? $this->page($conversation, 0, $after, $before) : [new Collection(), false, false];
 
         return [
             'messages' => $messages,
             'has_older' => $hasOlder,
+            'has_newer' => $hasNewer,
             'reactions_version' => $conversation->reactions_version ?? 0,
             'reaction_changes' => $this->reactionChanges($conversation, 0, $reactionsAfter),
             'read_through_id' => $mine->read_through_id ?? 0,
@@ -113,7 +116,7 @@ final readonly class ConversationThreadQuery
                 ->whereIn('id', $user->following()->select('users.id')),
         ])->oldest('id')->get();
         $mine = $participants->firstOrFail(fn (ConversationParticipant $participant): bool => $participant->user_id === $user->id);
-        [$messages, $hasOlder] = $this->page($org, $mine->visible_from_id, $after, $before, withPeople: true);
+        [$messages, $hasOlder, $hasNewer] = $this->page($org, $mine->visible_from_id, $after, $before, withPeople: true);
 
         $typingUsers = $participants
             ->reject(fn (ConversationParticipant $participant): bool => $participant->user_id === $user->id)
@@ -125,6 +128,7 @@ final readonly class ConversationThreadQuery
         return [
             'messages' => $messages,
             'has_older' => $hasOlder,
+            'has_newer' => $hasNewer,
             'reactions_version' => $org->reactions_version,
             'reaction_changes' => $this->reactionChanges($org, $mine->visible_from_id, $reactionsAfter),
             'pinned' => $before === null && ($reactionsAfter === null || $org->reactions_version > $reactionsAfter) ? $this->pinnedMessages->get($org) : null,
@@ -173,9 +177,10 @@ final readonly class ConversationThreadQuery
     }
 
     /**
-     * The latest page, the page before a message for scrolling back, or everything after one for polling.
+     * The latest page, the page before a message for scrolling back, or what came after one for polling, up to two
+     * pages of it: whoever was away for longer reads on from the last one they got while there are newer ones.
      *
-     * @return array{Collection<int, Message>, bool}
+     * @return array{Collection<int, Message>, bool, bool}
      */
     private function page(Conversation $conversation, int $visibleFrom, ?int $after, ?int $before, bool $withPeople = false): array
     {
@@ -185,10 +190,11 @@ final readonly class ConversationThreadQuery
 
         $messages = $after === null
             ? $query->where('id', '<', $before ?? PHP_INT_MAX)->orderByDesc('id')->limit(self::PAGE + 1)->get()->reverse()->values()
-            : $query->where('id', '>', $after)->orderBy('id')->limit(self::PAGE * 2)->get();
+            : $query->where('id', '>', $after)->orderBy('id')->limit(self::PAGE * 2 + 1)->get();
 
         $hasOlder = $after === null && $messages->count() > self::PAGE;
+        $hasNewer = $after !== null && $messages->count() > self::PAGE * 2;
 
-        return [($hasOlder ? $messages->slice(1)->values() : $messages)->toBase(), $hasOlder];
+        return [($hasOlder ? $messages->slice(1)->values() : ($hasNewer ? $messages->take(self::PAGE * 2) : $messages))->toBase(), $hasOlder, $hasNewer];
     }
 }

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Enums\UserUpdate;
+use App\Events\UsersUpdated;
 use App\Models\Conversation;
 use App\Models\ConversationParticipant;
 use App\Models\User;
@@ -19,6 +21,8 @@ final readonly class UpdateConversationPin
             ->firstOrFail();
 
         $participant->update(['pinned_at' => $pinned ? ($participant->pinned_at ?? now()) : null]);
+
+        UsersUpdated::dispatch([$user->id], UserUpdate::Inbox, ['conversation' => $conversation->id]);
 
         return $participant->pinned_at;
     }
