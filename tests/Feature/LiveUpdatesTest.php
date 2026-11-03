@@ -157,6 +157,21 @@ it('tells the reader\'s other devices about a read, and the partner only when th
     'the reader has not merged the request' => [true, true, RemoteStatus::Fetched, false],
 ]);
 
+it('leaves the tab that read out of telling the reader\'s devices, which only the others need', function (): void {
+    $sender = User::factory()->withRemotes()->create();
+    $recipient = User::factory()->withRemotes()->create();
+    $message = sendChatMessage($sender, $recipient);
+    Event::fake([UsersUpdated::class]);
+
+    $this->actingAs($recipient)
+        ->withHeader('X-Socket-ID', '123.456')
+        ->putJson(route('conversation-read.update', $sender), ['through' => $message->id])
+        ->assertNoContent();
+
+    expect(usersUpdated(UserUpdate::Inbox)[0]->socket)->toBe('123.456')
+        ->and(usersUpdated(UserUpdate::Conversation)[0]->socket)->toBeNull();
+});
+
 it('tells only the org members who share reads with the reader about a read', function (): void {
     $maintainer = User::factory()->withRemotes()->create();
     [$sharing, $private] = followersOf($maintainer, 2);

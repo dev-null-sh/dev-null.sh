@@ -30,10 +30,10 @@ final readonly class UpdateConversationReadThrough
             return;
         }
 
-        // The reader's unread counts change on their other devices. Only whoever would see how far they read hears that
-        // they read at all, by the same rules the conversation shows reads with: both share pulls, and in a direct
-        // conversation the reader merged it.
-        event(new UsersUpdated([$user->id], UserUpdate::Inbox, ['conversation' => $conversation->id]));
+        // The reader's unread counts change on their other devices, not the one that read. Only whoever would see how far
+        // they read hears that they read at all, by the same rules the conversation shows reads with: both share pulls,
+        // and in a direct conversation the reader merged it.
+        event(new UsersUpdated([$user->id], UserUpdate::Inbox, ['conversation' => $conversation->id])->dontBroadcastToCurrentUser());
 
         $participants = ConversationParticipant::query()->where('conversation_id', $conversation->id)->with('user')->get();
         $reader = $participants->firstWhere('user_id', $user->id);

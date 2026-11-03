@@ -41,6 +41,7 @@ import {
     coalesce,
     isListening,
     listen,
+    liveTransport,
     onRealtimeChange,
     userChannel,
 } from '@/lib/realtime';
@@ -434,6 +435,7 @@ export async function request<T>(
     body?: object | FormData,
 ): Promise<T> {
     const isForm = body instanceof FormData;
+    const socket = liveTransport.socketId?.() ?? null;
     const response = await fetch(url, {
         method,
         headers: {
@@ -441,6 +443,8 @@ export async function request<T>(
             ...(isForm ? {} : { 'Content-Type': 'application/json' }),
             'X-Requested-With': 'XMLHttpRequest',
             'X-XSRF-TOKEN': xsrfToken(),
+            // So what this tab did is announced to the user's other tabs and devices, not back to itself.
+            ...(socket === null ? {} : { 'X-Socket-ID': socket }),
         },
         ...(body === undefined
             ? {}

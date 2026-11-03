@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Events;
 
 use App\Enums\UserUpdate;
+use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Contracts\Broadcasting\ShouldRescue;
@@ -17,6 +18,8 @@ use Illuminate\Contracts\Events\ShouldDispatchAfterCommit;
  */
 final class UsersUpdated implements ShouldBroadcast, ShouldDispatchAfterCommit, ShouldRescue
 {
+    use InteractsWithSockets;
+
     /**
      * @var list<string>
      */
