@@ -31,6 +31,7 @@ import {
 } from '@/components/ui/dialog';
 import { UserAvatar } from '@/components/user-avatar';
 import { useNow } from '@/hooks/use-now';
+import { useOwnsCommit } from '@/hooks/use-owns-commit';
 import AppLayout from '@/layouts/app-layout';
 import {
     agendaProgress,
@@ -42,6 +43,7 @@ import {
 import { formatEventTime, formatEventWhen } from '@/lib/event-dates';
 import { cn, formatRelativeTime, shortHash } from '@/lib/utils';
 import type {
+    CommitAuthor,
     Commit,
     CursorPaginated,
     Event,
@@ -61,7 +63,7 @@ export default function Show({
     replies,
 }: {
     event: Event & { going_count: number; agenda_items: EventAgendaItem[] };
-    host: User | null;
+    host: CommitAuthor | null;
     response: EventResponse | null;
     attendees: User[];
     attendeesLimit: number;
@@ -70,10 +72,12 @@ export default function Show({
 }) {
     const { auth } = usePage().props;
     const now = useNow();
+    const ownsCommit = useOwnsCommit();
     const timeZone = auth.user?.timezone ?? undefined;
     const place = eventPlace(event);
     const state = eventStateAt(event, now);
-    const isHost = auth.user !== null && host?.id === auth.user.id;
+    // An organization's event is each of its members' to run, like its announcement.
+    const isHost = host !== null && ownsCommit({ author: host });
     const isOpen = state === 'upcoming' || state === 'live';
 
     const goBack = () => {

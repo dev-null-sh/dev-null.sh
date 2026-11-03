@@ -41,14 +41,15 @@ final readonly class EventsQuery
     }
 
     /**
-     * The events a user hosts, as the viewer may see them, latest first.
+     * The events a user hosts as themselves, as the viewer may see them, latest first: an organization's stay off its members'
+     * profiles.
      *
      * @return CursorPaginator<int, Event>
      */
     public function paginateHostedBy(User $host, ?User $viewer): CursorPaginator
     {
         return $this->builder($viewer)
-            ->whereHas('commit', fn (CommitBuilder $query): CommitBuilder => $query->whereBelongsTo($host))
+            ->whereHas('commit', fn (CommitBuilder $query): CommitBuilder => $query->where('author_id', $host->id))
             ->latest('starts_at')
             ->orderByDesc('id')
             ->cursorPaginate(self::PER_PAGE)

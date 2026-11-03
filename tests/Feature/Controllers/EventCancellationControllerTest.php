@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 use App\Enums\EventState;
 use App\Enums\NotificationType;
+use App\Enums\OrganizationRole;
+use App\Models\Commit;
 use App\Models\Event;
 use App\Models\EventAttendee;
 use App\Models\Notification;
+use App\Models\Organization;
 use App\Models\User;
 
 it('lets the host cancel an event', function (Closure $event): void {
@@ -22,6 +25,23 @@ it('lets the host cancel an event', function (Closure $event): void {
     'upcoming' => fn (): Event => Event::factory()->create(),
     'live' => fn (): Event => Event::factory()->live()->create(),
 ]);
+
+it('lets a member cancel their organization\'s event, which tells the people going it was the organization', function (): void {
+    $organization = Organization::factory()->create();
+    $member = User::factory()->create();
+    $organization->members()->attach($member->id, ['role' => OrganizationRole::Member]);
+    $event = Event::factory()->for(Commit::factory()->state(['author_id' => $organization->id]))->create();
+    $attendee = EventAttendee::factory()->for($event)->create();
+
+    $this->actingAs($member)
+        ->post(route('event-cancellation.store', $event))
+        ->assertRedirect();
+
+    expect($event->refresh()->state())->toBe(EventState::Cancelled)
+        ->and(Notification::query()->where('recipient_id', $attendee->user_id)->sole())
+        ->actor_id->toBe($organization->id)
+        ->type->toBe(NotificationType::EventCancelled);
+});
 
 it('lets nobody else cancel an event', function (): void {
     $event = Event::factory()->create();

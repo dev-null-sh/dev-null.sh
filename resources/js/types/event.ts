@@ -1,4 +1,4 @@
-import type { User } from '@/types/auth';
+import type { CommitAuthor } from '@/types/commit';
 
 export type EventState = 'upcoming' | 'live' | 'ended' | 'cancelled';
 
@@ -25,6 +25,6 @@ export type Event = {
 };
 
 export type EventWithHost = Event & {
-    host: User;
+    host: CommitAuthor;
     going_count: number;
 };

@@ -12,6 +12,7 @@ use App\Http\Requests\ListEventsRequest;
 use App\Http\Requests\ShowEventRequest;
 use App\Models\Commit;
 use App\Models\Event;
+use App\Models\Profile;
 use App\Models\User;
 use App\Queries\CommitPageQuery;
 use App\Queries\CommitRepliesQuery;
@@ -77,7 +78,7 @@ final readonly class EventController
 
         return Inertia::render('event/show', [
             'event' => fn (): Event => $event->load('agendaItems')->loadCount(['attendees as going_count' => fn (Builder $query): Builder => $query->where('response', EventResponse::Going)]),
-            'host' => fn (): ?User => $commit->user,
+            'host' => fn (): ?Profile => $commit->author,
             'response' => fn (): ?string => $event->responseOf($currentUser)?->value,
             'attendees' => fn (): Collection => $attendees->get($event, $currentUser),
             'attendeesLimit' => EventAttendeesQuery::LIMIT,

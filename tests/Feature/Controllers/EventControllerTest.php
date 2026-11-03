@@ -7,6 +7,7 @@ use App\Models\Commit;
 use App\Models\Event;
 use App\Models\EventAgendaItem;
 use App\Models\EventAttendee;
+use App\Models\Organization;
 use App\Models\User;
 use App\Models\UserTimeout;
 use Carbon\CarbonImmutable;
@@ -122,6 +123,21 @@ it('shows an event like an issue, with its agenda, people going and discussion',
             ->where('commit.id', $event->commit_id)
             ->where('commit.event.id', $event->id)
             ->where('replies.data.0.id', $reply->id));
+});
+
+it('shows an organization\'s event as hosted by the organization, not by who posted it', function (): void {
+    $organization = Organization::factory()->create(['handle' => 'laravel']);
+    $event = Event::factory()->for(Commit::factory()->state(['author_id' => $organization->id]))->create();
+
+    $this->get(route('event.show', $event))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page): Assert => $page
+            ->where('host.type', 'organization')
+            ->where('host.handle', 'laravel'));
+    $this->get(route('event.index'))
+        ->assertInertia(fn (Assert $page): Assert => $page
+            ->where('events.data.0.host.type', 'organization')
+            ->where('events.data.0.host.handle', 'laravel'));
 });
 
 it('shows events to guests', function (): void {

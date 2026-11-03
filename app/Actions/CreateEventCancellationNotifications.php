@@ -15,12 +15,12 @@ use Illuminate\Support\Str;
 final readonly class CreateEventCancellationNotifications
 {
     /**
-     * Only the people going hear about it: an interested answer is private, so nothing acts on it. The host is the actor,
+     * Only the people going hear about it: an interested answer is private, so nothing acts on it. The host, a person or an organization, is the actor,
      * and the announcement commit is the subject, so the notification goes once the commit does.
      */
     public function handle(Event $event): void
     {
-        $hostId = $event->commit?->user_id;
+        $hostId = $event->commit?->author_id;
 
         // A statement takes at most 65,535 bound values, so a large event's notifications go in chunks.
         $event->attendees()

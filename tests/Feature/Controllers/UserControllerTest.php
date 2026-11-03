@@ -831,11 +831,12 @@ it('moves the people lists of a profile for good to the handle in its own case',
         ->assertRedirect("/@OctoCat/{$list}");
 })->with(['following', 'followers', 'mutuals']);
 
-it('lists the events a user hosts on the events tab, latest first', function (): void {
+it('lists the events a user hosts on the events tab, latest first, leaving out the ones they posted as an organization', function (): void {
     $user = User::factory()->create();
     $earlier = Event::factory()->for(Commit::factory()->for($user))->ended()->create();
     $later = Event::factory()->for(Commit::factory()->for($user))->create();
     Event::factory()->for(Commit::factory()->for($user)->pending())->create();
+    Event::factory()->for(Commit::factory()->for($user)->state(['author_id' => Organization::factory()]))->create();
     Event::factory()->create();
 
     $this->get(route('user.show', ['user' => $user, 'tab' => 'events']))

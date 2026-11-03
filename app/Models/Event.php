@@ -30,7 +30,7 @@ use Illuminate\Database\Eloquent\Relations\HasOneThrough;
  * @property-read CarbonInterface $updated_at
  * @property-read int|null $going_count
  * @property-read Commit|null $commit
- * @property-read User|null $host
+ * @property-read Profile|null $host
  * @property-read Collection<int, EventAgendaItem> $agendaItems
  * @property-read Collection<int, EventAttendee> $attendees
  */
@@ -94,13 +94,14 @@ final class Event extends Model
     }
 
     /**
-     * Whoever posted the announcement, for lists that show only who hosts rather than the whole commit.
+     * The profile the announcement is from, for lists that show only who hosts rather than the whole commit: an
+     * organization's event is hosted by the organization, not by the member who posted it.
      *
-     * @return HasOneThrough<User, Commit, $this>
+     * @return HasOneThrough<Profile, Commit, $this>
      */
     public function host(): HasOneThrough
     {
-        return $this->hasOneThrough(User::class, Commit::class, 'id', 'id', 'commit_id', 'user_id');
+        return $this->hasOneThrough(Profile::class, Commit::class, 'id', 'id', 'commit_id', 'author_id')->with(['user', 'organization']);
     }
 
     /**
@@ -137,9 +138,12 @@ final class Event extends Model
         return $this->commit instanceof Commit && $this->commit->isVisibleTo($user);
     }
 
+    /**
+     * Like its announcement, an organization's event is each of its members' to run.
+     */
     public function isHostedBy(User $user): bool
     {
-        return $this->commit?->user_id === $user->id;
+        return $this->commit?->isOwnedBy($user) ?? false;
     }
 
     public function responseOf(?User $user): ?EventResponse
