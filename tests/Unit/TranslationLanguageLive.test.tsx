@@ -242,3 +242,89 @@ for (const failure of ['503', 'network'] as const) {
         }
     });
 }
+
+for (const failure of ['503', 'network', 'json'] as const) {
+    for (const sync of ['rejoin', 'history'] as const) {
+        test(`${sync} retries a saved-language read that failed with ${failure}`, async () => {
+            const { fakeConnection } = await import('./FakeRealtime');
+            const { connectRealtime, catchUpAfterRestore } =
+                await import('../../resources/js/lib/realtime');
+            const fake = fakeConnection();
+            connectRealtime(fake.connection);
+            const languages: string[] = [];
+            vi.stubGlobal('fetch', async (input: string) => {
+                const url = new URL(input, 'http://localhost');
+                const target = url.searchParams.get('language');
+                assert.equal(target, 'de');
+                languages.push(target);
+
+                if (languages.length === 1) {
+                    if (failure === 'network') {
+                        throw new Error('Synthetic network failure');
+                    }
+
+                    return failure === '503'
+                        ? new Response(null, { status: 503 })
+                        : new Response('Invalid JSON');
+                }
+
+                return Response.json({ translation: translation('de', 'Hallo') });
+            });
+
+            try {
+                void harness.render(Probe, {});
+                fake.setStatus('connected');
+                fake.joined.get('commits.c')?.join();
+                await settle();
+                assert.equal(text(), 'Hello');
+                assert.deepEqual(languages, []);
+
+                const keepOriginal = sync === 'history' && failure === '503';
+                if (keepOriginal) {
+                    const choices = shown.notice?.props.children.props
+                        .children as {
+                        type: string;
+                        props: { children: string; onClick: () => void };
+                    }[];
+                    const original = choices.find(
+                        (choice) =>
+                            choice.type === 'button' &&
+                            choice.props.children === 'Show original',
+                    );
+                    assert.ok(original);
+                    original.props.onClick();
+                    await settle();
+                }
+
+                language = 'de';
+                await settle();
+                assert.deepEqual(languages, ['de']);
+                assert.equal(text(), keepOriginal ? 'Olá' : 'Hello');
+
+                if (sync === 'history') {
+                    catchUpAfterRestore();
+                } else {
+                    fake.setStatus('unavailable');
+                    fake.setStatus('connected');
+                    fake.joined.get('commits.c')?.join();
+                }
+
+                await settle();
+                assert.deepEqual(languages, ['de', 'de']);
+                assert.equal(text(), keepOriginal ? 'Olá' : 'Hallo');
+
+                if (keepOriginal) {
+                    shown.button?.props.onClick();
+                    await settle();
+                    assert.equal(text(), 'Hallo');
+                }
+
+                catchUpAfterRestore();
+                await settle();
+                assert.deepEqual(languages, ['de', 'de']);
+            } finally {
+                connectRealtime(null);
+            }
+        });
+    }
+}

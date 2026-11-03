@@ -53,6 +53,7 @@ export function useCommitTranslation(commit: Commit) {
 
         const controller = new AbortController();
         const body = commit.body;
+        let needsRead = isOtherLanguage;
         const read = coalesce(async () => {
             const since = readAt();
             const response = await fetch(
@@ -72,31 +73,46 @@ export function useCommitTranslation(commit: Commit) {
                 };
 
                 readSince.current = since;
+                needsRead = false;
                 setGenerated({ body, translation: fresh.translation });
             }
         }, 500);
+        const refresh = () => {
+            needsRead = true;
+            read.request();
+        };
         // A translation finished while not listening is learnt by asking, with every commit shown, what was
         // translated since: joining does while none is shown yet, and reads again only those.
         const catchUp = async () => {
+            if (needsRead) {
+                read.request();
+
+                return;
+            }
+
+            if (isTranslated) {
+                return;
+            }
+
             const since = readSince.current;
             const checkedAt = readAt();
             const change = await changesSince(commit.id, since);
 
             if (change === null || change.translated) {
-                read.request();
+                refresh();
             } else {
                 readSince.current = checkedAt;
             }
         };
         const stop = listen(
             commitChannel(commit.id),
-            { translation: read.request },
-            isTranslated ? undefined : () => void catchUp(),
+            { translation: refresh },
+            () => void catchUp(),
         );
 
         // Shown in another language than the reader's: read again in theirs, keeping Show original if chosen.
         if (isOtherLanguage) {
-            read.request();
+            refresh();
         }
 
         return () => {
