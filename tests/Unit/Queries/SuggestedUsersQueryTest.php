@@ -527,7 +527,7 @@ it('keeps the people whose repositories the user starred among the first suggest
 
 it('keeps someone the user starred among the first suggestions when their network has them far down', function (): void {
     $user = User::factory()->create();
-    $vouched = vouchedFor($user, 29);
+    $vouched = vouchedFor($user, 30);
     $friend = User::factory()->create();
     $user->following()->attach($friend);
     $friend->following()->attach($vouched);

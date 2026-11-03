@@ -97,8 +97,8 @@ final readonly class SuggestedUsersQuery
             $starred = $this->candidates($user, $followingIds)
                 ->joinSub($this->starredOwners($user)->select(['github_id', 'repositories_count']), 'starred', 'starred.github_id', '=', 'users.github_id')
                 ->select(['users.*', 'starred.repositories_count as starred_repositories_count'])
-                ->selectRaw('0 as followed_by_following_count')
-                ->addSelect(['followers_count' => $this->followersCount($following), 'follows_you' => $this->followsUser($user)])
+                // Counted here rather than taken from the network, which stops at so many, so it holds for anyone in both.
+                ->addSelect(['followed_by_following_count' => $this->followedByFollowing($user, $following)->selectRaw('count(*)'), 'followers_count' => $this->followersCount($following), 'follows_you' => $this->followsUser($user)])
                 ->whereIn('users.id', $this->committers($user))
                 ->orderByDesc('starred.repositories_count')
                 ->orderByDesc('followers_count')
@@ -225,7 +225,7 @@ final readonly class SuggestedUsersQuery
     /**
      * One from each in turn, starting with the people whose repositories the user starred, so a page holding a single
      * person from the network still has one of them and a large network doesn't push them past the first pages.
-     * Someone in both keeps their place among the starred, with how many the user follows who follow them.
+     * Someone in both keeps their place among the starred.
      *
      * @param  Collection<int, User>  $network
      * @param  Collection<int, User>  $starred
@@ -233,9 +233,8 @@ final readonly class SuggestedUsersQuery
      */
     private function alternate(Collection $network, Collection $starred): Collection
     {
-        $networkById = $network->keyBy('id');
         $network = array_values($network->whereNotIn('id', $starred->pluck('id'))->all());
-        $starred = array_values($starred->map(fn (User $user): User => $networkById->get($user->id, $user))->all());
+        $starred = array_values($starred->all());
         $alternated = [];
 
         for ($index = 0; $index < max(count($network), count($starred)); $index++) {
