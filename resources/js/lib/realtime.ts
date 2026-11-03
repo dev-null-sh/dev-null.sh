@@ -324,6 +324,67 @@ export function commitChannel(commitId: string): RealtimeChannel {
 export const logChannel: RealtimeChannel = { name: 'log', type: 'public' };
 
 /**
+ * Waits for the visits under way when asked, as the one that muted someone, so reading again for what it changed
+ * doesn't hold it up. Listens from when it is made, so it knows of visits already under way when asked.
+ */
+export function visitsSettled(
+    on: (event: 'start' | 'finish', listener: () => void) => unknown,
+): () => Promise<void> {
+    let active = 0;
+    let waiting: (() => void)[] = [];
+
+    on('start', () => {
+        active++;
+    });
+    on('finish', () => {
+        active = Math.max(0, active - 1);
+
+        if (active === 0) {
+            const settled = waiting;
+            waiting = [];
+            settled.forEach((resolve) => resolve());
+        }
+    });
+
+    return () =>
+        active === 0
+            ? Promise.resolve()
+            : new Promise((resolve) => waiting.push(resolve));
+}
+
+/**
+ * Runs reads at most `limit` at a time, in the order asked: many listeners reading again for the same change, as every
+ * thread on a page does when the viewer mutes someone, leave room for the page's own requests.
+ */
+export function atMostAtOnce(
+    limit: number,
+): <T>(read: () => Promise<T>) => Promise<T> {
+    let running = 0;
+    const waiting: (() => void)[] = [];
+
+    // A read that finishes hands its place to the next one waiting, so none can start in between and run one too many.
+    return async (read) => {
+        if (running >= limit) {
+            await new Promise<void>((resolve) => waiting.push(resolve));
+        } else {
+            running++;
+        }
+
+        try {
+            return await read();
+        } finally {
+            const next = waiting.shift();
+
+            if (next) {
+                next();
+            } else {
+                running--;
+            }
+        }
+    };
+}
+
+/**
  * Runs `refresh` once for a burst of requests, never twice at the same time, and once more afterwards when asked
  * again while it ran, so the last request is always followed by a refresh that started after it.
  */

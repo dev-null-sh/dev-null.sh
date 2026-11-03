@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { afterEach, mock, test } from 'node:test';
 import {
     catchUpAfterRestore,
+    atMostAtOnce,
+    visitsSettled,
     coalesce,
     commitChannel,
     connectRealtime,
@@ -308,4 +310,88 @@ void test('a page coming back from history makes listeners already on it catch u
 
     assert.equal(syncs, 1);
     assert.deepEqual(live, [{}]);
+});
+
+void test('runs at most the given number of reads at once, every one of them, in the order asked', async () => {
+    const run = atMostAtOnce(2);
+    const started: number[] = [];
+    const finish: (() => void)[] = [];
+    const done = Array.from({ length: 5 }, (_, index) =>
+        run(
+            () =>
+                new Promise<void>((resolve) => {
+                    started.push(index);
+                    finish.push(resolve);
+                }),
+        ),
+    );
+
+    await Promise.resolve();
+    assert.deepEqual(started, [0, 1]);
+
+    finish.shift()?.();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.deepEqual(started, [0, 1, 2]);
+
+    while (finish.length > 0) {
+        finish.shift()?.();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+
+    await Promise.all(done);
+    assert.deepEqual(started, [0, 1, 2, 3, 4]);
+});
+
+void test('keeps going after a read that fails', async () => {
+    const run = atMostAtOnce(1);
+    const failed = run(() => Promise.reject(new Error('synthetic failure')));
+    const next = run(() => Promise.resolve('read'));
+
+    await assert.rejects(failed);
+    assert.equal(await next, 'read');
+});
+
+void test('never runs one too many when a read is asked for as another finishes', async () => {
+    const run = atMostAtOnce(1);
+    let running = 0;
+    let most = 0;
+    const read = () =>
+        new Promise<void>((resolve) => {
+            running++;
+            most = Math.max(most, running);
+            setTimeout(() => {
+                running--;
+                resolve();
+            }, 0);
+        });
+
+    const first = run(read);
+    const queued = run(read);
+    await first;
+    const late = run(read);
+    await Promise.all([queued, late]);
+
+    assert.equal(most, 1);
+});
+
+void test('waits for the visits under way to finish, and not for ones that start later', async () => {
+    const listeners: Record<string, (() => void)[]> = { start: [], finish: [] };
+    const settled = visitsSettled((event, listener) => listeners[event].push(listener));
+    const emit = (event: 'start' | 'finish') => listeners[event].forEach((listener) => listener());
+    let done = false;
+
+    await settled();
+
+    emit('start');
+    emit('start');
+    const waiting = settled().then(() => {
+        done = true;
+    });
+    emit('finish');
+    await Promise.resolve();
+    assert.equal(done, false);
+
+    emit('finish');
+    await waiting;
+    assert.equal(done, true);
 });

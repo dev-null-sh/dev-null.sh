@@ -95,7 +95,14 @@ import { changesSince, readAt } from '@/lib/commit-changes';
 import { changeCountLocally, commitStateKey } from '@/lib/commit-state';
 import { hasModKey } from '@/lib/keyboard';
 import { exactCountTitle, formatCount } from '@/lib/numbers';
-import { coalesce, commitChannel, listen, userChannel } from '@/lib/realtime';
+import {
+    atMostAtOnce,
+    coalesce,
+    visitsSettled,
+    commitChannel,
+    listen,
+    userChannel,
+} from '@/lib/realtime';
 import { reconcileReplies } from '@/lib/thread-replies';
 import {
     characterCount,
@@ -115,6 +122,14 @@ import type {
     OrganizationAuthor,
     ThreadCommit,
 } from '@/types';
+
+// Every thread on a page reads again when the viewer mutes or blocks someone: after the visit that did, and two at a
+// time, so the page's own requests don't wait behind them.
+const relationshipReads = atMostAtOnce(2);
+const afterVisits =
+    typeof router?.on === 'function'
+        ? visitsSettled((event, listener) => router.on(event, listener))
+        : () => Promise.resolve();
 
 const maxIndentDepth = 3;
 
@@ -386,21 +401,19 @@ export function useThread(
      * mute, block or unmute someone, or more changed than could be named: what was loaded is read again, keeping its
      * range, and anything after it waits for Load more.
      */
-    const recover = () => {
+    const recover = async (): Promise<void> => {
         if (replies === null) {
             return;
         }
 
         if (isPreview) {
-            reload();
-
-            return;
+            return reload();
         }
 
         const request = ++replyRequest.current;
         setIsLoading(true);
 
-        fetchRepliesThrough(
+        return fetchRepliesThrough(
             commit,
             replies.at(-1)?.id,
             Math.max(replies.length, repliesPerPage),
@@ -420,7 +433,7 @@ export function useThread(
             });
     };
 
-    const reload = (extra = 0) => {
+    const reload = (extra = 0): Promise<void> => {
         const minimum =
             replies === null || (isPreview && replies.length <= repliesPerPage)
                 ? repliesPerPage
@@ -431,7 +444,13 @@ export function useThread(
         const request = ++replyRequest.current;
         setIsLoading(true);
 
-        fetchRepliesUntil(commit, minimum, repliesPerPage, isPreview, except)
+        return fetchRepliesUntil(
+            commit,
+            minimum,
+            repliesPerPage,
+            isPreview,
+            except,
+        )
             .then((page) => {
                 if (request === replyRequest.current) {
                     applyPage(page.data, page.next_cursor);
@@ -519,7 +538,7 @@ export function useThread(
 
     const onExceptChanged = useEffectEvent(() => {
         if (replies !== null && !shouldLoadReplies) {
-            reload();
+            void reload();
         }
     });
 
@@ -528,7 +547,7 @@ export function useThread(
             replies !== null &&
             (initial === undefined || replies.length > repliesPerPage)
         ) {
-            reload();
+            void reload();
         }
     });
     const loadedInitial = useRef({ initial, count: commit.replies_count });
@@ -560,7 +579,9 @@ export function useThread(
             setCount(target.replies_count);
         }
         if (replies !== null) {
-            reload(replies.some((reply) => reply.id === restored.id) ? 0 : 1);
+            void reload(
+                replies.some((reply) => reply.id === restored.id) ? 0 : 1,
+            );
         }
     });
 
@@ -638,7 +659,7 @@ export function useThread(
 
         if (change === null || change.truncated) {
             readSince.current = startedAt;
-            recover();
+            void recover();
 
             return [];
         }
@@ -647,7 +668,9 @@ export function useThread(
 
         return change.replies;
     });
-    const recoverLoaded = useEffectEvent(() => recover());
+    const recoverLoaded = useEffectEvent(
+        () => void afterVisits().then(() => relationshipReads(() => recover())),
+    );
     const isLoaded = replies !== null;
     const viewerId = usePage().props.auth.user?.id ?? null;
 
@@ -741,7 +764,7 @@ export function useThread(
         isReplying,
         toggle: () => {
             if (!isOpen && replies === null) {
-                reload();
+                void reload();
             }
 
             setThread((current) => ({ ...current, isOpen: !current.isOpen }));
@@ -758,7 +781,7 @@ export function useThread(
 
             if (parent.continuation_id === continuationId) {
                 setThread((current) => ({ ...current, isOpen: true }));
-                reload();
+                void reload();
 
                 return;
             }
@@ -773,7 +796,7 @@ export function useThread(
             changedThreadIds.add(commit.id);
             changeCountLocally('replies_count', commit.id);
             setCount((current) => Math.max(current - 1, 0));
-            reload();
+            void reload();
         },
     };
 }
