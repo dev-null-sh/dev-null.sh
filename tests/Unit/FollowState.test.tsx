@@ -338,7 +338,7 @@ for (const type of [
     'mutuals',
 ] as const) {
     for (const followsYou of [true, false]) {
-        test(`${type} shows the follows-you badge only for a viewer's follower on the Followers tab (${followsYou})`, () => {
+        test(`${type} shows the follows-you badge only for a viewer's follower on the Followers or Following tab (${followsYou})`, () => {
             const page = Connections({
                 user: suggestion('someone-else'),
                 type,
@@ -358,9 +358,9 @@ for (const type of [
             assert.equal(
                 find(page, (props) => props.children === 'Follows you') !==
                     null,
-                type === 'followers' && followsYou,
+                (type === 'followers' || type === 'following') && followsYou,
             );
-            if (type === 'followers' && followsYou) {
+            if ((type === 'followers' || type === 'following') && followsYou) {
                 const handleRow = find(
                     page,
                     (props) =>
@@ -381,6 +381,31 @@ for (const type of [
             }
         });
     }
+}
+
+for (const followsYou of [true, false]) {
+    test(`your own Following list shows the follows-you badge only for a viewer's follower (${followsYou})`, () => {
+        const page = Connections({
+            user: suggestion('viewer'),
+            type: 'following',
+            users: {
+                data: [
+                    {
+                        ...suggestion('own-following'),
+                        is_followed: true,
+                        follows_you: followsYou,
+                    },
+                ],
+                next_cursor: null,
+                prev_cursor: null,
+            },
+        });
+
+        assert.equal(
+            find(page, (props) => props.children === 'Follows you') !== null,
+            followsYou,
+        );
+    });
 }
 
 for (const isFollowing of [true, false]) {
