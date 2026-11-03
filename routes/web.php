@@ -8,6 +8,7 @@ use App\Http\Controllers\AppController;
 use App\Http\Controllers\BanController;
 use App\Http\Controllers\BannedController;
 use App\Http\Controllers\BrandController;
+use App\Http\Controllers\BroadcastAuthorizationController;
 use App\Http\Controllers\BulkActivityController;
 use App\Http\Controllers\CallController;
 use App\Http\Controllers\ChangelogController;
@@ -342,6 +343,11 @@ Route::middleware('auth')->group(function (): void {
     Route::get('push-subscriptions', [PushSubscriptionController::class, 'index'])->name('push-subscription.index');
     Route::post('push-subscriptions', [PushSubscriptionController::class, 'store'])->middleware(['throttle:30,1', SerializePushSessions::class, SerializePushSubscriptions::class])->name('push-subscription.store');
     Route::delete('push-subscriptions', [PushSubscriptionController::class, 'destroy'])->middleware(SerializePushSessions::class)->name('push-subscription.destroy');
+
+    // Live updates, on the user's own private channel...
+    Route::post('broadcasting/auth', [BroadcastAuthorizationController::class, 'store'])
+        ->middleware('throttle:60,1')
+        ->name('broadcast-authorization.store');
 
     Route::post('logout', [SessionController::class, 'destroy'])
         ->middleware(SerializePushSessions::class)

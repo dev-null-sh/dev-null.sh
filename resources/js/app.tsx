@@ -12,9 +12,11 @@ import { trackAnalyticsEvents } from '@/lib/analytics';
 import { trackCommitPhotoPage } from '@/lib/commit-photo';
 import { initializeCommitState } from '@/lib/commit-state';
 import { trackCurrentPage } from '@/lib/current-page';
+import { createEcho } from '@/lib/echo';
 import { trackFollowRequests } from '@/lib/follow-requests';
 import { pageTitle } from '@/lib/page-title';
 import { trackPrefetchedPages } from '@/lib/prefetched-pages';
+import { connectRealtime, liveTransport } from '@/lib/realtime';
 import { registerServiceWorker } from '@/lib/service-worker';
 import { browserClock, clockOf, setReaderClock } from '@/lib/utils';
 import { trackVisualViewport } from '@/lib/visual-viewport';
@@ -25,9 +27,11 @@ trackCommitPhotoPage();
 trackVisualViewport();
 trackAnalyticsEvents();
 trackPrefetchedPages();
+connectRealtime(createEcho());
 
 void createInertiaApp({
     title: pageTitle,
+    live: liveTransport,
     resolve: (name) =>
         resolvePageComponent<ComponentType>(
             `./pages/${name}.tsx`,
