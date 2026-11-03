@@ -785,6 +785,7 @@ it('validates the poll of a commit from a signed request as the web does', funct
     'empty option' => [fn (): array => ['poll' => ['options' => ['Tabs', '  '], 'duration' => 1440]], 'poll.options.1', 'The option 2 field is required.'],
     'long option' => [fn (): array => ['poll' => ['options' => ['Tabs', str_repeat('a', 51)], 'duration' => 1440]], 'poll.options.1', 'The option 2 field must not be greater than 50 characters.'],
     'duplicate options' => [fn (): array => ['poll' => ['options' => ['Tabs', 'tabs'], 'duration' => 1440]], 'poll.options.1', 'The option 2 field has a duplicate value.'],
+    'an option that is not a string' => [fn (): array => ['poll' => ['options' => ['Tabs', ['Spaces']], 'duration' => 1440]], 'poll.options.1', 'The option 2 field must be a string.'],
     'unknown duration' => [fn (): array => ['poll' => ['options' => ['Tabs', 'Spaces'], 'duration' => 30]], 'poll.duration', 'The selected poll.duration is invalid.'],
     'no duration' => [fn (): array => ['poll' => ['options' => ['Tabs', 'Spaces']]], 'poll.duration', 'The poll.duration field is required when poll is present.'],
     'no options' => [fn (): array => ['poll' => ['duration' => 1440]], 'poll.options', 'The poll.options field is required when poll is present.'],
