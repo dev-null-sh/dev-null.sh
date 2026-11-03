@@ -20,6 +20,7 @@ import { endStream, GoLiveDialog } from '@/components/go-live-dialog';
 import { GuestJoinSheet } from '@/components/guest-join-sheet';
 import { KeyboardShortcutsDialog } from '@/components/keyboard-shortcuts-dialog';
 import { LocalSignInDialog } from '@/components/local-sign-in-dialog';
+import { MobileAppSuggestion } from '@/components/mobile-app-suggestion';
 import { ProductHuntBanner } from '@/components/product-hunt-banner';
 import { SearchDialog } from '@/components/search-dialog';
 import { TermsDialog } from '@/components/terms-dialog';
@@ -151,6 +152,9 @@ export default function AppLayout({ children }: AppLayoutProps) {
                             isHidden={hasComposer && isComposerInView}
                             onCompose={compose}
                         />
+                    )}
+                    {!isMessages && component !== 'app/index' && (
+                        <MobileAppSuggestion />
                     )}
                 </MobileNav>
 

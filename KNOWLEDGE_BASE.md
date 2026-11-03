@@ -574,9 +574,17 @@ Signed request bodies are JSON, or multipart when they carry images or a voice n
 
 Sources: [signed requests](app/Services/SignedRequests.php), [sign-in page](app/Http/Controllers/MobileAuthorizationController.php), [devices settings](resources/js/pages/device/index.tsx), [API routes](routes/api.php).
 
+### Mobile apps
+
+**/dev/null for iOS and Android** are native apps in public beta. Join the iOS beta through TestFlight or the Android beta through Google Play, both linked from **/apps**. On a phone, the website also suggests the app for that phone just above the bottom navigation, until you dismiss it in that browser. They use the same account, commits, and conversations as the web: the log, commits with photos, polls, and scheduling, stars, quotes, replies, notifications, profiles, and Remotes with images, voice notes, reactions, and pings.
+
+Sign in with GitHub: the app makes a signing key that stays on your phone and signs every request, so there is no password, and the phone shows up under **Settings → Devices**. On iOS you can also link an Apple ID to an existing account, which never creates a new one.
+
+[NativePHP](https://nativephp.com) builds both apps with NativePHP Mobile: native screens, with the app logic in Laravel. The code is open source at [nativephp/dev-null-app](https://github.com/nativephp/dev-null-app), and feedback and pull requests go there.
+
 ### Mac app
 
-**/dev/null for Mac** is a native Mac app for all of /dev/null: the Following, Latest, and Trending logs, writing and scheduling commits, replies, quotes, polls, stars, Starred, notifications, profiles, organization pages, search, Remotes, and calls. It is free, universal (Apple silicon and Intel), and requires macOS 14 or later. Download it from **/apps**, the home for /dev/null's apps, which shows the version, size, release date, and SHA-256 checksum of the current download (`/mac` redirects there, and **Settings → Devices** links to it).
+**/dev/null for Mac** is a native Mac app for all of /dev/null: the Following, Latest, and Trending logs, writing and scheduling commits, replies, quotes, polls, stars, Starred, notifications, profiles, organization pages, search, Remotes, and calls. It is free, universal (Apple silicon and Intel), and requires macOS 14 or later. Download it from **/apps**, the home for /dev/null's apps, which shows the version and size of the current download (`/mac` redirects there, and **Settings → Devices** links to it).
 
 To install it, open `DevNull.dmg`, drag /dev/null onto Applications, and open it. The file is named `DevNull.app`, because a slash can't go in a file name; everywhere else, the app is called /dev/null. The app is signed and notarized by Apple, so macOS opens it without a warning.
 

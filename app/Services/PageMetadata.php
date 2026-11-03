@@ -137,7 +137,7 @@ final readonly class PageMetadata
         $url = route('app.index');
         $page = $this->page(
             'Apps - /dev/null',
-            '/dev/null for Mac: your remotes and orgs in a native app, with pull receipts, voice notes, reactions, and banners that never show what a message says.',
+            '/dev/null for iOS, Android, and Mac: the log, your commits, and your remotes in native apps. The mobile apps are in public beta, and the Mac app is a free download.',
             $url,
         );
 
