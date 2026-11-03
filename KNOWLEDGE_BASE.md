@@ -26,6 +26,7 @@ This file documents the platform's features, stack, and stories. Feature entries
   - [Images and descriptions](#images-and-descriptions)
   - [Links, link cards, and embedded players](#links-link-cards-and-embedded-players)
   - [Replies and threads](#replies-and-threads)
+  - [Related commits](#related-commits)
   - [Quoting commits](#quoting-commits)
   - [Polls and voting](#polls-and-voting)
   - [Scheduled commits](#scheduled-commits)
@@ -38,6 +39,7 @@ This file documents the platform's features, stack, and stories. Feature entries
   - [Emails from /dev/null](#emails-from-devnull)
   - [Remotes: direct messages](#remotes-direct-messages)
   - [Remotes: calls](#remotes-calls)
+  - [Remotes: org calls](#remotes-org-calls)
   - [Orgs: group chats](#orgs-group-chats)
   - [Muting and blocking](#muting-and-blocking)
   - [Reporting commits](#reporting-commits)
@@ -49,6 +51,7 @@ This file documents the platform's features, stack, and stories. Feature entries
   - [GitHub Actions integration](#github-actions-integration)
   - [Public read API and Atom feeds](#public-read-api-and-atom-feeds)
   - [Signed API and devices](#signed-api-and-devices)
+  - [Mobile apps](#mobile-apps)
   - [Terminal app](#terminal-app)
   - [Mac app](#mac-app)
   - [Bug reports and feature requests](#bug-reports-and-feature-requests)
@@ -102,7 +105,7 @@ Sources: [onboarding page](resources/js/pages/onboarding/show.tsx), [sign-in tes
 
 ### Profiles and GitHub sync
 
-Every developer has a profile at `/@{handle}`, with their GitHub identity, bio and other public profile information, commit/following/follower counts, a **Follows you** badge when they follow you, and an activity graph. Like on GitHub, the handle's case doesn't matter: `/@octocat` opens the profile of `@OctoCat`, and the address switches to the handle's own case. The same goes for organization pages and commit links. Across a block in either direction, the profile is shown as unavailable. The Commits tab lists top-level commits; Replies lists that developer's replies with parent context; README shows the README of their GitHub profile repository (the one named after their username), as GitHub renders it, refreshed daily. It keeps only plain formatting, links, and images hosted by GitHub: no scripts, styles, or classes. When GitHub doesn't answer, the tab says so rather than showing no README. Follow and follower counts open the corresponding people lists, for members only: a guest goes to GitHub sign-in instead, which keeps scrapers from walking the follow graph page by page. When you are signed in, someone else's profile also shows which of the people you follow follow them: **Followed by @a, @b and N others you follow**, naming the most followed first. It opens a **Followers you know** list, which also appears as a tab beside Followers and Following. A **Mutuals** tab lists the people they follow who follow them back. The profile links to GitHub and, when available, GitHub Sponsors. Share uses the device's share sheet when supported, or copies the profile link.
+Every developer has a profile at `/@{handle}`, with their GitHub identity, bio and other public profile information, commit/following/follower counts, a **Follows you** badge when they follow you, and an activity graph. Like on GitHub, the handle's case doesn't matter: `/@octocat` opens the profile of `@OctoCat`, and the address switches to the handle's own case. The same goes for organization pages and commit links. Across a block in either direction, the profile is shown as unavailable. The Commits tab lists top-level commits; Replies lists that developer's replies with parent context; README shows the README of their GitHub profile repository (the one named after their username), as GitHub renders it, refreshed daily, or right away when they use **Sync from GitHub**. It keeps only plain formatting, links, and images hosted by GitHub: no scripts, styles, or classes. When GitHub doesn't answer, the tab says so rather than showing no README. Follow and follower counts open the corresponding people lists, for members only: a guest goes to GitHub sign-in instead, which keeps scrapers from walking the follow graph page by page. When you are signed in, someone else's profile also shows which of the people you follow follow them: **Followed by @a, @b and N others you follow**, naming the most followed first. It opens a **Followers you know** list, which also appears as a tab beside Followers and Following. A **Mutuals** tab lists the people they follow who follow them back. The profile links to GitHub and, when available, GitHub Sponsors. Share uses the device's share sheet when supported, or copies the profile link.
 
 Change your name, avatar, bio, company, location, or website on GitHub, not on /dev/null. Settings → Profile and the **Edit profile** menu on your own profile offer **Edit on GitHub** and **Sync from GitHub**. Profile details also refresh on sign-in. Manual sync is limited to once a minute. The GitHub Sponsors link is refreshed on sign-in only. A GitHub username rename is picked up on sign-in or sync; if a stale account still holds the new username because its owner also renamed, that account moves to a `_renamed-<github id>` placeholder until its owner signs in or syncs again. Accounts are matched by GitHub id and never merged.
 
@@ -116,7 +119,7 @@ Sources: [profile page](resources/js/pages/user/show.tsx), [profile settings](re
 
 ### Organization pages
 
-GitHub organizations, like `@laravel`, have a page at `/@{handle}` too, with their GitHub avatar (square, so they never pass for a person), name, description, location, website, and a link to GitHub. An organization gets its page once an approved commit mentions it, or once a signed-in member opens its address, from its public GitHub profile, and the profile refreshes when commits keep mentioning it, at most once a day. Nobody signs in as an organization: its members post for it. Everything on its page comes from GitHub, except its color and its commits. Shared links to an organization's page preview as a card with its square avatar, name, handle, and description, like a developer's profile.
+GitHub organizations, like `@laravel`, have a page at `/@{handle}` too, with their GitHub avatar (square, so they never pass for a person), name, description, location, website, and a link to GitHub. An organization gets its page, from its public GitHub profile, once an approved commit mentions it, once a developer's GitHub bio or company mentions it (checked when they sign in or use **Sync from GitHub**), or once a signed-in member opens its address. Its profile refreshes at most once a day while commits or bios keep mentioning it. Nobody signs in as an organization: its members post for it. Everything on its page comes from GitHub, except its color and its commits. Shared links to an organization's page preview as a card with its square avatar, name, handle, and description, like a developer's profile.
 
 The **Commits** tab lists the organization's own commits, newest first. The **Mentions** tab lists the commits and replies that mention the organization, newest first, a reply with the commit it answers. A commit stays listed after the organization is renamed, since it is linked to the organization rather than to the handle. It follows the usual visibility: guests see approved commits only, its members also see its pending and rejected ones, and commits across a block or by people you muted are left out.
 
@@ -144,9 +147,9 @@ Sources: [looking handles up](app/Http/Controllers/ProfileLookupController.php),
 
 ### Going live
 
-Share a stream you are running from the **…** menu on your own profile: **Go live** takes a link to a YouTube or Twitch stream (on YouTube: a `/live/` link, a watch link, an embed, or one with a start time all work; on Twitch: your channel link) and how long to show it, from **1 to 12 hours** (two by default). YouTube and Twitch are supported. While you are live, your avatar gets a red ring and a **Live** marker on your profile, in logs, and in hover cards. Hovering it (or tapping it on a touch screen) shows the stream's live thumbnail with a **Watch** button; the stream itself plays on the provider in a new tab, never embedded. On your profile, the avatar links straight to the stream.
+Share a stream you are running with the **Go live** button on your own profile, or by typing "go live" in search: it takes a link to a YouTube or Twitch stream (on YouTube: a `/live/` link, a watch link, an embed, or one with a start time all work; on Twitch: your channel link) and how long to show it, from **1 to 12 hours** (two by default). YouTube and Twitch are supported. While you are live, your avatar gets a red ring and a **Live** marker on your profile, in logs, and in hover cards. Hovering it (or tapping it on a touch screen) shows the stream's live thumbnail with a **Watch now** button; the stream itself plays on the provider in a new tab, never embedded. On your profile, the avatar links straight to the stream.
 
-**End stream** in the same menu stops it at once; otherwise it stops showing when the chosen time runs out, and the scheduler clears it within five minutes. Only the platform, the link, and the end time are stored, and they are included in your export.
+While a stream is on, the **Go live** button becomes **End stream** (or type "end stream" in search), which stops it at once; otherwise it stops showing when the chosen time runs out, and the scheduler clears it within five minutes. Only the platform, the link, and the end time are stored, and they are included in your export.
 
 Sources: [go-live button](resources/js/components/profile-live-button.tsx), [live avatar and card](resources/js/components/live-stream-card.tsx), [validation](app/Http/Requests/UpdateUserLiveRequest.php), [YouTube links](app/Services/LivePlatforms/YouTube.php), [Twitch links](app/Services/LivePlatforms/Twitch.php), [ending streams](app/Jobs/EndLiveStreams.php).
 
@@ -176,7 +179,7 @@ Commit counts include replies and quotes. Commit-based badges and XP use non-del
 
 Badges are calculated from current account data, not permanently recorded awards. Removing qualifying activity can reduce progress or lock a badge again; for example, unstarring a commit can remove **stargazer**. **Shell shocked** depends only on when the account was created, so deleting activity does not remove it. When a commit posted on the web unlocks a badge, a toast names it and confetti drops; clicking an unlocked badge drops confetti again. Unlocking a badge does not normally give bonus XP; **shell shocked** contributes **100 XP** once. XP otherwise comes from **10 per commit**, **15 per day in the longest streak**, **5 per star received**, **5 per reply to another developer**, and **2 per star given to another developer**. The **luddite** penalty applies once while the badge is unlocked, not once per unfollow, and total XP cannot fall below zero. A qualifying reply contributes both commit XP and reply XP; pastéis do not add XP.
 
-XP also determines your Unix rank: **user** at 0 XP, **daemon** at 50, **operator** at 150, **maintainer** at 400, **wheel** at 1,000, and **root** at 2,500. The achievements dialog's **Ranks** tab shows the levels and progress. Level-up notifications use your public progress, so pending or rejected commits do not trigger them. Each level above the starting rank can notify you only once, even if you lose and regain the XP; jumping ahead does not send a notification for every skipped level.
+XP also determines your Unix rank: **user** at 0 XP, **daemon** at 50, **operator** at 150, **maintainer** at 400, **wheel** at 1,000, and **root** at 2,500. The achievements dialog's **Unix Ranks** tab shows the levels and progress. Level-up notifications use your public progress, so pending or rejected commits do not trigger them. Each level above the starting rank can notify you only once, even if you lose and regain the XP; jumping ahead does not send a notification for every skipped level.
 
 Sources: [badge definitions](app/Enums/Achievement.php), [unlock conditions and XP calculation](app/Queries/UserAchievementsQuery.php), [streak calculation](app/Queries/UserStreakQuery.php), [Unix ranks](app/Enums/UnixRank.php), [level-up notifications](app/Actions/CreateLevelNotification.php), [achievements dialog](resources/js/components/achievements-dialog.tsx).
 
@@ -408,7 +411,7 @@ Every email has an **Unsubscribe** link at the bottom, and mail apps such as Gma
 
 ### Remotes: direct messages
 
-Open a commit's **Share** menu to copy its link or choose **Send in Remotes** on an approved commit. Pick a developer and confirm sending its link. The confirmation shows the commit before sending; cancelling sends nothing. Sharing follows the usual Remotes contact and request rules and opens the recipient's conversation, where delivery failures can be retried.
+Open a commit's **…** menu to **Copy link** or choose **Send in Remotes** on an approved commit. Pick a developer and confirm sending its link. The confirmation shows the commit before sending; cancelling sends nothing. Sharing follows the usual Remotes contact and request rules and opens the recipient's conversation, where delivery failures can be retried.
 
 **Remotes** is /dev/null's private messaging inbox at `/remotes`. Open it from navigation, or use **Remote** on a developer's profile or in the **…** menu of the card that opens when you hover their name on a computer. Remotes can be disabled in Settings → Profile; disabling keeps existing conversations but stops new messaging. By default, you can contact someone who follows you, provided both accounts have Remotes enabled and neither has blocked the other. The follow is only needed for the first message: once a conversation exists, both people can keep writing. Administrators have a contact-policy exception. Tom has Remotes turned off, so he cannot be messaged.
 
@@ -533,7 +536,7 @@ Source: [shortcut reference](resources/js/components/keyboard-shortcuts-dialog.t
 
 ### Terminal commits
 
-Settings → Terminal shows how to post using the `/commit` shell script. It signs the submission locally with an Ed25519 or RSA SSH key whose public half is on your GitHub account, as an authentication or a signing key, and /dev/null verifies that signature. No browser login or API token is required for that submission; your private key is not uploaded. The script can create commits, reply with `--reply` using a commit hash or link, and attach up to three images with `--image`, without descriptions.
+Settings → Terminal shows how to post using the `/commit` shell script. It signs the submission locally with an Ed25519 or RSA SSH key whose public half is on your GitHub account, as an authentication or a signing key, and /dev/null verifies that signature. /dev/null learns your GitHub keys when you sign in or use **Sync from GitHub** in Settings → Profile, and checks them again, at most every five minutes, when you post with a key it already knows. If none of your keys are known yet, a key added on GitHub works only after a sync. No browser login or API token is required for that submission; your private key is not uploaded. The script can create commits, reply with `--reply` using a commit hash or link, and attach up to three images with `--image`, without descriptions.
 
 Before posting from the terminal or a GitHub Action, accept the [commit rules](#moderation) by making your first submission through the web composer. Terminal posts then follow the same moderation and 10-per-minute submission limit as browser posts, and always need 1–4,000 characters of text, even with images. Their first link supplies the default link card. Review a downloaded script before running it, and never paste a private key into a commit.
 
@@ -545,7 +548,7 @@ Livestream history: terminal posting was reported working on [day one at 6:32:47
 
 Use `dev-null-sh/dev-null.sh/.github/actions/commit@production` to publish updates from a GitHub workflow, for example when a release is published. The action accepts a commit body, an SSH private key supplied through a GitHub Actions secret, an optional `reply-to` reference, optional image paths (up to three), and an optional `url` for another /dev/null instance.
 
-Generate a dedicated CI key, add its public half to GitHub as a signing or authentication key, and store the private half only in the repository's encrypted secrets. The action supports Ed25519 or RSA keys without a passphrase. It reports the created commit's link and whether it is pending review as a workflow annotation; it has no step outputs, and a refused submission fails the job. The usual moderation and submission limits still apply.
+Generate a dedicated CI key, add its public half to GitHub as a signing or authentication key, use **Sync from GitHub** in Settings → Profile, and store the private half only in the repository's encrypted secrets. The action supports Ed25519 or RSA keys without a passphrase. It reports the created commit's link and whether it is pending review as a workflow annotation; it has no step outputs, and a refused submission fails the job. The usual moderation and submission limits still apply.
 
 Sources: [GitHub action](.github/actions/commit/action.yml).
 
@@ -648,7 +651,7 @@ Sources: [export settings](resources/js/pages/user-profile/edit.tsx), [export co
 
 ### Deleting your account
 
-Settings → Profile → **Delete account** opens a confirmation for permanent deletion of your /dev/null account; an app can also delete it through the signed API. It does not delete your GitHub account. Your top-level commits and every reply under those threads are erased. Your replies are also removed, except that replies from other people beneath them survive under authorless `[deleted]` placeholders. Your devices, the messages and reactions you sent, and all your uploaded images are erased too; other people's messages in your conversations stay with them. Account deletion is not covered by the 30-second commit undo.
+Settings → Profile → **Delete account** opens a confirmation for permanent deletion of your /dev/null account; an app can also delete it through the signed API. It does not delete your GitHub account. Your top-level commits and every reply under those threads are erased. Your replies are also removed, except that replies from other people beneath them survive under authorless `[deleted]` placeholders. Your devices, the messages and reactions you sent, and the images you uploaded are erased too; other people's messages in your conversations stay with them. Commits you posted as an organization stay with it, images included, without saying who posted them, unless they are replies in a thread you started as yourself. Account deletion is not covered by the 30-second commit undo.
 
 You can sign in with GitHub again later, but start from a new account rather than restoring the deleted one. Export your data first if you want a copy. Deleting from /dev/null cannot retract copies of public content held elsewhere.
 
@@ -668,7 +671,7 @@ Posts awaiting automated checks stay pending if those checks fail; a failed chec
 
 Before you first commit, reply, quote, or schedule a commit, the web composer shows the commit rules, and keeps showing them on every attempt until you send with "Got it, commit": no engagement bait, no low-effort posts, no AI-generated posts, no spam or self-promotion, and no harassment, hate, or private information, followed by a link to the terms. Your first submission must come from the web so you can accept these rules; terminal, GitHub Action, and app posting become available afterwards.
 
-During a **timeout**, you can still read and react, but cannot commit, reply, quote, schedule, open issues, go live, send remotes, or start, rename, add people to, or pin messages in orgs from any surface; each attempt says how long is left and why. A stream that is already live keeps showing, and **End stream** still works. Scheduled commits wait until the timeout ends. Like bans, timeouts belong to the GitHub account: deleting the /dev/null account and signing in again does not end a timeout or erase its history.
+During a **timeout**, you can still read and react, but cannot commit, reply, quote, schedule, open issues, go live, send remotes or pings, start a call or join an org call, or create, rename, add people to, or pin messages in orgs from any surface; each attempt says how long is left and why. A stream that is already live keeps showing, and **End stream** still works. Scheduled commits wait until the timeout ends. Like bans, timeouts belong to the GitHub account: deleting the /dev/null account and signing in again does not end a timeout or erase its history.
 
 A **ban** sends you to a page explaining why, where you can only sign out or delete your account; the app refuses everything but deleting the account, and the terminal refuses posting. A ban belongs to the GitHub account, so deleting the /dev/null account and signing in again does not lift it. Banning someone cancels their scheduled commits, so lifting the ban later does not publish them all at once.
 
@@ -732,13 +735,13 @@ Sources: [fingerprint matching](resources/js/lib/certificate-hashes.ts), [text r
 | Asset tooling | **Vite+ / Vite** builds frontend assets; **Bun** manages frontend dependencies and runs scripts. |
 | PHP dependencies | **Composer** manages backend dependencies. |
 | Testing and quality | **Pest**, **PHPStan / Larastan**, **TypeScript**, **Laravel Pint**, **Rector**, and frontend formatting and linting through **Vite+**. |
-| AI services | **Laravel AI SDK** runs Tom and public-post translation with **DeepSeek Flash** through **OpenCode Zen** and generates and caches semantic search query embeddings through **OpenAI**. The existing OpenAI integration handles batch embeddings, commit relevance checks, and moderation. |
+| AI services | **Laravel AI SDK** runs Tom and public-post translation with **DeepSeek Flash** through **OpenCode Zen**. **OpenAI** generates embeddings, including cached semantic search query embeddings, and handles commit relevance checks and moderation. |
 
 The knowledge base is split into Markdown sections by heading and searched by meaning using vector embeddings in PostgreSQL. Updates normally become available to Tom within about an hour of deployment.
 
-An [internal semantic search query](app/Queries/KnowledgeBaseSearchQuery.php) retrieves the nearest knowledge-base sections using Laravel AI SDK query embeddings through OpenAI and PostgreSQL cosine distance, following the same embedding approach as commit search. Tom's read-only tools expose bounded knowledge-base excerpts and public commit search results to the model. There is no standalone public knowledge-base search endpoint.
+An [internal semantic search query](app/Queries/KnowledgeBaseSearchQuery.php) retrieves the nearest knowledge-base sections using OpenAI query embeddings and PostgreSQL cosine distance, following the same embedding approach as commit search. Tom's read-only tools expose bounded knowledge-base excerpts and public commit search results to the model. There is no standalone public knowledge-base search endpoint.
 
-Stack references: [PHP dependencies](composer.json), [frontend dependencies](package.json), [setup requirements](README.md#contributing), and [existing AI integration](app/Services/OpenAI.php). Laravel Cloud hosting is confirmed by the project team.
+Stack references: [PHP dependencies](composer.json), [frontend dependencies](package.json), [setup requirements](README.md#contributing), and the OpenAI integrations for [embeddings](app/Services/EmbeddingProviders/OpenAIEmbeddingProvider.php), [relevance checks](app/Services/RelevanceProviders/OpenAIRelevanceProvider.php), and [moderation](app/Services/ModerationProviders/OpenAIModerationProvider.php). Laravel Cloud hosting is confirmed by the project team.
 
 ### October 21, 2026: PHP security patches and precautionary downtime
 
