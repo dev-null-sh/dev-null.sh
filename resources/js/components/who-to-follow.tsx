@@ -1,5 +1,5 @@
 import { Deferred, Link, router, usePage } from '@inertiajs/react';
-import { Ellipsis, EyeOff, RefreshCw, X } from 'lucide-react';
+import { Ellipsis, EyeOff, RefreshCw, Star, X } from 'lucide-react';
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { index as suggestionStates } from '@/actions/App/Http/Controllers/SuggestedUserStateController';
 import SuggestionDismissalController from '@/actions/App/Http/Controllers/SuggestionDismissalController';
@@ -71,13 +71,22 @@ function BioComment({ bio }: { bio: string }) {
     );
 }
 
-function Reason({ reason, title }: { reason: string; title: string }) {
+function Reason({
+    reason,
+    title,
+    isStarred,
+}: {
+    reason: string;
+    title: string;
+    isStarred: boolean;
+}) {
     return (
         <span
-            className="block truncate text-xs text-muted-foreground"
+            className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground"
             title={title}
         >
-            {reason}
+            {isStarred && <Star aria-hidden className="size-3 shrink-0" />}
+            <span className="truncate">{reason}</span>
         </span>
     );
 }
@@ -230,7 +239,13 @@ export function SuggestedUserRow({
     const details = (bio || reason) && (
         <>
             {bio && <BioComment bio={bio} />}
-            {reason && <Reason reason={reason} title={exactReason ?? reason} />}
+            {reason && (
+                <Reason
+                    reason={reason}
+                    title={exactReason ?? reason}
+                    isStarred={user.starred_repositories_count > 0}
+                />
+            )}
         </>
     );
     const avatarRef = useRef<HTMLSpanElement>(null);
