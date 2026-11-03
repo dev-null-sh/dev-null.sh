@@ -56,6 +56,11 @@ final readonly class NullGitHubProvider implements GitHubProvider
         return [];
     }
 
+    public function starredOwnerIds(string $login, int $maxPages): array
+    {
+        return [];
+    }
+
     public function sshKeys(string $login): array
     {
         return [];

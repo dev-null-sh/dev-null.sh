@@ -136,6 +136,17 @@ final readonly class HttpGitHubProvider implements GitHubProvider
         return array_map(fn (array $account): string => (string) $account['id'], $this->accounts("users/{$login}/followers", $maxPages));
     }
 
+    public function starredOwnerIds(string $login, int $maxPages): array
+    {
+        /** @var list<array{owner: array{id: int, type: string}}> $repositories */
+        $repositories = $this->pages("users/{$login}/starred", $maxPages);
+
+        return array_values(array_map(
+            fn (array $repository): string => (string) $repository['owner']['id'],
+            array_filter($repositories, fn (array $repository): bool => $repository['owner']['type'] === 'User'),
+        ));
+    }
+
     public function sshKeys(string $login): array
     {
         /** @var list<string> */
@@ -318,20 +329,31 @@ final readonly class HttpGitHubProvider implements GitHubProvider
      */
     private function accounts(string $path, int $maxPages): array
     {
-        $accounts = [];
+        /** @var list<array{id: int, type: string}> */
+        return $this->pages($path, $maxPages);
+    }
+
+    /**
+     * The items of a paginated list, up to the given number of pages.
+     *
+     * @return list<array<array-key, mixed>>
+     */
+    private function pages(string $path, int $maxPages): array
+    {
+        $items = [];
 
         for ($page = 1; $page <= $maxPages; $page++) {
-            /** @var list<array{id: int, type: string}> $pageAccounts */
-            $pageAccounts = $this->request()->get($path, ['per_page' => self::PerPage, 'page' => $page])->throw()->json();
+            /** @var list<array<array-key, mixed>> $pageItems */
+            $pageItems = $this->request()->get($path, ['per_page' => self::PerPage, 'page' => $page])->throw()->json();
 
-            array_push($accounts, ...$pageAccounts);
+            array_push($items, ...$pageItems);
 
-            if (count($pageAccounts) < self::PerPage) {
+            if (count($pageItems) < self::PerPage) {
                 break;
             }
         }
 
-        return $accounts;
+        return $items;
     }
 
     /**
