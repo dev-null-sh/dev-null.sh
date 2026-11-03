@@ -260,6 +260,50 @@ function previewFollowersCount(
     )?.props.children;
 }
 
+function previewMenu(
+    user: SuggestedUser,
+    canPush: boolean,
+): ReactElement<Props> {
+    showPreview = true;
+    const preview = UserPreview({ user: user as User, children: user.name });
+    showPreview = false;
+
+    const content = find(preview, (props) => 'onMenuOpenChange' in props);
+    assert.ok(content);
+
+    const menu = find(
+        render({
+            ...content,
+            props: {
+                ...content.props,
+                data: {
+                    isFollowing: false,
+                    followsYou: true,
+                    isMuting: false,
+                    isBlocking: false,
+                    isUnavailable: false,
+                    canPush,
+                    user: { ...user, followers_count: 0 } as unknown as Profile,
+                },
+            },
+        }),
+        (props) => 'isMuting' in props,
+    );
+    assert.ok(menu);
+
+    return menu;
+}
+
+function previewRemote(
+    user: SuggestedUser,
+    canPush: boolean,
+): ReactElement<Props> | null {
+    return find(
+        render(previewMenu(user, canPush)),
+        (props) => props['data-test'] === 'user-remote',
+    );
+}
+
 function followFromProfile(user: SuggestedUser): void {
     const profileButton = find(
         FollowButton({ user, isFollowing: false }),
@@ -271,6 +315,83 @@ function followFromProfile(user: SuggestedUser): void {
     (profileButton.props.onSuccess as () => void)();
     (profileButton.props.onFinish as () => void)();
 }
+
+test('the profile preview menu offers a remote when they could be pushed to', () => {
+    assert.deepEqual(previewRemote(suggestion('pushable'), true)?.props.href, {
+        url: '/remotes/@pushable',
+        method: 'get',
+    });
+    assert.equal(previewRemote(suggestion('unreachable'), false), null);
+});
+
+test('the safety menu reports a block or unblock once it goes through, but not a mute', () => {
+    const user = suggestion('reported');
+    const changes: string[] = [];
+    const onBlockChange = () => changes.push('changed');
+    const menu = UserSafetyMenu({
+        user,
+        isMuting: false,
+        isBlocking: false,
+        onBlockChange,
+    });
+
+    const mute = find(
+        menu,
+        (props) =>
+            Array.isArray(props.children) &&
+            props.children.includes('Mute @reported'),
+    );
+    assert.ok(mute);
+    (mute.props.onSelect as () => void)();
+    visits.at(-1)?.onSuccess?.();
+    assert.deepEqual(changes, []);
+
+    const block = find(menu, (props) => props.children === 'Block');
+    assert.ok(block);
+    (block.props.onClick as () => void)();
+    assert.deepEqual(changes, []);
+    visits.at(-1)?.onSuccess?.();
+    assert.deepEqual(changes, ['changed']);
+
+    const unblock = find(
+        UserSafetyMenu({
+            user,
+            isMuting: false,
+            isBlocking: true,
+            onBlockChange,
+        }),
+        (props) =>
+            Array.isArray(props.children) &&
+            props.children.includes('Unblock @reported'),
+    );
+    assert.ok(unblock);
+    (unblock.props.onSelect as () => void)();
+    assert.deepEqual(changes, ['changed']);
+    visits.at(-1)?.onSuccess?.();
+
+    assert.deepEqual(changes, ['changed', 'changed']);
+});
+
+test('the profile preview reloads itself after a block or unblock from its menu', () => {
+    const fetched: string[] = [];
+    const original = globalThis.fetch;
+    globalThis.fetch = ((url: string) => {
+        fetched.push(url);
+
+        return new Promise(() => {});
+    }) as typeof fetch;
+
+    try {
+        (
+            previewMenu(suggestion('reloaded'), true).props
+                .onBlockChange as () => void
+        )();
+    } finally {
+        globalThis.fetch = original;
+    }
+
+    assert.deepEqual(fetched, ['/@reloaded/preview']);
+});
 
 test('a suggestion who follows you offers to follow back, at a width that fits it', () => {
     const user = { ...suggestion('freek'), follows_you: true };
