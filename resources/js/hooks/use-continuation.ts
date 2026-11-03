@@ -47,86 +47,143 @@ export function useContinuation(continuation: ThreadContinuation) {
         }
     }
 
-    useEffect(() => () => request.current?.abort(), [continuation]);
+    /**
+     * One reading of the chain at a time: the earliest part known to have changed, the read on its way, and a count of
+     * every change to what is shown, so a read that comes back after the reader loaded more, or after another read,
+     * is dropped and made again over everything shown by then.
+     */
+    const sync = useRef({
+        dirtyFrom: null as number | null,
+        generation: 0,
+        reading: null as AbortController | null,
+        timer: undefined as ReturnType<typeof setTimeout> | undefined,
+    });
+
+    useEffect(() => {
+        const state = sync.current;
+        state.generation++;
+
+        return () => {
+            request.current?.abort();
+            state.reading?.abort();
+        };
+    }, [continuation]);
 
     /**
-     * Reads the chain again from just before a part another client changed, as many parts as were loaded below it,
+     * Reads the chain again from just before a part another client changed, as many parts as are loaded below it,
      * and puts them in place of the ones shown: a part deleted, rejected or brought back changes the chain without
      * losing the pages loaded or the reader's place. A reply continuing the last part shown is the same, from it.
-     * Parts above stay as they are, and a read that no longer fits what is shown is dropped.
      */
-    const reconcileFrom = useEffectEvent(async (index: number) => {
-        const anchor = index === 0 ? shown[0]?.parent_id : shown[index - 1]?.id;
+    const reconcile = useEffectEvent(async () => {
+        const state = sync.current;
+        const current = shown;
+
+        if (state.reading !== null || isLoading || state.dirtyFrom === null) {
+            return;
+        }
+
+        const index = Math.min(state.dirtyFrom, current.length);
+        state.dirtyFrom = null;
+        const anchor =
+            index === 0 ? current[0]?.parent_id : current[index - 1]?.id;
 
         if (anchor === undefined || anchor === null) {
             return;
         }
 
-        const wanted = Math.max(shown.length - index, 1);
+        const generation = state.generation;
+        const controller = new AbortController();
+        state.reading = controller;
+        const wanted = Math.max(current.length - index, 1);
         const parts: Commit[] = [];
         let from = anchor;
         let first: ThreadContinuation | null = null;
         let last: ThreadContinuation | null = null;
 
-        do {
-            const response = await fetch(
-                CommitContinuationController.index(from).url,
-                {
-                    headers: {
-                        Accept: 'application/json',
-                        'X-Requested-With': 'XMLHttpRequest',
+        try {
+            do {
+                const response = await fetch(
+                    CommitContinuationController.index(from).url,
+                    {
+                        headers: {
+                            Accept: 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                        signal: controller.signal,
                     },
-                },
-            );
+                );
 
-            if (!response.ok) {
+                if (!response.ok) {
+                    throw new Error('Unable to read the thread again');
+                }
+
+                last = (await response.json()) as ThreadContinuation;
+                first ??= last;
+                parts.push(...last.data);
+                from = last.data.at(-1)?.id ?? from;
+            } while (
+                parts.length < wanted &&
+                last.next_id !== null &&
+                last.data.length > 0
+            );
+        } catch {
+            if (!controller.signal.aborted && state.generation === generation) {
                 return;
             }
+        } finally {
+            state.reading = null;
+        }
 
-            last = (await response.json()) as ThreadContinuation;
-            first ??= last;
-            parts.push(...last.data);
-            from = last.data.at(-1)?.id ?? from;
-        } while (
-            parts.length < wanted &&
-            last.next_id !== null &&
-            last.data.length > 0
-        );
+        if (
+            controller.signal.aborted ||
+            state.generation !== generation ||
+            first === null ||
+            last === null
+        ) {
+            markChanged(index);
 
-        const base = continuation.position + index;
-        const size = base + first.length;
-        const nextId = last.next_id;
+            return;
+        }
 
-        setThread((current) =>
-            current.shown
-                .slice(0, index)
-                .every((part, at) => part.id === shown[at]?.id) &&
-            (index === 0 || current.shown[index - 1]?.id === anchor)
-                ? {
-                      shown: [...current.shown.slice(0, index), ...parts],
-                      nextId,
-                      size,
-                      isCapped: last?.is_capped ?? current.isCapped,
-                  }
-                : current,
-        );
+        const read = { first, last };
+        state.generation++;
+        setThread((now) => ({
+            shown: [...now.shown.slice(0, index), ...parts],
+            nextId: read.last.next_id,
+            size: continuation.position + index + read.first.length,
+            isCapped: read.last.is_capped,
+        }));
+
+        if (state.dirtyFrom !== null) {
+            schedule();
+        }
     });
 
-    const onPartChanged = useEffectEvent(
-        async (partId: string, ids: string[]) => {
-            const index = shown.findIndex((part) => part.id === partId);
+    function schedule() {
+        const state = sync.current;
+        clearTimeout(state.timer);
+        state.timer = setTimeout(() => void reconcile(), 300);
+    }
 
-            if (index === -1 || isLoading) {
-                return;
-            }
+    function markChanged(index: number) {
+        const state = sync.current;
+        state.dirtyFrom = Math.min(state.dirtyFrom ?? index, index);
+        schedule();
+    }
 
-            if (ids.includes(partId)) {
-                await reconcileFrom(index);
-            } else if (index === shown.length - 1 && nextId === null) {
-                await reconcileFrom(shown.length);
-            }
-        },
-    );
+    const onPartChanged = useEffectEvent((partId: string, ids: string[]) => {
+        const index = shown.findIndex((part) => part.id === partId);
+
+        if (index === -1) {
+            return;
+        }
+
+        if (ids.includes(partId)) {
+            markChanged(index);
+        } else if (index === shown.length - 1 && nextId === null) {
+            markChanged(shown.length);
+        }
+    });
 
     /**
      * After reading the chain before listening, coming back from history or losing the connection, asks what changed
@@ -135,21 +192,20 @@ export function useContinuation(continuation: ThreadContinuation) {
     const catchUp = useEffectEvent(async () => {
         const since = readSince.current;
         readSince.current = readAt();
+        const current = shown;
         const changes = await Promise.all(
-            shown.map((part) => changesSince(part.id, since)),
+            current.map((part) => changesSince(part.id, since)),
         );
         const index = changes.findIndex(
             (change, at) =>
                 change === null ||
                 change.changed ||
-                (at === shown.length - 1 && change.replies.length > 0),
+                (at === current.length - 1 && change.replies.length > 0),
         );
 
         if (index !== -1) {
             const change = changes[index];
-            await reconcileFrom(
-                change !== null && !change.changed ? index + 1 : index,
-            );
+            markChanged(change !== null && !change.changed ? index + 1 : index);
         }
     });
     const readSince = useRef(Math.min(serverNow - 5_000, readAt()));
@@ -160,35 +216,28 @@ export function useContinuation(continuation: ThreadContinuation) {
         const stops = shownIds
             .split(' ')
             .filter(Boolean)
-            .map((partId) => {
-                const heard = new Set<string>();
-                const refresh = coalesce(async () => {
-                    const ids = [...heard];
-                    heard.clear();
-                    await onPartChanged(partId, ids);
-                }, 300);
-                const stop = listen(
+            .map((partId) =>
+                listen(
                     commitChannel(partId),
                     {
-                        visibility: (payload) => {
-                            idsOf(payload).forEach((id) => heard.add(id));
-                            refresh.request();
-                        },
+                        visibility: (payload) =>
+                            onPartChanged(partId, idsOf(payload)),
                     },
                     catchUps.request,
-                );
-
-                return () => {
-                    stop();
-                    refresh.cancel();
-                };
-            });
+                ),
+            );
 
         return () => {
             stops.forEach((stop) => stop());
             catchUps.cancel();
         };
     }, [shownIds]);
+
+    useEffect(() => {
+        const state = sync.current;
+
+        return () => clearTimeout(state.timer);
+    }, []);
 
     useEffect(() => {
         const card =
@@ -212,6 +261,7 @@ export function useContinuation(continuation: ThreadContinuation) {
         const controller = new AbortController();
         request.current = controller;
         setIsLoading(true);
+        sync.current.reading?.abort();
 
         fetch(CommitContinuationController.index(last).url, {
             headers: {
@@ -228,6 +278,7 @@ export function useContinuation(continuation: ThreadContinuation) {
                 return response.json() as Promise<ThreadContinuation>;
             })
             .then((page) => {
+                sync.current.generation++;
                 setThread((current) => ({
                     shown: [...current.shown, ...page.data],
                     nextId: page.next_id,
@@ -243,7 +294,13 @@ export function useContinuation(continuation: ThreadContinuation) {
                     );
                 }
             })
-            .finally(() => setIsLoading(false));
+            .finally(() => {
+                setIsLoading(false);
+
+                if (sync.current.dirtyFrom !== null) {
+                    schedule();
+                }
+            });
     };
 
     return { shown, nextId, size, isCapped, isLoading, loadMore };
