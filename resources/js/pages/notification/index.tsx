@@ -192,6 +192,55 @@ function firstVisibleGroup(
     return partial;
 }
 
+type ShownGroup = { group: NotificationGroup; placement: NotificationGroup };
+
+/**
+ * The groups read again, with each one the reader has open kept where it was among them, next to the group it
+ * followed (or else preceded): what they are reading doesn't move while it is read again. It is placed, and its day
+ * and last-visit markers drawn, as it was when it was shown there, until it is closed and the groups are read again.
+ */
+function keepOpenInPlace(
+    previous: ShownGroup[],
+    next: NotificationGroup[],
+    open: ReadonlySet<string>,
+): ShownGroup[] {
+    const before = new Map(
+        previous.map((shown, index) => [shown.group.group_id, index]),
+    );
+    const isHeld = (group: NotificationGroup) =>
+        open.has(group.group_id) && before.has(group.group_id);
+    const placed: ShownGroup[] = next
+        .filter((group) => !isHeld(group))
+        .map((group) => ({ group, placement: group }));
+    const at = (id: string) =>
+        placed.findIndex((shown) => shown.group.group_id === id);
+
+    for (const group of next
+        .filter(isHeld)
+        .sort((a, b) => before.get(a.group_id)! - before.get(b.group_id)!)) {
+        const index = before.get(group.group_id)!;
+        const preceding = previous
+            .slice(0, index)
+            .reverse()
+            .find((shown) => at(shown.group.group_id) !== -1);
+        const following = previous
+            .slice(index + 1)
+            .find((shown) => at(shown.group.group_id) !== -1);
+        const position = preceding
+            ? at(preceding.group.group_id) + 1
+            : following
+              ? at(following.group.group_id)
+              : placed.length;
+
+        placed.splice(position, 0, {
+            group,
+            placement: previous[index].placement,
+        });
+    }
+
+    return placed;
+}
+
 export default function Index({
     notifications,
     filters,
@@ -206,6 +255,38 @@ export default function Index({
     const header = useRef<HTMLDivElement>(null);
     const pollAnchor = useRef<PollAnchor | null>(null);
     const [arrivals, setArrivals] = useState(0);
+    const [openGroups, setOpenGroups] = useState<ReadonlySet<string>>(
+        () => new Set(),
+    );
+    const [placed, setPlaced] = useState(() => ({
+        data: notifications.data,
+        shown: keepOpenInPlace([], notifications.data, new Set()),
+    }));
+
+    if (placed.data !== notifications.data) {
+        setPlaced({
+            data: notifications.data,
+            shown: keepOpenInPlace(
+                placed.shown,
+                notifications.data,
+                openGroups,
+            ),
+        });
+    }
+
+    const shownGroups = placed.shown;
+    const setGroupOpen = (groupId: string, isOpen: boolean) =>
+        setOpenGroups((current) => {
+            const next = new Set(current);
+
+            if (isOpen) {
+                next.add(groupId);
+            } else {
+                next.delete(groupId);
+            }
+
+            return next;
+        });
     const { auth } = usePage().props;
     const channel = auth.user === null ? null : userChannel(auth.user.id);
     const reloadOptions = backgroundPollOptions(() => ({
@@ -220,7 +301,7 @@ export default function Index({
         onStart: () => {
             pollAnchor.current = firstVisibleGroup(
                 header.current,
-                notifications.data,
+                shownGroups.map((shown) => shown.group),
             );
         },
         onCancelToken: (token) => {
@@ -250,6 +331,7 @@ export default function Index({
     // What the user is notified about changes as it happens, also when something stops being relevant. The loaded
     // groups are read again down to the oldest one shown, like a poll, and a hidden tab waits until it is shown, so
     // nothing arrives where it would be marked read unseen.
+    const [pendingTypes, setPendingTypes] = useState<string[] | null>(null);
     const hasMissed = useRef(false);
     const refreshGroups = useRef<(() => void) | null>(null);
     // Settles once the reload does, so the next one waits for it rather than racing it. Changing the filter cancels
@@ -304,7 +386,6 @@ export default function Index({
                 filters.type.split(',').includes(option.type),
         )
         .map((option) => option.type);
-    const [pendingTypes, setPendingTypes] = useState<string[] | null>(null);
     const enabled = pendingTypes ?? selected;
     const changeFilters = (types: string[]) => {
         const type =
@@ -367,14 +448,14 @@ export default function Index({
         }
 
         const arrived =
-            notifications.data.findIndex(
-                (group) => group.group_id === anchor.id,
+            shownGroups.findIndex(
+                (shown) => shown.group.group_id === anchor.id,
             ) - anchor.position;
 
         if (anchor.position >= 0 && arrived > 0) {
             setArrivals((count) => count + arrived);
         }
-    }, [notifications.data]);
+    }, [shownGroups]);
 
     const markRead = useHttp<{ through: string }>({ through: '' });
     const newestAt = notifications.data[0]?.created_at;
@@ -518,47 +599,63 @@ export default function Index({
                             </div>
                         }
                     >
-                        {notifications.data.map((notification, position) => {
-                            const previous = notifications.data[position - 1];
-                            const next = notifications.data[position + 1];
-                            const isNew = isNewSince(notification, readAt);
-                            const beforeLastVisit =
-                                isNew && next && !isNewSince(next, readAt);
-                            const startsDay =
-                                !previous ||
-                                localDayKey(previous.created_at) !==
-                                    localDayKey(notification.created_at);
+                        {shownGroups.map(
+                            ({ group: notification, placement }, position) => {
+                                const previous =
+                                    shownGroups[position - 1]?.placement;
+                                const next =
+                                    shownGroups[position + 1]?.placement;
+                                const isNew = isNewSince(notification, readAt);
+                                const isPlacedNew = isNewSince(
+                                    placement,
+                                    readAt,
+                                );
+                                const beforeLastVisit =
+                                    isPlacedNew &&
+                                    next &&
+                                    !isNewSince(next, readAt);
+                                const startsDay =
+                                    !previous ||
+                                    localDayKey(previous.created_at) !==
+                                        localDayKey(placement.created_at);
 
-                            return (
-                                <Fragment key={notification.group_id}>
-                                    {previous &&
-                                        isNewSince(previous, readAt) &&
-                                        !isNew && <LastVisitMarker />}
-                                    {startsDay && (
-                                        <DayMarker
-                                            label={formatDayLabel(
-                                                notification.created_at,
-                                                now,
-                                            )}
-                                        />
-                                    )}
-                                    <NotificationGroupItem
-                                        key={
-                                            filters.type +
-                                            '-' +
-                                            notification.group_id
-                                        }
-                                        notification={notification}
-                                        type={filters.type}
-                                        readAt={readAt}
-                                        isNew={isNew}
-                                        withoutBottomBorder={Boolean(
-                                            beforeLastVisit,
+                                return (
+                                    <Fragment key={notification.group_id}>
+                                        {previous &&
+                                            isNewSince(previous, readAt) &&
+                                            !isPlacedNew && <LastVisitMarker />}
+                                        {startsDay && (
+                                            <DayMarker
+                                                label={formatDayLabel(
+                                                    placement.created_at,
+                                                    now,
+                                                )}
+                                            />
                                         )}
-                                    />
-                                </Fragment>
-                            );
-                        })}
+                                        <NotificationGroupItem
+                                            key={
+                                                filters.type +
+                                                '-' +
+                                                notification.group_id
+                                            }
+                                            notification={notification}
+                                            type={filters.type}
+                                            readAt={readAt}
+                                            isNew={isNew}
+                                            withoutBottomBorder={Boolean(
+                                                beforeLastVisit,
+                                            )}
+                                            onOpenChange={(isOpen) =>
+                                                setGroupOpen(
+                                                    notification.group_id,
+                                                    isOpen,
+                                                )
+                                            }
+                                        />
+                                    </Fragment>
+                                );
+                            },
+                        )}
                     </InfiniteScroll>
                     {notifications.next_cursor === null && (
                         <div className="flex">
@@ -650,14 +747,51 @@ function NotificationGroupItem({
     readAt,
     isNew,
     withoutBottomBorder,
+    onOpenChange,
 }: {
     notification: NotificationGroup;
     type: Filters['type'];
     readAt: string;
     isNew: boolean;
     withoutBottomBorder: boolean;
+    onOpenChange?: (isOpen: boolean) => void;
 }) {
     const [open, setOpen] = useState(false);
+    // Who the summary names while the reader has it open, so it doesn't re-wrap under them as others join: still
+    // one of its latest members, or the latest again once they no longer are.
+    const [lead, setLead] = useState<NotificationGroup['actor'] | null>(null);
+    const isLeading =
+        open &&
+        lead !== null &&
+        notification.actors.some((actor) => actor.id === lead.id);
+    const summarized =
+        isLeading && lead !== null
+            ? {
+                  ...notification,
+                  actor: lead,
+                  actors: [
+                      lead,
+                      ...notification.actors.filter(
+                          (actor) => actor.id !== lead.id,
+                      ),
+                  ],
+              }
+            : notification;
+    const toggle = () => {
+        setLead(open ? null : notification.actor);
+        setOpen(!open);
+        onOpenChange?.(!open);
+    };
+    const reportClosed = useEffectEvent(() => onOpenChange?.(false));
+
+    // A group gone from the page, as after changing the filter, is no longer open there.
+    useEffect(() => {
+        if (!open) {
+            return;
+        }
+
+        return () => reportClosed();
+    }, [open]);
     const [items, setItems] = useState<Notification[]>([]);
     const [cursor, setCursor] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
@@ -667,6 +801,9 @@ function NotificationGroupItem({
     const grouped = notification.event_count > 1;
     const noun = groupNoun(notification);
 
+    // Members read again are put in place without moving the one the reader is at.
+    const listRef = useRef<HTMLUListElement>(null);
+    const membersAnchor = useRef<{ id: string; top: number } | null>(null);
     // Only the latest read of the group's members counts, so an older one coming back late never replaces it.
     const generation = useRef(0);
     // A change heard while the members load waits for that load, which may have been read before it.
@@ -730,9 +867,6 @@ function NotificationGroupItem({
             setCursor(next);
         }
     });
-    // Members read again are put in place without moving the one the reader is at.
-    const listRef = useRef<HTMLUListElement>(null);
-    const membersAnchor = useRef<{ id: string; top: number } | null>(null);
 
     useLayoutEffect(() => {
         const anchor = membersAnchor.current;
@@ -795,7 +929,7 @@ function NotificationGroupItem({
             className="isolate transition-colors has-[[data-notification-link]:focus-visible]:bg-accent/50 has-[[data-notification-link]:hover]:bg-accent/40"
         >
             <NotificationContent
-                notification={notification}
+                notification={summarized}
                 isNew={isNew}
                 withoutBottomBorder={withoutBottomBorder}
                 graph={{
@@ -810,7 +944,7 @@ function NotificationGroupItem({
                         aria-expanded={open}
                         aria-controls={id}
                         onClick={() => {
-                            setOpen(!open);
+                            toggle();
                             if (!open && items.length === 0) void load();
                         }}
                         className="mt-1.5 -ml-2 flex items-center gap-1 rounded-md px-2 py-0.5 text-[13px] font-medium text-primary transition-colors hover:bg-primary-soft"
@@ -1473,6 +1607,7 @@ export function NotificationContent({
                                                     ) : (
                                                         otherActors > 0 && (
                                                             <span
+                                                                className="tabular-nums"
                                                                 title={exactCountTitle(
                                                                     otherActors,
                                                                 )}
