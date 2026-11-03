@@ -149,7 +149,8 @@ export function CommitCard({
         'idle' | 'confirming' | 'deleting'
     >('idle');
 
-    const hasVisibleReplies = thread.isOpen && !!thread.replies?.length;
+    const hasVisibleReplies =
+        (thread.isOpen || thread.isFolding) && !!thread.replies?.length;
     const endsOnDot =
         hasRailTail && railNodePosition !== 'bottom' && endsWithDot;
     const graphEndId = `${commit.id}:end`;
