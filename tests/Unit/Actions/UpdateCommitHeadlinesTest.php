@@ -35,6 +35,26 @@ it('links all matching existing headlines without generating a new one', functio
         ->and($headlines[2]->commits()->count())->toBe(0);
 });
 
+it('invalidates recaps only for headlines gaining or losing a commit during reclassification', function (): void {
+    $commit = Commit::factory()->create(['headlines_classified_at' => now()->subDay()]);
+    $headlines = Headline::factory()->count(4)->sequence(
+        ['name' => 'Previous topic'], ['name' => 'Destination topic'], ['name' => 'Retained topic'], ['name' => 'Unrelated topic'],
+    )->create(['summary' => 'Existing recap', 'summary_created_at' => now()]);
+    $commit->headlines()->attach([$headlines[0]->id, $headlines[2]->id]);
+
+    resolve(UpdateCommitHeadlines::class)->handle($commit, ['Destination topic', 'Retained topic'], hash('sha256', $commit->body), reclassify: true);
+
+    expect($commit->headlines()->pluck('name')->all())->toEqualCanonicalizing(['Destination topic', 'Retained topic'])
+        ->and($headlines[0]->refresh()->summary)->toBeNull()
+        ->and($headlines[0]->summary_created_at)->toBeNull()
+        ->and($headlines[1]->refresh()->summary)->toBeNull()
+        ->and($headlines[1]->summary_created_at)->toBeNull()
+        ->and($headlines[2]->refresh()->summary)->toBe('Existing recap')
+        ->and($headlines[2]->summary_created_at?->toDateTimeString())->toBe(now()->toDateTimeString())
+        ->and($headlines[3]->refresh()->summary)->toBe('Existing recap')
+        ->and($headlines[3]->summary_created_at?->toDateTimeString())->toBe(now()->toDateTimeString());
+});
+
 it('creates returned headlines or reuses an identical name', function (bool $exists): void {
     $commit = Commit::factory()->create(['body' => 'What database are you using for vector search?']);
     if ($exists) {

@@ -31,7 +31,8 @@ final readonly class UpdateCommitHeadlines
             }
 
             if ($reclassify) {
-                Headline::query()->whereIn('id', $current->headlines()->select('headlines.id'))
+                $previousNames = $current->headlines()->pluck('name');
+                Headline::query()->whereIn('name', $previousNames->diff($names)->merge(collect($names)->diff($previousNames)))
                     ->update(['summary' => null, 'summary_created_at' => null]);
                 $current->headlines()->detach();
             }
