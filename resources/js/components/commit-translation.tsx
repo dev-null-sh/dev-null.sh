@@ -5,11 +5,12 @@ import { toast } from 'sonner';
 import CommitTranslationController from '@/actions/App/Http/Controllers/CommitTranslationController';
 import { useCommitNotFound } from '@/hooks/use-deleted-resources';
 import { signIn } from '@/lib/auth';
+import { changesSince, readAt } from '@/lib/commit-changes';
 import { coalesce, commitChannel, listen } from '@/lib/realtime';
 import type { Commit, CommitTranslation } from '@/types';
 
 export function useCommitTranslation(commit: Commit) {
-    const { auth } = usePage().props;
+    const { auth, now: serverNow } = usePage().props;
     const commitNotFound = useCommitNotFound();
     const bodyRef = useRef<HTMLDivElement>(null);
     const [bodyHeight, setBodyHeight] = useState<number>();
@@ -37,6 +38,7 @@ export function useCommitTranslation(commit: Commit) {
             (display === null && auth.automaticTranslation)) &&
         translation?.translated;
     const isApproved = commit.status === 'approved';
+    const readSince = useRef(Math.min(serverNow - 5_000, readAt()));
     const isTranslated = Boolean(translation?.translated);
     const isOtherLanguage =
         translation !== null &&
@@ -71,12 +73,21 @@ export function useCommitTranslation(commit: Commit) {
                 setGenerated({ body, translation: fresh.translation });
             }
         }, 500);
-        // A translation finished while not listening is only learnt by reading again, which joining does while
-        // none is shown yet.
+        // A translation finished while not listening is learnt by asking, with every commit shown, what was
+        // translated since: joining does while none is shown yet, and reads again only those.
+        const catchUp = async () => {
+            const since = readSince.current;
+            readSince.current = readAt();
+            const change = await changesSince(commit.id, since);
+
+            if (change === null || change.translated) {
+                read.request();
+            }
+        };
         const stop = listen(
             commitChannel(commit.id),
             { translation: read.request },
-            isTranslated ? undefined : read.request,
+            isTranslated ? undefined : () => void catchUp(),
         );
 
         // Shown in another language than the reader's: read again in theirs, keeping Show original if chosen.

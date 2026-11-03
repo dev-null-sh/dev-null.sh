@@ -2,12 +2,16 @@
 
 declare(strict_types=1);
 
+use App\Actions\CreateCommitTranslation;
+use App\Contracts\Services\TranslationProvider;
 use App\Enums\CommitStatus;
+use App\Enums\Feature;
 use App\Enums\OrganizationRole;
 use App\Models\Commit;
 use App\Models\LinkPreview;
 use App\Models\Organization;
 use App\Models\User;
+use App\Services\Features;
 use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
 
@@ -32,7 +36,7 @@ it('names what changed about each commit since the page read it, and nothing els
 
     $changes = changesSince([$quiet->id, $replied->id, $deleted->id, $approved->id], $since)->json('changes');
 
-    expect($changes[$quiet->id])->toBe(['changed' => false, 'replies' => [], 'truncated' => false])
+    expect($changes[$quiet->id])->toBe(['changed' => false, 'replies' => [], 'truncated' => false, 'translated' => false])
         ->and($changes[$replied->id]['changed'])->toBeFalse()
         ->and($changes[$replied->id]['replies'])->toEqualCanonicalizing([$reply->id, $quote->id])
         ->and($changes[$deleted->id]['changed'])->toBeTrue()
@@ -86,6 +90,30 @@ it('says when more replies changed than it names, and counts a commit it cannot 
         ->and($changes[$missing]['changed'])->toBeTrue();
 });
 
+it('says which commits were translated since, in any language, for every commit sharing the text', function (): void {
+    $this->mock(TranslationProvider::class)->shouldReceive('translate')->twice()->andReturn(
+        ['source_language' => 'de', 'body' => 'Good evening'],
+        ['source_language' => 'de', 'body' => 'Good morning'],
+    );
+    $earlier = Commit::factory()->create(['body' => 'Guten Abend']);
+    resolve(CreateCommitTranslation::class)->handle($earlier, 'en');
+    $quiet = Commit::factory()->create(['body' => 'Hallo']);
+    $translated = Commit::factory()->create(['body' => 'Guten morgen']);
+    $duplicate = Commit::factory()->create(['body' => 'Guten morgen']);
+    $since = now()->getTimestampMs();
+    $this->travel(5)->seconds();
+    resolve(CreateCommitTranslation::class)->handle($translated, 'nl');
+
+    $changes = changesSince([$earlier->id, $quiet->id, $translated->id, $duplicate->id], $since)->json('changes');
+
+    expect(collect($changes)->map->translated->all())->toBe([$earlier->id => false, $quiet->id => false, $translated->id => true, $duplicate->id => true])
+        ->and(collect($changes)->map->changed->unique()->values()->all())->toBe([false]);
+
+    resolve(Features::class)->update(Feature::Translations, false);
+
+    expect(changesSince([$translated->id], $since)->json("changes.{$translated->id}.translated"))->toBeFalse();
+});
+
 it('needs ids and when the page read them', function (): void {
     $this->getJson(route('commit-change.index'))->assertUnprocessable()->assertJsonValidationErrors(['ids', 'since']);
 });
@@ -106,7 +134,7 @@ it('answers for a commit the viewer cannot see exactly as for one that does not 
     $changes = changesSince([$commit->id, $missing], $since)->json('changes');
 
     expect($changes[$commit->id])->toBe($changes[$missing])
-        ->and($changes[$missing])->toBe(['changed' => true, 'replies' => [], 'truncated' => false]);
+        ->and($changes[$missing])->toBe(['changed' => true, 'replies' => [], 'truncated' => false, 'translated' => true]);
 })->with([
     "someone else's pending commit" => [fn (User $viewer): Commit => Commit::factory()->pending()->create(['created_at' => now()->subHour()]), true],
     "someone else's rejected commit" => [fn (User $viewer): Commit => Commit::factory()->rejected()->create(['created_at' => now()->subHour()]), true],
@@ -149,9 +177,9 @@ it("checks the commits the viewer can see, their own unapproved ones, their orga
     $this->actingAs($viewer);
     $changes = changesSince([$own->id, $organizations->id, $tombstone->id], $since)->json('changes');
 
-    expect($changes[$own->id])->toBe(['changed' => false, 'replies' => [], 'truncated' => false])
-        ->and($changes[$organizations->id])->toBe(['changed' => false, 'replies' => [], 'truncated' => false])
-        ->and($changes[$tombstone->id])->toBe(['changed' => false, 'replies' => [$reply->id], 'truncated' => false]);
+    expect($changes[$own->id])->toBe(['changed' => false, 'replies' => [], 'truncated' => false, 'translated' => false])
+        ->and($changes[$organizations->id])->toBe(['changed' => false, 'replies' => [], 'truncated' => false, 'translated' => false])
+        ->and($changes[$tombstone->id])->toBe(['changed' => false, 'replies' => [$reply->id], 'truncated' => false, 'translated' => false]);
 });
 
 it('names only the replies the viewer could see in the thread', function (): void {
@@ -177,7 +205,7 @@ it('names only the replies the viewer could see in the thread', function (): voi
     $this->actingAs($viewer);
 
     expect(changesSince([$commit->id], $since)->json("changes.{$commit->id}"))
-        ->toBe(['changed' => false, 'replies' => [$approved->id, $mine->id], 'truncated' => false]);
+        ->toBe(['changed' => false, 'replies' => [$approved->id, $mine->id], 'truncated' => false, 'translated' => false]);
 });
 
 it('asks a thread to read again what it loaded when a reply it may have shown was hidden since, without naming it', function (): void {
@@ -188,7 +216,7 @@ it('asks a thread to read again what it loaded when a reply it may have shown wa
     $shown->update(['status' => CommitStatus::Rejected]);
 
     expect(changesSince([$commit->id], $since)->json("changes.{$commit->id}"))
-        ->toBe(['changed' => false, 'replies' => [], 'truncated' => true]);
+        ->toBe(['changed' => false, 'replies' => [], 'truncated' => true, 'translated' => false]);
 });
 
 it("checks the queue's pending commits for the moderators who review them, and names their replies only as anyone could see them", function (): void {
@@ -201,7 +229,7 @@ it("checks the queue's pending commits for the moderators who review them, and n
 
     $this->actingAs($moderator);
 
-    expect(changesSince([$pending->id], $since)->json("changes.{$pending->id}"))->toBe(['changed' => false, 'replies' => [], 'truncated' => false]);
+    expect(changesSince([$pending->id], $since)->json("changes.{$pending->id}"))->toBe(['changed' => false, 'replies' => [], 'truncated' => false, 'translated' => false]);
 
     $pending->update(['status' => CommitStatus::Approved]);
 

@@ -11,19 +11,34 @@ vi.doMock('react', () => harness.react);
 vi.doMock('@inertiajs/react', async () => ({
     ...(await vi.importActual('@inertiajs/react')),
     usePage: () => ({
-        props: { auth: { user: { id: 'me' }, automaticTranslation: true, translationLanguage: language } },
+        props: {
+            now: Date.now(),
+            auth: {
+                user: { id: 'me' },
+                automaticTranslation: true,
+                translationLanguage: language,
+            },
+        },
     }),
-    useHttp: () => ({ transform: () => {}, submit: async () => ({ translation: null }) }),
+    useHttp: () => ({
+        transform: () => {},
+        submit: async () => ({ translation: null }),
+    }),
 }));
 
-const { useCommitTranslation } = await import('../../resources/js/components/commit-translation');
+const { useCommitTranslation } =
+    await import('../../resources/js/components/commit-translation');
 
 const translation = (code: string, body: string) =>
     ({
         language: code,
         available: true,
         source_name: 'Portuguese',
-        translated: { body, body_segments: [{ type: 'text', text: body }], preview_segments: [] },
+        translated: {
+            body,
+            body_segments: [{ type: 'text', text: body }],
+            preview_segments: [],
+        },
     }) as unknown as CommitTranslation;
 
 const commit = {
@@ -49,10 +64,14 @@ beforeEach(() => {
     reads = [];
     language = 'en';
     vi.stubGlobal('fetch', async (input: string) => {
-        const read = new URL(input, 'http://localhost').searchParams.get('language') ?? '';
+        const read =
+            new URL(input, 'http://localhost').searchParams.get('language') ??
+            '';
         reads.push(read);
 
-        return Response.json({ translation: translation(read, read === 'de' ? 'Hallo' : 'Hello') });
+        return Response.json({
+            translation: translation(read, read === 'de' ? 'Hallo' : 'Hello'),
+        });
     });
 });
 
@@ -82,4 +101,69 @@ test('a translation language saved elsewhere reaches the translations already sh
 
     assert.deepEqual(reads, ['de']);
     assert.equal(text(), 'Hallo');
+});
+
+test('joining asks once what was translated among the commits shown, and reads again only those', async () => {
+    const { fakeConnection } = await import('./FakeRealtime');
+    const { connectRealtime } = await import('../../resources/js/lib/realtime');
+    const fake = fakeConnection();
+    connectRealtime(fake.connection);
+    const untranslated = (id: string) =>
+        ({
+            ...commit,
+            id,
+            translation: { ...translation('en', ''), translated: null },
+        }) as unknown as Commit;
+    const quiet = untranslated('quiet');
+    const finished = untranslated('finished');
+    const asked: string[] = [];
+    vi.stubGlobal('fetch', async (input: string) => {
+        const url = new URL(input, 'http://localhost');
+        asked.push(url.pathname);
+
+        return url.pathname === '/commits/changes'
+            ? Response.json({
+                  changes: {
+                      quiet: {
+                          changed: false,
+                          replies: [],
+                          truncated: false,
+                          translated: false,
+                      },
+                      finished: {
+                          changed: false,
+                          replies: [],
+                          truncated: false,
+                          translated: true,
+                      },
+                  },
+              })
+            : Response.json({ translation: translation('en', 'Hello') });
+    });
+    let finishedShown: ReturnType<typeof useCommitTranslation> | undefined;
+    function Both() {
+        useCommitTranslation(quiet);
+        finishedShown = useCommitTranslation(finished);
+
+        return null;
+    }
+
+    void harness.render(Both, {});
+    fake.setStatus('connected');
+    fake.joined.get('commits.quiet')?.join();
+    fake.joined.get('commits.finished')?.join();
+    for (let i = 0; i < 3; i++) {
+        await vi.advanceTimersByTimeAsync(600);
+        void harness.render(Both, {});
+    }
+
+    assert.deepEqual(asked, [
+        '/commits/changes',
+        '/commits/finished/translation',
+    ]);
+    assert.equal(
+        (finishedShown?.segments as { text?: string }[])[0]?.text,
+        'Hello',
+    );
+    connectRealtime(null);
 });

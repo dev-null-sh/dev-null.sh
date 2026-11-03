@@ -6,13 +6,14 @@ namespace App\Queries;
 
 use App\Models\Commit;
 use App\Models\User;
+use App\Services\CommitTranslations;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 /**
- * @phpstan-type CommitChange array{changed: bool, replies: list<string>, truncated: bool}
+ * @phpstan-type CommitChange array{changed: bool, replies: list<string>, truncated: bool, translated: bool}
  */
 final readonly class CommitChangesQuery
 {
@@ -21,9 +22,14 @@ final readonly class CommitChangesQuery
      */
     public const int REPLIES = 50;
 
+    public function __construct(private CommitTranslations $translations)
+    {
+        //
+    }
+
     /**
      * What changed about each commit since a page last read it, for a page that may have missed being told: the
-     * commit itself (its status, deletion, poll or link card), and which of its replies and quotes. Only commits the
+     * commit itself (its status, deletion, poll or link card), its translations, and which of its replies and quotes. Only commits the
      * viewer can see are checked, tombstones included, and a commit they can't see answers like one that doesn't
      * exist: as changed, so the page reads it again and finds out. Only replies the viewer could see in the thread
      * are named; a reply that may have been shown and was hidden since asks the page to read again what it loaded,
@@ -35,11 +41,12 @@ final readonly class CommitChangesQuery
     public function get(?User $viewer, array $ids, CarbonImmutable $since): array
     {
         // Moderators review everything pending, so they check the queue's commits too; replies are named as anyone sees them.
-        /** @var list<string> $visible */
-        $visible = Commit::withTrashed()->whereKey($ids)
+        $commits = Commit::withTrashed()->whereKey($ids)
             ->when($viewer?->isAdmin() !== true, fn (CommitBuilder $query): CommitBuilder => $query->visibleTo($viewer))
-            ->pluck('id')
-            ->all();
+            ->get(['id', 'body']);
+        /** @var list<string> $visible */
+        $visible = $commits->modelKeys();
+        $translated = $this->translations->translatedSince($commits, $since);
 
         $changed = Commit::withTrashed()
             ->whereKey($visible)
@@ -66,9 +73,9 @@ final readonly class CommitChangesQuery
             ->groupBy('of');
         $hidden = $this->hiddenSince($viewer, $visible, $since, 'parent_id') + $this->hiddenSince($viewer, $visible, $since, 'quoted_commit_id');
 
-        return collect($ids)->mapWithKeys(function (string $id) use ($visible, $changed, $replies, $hidden): array {
+        return collect($ids)->mapWithKeys(function (string $id) use ($visible, $changed, $replies, $hidden, $translated): array {
             if (! in_array($id, $visible, true)) {
-                return [$id => ['changed' => true, 'replies' => [], 'truncated' => false]];
+                return [$id => ['changed' => true, 'replies' => [], 'truncated' => false, 'translated' => true]];
             }
 
             /** @var list<string> $children */
@@ -78,6 +85,7 @@ final readonly class CommitChangesQuery
                 'changed' => in_array($id, $changed, true),
                 'replies' => array_slice($children, 0, self::REPLIES),
                 'truncated' => count($children) > self::REPLIES || isset($hidden[$id]),
+                'translated' => in_array($id, $translated, true),
             ]];
         })->all();
     }

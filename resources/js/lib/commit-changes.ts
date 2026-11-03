@@ -4,6 +4,7 @@ export type CommitChange = {
     changed: boolean;
     replies: string[];
     truncated: boolean;
+    translated: boolean;
 };
 
 /**
