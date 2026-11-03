@@ -15,7 +15,10 @@ export function HotTopics() {
                 id="aside-hot-topics"
                 className="mb-2 flex items-center gap-2 text-sm font-semibold"
             >
-                <Flame aria-hidden className="size-4 text-(--lane-0)" />
+                <Flame
+                    aria-hidden
+                    className="size-4 text-(--lane-0) [&_path]:origin-bottom [&_path]:[transform-box:fill-box] motion-safe:[&_path]:animate-flame-flicker"
+                />
                 Hot topics
             </h2>
             <ul>
