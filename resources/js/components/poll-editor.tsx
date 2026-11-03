@@ -4,7 +4,7 @@ import { MentionTextarea } from '@/components/mention-textarea';
 import { Button } from '@/components/ui/button';
 import { bodyCharacterCount } from '@/lib/commit';
 import { maxUrlLength } from '@/lib/urls';
-import { cn } from '@/lib/utils';
+import { characterCount, cn } from '@/lib/utils';
 
 export type PollDraft = {
     options: string[];
@@ -18,9 +18,22 @@ const maxOptionLength = 50;
 /** Links count as at most 23 characters, so an option may be this long with the longest link. */
 const maxRawOptionLength = maxOptionLength + maxUrlLength;
 
-/** Measured as the server measures it, with each link counting as at most 23 characters, as in the body. */
+/**
+ * The limit an option goes over, checked in the server's order: its raw length first, then its length with each link
+ * counting as at most 23 characters, as in the body. An option is never truncated, so a cut link can't point elsewhere.
+ */
+function exceededLimit(option: string): number | null {
+    if (characterCount(option) > maxRawOptionLength) {
+        return maxRawOptionLength;
+    }
+
+    return bodyCharacterCount(option) > maxOptionLength
+        ? maxOptionLength
+        : null;
+}
+
 export function isPollOptionTooLong(option: string): boolean {
-    return bodyCharacterCount(option) > maxOptionLength;
+    return exceededLimit(option) !== null;
 }
 
 const maxOptions = 4;
@@ -86,11 +99,12 @@ export function PollEditor({
 
             <div className="space-y-2">
                 {poll.options.map((option, index) => {
+                    const limit = exceededLimit(option);
                     const error =
                         errors[`poll.options.${index}`] ??
-                        (isPollOptionTooLong(option)
-                            ? `The option ${index + 1} field must not be greater than ${maxOptionLength} characters.`
-                            : undefined);
+                        (limit === null
+                            ? undefined
+                            : `The option ${index + 1} field must not be greater than ${limit} characters.`);
 
                     return (
                         <div key={index}>
@@ -119,7 +133,6 @@ export function PollEditor({
                                     suggestsMentions={false}
                                     rows={1}
                                     wrap="off"
-                                    maxLength={maxRawOptionLength}
                                     placeholder={`Option ${index + 1}`}
                                     autoComplete="off"
                                     aria-invalid={error ? true : undefined}

@@ -49,7 +49,7 @@ test('suggests emoji but not mentions in each poll option', () => {
     for (const field of fields) {
         assert.equal(field.props.suggestsMentions, false);
         assert.equal(field.props.name, 'poll[options][]');
-        assert.equal(field.props.maxLength, 2098);
+        assert.equal(field.props.maxLength, undefined);
         assert.equal(field.props.rows, 1);
     }
 });
@@ -76,6 +76,23 @@ test('counts a link in a poll option as at most 23 characters, as in the body', 
     );
     assert.equal(isPollOptionTooLong(`Review ${link} first`), false);
     assert.equal(isPollOptionTooLong(prose), true);
+});
+
+test('keeps an option over the raw limit whole and flags it, as the server rejects it', () => {
+    const link = (path: string) => `https://example.com/${path.repeat(1100)}`;
+    const option = `${link('a')} ${link('b')}`;
+
+    assert.equal(isPollOptionTooLong(option), true);
+    assert.ok(
+        render(vi.fn(), {
+            ...emptyPollDraft,
+            options: ['Tabs', option],
+        }).some(
+            (element) =>
+                element.props.message ===
+                'The option 2 field must not be greater than 2098 characters.',
+        ),
+    );
 });
 
 test('keeps a poll option on one line', () => {
