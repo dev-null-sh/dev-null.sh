@@ -49,6 +49,7 @@ This file documents the platform's features, stack, and stories. Feature entries
   - [GitHub Actions integration](#github-actions-integration)
   - [Public read API and Atom feeds](#public-read-api-and-atom-feeds)
   - [Signed API and devices](#signed-api-and-devices)
+  - [Terminal app](#terminal-app)
   - [Mac app](#mac-app)
   - [Bug reports and feature requests](#bug-reports-and-feature-requests)
   - [Exporting your data](#exporting-your-data)
@@ -592,6 +593,10 @@ Sources: [signed requests](app/Services/SignedRequests.php), [sign-in page](app/
 Sign in with GitHub: the app makes a signing key that stays on your phone and signs every request, so there is no password, and the phone shows up under **Settings → Devices**. On iOS you can also link an Apple ID to an existing account, which never creates a new one.
 
 [NativePHP](https://nativephp.com) builds both apps with NativePHP Mobile: native screens, with the app logic in Laravel. The code is open source at [nativephp/dev-null-app](https://github.com/nativephp/dev-null-app), and feedback and pull requests go there.
+
+### Terminal app
+
+**/dev/null TUI** is a terminal client built by [Wendell Adriel](https://wendelladriel.com) for reading logs, publishing commits, following developers, and checking notifications. The **/apps** page has a copyable install command for Linux, macOS, and WSL, plus a link to the [Windows PowerShell installation instructions](https://github.com/WendellAdriel/dev-null-tui/blob/main/docs/installation.md#windows-powershell) for Windows without WSL. Run `devnull` after installing and approve the device in your browser to connect your account. The code is open source at [WendellAdriel/dev-null-tui](https://github.com/WendellAdriel/dev-null-tui).
 
 ### Mac app
 
