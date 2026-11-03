@@ -251,6 +251,13 @@ export default function Show() {
                         selects which translation to display. Private messages
                         are not translated.
                     </p>
+                    <p>
+                        Dictating a commit uses your browser's own speech
+                        recognition: we never receive your voice, only the text
+                        it writes into the composer. Depending on your browser,
+                        the recording may be sent to its maker, such as Google
+                        or Apple, to be transcribed, under their privacy policy.
+                    </p>
                 </DocumentSection>
 
                 <DocumentSection id="share" title="Who we share it with">
