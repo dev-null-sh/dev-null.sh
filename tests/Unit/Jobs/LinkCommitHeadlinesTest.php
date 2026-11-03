@@ -38,9 +38,16 @@ it('queues headlines only for approved nonempty root commits when posted or appr
     Queue::assertPushed(ProcessCommitHeadlines::class, fn (ProcessCommitHeadlines $job): bool => $job->commitIds === [$pending->id]);
 });
 
-it('assigns a headline once even when the job runs twice', function (): void {
+it('assigns a headline once even when the job runs twice', function (bool $legacy): void {
     $commit = Commit::factory()->create(['body' => 'Trying pgvector.']);
     $job = new LinkCommitHeadlines($commit, ['Vector databases'], hash('sha256', $commit->body));
+
+    if ($legacy) {
+        $payload = $job->__serialize();
+        unset($payload['reclassify']);
+        $job = new ReflectionClass(LinkCommitHeadlines::class)->newInstanceWithoutConstructor();
+        $job->__unserialize($payload);
+    }
 
     $job->handle(resolve(UpdateCommitHeadlines::class));
     $this->travel(1)->days();
@@ -49,7 +56,7 @@ it('assigns a headline once even when the job runs twice', function (): void {
     expect($commit->headlines()->sole()->name)->toBe('Vector databases')
         ->and($commit->headlines()->sole()->getRelation('pivot')->created_at->toDateTimeString())->toBe(now()->subDay()->toDateTimeString())
         ->and(Headline::query()->count())->toBe(1);
-});
+})->with(['current payload' => false, 'legacy payload' => true]);
 
 it('retries failures without logging commit or provider content', function (): void {
     $commit = Commit::factory()->create(['body' => 'Private test body']);
