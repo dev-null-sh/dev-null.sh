@@ -78,6 +78,22 @@ it('approves nothing for a sign-in that was denied since it was checked', functi
         ->and(Cache::get($authorization->key)['status'])->toBe('denied');
 });
 
+it('lets the sign-in be decided again when deciding it failed', function (): void {
+    $user = User::factory()->create();
+    $authorization = pendingDeviceAuthorization()['authorization'];
+
+    Device::creating(fn (): never => throw new RuntimeException('The database went away.'));
+
+    expect(fn (): bool => resolve(CreateDeviceActivation::class)->handle($user, $authorization, DeviceAuthorizationStatus::Approved))
+        ->toThrow(RuntimeException::class, 'The database went away.');
+
+    Device::flushEventListeners();
+
+    expect(resolve(CreateDeviceActivation::class)->handle($user, $authorization, DeviceAuthorizationStatus::Approved))->toBeTrue()
+        ->and(Device::query()->count())->toBe(1)
+        ->and(Cache::get($authorization->key)['status'])->toBe('approved');
+});
+
 it('keeps the approval of a sign-in that is denied since it was checked', function (): void {
     $user = User::factory()->create();
     $authorization = pendingDeviceAuthorization()['authorization'];

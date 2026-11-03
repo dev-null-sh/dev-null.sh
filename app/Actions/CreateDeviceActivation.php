@@ -9,6 +9,7 @@ use App\Enums\DeviceAuthorizationStatus;
 use App\Models\Device;
 use App\Models\User;
 use Illuminate\Support\Facades\Cache;
+use Throwable;
 
 final readonly class CreateDeviceActivation
 {
@@ -19,21 +20,30 @@ final readonly class CreateDeviceActivation
      * expired, and the user code is taken back, so a code is decided once.
      *
      * Of two requests deciding the same sign-in at once, only the first decides it: the other changes nothing and gets
-     * false, so a denied key is never approved behind the terminal's back.
+     * false, so a denied key is never approved behind the terminal's back. An approval whose device couldn't be saved
+     * gives the sign-in back, so the user can try again.
      */
     public function handle(User $user, DeviceAuthorization $authorization, DeviceAuthorizationStatus $status): bool
     {
-        if (! Cache::add("{$authorization->key}:decided", true, $authorization->expiresAt)) {
+        $claim = "{$authorization->key}:decided";
+
+        if (! Cache::add($claim, true, $authorization->expiresAt)) {
             return false;
         }
 
         if ($status === DeviceAuthorizationStatus::Approved) {
-            Device::query()->updateOrCreate(['fingerprint' => $authorization->fingerprint], [
-                'user_id' => $user->id,
-                'name' => $authorization->deviceName,
-                'approved_at' => now(),
-                'last_used_at' => null,
-            ]);
+            try {
+                Device::query()->updateOrCreate(['fingerprint' => $authorization->fingerprint], [
+                    'user_id' => $user->id,
+                    'name' => $authorization->deviceName,
+                    'approved_at' => now(),
+                    'last_used_at' => null,
+                ]);
+            } catch (Throwable $throwable) {
+                Cache::forget($claim);
+
+                throw $throwable;
+            }
         }
 
         Cache::put($authorization->key, $authorization->decided($status, $user)->toArray(), $authorization->expiresAt);
