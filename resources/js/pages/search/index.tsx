@@ -1,3 +1,4 @@
+import { Tab, TabGroup, TabList, TabPanel, TabPanels } from '@headlessui/react';
 import { Head, router, usePage } from '@inertiajs/react';
 import { ArrowRight, History, Search, Sparkles, X } from 'lucide-react';
 import type { FormEvent } from 'react';
@@ -7,11 +8,14 @@ import { SearchResults } from '@/components/commit-search-results';
 import { rememberSearch, useRecentSearches } from '@/hooks/use-recent-searches';
 import AppLayout from '@/layouts/app-layout';
 import { searchCommits, suggestedQueries } from '@/lib/commit-search';
-import type { Commit } from '@/types';
+import { CommitSearchResults } from '@/lib/commit-search-results';
 
 const skeletonDelay = 300;
 
-type Results = { term: string; commits: Commit[] };
+type Results = {
+    relevant: CommitSearchResults;
+    latest: CommitSearchResults;
+};
 
 export default function Index({ query }: { query: string }) {
     const userId = usePage().props.auth.user?.id ?? null;
@@ -85,7 +89,43 @@ export default function Index({ query }: { query: string }) {
             </header>
 
             {query !== '' && (
-                <SearchResults results={results} isWaiting={isWaiting} />
+                <TabGroup key={query}>
+                    <TabList
+                        aria-label="Search result order"
+                        className="flex border-b"
+                    >
+                        {['Most relevant', 'Latest'].map((title) => (
+                            <Tab
+                                key={title}
+                                className="relative flex min-h-12 flex-1 justify-center py-3.5 text-[15px] font-medium text-muted-foreground outline-offset-[-3px] transition-colors hover:bg-accent hover:text-foreground data-selected:text-foreground"
+                            >
+                                <span className="relative">
+                                    {title}
+                                    <span
+                                        aria-hidden
+                                        className="absolute inset-x-0 -bottom-3.5 h-[3px] bg-primary opacity-0 in-data-selected:opacity-100"
+                                    />
+                                </span>
+                            </Tab>
+                        ))}
+                    </TabList>
+                    <TabPanels>
+                        <TabPanel>
+                            <SearchResults
+                                results={results?.relevant ?? null}
+                                isWaiting={isWaiting}
+                            />
+                        </TabPanel>
+                        <TabPanel>
+                            <SearchResults
+                                results={results?.latest ?? null}
+                                isWaiting={isWaiting}
+                                heading="Latest commits · past week"
+                                empty="No matches from the past week. Try Most relevant for older matches, or search for another idea."
+                            />
+                        </TabPanel>
+                    </TabPanels>
+                </TabGroup>
             )}
             {recentSearches.length > 0 && (
                 <Suggestions onPick={pick} recent={recentSearches} />
@@ -114,10 +154,14 @@ function useCommitSearch(query: string) {
         const timeout = setTimeout(() => setIsWaiting(true), skeletonDelay);
 
         searchCommits(query, undefined, controller.signal)
-            .then((commits) => setResults({ term: query, commits }))
+            .then((commits) => {
+                const relevant = new CommitSearchResults(query, commits);
+                setResults({ relevant, latest: relevant.latest() });
+            })
             .catch(() => {
                 if (!controller.signal.aborted) {
-                    setResults({ term: query, commits: [] });
+                    const relevant = new CommitSearchResults(query, []);
+                    setResults({ relevant, latest: relevant.latest() });
                 }
             })
             .finally(() => {
