@@ -177,6 +177,7 @@ function insertAt(
     const resizeListeners: (() => void)[] = [];
     const mutationListeners: (() => void)[] = [];
     const visibilityListeners: (() => void)[] = [];
+    const scrollTopListeners: (() => void)[] = [];
     const intersections: {
         callback: (entries: unknown[]) => void;
         disconnected: boolean;
@@ -195,17 +196,24 @@ function insertAt(
         },
         matchMedia: () => ({ matches: reduced }),
         addEventListener: (name: string, listener: () => void) => {
+            if (name === 'log:scroll-top') scrollTopListeners.push(listener);
             if (name === 'scroll') scrollListeners.push(listener);
             if (name === 'focusin' || name === 'focusout')
                 focusListeners.push(listener);
         },
+        dispatchEvent: (event: Event) => {
+            if (event.type === 'log:scroll-top') scrollTopListeners.forEach((listener) => listener());
+            return true;
+        },
         removeEventListener: (name: string, listener: () => void) => {
-            const callbacks =
+            const callbacks = name === 'log:scroll-top' ? scrollTopListeners :
                 name === 'scroll' ? scrollListeners : focusListeners;
             const index = callbacks.indexOf(listener);
             if (index !== -1) callbacks.splice(index, 1);
         },
     });
+    vi.stubGlobal('requestAnimationFrame', () => 1);
+    vi.stubGlobal('cancelAnimationFrame', () => {});
     vi.stubGlobal('document', {
         activeElement: focused ? input : null,
         visibilityState: 'visible',
@@ -910,5 +918,21 @@ for (const log of ['latest', 'following'] as const) {
         result.progressScroll(offset + 200, 20.75);
         assert.equal(result.readingTop(), top - 200);
         assert.equal(result.currentScroll(), offset + 200 + 20.75);
+    });
+}
+
+for (const log of ['following', 'latest'] as const) {
+    test(`reselecting ${log} scrolls without another request and releases the reading anchor`, () => {
+        const state = insertAt(700, true, [], log);
+        const nodes = state.render();
+        const tabs = nodes.find((node) => node.props.label === 'Logs')!.props.tabs as { title: string; onClick?: () => void }[];
+        const previousCalls = reload.mock.calls.length;
+        tabs.find((tab) => tab.title.toLowerCase() === log)!.onClick!();
+        assert.equal(state.currentScroll(), 0);
+        assert.equal(reload.mock.calls.length, previousCalls);
+        assert.equal(tabs.find((tab) => tab.title === 'Trending')!.onClick, undefined);
+        assert.equal(tabs.find((tab) => ['Following', 'Latest'].includes(tab.title) && tab.title.toLowerCase() !== log)!.onClick, undefined);
+        state.resizeAbove(200);
+        assert.equal(state.currentScroll(), 0);
     });
 }
