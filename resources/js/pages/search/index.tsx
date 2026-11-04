@@ -97,7 +97,7 @@ export default function Index({ query }: { query: string }) {
                         {['Most relevant', 'Latest'].map((title) => (
                             <Tab
                                 key={title}
-                                className="relative flex min-h-12 flex-1 justify-center py-3.5 text-[15px] font-medium text-muted-foreground outline-offset-[-3px] transition-colors hover:bg-accent hover:text-foreground data-selected:text-foreground"
+                                className="relative flex min-h-12 flex-1 justify-center py-3.5 text-[15px] font-medium text-muted-foreground transition-colors outline-none hover:bg-accent hover:text-foreground data-selected:text-foreground md:outline-offset-[-3px] md:focus-visible:[outline-style:auto]"
                             >
                                 <span className="relative">
                                     {title}
