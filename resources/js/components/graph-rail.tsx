@@ -11,6 +11,7 @@ import type { GraphNodeSpec } from '@/components/graph-canvas';
 import { LiveAvatarMarker } from '@/components/live-stream-card';
 import { OrganizationAvatar } from '@/components/organization-avatar';
 import { UserAvatar } from '@/components/user-avatar';
+import { useLiveStream } from '@/hooks/use-live-stream';
 import { bridgeDuration } from '@/lib/graph';
 import { cn, laneStrokeStyle } from '@/lib/utils';
 import type { OrganizationAuthor, User } from '@/types';
@@ -393,12 +394,14 @@ export function RailAvatar({
     user,
     progress,
 }: {
-    user: Pick<User, 'name' | 'avatar_url' | 'live'> | OrganizationAuthor;
+    user:
+        | Pick<User, 'id' | 'name' | 'avatar_url' | 'live'>
+        | OrganizationAuthor;
     // Fills the ring clockwise from 0 to 1, as a post grows toward its limit. At 0 the ring stays dashed.
     progress?: number;
 }) {
     const isOrganization = 'type' in user && user.type === 'organization';
-    const isLive = 'live' in user && Boolean(user.live);
+    const isLive = useLiveStream(isOrganization ? null : user) !== null;
 
     return (
         <span

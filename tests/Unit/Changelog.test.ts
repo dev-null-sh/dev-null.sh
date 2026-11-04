@@ -94,3 +94,14 @@ void test('names the day relative to today in the reader’s time zone', () => {
     assert.deepEqual(changelogDayHeading('2026-10-14', 'Europe/Budapest', now), { title: 'Wednesday', date: 'Oct 14' });
     assert.deepEqual(changelogDayHeading('2025-12-31', 'Europe/Budapest', now), { title: 'Wednesday', date: 'Dec 31, 2025' });
 });
+
+void test('keeps the first author occurrence even for many commits on the same day', () => {
+    const commits = Array.from({ length: 200 }, (_, index) =>
+        commit(index, '2026-10-18T12:00:00Z', index % 2 === 0 ? 'alice' : 'bob'),
+    );
+    const days = changelogDays(commits, 'UTC');
+
+    assert.equal(days.length, 1);
+    assert.equal(days[0].commits.length, 200);
+    assert.deepEqual(days[0].authors.map(({ login }) => login), ['alice', 'bob']);
+});

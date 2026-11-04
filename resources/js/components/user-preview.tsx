@@ -21,6 +21,7 @@ import { MembersLink } from '@/components/members-link';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { useIsMuting, UserSafetyMenu } from '@/components/user-safety-menu';
+import { useLiveStream } from '@/hooks/use-live-stream';
 import { signIn } from '@/lib/auth';
 import { exactCountTitle, formatCount } from '@/lib/numbers';
 import { toastWhenThrottled } from '@/lib/throttle';
@@ -42,6 +43,7 @@ type PreviewData = {
     followsYou: boolean;
     isMuting: boolean;
     isBlocking: boolean;
+    canPush: boolean;
 } & (
     | { isUnavailable: false; user: Profile }
     | { isUnavailable: true; user: User }
@@ -90,6 +92,39 @@ async function fetchPreview(url: string): Promise<PreviewData> {
 export function clearUserPreviews(): void {
     cacheGeneration++;
     cache.clear();
+}
+
+export type Relationship = Pick<
+    PreviewData,
+    'isFollowing' | 'isMuting' | 'isBlocking'
+>;
+
+/**
+ * Whether you follow, mute or block someone, from their preview, which commits don't carry: null until it has loaded.
+ */
+export function usePreviewRelationship(
+    user: Pick<User, 'handle'>,
+    isEnabled: boolean,
+): Relationship | null {
+    const url = userPreview(user).url;
+    const [relationship, setRelationship] = useState<Relationship | null>(
+        () => cache.get(url) ?? null,
+    );
+
+    useEffect(() => {
+        if (isEnabled) {
+            fetchPreview(url).then(setRelationship, () => undefined);
+        }
+    }, [url, isEnabled]);
+
+    return relationship;
+}
+
+/**
+ * Drops someone's cached preview after muting or blocking them elsewhere, so it isn't shown stale before it reloads.
+ */
+export function forgetPreview(user: Pick<User, 'handle'>): void {
+    cache.delete(userPreview(user).url);
 }
 
 function positionFor(trigger: HTMLElement): Position {
@@ -336,6 +371,12 @@ export function UserPreview({
                                     scheduleClose();
                                 }
                             }}
+                            onBlockChange={() =>
+                                fetchPreview(previewUrl).then(
+                                    setData,
+                                    () => undefined,
+                                )
+                            }
                         />
                     </div>,
                     document.body,
@@ -348,10 +389,12 @@ function UserPreviewContent({
     user,
     data,
     onMenuOpenChange,
+    onBlockChange,
 }: {
     user: User | Profile;
     data: PreviewData | null;
     onMenuOpenChange: (isOpen: boolean) => void;
+    onBlockChange: () => void;
 }) {
     const {
         component,
@@ -359,6 +402,7 @@ function UserPreviewContent({
     } = usePage<{ commits?: CursorPaginated<Commit> }>();
     const isCurrentUser = auth.user?.id === user.id;
     const lane = laneColor(user.lane);
+    const stream = useLiveStream(user);
 
     const { isJustToggled, markToggled, onMouseLeave } = useFollowHover();
     const follow = useFollow(user, data?.isFollowing ?? false);
@@ -406,10 +450,10 @@ function UserPreviewContent({
                         user={user}
                         className={cn(
                             'size-14 text-lg ring-2 ring-(--lane) ring-offset-2 ring-offset-popover',
-                            { 'ring-red-600': user.live },
+                            { 'ring-red-600': stream },
                         )}
                     />
-                    {user.live && <LiveAvatarMarker className="ring-popover" />}
+                    {stream && <LiveAvatarMarker className="ring-popover" />}
                 </Link>
 
                 {!isCurrentUser &&
@@ -420,8 +464,10 @@ function UserPreviewContent({
                                     user={user}
                                     isMuting={data.isMuting}
                                     isBlocking={data.isBlocking}
+                                    canPush={data.canPush}
                                     className="size-8"
                                     onOpenChange={onMenuOpenChange}
+                                    onBlockChange={onBlockChange}
                                 />
                             )}
                             {!data.isUnavailable && (
@@ -559,9 +605,9 @@ function UserPreviewContent({
                 )}
             </div>
 
-            {user.live && !data?.isUnavailable && (
+            {stream && !data?.isUnavailable && (
                 <div className="mt-4 border-t pt-4">
-                    <LiveStreamCard user={user} stream={user.live} />
+                    <LiveStreamCard user={user} stream={stream} />
                 </div>
             )}
         </div>

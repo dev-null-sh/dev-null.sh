@@ -6,7 +6,6 @@ use App\Contracts\Services\EmbeddingProvider;
 use App\Jobs\EmbedKnowledgeBase;
 use App\Models\KnowledgeBaseSection;
 use GuzzleHttp\Psr7\Response as Psr7Response;
-use Illuminate\Console\Scheduling\CallbackEvent;
 use Illuminate\Console\Scheduling\Event;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Http\Client\RequestException;
@@ -48,10 +47,9 @@ it('is unique per source', function (): void {
         ->and(new EmbedKnowledgeBase('other.md')->uniqueId())->toBe('other.md');
 });
 
-it('is dispatched every hour for the knowledge base', function (): void {
-    $event = collect(resolve(Schedule::class)->events())
-        ->sole(fn (Event $event): bool => $event->description === EmbedKnowledgeBase::class);
+it('is not scheduled because the knowledge base is refreshed during deployment', function (): void {
+    $events = collect(resolve(Schedule::class)->events())
+        ->filter(fn (Event $event): bool => $event->description === EmbedKnowledgeBase::class);
 
-    expect($event)->toBeInstanceOf(CallbackEvent::class)
-        ->expression->toBe('0 * * * *');
+    expect($events)->toBeEmpty();
 });
