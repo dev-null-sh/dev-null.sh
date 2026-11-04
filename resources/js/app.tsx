@@ -13,6 +13,7 @@ import { trackCommitPhotoPage } from '@/lib/commit-photo';
 import { initializeCommitState } from '@/lib/commit-state';
 import { trackCurrentPage } from '@/lib/current-page';
 import { trackFollowRequests } from '@/lib/follow-requests';
+import { trackModerationQueueHistory } from '@/lib/moderation-queue-history';
 import { pageTitle } from '@/lib/page-title';
 import { trackPrefetchedPages } from '@/lib/prefetched-pages';
 import { registerServiceWorker } from '@/lib/service-worker';
@@ -25,6 +26,7 @@ trackCommitPhotoPage();
 trackVisualViewport();
 trackAnalyticsEvents();
 trackPrefetchedPages();
+trackModerationQueueHistory();
 
 void createInertiaApp({
     title: pageTitle,
