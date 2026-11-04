@@ -25,11 +25,13 @@ import {
     pageReadAt,
 } from '@/lib/realtime';
 import { registerServiceWorker } from '@/lib/service-worker';
+import { trackStarredCommitsHistory } from '@/lib/starred-commits-history';
 import { browserClock, clockOf, setReaderClock } from '@/lib/utils';
 import { trackVisualViewport } from '@/lib/visual-viewport';
 import '../css/app.css';
 
 trackCurrentPage();
+trackStarredCommitsHistory();
 trackCommitPhotoPage();
 trackVisualViewport();
 trackAnalyticsEvents();
