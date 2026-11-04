@@ -186,6 +186,9 @@ jobs:
       - name: Frontend Tests
         run: bun run test:unit
 
+      - name: Frontend TSX Tests
+        run: vp test run --config tests/draft-images.config.ts
+
   tests:
     needs: [php-tests, frontend-tests]
     if: ${{ always() }}
