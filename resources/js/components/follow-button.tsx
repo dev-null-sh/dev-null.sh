@@ -90,10 +90,12 @@ const isPendingKey = (user: Pick<User, 'id'>): string =>
     `follow_pending:${user.id}`;
 
 const followingVersions = new Map<string, number>();
+const followingRetries = new Map<string, Set<() => void>>();
 
 /** A read already on its way cannot undo a follow clicked while it was out. */
 export function prepareFollowingUpdate(
     user: Pick<User, 'id'>,
+    retry: () => void,
 ): (following: boolean) => void {
     const version = followingVersions.get(user.id);
     const wasPending = sharedValue(isPendingKey(user)) === true;
@@ -105,6 +107,16 @@ export function prepareFollowingUpdate(
             sharedValue(isPendingKey(user)) !== true
         ) {
             refreshSharedState(new Map([[isFollowingKey(user), following]]));
+
+            return;
+        }
+
+        if (sharedValue(isPendingKey(user)) === true) {
+            const retries = followingRetries.get(user.id) ?? new Set();
+            retries.add(retry);
+            followingRetries.set(user.id, retries);
+        } else {
+            retry();
         }
     };
 }
@@ -193,7 +205,12 @@ export function useFollow(
 
                 return onFollowHttpException(user, response);
             },
-            onFinish: () => setIsPending(false),
+            onFinish: () => {
+                setIsPending(false);
+                const retries = followingRetries.get(user.id);
+                followingRetries.delete(user.id);
+                retries?.forEach((retry) => retry());
+            },
         },
     };
 }

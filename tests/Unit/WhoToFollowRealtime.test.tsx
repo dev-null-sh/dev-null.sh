@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import type { ActiveVisit } from '@inertiajs/core';
 import { afterEach, beforeEach, test, vi } from 'vite-plus/test';
 import type { SuggestedUser } from '../../resources/js/types';
 import { fakeConnection, joinAll } from './FakeRealtime';
@@ -234,4 +235,62 @@ test('returning with cached suggestions reads them even when the private channel
     assert.equal(sharedValue('is_following:a'), true);
     assert.equal(reads.length, 1);
     stop();
+});
+
+for (const failure of [
+    'onCancel',
+    'onNetworkError',
+    'onHttpException',
+] as const) {
+    test(`a remote follow is reconciled after a pending local follow ends with ${failure}`, async () => {
+        const { useFollow } =
+            await import('../../resources/js/components/follow-button');
+        render();
+        joinAll(fake);
+        await settle();
+        const { callbacks } = useFollow({ id: 'f', handle: 'f' }, false);
+        const visit = {} as ActiveVisit;
+        callbacks.onStart?.(visit);
+        states[5].is_following = true;
+        fake.joined.get('private-users.viewer')?.emit('relationships');
+        await settle();
+        if (failure === 'onHttpException')
+            void callbacks.onHttpException?.({
+                status: 500,
+                data: {},
+                headers: {},
+            });
+        else if (failure === 'onNetworkError')
+            void callbacks.onNetworkError?.(new Error('Offline'));
+        else callbacks.onCancel?.();
+        callbacks.onFinish?.(visit);
+        await settle();
+
+        assert.equal(sharedValue('is_following:f'), true);
+        assert.equal(reads.length, 3);
+    });
+}
+
+test('restoring an old list removes a dismissed suggestion again', async () => {
+    const cached = [...suggestedUsers];
+    render();
+    joinAll(fake);
+    await settle();
+    states[4].is_dismissed = true;
+    fake.joined.get('private-users.viewer')?.emit('suggestions');
+    await settle();
+    assert.equal(
+        suggestedUsers.some(({ id }) => id === 'e'),
+        false,
+    );
+    render();
+    suggestedUsers = cached;
+    render();
+    fake.joined.get('private-users.viewer')?.join();
+    await settle();
+
+    assert.equal(
+        suggestedUsers.some(({ id }) => id === 'e'),
+        false,
+    );
 });

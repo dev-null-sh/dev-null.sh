@@ -97,7 +97,10 @@ function useSuggestedUserUpdates(dismissElsewhere: (ids: string[]) => void) {
             if (document.hidden) return;
 
             const updates = new Map(
-                loaded.map((id) => [id, prepareFollowingUpdate({ id })]),
+                loaded.map((id) => [
+                    id,
+                    prepareFollowingUpdate({ id }, refresh.request),
+                ]),
             );
             try {
                 const response = await fetch(
@@ -608,10 +611,8 @@ function useDismissSuggestion() {
     };
 
     const dismissElsewhere = (ids: string[]): void => {
-        const removed = ids.filter(
-            (id) =>
-                !dismissedIds.has(id) &&
-                suggestedUsers.some((user) => user.id === id),
+        const removed = ids.filter((id) =>
+            suggestedUsers.some((user) => user.id === id),
         );
         if (removed.length === 0) return;
 

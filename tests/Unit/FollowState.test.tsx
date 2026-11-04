@@ -326,7 +326,7 @@ function followFromProfile(user: SuggestedUser): void {
 
 test('a live follow read cannot undo a follow completed after that read began', () => {
     const user = suggestion('newer-follow');
-    const apply = prepareFollowingUpdate(user);
+    const apply = prepareFollowingUpdate(user, () => {});
     followFromProfile(user);
 
     apply(false);
@@ -342,7 +342,7 @@ test('a live read begun during a pending follow does not undo it after completio
     );
     assert.ok(button);
     (button.props.onStart as () => void)();
-    const apply = prepareFollowingUpdate(user);
+    const apply = prepareFollowingUpdate(user, () => {});
     (button.props.onFinish as () => void)();
 
     apply(false);
