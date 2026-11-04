@@ -4,22 +4,29 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Enums\CommitUpdate;
 use App\Enums\ConversationKind;
+use App\Enums\UserUpdate;
+use App\Events\CommitsUpdated;
+use App\Events\UsersUpdated;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\CommitReport;
 use App\Models\Conversation;
+use App\Models\ConversationParticipant;
 use App\Models\Headline;
 use App\Models\LinkPreview;
 use App\Models\Message;
 use App\Models\MessageImage;
 use App\Models\MessageVoice;
+use App\Models\Notification;
 use App\Models\ScheduledCommit;
 use App\Models\User;
 use App\Queries\CommitBuilder;
 use App\Services\CommitTranslations;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
@@ -37,6 +44,8 @@ final readonly class DeleteUser
      * The database cascades the image rows of erased commits and the user's scheduled commits, and the voice notes of their
      * messages, but the files are erased here. Orgs the user was the last one in go too, with everything sent in them,
      * as they do when the last member leaves. So do the previews of links to the erased commits, which hold their bodies.
+     * Only their GitHub ID is kept, so looking their handle up never brings their page back as an unclaimed one, until they
+     * sign in again.
      */
     public function handle(User $user): void
     {
@@ -49,6 +58,15 @@ final readonly class DeleteUser
                 ->select(['id', 'body'])
                 ->lazyById(500)
                 ->map(resolve(CommitTranslations::class)->key(...))->unique()->all();
+
+            // Read before anything goes, to tell whoever showed or heard about it once it is gone.
+            $vanishing = $this->touchedCommits($user)->approved()->get(['id', 'parent_id', 'quoted_commit_id']);
+            $notified = Notification::query()->where('actor_id', $user->id)->distinct()->pluck('recipient_id');
+            $partners = ConversationParticipant::query()
+                ->whereIn('conversation_id', ConversationParticipant::query()->where('user_id', $user->id)->select('conversation_id'))
+                ->whereNot('user_id', $user->id)
+                ->distinct()
+                ->pluck('user_id');
 
             // Locked first, in statements of their own, so a topic lookup running meanwhile either links before this deletes its
             // links or finds the commit erased. The threads are locked before their replies, so no reply joins them in between.
@@ -89,6 +107,11 @@ final readonly class DeleteUser
 
             $user->delete();
             $user->profile->delete();
+            DB::table('deleted_github_accounts')->insertOrIgnore(['github_id' => $user->github_id]);
+
+            $vanishing->chunk(100)->each(fn (Collection $commits) => event(new CommitsUpdated($commits, CommitUpdate::Visibility)));
+            event(new UsersUpdated($notified, UserUpdate::Notifications));
+            event(new UsersUpdated($partners, UserUpdate::Inbox));
 
             foreach ($translationKeys as $key) {
                 Cache::forget($key);

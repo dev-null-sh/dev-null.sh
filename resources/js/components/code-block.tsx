@@ -70,7 +70,7 @@ export function CodeBlock({
                     'before:mask-b-from-[calc(100%-3rem)] before:mask-b-to-100%',
             )}
         >
-            {(language || isCopyable) && (
+            {(filename || language || isCopyable) && (
                 <div className="flex h-8 items-center justify-between gap-2 border-b pr-1 pl-3">
                     <span
                         className="min-w-0 truncate font-mono text-[11px] text-muted-foreground select-none"

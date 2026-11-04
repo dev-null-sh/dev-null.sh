@@ -144,11 +144,13 @@ final readonly class CodeSpans
     private function block(string $part): array
     {
         $lines = explode("\n", str_replace("\r\n", "\n", $part));
-        [$language, $meta] = array_pad(preg_split('/[ \t]+/', mb_trim(mb_ltrim($lines[0], '`'), " \t"), 2) ?: [], 2, '');
-        preg_match_all('/\{[^}]*\}|([A-Za-z][\w-]*)="([^"]*)"|[^ \t]+/', $meta, $tokens, PREG_SET_ORDER | PREG_UNMATCHED_AS_NULL);
+        preg_match_all('/\{[^}]*\}|([A-Za-z][\w-]*)=(?:"([^"]*)"|\'([^\']*)\')|([^ \t{]+)/', mb_ltrim($lines[0], '`'), $tokens, PREG_SET_ORDER | PREG_UNMATCHED_AS_NULL);
+        $language = $tokens[0][4] ?? null;
         $attributes = [];
 
-        foreach ($tokens as [, $key, $value]) {
+        foreach ($tokens as [, $key, $double, $single]) {
+            $value = $double ?? $single;
+
             if ($key !== null && $value !== '') {
                 $attributes[$key] ??= $value;
             }
@@ -156,9 +158,9 @@ final readonly class CodeSpans
 
         return [
             'type' => 'block',
-            'language' => $language === '' ? null : $language,
+            'language' => $language,
             'filename' => $attributes['title'] ?? $attributes['filename'] ?? null,
-            'html' => $this->highlighter->parse(implode("\n", array_slice($lines, 1, -1)), $language === '' ? null : mb_strtolower($language)),
+            'html' => $this->highlighter->parse(implode("\n", array_slice($lines, 1, -1)), $language === null ? null : mb_strtolower($language)),
         ];
     }
 }

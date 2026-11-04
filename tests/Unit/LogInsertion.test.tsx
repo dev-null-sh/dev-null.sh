@@ -51,6 +51,8 @@ vi.doMock('react', () => ({
         scheduleEffect(effects, effect, dependencies),
     useLayoutEffect: (effect: () => unknown, dependencies?: unknown[]) =>
         scheduleEffect(layouts, effect, dependencies),
+    useEffectEvent: (callback: unknown) => callback,
+    useSyncExternalStore: (_subscribe: unknown, read: () => unknown) => read(),
 }));
 function scheduleEffect(
     queue: (() => unknown)[],
@@ -80,7 +82,7 @@ vi.doMock('@inertiajs/react', () => ({
     usePage: () => ({ props: { auth: { organizations: [], user: viewer } } }),
     usePoll: (_interval: number, options: () => ReloadOptions) => {
         pollOptions = options;
-        return { stop: vi.fn() };
+        return { start: vi.fn(), stop: vi.fn() };
     },
     router: {
         on: (name: string, listener: (event: unknown) => void) => {
