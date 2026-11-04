@@ -39,6 +39,7 @@ final readonly class TopLinksQuery
             ->fromSub($counts, 'counts')
             ->join('link_previews', 'link_previews.id', '=', 'counts.link_preview_id')
             ->orderByDesc('people')->orderByDesc('commits')->latest('last_mentioned_at')
+            ->orderBy('link_previews.id')
             ->limit(self::LIMIT)
             ->get(['link_previews.url', 'link_previews.title', 'link_previews.site_name', 'counts.people', 'counts.commits', 'counts.last_mentioned_at'])
             ->all();

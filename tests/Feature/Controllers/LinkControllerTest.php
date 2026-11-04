@@ -34,6 +34,27 @@ it('ranks the links of the last 30 days by how many people used them as their ca
         ->where('topLinks.1.commits', 4));
 });
 
+it('orders equally popular links consistently by id', function (): void {
+    $links = LinkPreview::factory()->count(3)->create();
+    $when = now()->subHour();
+
+    foreach ($links as $link) {
+        Commit::factory()->create([
+            'link_preview_id' => $link->id,
+            'created_at' => $when,
+        ]);
+    }
+
+    $expected = $links->sortBy('id')->pluck('url')->values()->all();
+
+    $this->actingAs(User::factory()->create())
+        ->get(route('link.index'))
+        ->assertInertia(fn ($page) => $page
+            ->where('topLinks.0.url', $expected[0])
+            ->where('topLinks.1.url', $expected[1])
+            ->where('topLinks.2.url', $expected[2]));
+});
+
 it('shows only the 10 most shared links', function (): void {
     LinkPreview::factory()->count(11)->create()->each(fn (LinkPreview $link) => Commit::factory()->create(['link_preview_id' => $link->id]));
 
