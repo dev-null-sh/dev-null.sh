@@ -38,6 +38,7 @@ export default function Show({
                 results={{ term: name, commits }}
                 heading="What nullers have been saying"
                 empty="No matching commits from the past week."
+                isStandalone
             />
         </>
     );
