@@ -20,6 +20,72 @@ afterEach(() => {
     connectRealtime(null);
 });
 
+void test('stopping a late listener cancels its queued catch-up without affecting another listener', async () => {
+    const fake = fakeConnection();
+    connectRealtime(fake.connection);
+    pageReadAt(Date.now() - 1_000);
+    const channel = userChannel('late-stop');
+    const keep = listen(channel, { account: () => {} });
+    fake.joined.get('private-users.late-stop')?.join();
+    let stopped = 0;
+    let active = 0;
+    const stop = listen(channel, { account: () => {} }, () => stopped++);
+    const stillListening = listen(
+        channel,
+        { account: () => {} },
+        () => active++,
+    );
+
+    stop();
+    await Promise.resolve();
+
+    assert.equal(stopped, 0);
+    assert.equal(active, 1);
+    stillListening();
+    keep();
+});
+
+void test('stopping listeners cancels history catch-up queued before they stopped', async () => {
+    const fake = fakeConnection();
+    connectRealtime(fake.connection);
+    let syncs = 0;
+    let props = 0;
+    const stop = listen(
+        userChannel('history-stop'),
+        { account: () => {} },
+        () => syncs++,
+    );
+    const stopProps = liveTransport.subscribe(
+        { name: 'users.history-stop', type: 'private' },
+        'account',
+        () => props++,
+    );
+
+    catchUpAfterRestore();
+    stop();
+    stopProps();
+    await Promise.resolve();
+
+    assert.equal(syncs, 0);
+    assert.equal(props, 0);
+});
+
+void test('replacing the connection retires a late listener whose catch-up is queued', async () => {
+    const fake = fakeConnection();
+    connectRealtime(fake.connection);
+    pageReadAt(Date.now() - 1_000);
+    const channel = userChannel('replaced');
+    listen(channel, { account: () => {} });
+    fake.joined.get('private-users.replaced')?.join();
+    let syncs = 0;
+    listen(channel, { account: () => {} }, () => syncs++);
+
+    connectRealtime(fakeConnection().connection);
+    await Promise.resolve();
+
+    assert.equal(syncs, 0);
+});
+
 void test('shares one subscription between listeners and leaves it once the last one stops', () => {
     mock.timers.enable({ apis: ['setTimeout'] });
     const fake = fakeConnection();
@@ -299,7 +365,11 @@ void test('a page coming back from history makes listeners already on it catch u
     const live: unknown[] = [];
     let syncs = 0;
     listen(userChannel('a'), { account: () => {} }, () => syncs++);
-    liveTransport.subscribe({ name: 'users.a', type: 'private' }, 'notifications', (payload) => live.push(payload));
+    liveTransport.subscribe(
+        { name: 'users.a', type: 'private' },
+        'notifications',
+        (payload) => live.push(payload),
+    );
     fake.setStatus('connected');
     fake.joined.get('private-users.a')?.join();
     syncs = 0;
@@ -376,8 +446,11 @@ void test('never runs one too many when a read is asked for as another finishes'
 
 void test('waits until no visit is under way, including one that starts while it waits', async () => {
     const listeners: Record<string, (() => void)[]> = { start: [], finish: [] };
-    const settled = visitsSettled((event, listener) => listeners[event].push(listener));
-    const emit = (event: 'start' | 'finish') => listeners[event].forEach((listener) => listener());
+    const settled = visitsSettled((event, listener) =>
+        listeners[event].push(listener),
+    );
+    const emit = (event: 'start' | 'finish') =>
+        listeners[event].forEach((listener) => listener());
     let done = false;
 
     await settled();
@@ -389,7 +462,11 @@ void test('waits until no visit is under way, including one that starts while it
     emit('start');
     emit('finish');
     await Promise.resolve();
-    assert.equal(done, false, 'the visit that started meanwhile is still under way');
+    assert.equal(
+        done,
+        false,
+        'the visit that started meanwhile is still under way',
+    );
 
     emit('finish');
     await waiting;
@@ -399,8 +476,12 @@ void test('waits until no visit is under way, including one that starts while it
 void test('stops waiting after a while when visits keep overlapping, so reading again is never put off for good', async () => {
     mock.timers.enable({ apis: ['setTimeout'] });
     const listeners: Record<string, (() => void)[]> = { start: [], finish: [] };
-    const settled = visitsSettled((event, listener) => listeners[event].push(listener), 1_000);
-    const emit = (event: 'start' | 'finish') => listeners[event].forEach((listener) => listener());
+    const settled = visitsSettled(
+        (event, listener) => listeners[event].push(listener),
+        1_000,
+    );
+    const emit = (event: 'start' | 'finish') =>
+        listeners[event].forEach((listener) => listener());
     let done = false;
 
     emit('start');

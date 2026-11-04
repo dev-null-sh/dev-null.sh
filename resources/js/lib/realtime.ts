@@ -157,6 +157,12 @@ export function listen(
 
     const key = keyOf(channel);
     const entry = entryFor(channel, socket);
+    let isListening = true;
+    const sync = () => {
+        if (isListening && channels.get(key) === entry) {
+            onSync?.();
+        }
+    };
 
     Object.entries(events).forEach(([event, handler]) => {
         const listening = entry.events.get(event);
@@ -182,11 +188,9 @@ export function listen(
             entry.isSubscribed &&
             mayHaveMissed(entry, Object.keys(events), pageRead)
         ) {
-            queueMicrotask(onSync);
+            queueMicrotask(sync);
         }
     }
-
-    let isListening = true;
 
     return () => {
         if (!isListening || channels.get(key) !== entry) {
@@ -266,7 +270,16 @@ export function catchUpAfterRestore(): void {
     // The listeners already on the page catch up as well as the ones joining it, each once.
     const syncs = new Set(liveRefreshers);
     channels.forEach((entry) => entry.syncs.forEach((sync) => syncs.add(sync)));
-    syncs.forEach((sync) => queueMicrotask(sync));
+    syncs.forEach((sync) =>
+        queueMicrotask(() => {
+            if (
+                liveRefreshers.has(sync) ||
+                [...channels.values()].some((entry) => entry.syncs.has(sync))
+            ) {
+                sync();
+            }
+        }),
+    );
 }
 
 /**
