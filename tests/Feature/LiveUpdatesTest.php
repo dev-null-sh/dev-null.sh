@@ -15,6 +15,7 @@ use App\Actions\CreateUserFollow;
 use App\Actions\CreateUserTimeout;
 use App\Actions\DeleteOrganization;
 use App\Actions\DeleteUser;
+use App\Actions\UpdateCommitStatuses;
 use App\Actions\UpdateConversationReadThrough;
 use App\Actions\UpdateFeature;
 use App\Actions\UpdateLinkPreview;
@@ -31,6 +32,7 @@ use App\Enums\CommitUpdate;
 use App\Enums\Feature;
 use App\Enums\Log;
 use App\Enums\ModerationReason;
+use App\Enums\NotificationType;
 use App\Enums\RemoteStatus;
 use App\Enums\TimeoutDuration;
 use App\Enums\UserUpdate;
@@ -45,6 +47,7 @@ use App\Models\Conversation;
 use App\Models\ConversationParticipant;
 use App\Models\LinkPreview;
 use App\Models\Message;
+use App\Models\Notification;
 use App\Models\Organization;
 use App\Models\ScheduledCommit;
 use App\Models\User;
@@ -543,4 +546,20 @@ it("refreshes an organization page from its public channel and the viewer's rela
     expect($live['followersCount']['listeners'][0]['channel'])->toBe(['name' => 'profiles.'.$organization->id, 'type' => 'public'])
         ->and($live['isFollowing']['listeners'][0]['channel'])->toBe(['name' => 'users.'.$viewer->id, 'type' => 'private'])
         ->and($live['auth.user']['listeners'][0]['events'])->toBe(['account']);
+});
+
+it('tells recipients when approving removes their rejection notification', function (): void {
+    $author = User::factory()->create();
+    $commit = Commit::factory()->for($author)->rejected()->create();
+    $notification = Notification::factory()->create([
+        'recipient_id' => $author->id,
+        'actor_id' => $author->id,
+        'commit_id' => $commit->id,
+        'type' => NotificationType::Rejected,
+    ]);
+
+    resolve(UpdateCommitStatuses::class)->handle([$commit->id], CommitStatus::Approved);
+
+    $this->assertModelMissing($notification);
+    expect(recipientsOf(usersUpdated(UserUpdate::Notifications)))->toContain($author->id);
 });

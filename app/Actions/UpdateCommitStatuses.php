@@ -66,6 +66,8 @@ final readonly class UpdateCommitStatuses
 
             Commit::query()->whereKey($commits->modelKeys())->update(['status' => $status]);
 
+            $notified = Notification::query()->whereIn('commit_id', $commits->modelKeys())->distinct()->pluck('recipient_id');
+
             Notification::query()
                 ->whereIn('commit_id', $commits->modelKeys())
                 ->whereIn('type', [NotificationType::Approved, NotificationType::Rejected])
@@ -143,7 +145,7 @@ final readonly class UpdateCommitStatuses
             $authors = $commits->pluck('user_id')->filter()->values()->all();
             event(new UsersUpdated($authors, UserUpdate::Commits));
             event(new UsersUpdated($authors, UserUpdate::ScheduledCommits));
-            event(new UsersUpdated(Notification::query()->whereIn('commit_id', $commits->modelKeys())->distinct()->pluck('recipient_id')->all(), UserUpdate::Notifications));
+            event(new UsersUpdated($notified->concat(Notification::query()->whereIn('commit_id', $commits->modelKeys())->distinct()->pluck('recipient_id')), UserUpdate::Notifications));
             event(new ProfilesUpdated($commits->pluck('author_id')));
             event(new UsersUpdated($this->admins->ids(), UserUpdate::Moderation, ['commits' => array_values($commits->map(fn (Commit $commit): string => $commit->id)->all())]));
         });
