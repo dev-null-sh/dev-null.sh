@@ -16,6 +16,7 @@ import { trackCurrentPage } from '@/lib/current-page';
 import { createEcho } from '@/lib/echo';
 import { trackFollowRequests } from '@/lib/follow-requests';
 import { startMobileApp } from '@/lib/mobile-app';
+import { trackFeatureFlagsHistory } from '@/lib/operations-features-history';
 import { pageTitle } from '@/lib/page-title';
 import { trackPrefetchedPages } from '@/lib/prefetched-pages';
 import {
@@ -33,6 +34,7 @@ trackCurrentPage();
 trackCommitPhotoPage();
 trackVisualViewport();
 trackAnalyticsEvents();
+trackFeatureFlagsHistory();
 trackPrefetchedPages();
 connectRealtime(createEcho());
 // What a page shows was read once the visit bringing all of it started, and the first one once the browser asked for
