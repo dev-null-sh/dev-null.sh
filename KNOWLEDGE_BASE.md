@@ -749,7 +749,7 @@ Sources: [fingerprint matching](resources/js/lib/certificate-hashes.ts), [text r
 | Testing and quality | **Pest**, **PHPStan / Larastan**, **TypeScript**, **Laravel Pint**, **Rector**, and frontend formatting and linting through **Vite+**. |
 | AI services | **Laravel AI SDK** runs Tom and public-post translation with **DeepSeek Flash** through **OpenCode Zen** and generates and caches semantic search query embeddings through **OpenAI**. The existing OpenAI integration handles batch embeddings, commit relevance checks, and moderation. |
 
-The knowledge base is split into Markdown sections by heading and searched by meaning using vector embeddings in PostgreSQL. Updates normally become available to Tom within about an hour of deployment.
+The knowledge base is split into Markdown sections by heading and searched by meaning using vector embeddings in PostgreSQL. Refreshing it skips unchanged sections and reuses their existing embeddings.
 
 An [internal semantic search query](app/Queries/KnowledgeBaseSearchQuery.php) retrieves the nearest knowledge-base sections using Laravel AI SDK query embeddings through OpenAI and PostgreSQL cosine distance, following the same embedding approach as commit search. Tom's read-only tools expose bounded knowledge-base excerpts and public commit search results to the model. There is no standalone public knowledge-base search endpoint.
 
