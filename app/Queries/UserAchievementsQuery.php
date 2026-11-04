@@ -188,6 +188,10 @@ final readonly class UserAchievementsQuery
                 'progress' => min($user->followers()->count(), Achievement::SuperSaiyan->target()),
                 'target' => Achievement::SuperSaiyan->target(),
             ],
+            Achievement::Whoopsie->value => [
+                'progress' => in_array(mb_strtolower($user->handle), ['paulinevos', 'nunomaduro', 'brendt', 'mnapoli'], true) ? 1 : 0,
+                'target' => Achievement::Whoopsie->target(),
+            ],
         ];
 
         $badges = array_map(function (Achievement $achievement) use ($metrics): array {
