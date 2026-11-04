@@ -43,7 +43,7 @@ final readonly class DeviceController
             return ApiException::invalidGrant()->render();
         }
 
-        if ($request->has('terms_version')) {
+        if ($request->boolean('terms_accepted')) {
             $acceptTerms->handle($device->user);
         }
 

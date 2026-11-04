@@ -6,6 +6,7 @@ use App\Actions\UpdateCommitTopics;
 use App\Contracts\Services\GitHubProvider;
 use App\Jobs\LinkCommitTopics;
 use App\Models\Commit;
+use App\Models\Organization;
 use App\Models\Profile;
 use GuzzleHttp\Psr7\Response as Psr7Response;
 use Illuminate\Http\Client\RequestException;
@@ -15,7 +16,7 @@ use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Queue;
 
 it('links the organizations the commit mentions', function (): void {
-    $organization = Profile::factory()->organization()->create(['handle' => 'laravel']);
+    $organization = Organization::factory()->create(['handle' => 'laravel']);
     $commit = Commit::factory()->create(['body' => 'Thanks @laravel', 'mentions' => []]);
 
     dispatch_sync(new LinkCommitTopics($commit));

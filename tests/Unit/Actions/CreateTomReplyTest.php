@@ -9,6 +9,7 @@ use App\Actions\UpdateCommitStatuses;
 use App\Ai\Agents\Tom;
 use App\Contracts\Services\ToolDecisionProvider;
 use App\Enums\CommitStatus;
+use App\Exceptions\CommitProcessingFailed;
 use App\Jobs\EmbedCommit;
 use App\Jobs\ModerateCommit;
 use App\Jobs\ReplyAsTom;
@@ -127,7 +128,7 @@ it('queues Tom replies and surfaces provider failures instead of silently skippi
 
     Queue::assertPushed(ReplyAsTom::class, fn (ReplyAsTom $job): bool => $job->commitId === $commit->id);
     expect(fn () => new ReplyAsTom($commit->id)->handle(resolve(CreateTomReply::class)))
-        ->toThrow(RuntimeException::class, 'Tom reply failed for commit '.$commit->id.'.');
+        ->toThrow(CommitProcessingFailed::class, 'Tom reply failed for commit '.$commit->id.' (');
     expect($commit->refresh()->status)->toBe(CommitStatus::Approved);
     expect($commit->replies()->count())->toBe(0);
 })->with([true, false])->with(['openai', 'opencode']);
@@ -195,7 +196,10 @@ it('does not ask Tom to answer when the tool decision fails', function (): void 
     $commit = Commit::factory()->create(['body' => '@tom hello', 'mentions' => ['tom' => $tom->id]]);
 
     expect(fn () => new ReplyAsTom($commit->id)->handle(resolve(CreateTomReply::class)))
-        ->toThrow(RuntimeException::class, 'Tom reply failed for commit '.$commit->id.'.');
+        ->toThrow(function (CommitProcessingFailed $exception) use ($commit): void {
+            expect($exception->getMessage())->toBe('Tom reply failed for commit '.$commit->id.' ('.RuntimeException::class.', code 0).')
+                ->and($exception->getPrevious())->toBeNull();
+        });
 
     Tom::assertNeverPrompted();
     expect($commit->replies()->count())->toBe(0);
@@ -227,7 +231,10 @@ it('retries failed or blank responses without retaining provider content', funct
 
     $job = new ReplyAsTom($commit->id);
     expect(fn () => $job->handle(resolve(CreateTomReply::class)))
-        ->toThrow(RuntimeException::class, 'Tom reply failed for commit '.$commit->id.'.');
+        ->toThrow(function (CommitProcessingFailed $exception) use ($commit): void {
+            expect($exception->getMessage())->toBe('Tom reply failed for commit '.$commit->id.' ('.RuntimeException::class.', code 0).')
+                ->and($exception->getPrevious())->toBeNull();
+        });
     expect($commit->replies()->count())->toBe(0);
 
     Tom::fake(['Back online. :-D']);
@@ -292,3 +299,34 @@ it('does not queue or answer a mention of the real tom', function (bool $approve
     Tom::assertNeverPrompted();
     expect($commit->replies()->count())->toBe(0);
 })->with([true, false]);
+
+it('notifies selected Tom recipients but only invokes him for an explicit body mention', function (bool $approved, string $body, bool $invoked): void {
+    Queue::fake([ReplyAsTom::class]);
+    Tom::fake()->preventStrayPrompts();
+    $tom = User::factory()->create(['handle' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
+    $parent = Commit::factory()->create(['body' => '@tom hello', 'mentions' => ['tom' => $tom->id]]);
+    $user = User::factory()->create();
+    config(['app.admins' => $approved ? [$user->handle] : []]);
+
+    $commit = resolve(CreateCommit::class)->handle($user, $body, parent: $parent, replyRecipients: ['tom' => $tom->id]);
+
+    if (! $approved) {
+        Queue::assertNotPushed(ReplyAsTom::class);
+        resolve(UpdateCommitStatuses::class)->handle([$commit->id], CommitStatus::Approved);
+    }
+
+    expect($commit->refresh()->mentions)->toBe(['tom' => $tom->id])
+        ->and($commit->isAddressedTo($tom))->toBe($invoked);
+    expect($tom->notifications()->where('commit_id', $commit->id)->exists())->toBeTrue();
+    Queue::assertPushed(ReplyAsTom::class, $invoked ? 1 : 0);
+
+    if (! $invoked) {
+        resolve(CreateTomReply::class)->handle($commit->id);
+        Tom::assertNeverPrompted();
+        expect($commit->replies()->count())->toBe(0);
+    }
+})->with([true, false])->with([
+    'notification only' => ['Thanks for explaining!', false],
+    'code mention' => ['This is code: `@tom`', false],
+    'explicit mention' => ['@ToM what do you think?', true],
+]);

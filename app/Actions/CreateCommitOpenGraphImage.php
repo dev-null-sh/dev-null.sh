@@ -6,7 +6,6 @@ namespace App\Actions;
 
 use App\Contracts\Services\GitHubProvider;
 use App\Models\Commit;
-use App\Models\User;
 use App\Services\OpenGraphCanvas;
 use App\Services\Urls;
 use Illuminate\Support\Facades\Cache;
@@ -38,22 +37,25 @@ final readonly class CreateCommitOpenGraphImage
         //
     }
 
-    public function handle(User $user, Commit $commit): string
+    public function handle(Commit $commit): string
     {
         $commit->loadPublicPreview();
 
         return Cache::remember(
             "open-graph-image:commit:{$commit->id}:{$commit->openGraphImageVersion()}",
             now()->addHour(),
-            fn (): string => $this->render($user, $commit),
+            fn (): string => $this->render($commit),
         );
     }
 
-    private function render(User $user, Commit $commit): string
+    private function render(Commit $commit): string
     {
+        $author = $commit->author?->owner();
+        assert($author !== null);
+
         $canvas = new OpenGraphCanvas($this->github);
-        $lane = $canvas->lane($user->lane());
-        $replyingTo = $commit->parent?->user?->handle;
+        $lane = $author->lane() === null ? OpenGraphCanvas::PRIMARY : $canvas->lane($author->lane());
+        $replyingTo = $commit->parent?->author?->handle;
 
         $headerHeight = self::AVATAR_SIZE + ($replyingTo === null ? 0 : self::REPLYING_TO_HEIGHT) + self::BODY_GAP;
         [$size, $lineHeight, $body] = $this->fit($canvas, $this->urls->withShortenedUrls($commit->body), OpenGraphCanvas::FOOTER_RULE_Y - self::MIN_BOTTOM - self::MIN_TOP - $headerHeight);
@@ -61,13 +63,13 @@ final readonly class CreateCommitOpenGraphImage
         $top = max(self::MIN_TOP, intdiv(OpenGraphCanvas::FOOTER_RULE_Y - $headerHeight - count($body) * $lineHeight, 2));
 
         $canvas->rail($top + intdiv(self::AVATAR_SIZE, 2), $lane);
-        $canvas->avatar($user, OpenGraphCanvas::CONTENT_X + 10, $top, self::AVATAR_SIZE, $lane);
+        $canvas->avatar($author, OpenGraphCanvas::CONTENT_X + 10, $top, self::AVATAR_SIZE, $lane);
 
         $textX = OpenGraphCanvas::CONTENT_X + 10 + self::AVATAR_SIZE + 10 + 28;
         $textWidth = OpenGraphCanvas::CONTENT_RIGHT - $textX;
 
-        $canvas->text($canvas->truncate($canvas->name($user), 'Geist-SemiBold', 36, $textWidth), 'Geist-SemiBold', 36, $textX, $top + 36, OpenGraphCanvas::INK);
-        $canvas->handle($user, 26, $textX, $top + 70, $textWidth, $lane);
+        $canvas->text($canvas->truncate($canvas->name($author), 'Geist-SemiBold', 36, $textWidth), 'Geist-SemiBold', 36, $textX, $top + 36, OpenGraphCanvas::INK);
+        $canvas->handle($author, 26, $textX, $top + 70, $textWidth, $lane);
 
         if ($replyingTo !== null) {
             $canvas->text($canvas->truncate("↳ replying to @{$replyingTo}", 'GeistMono-Regular', 26, self::BODY_WIDTH), 'GeistMono-Regular', 26, OpenGraphCanvas::CONTENT_X, $top + self::AVATAR_SIZE + 38, OpenGraphCanvas::INK_MUTED);

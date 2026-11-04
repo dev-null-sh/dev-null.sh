@@ -11,7 +11,7 @@ use App\Contracts\Services\RelevanceProvider;
  */
 final readonly class NullRelevanceProvider implements RelevanceProvider
 {
-    public function decideRelevance(string $query, array $bodies): array
+    public function decideRelevance(string $query, array $bodies, bool $related = false): array
     {
         return array_fill(0, count($bodies), true);
     }

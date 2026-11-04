@@ -23,7 +23,7 @@ final class DeleteApiCommitPinRequest extends FormRequest
         assert($commit instanceof Commit);
 
         return match (true) {
-            $commit->user_id === $user->id && $commit->parent_id === null => Response::allow(),
+            $commit->author_id === $user->id && $commit->parent_id === null => Response::allow(),
             $commit->isVisibleTo($user) => Response::deny(),
             default => Response::denyAsNotFound(),
         };

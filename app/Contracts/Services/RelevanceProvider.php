@@ -16,5 +16,5 @@ interface RelevanceProvider
      * @param  list<string>  $bodies
      * @return list<bool>
      */
-    public function decideRelevance(string $query, array $bodies): array;
+    public function decideRelevance(string $query, array $bodies, bool $related = false): array;
 }

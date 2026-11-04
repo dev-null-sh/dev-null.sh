@@ -59,6 +59,7 @@ it('lists the latest commits of everyone, newest first', function (): void {
         'link_preview' => null,
         'images' => [],
         'author' => [
+            'type' => 'user',
             'id' => $author->id,
             'handle' => 'octocat',
             'name' => 'The Octocat',

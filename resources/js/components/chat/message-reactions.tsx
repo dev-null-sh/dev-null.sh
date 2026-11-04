@@ -565,6 +565,12 @@ export function EmojiPicker({
     };
 
     const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+        // Enter also confirms an input method's candidate, which is not a pick. Safari reports that Enter with keyCode
+        // 229 instead of isComposing.
+        if (event.nativeEvent.isComposing || event.keyCode === 229) {
+            return;
+        }
+
         const moves: Record<string, number> = {
             ArrowRight: 1,
             ArrowLeft: -1,

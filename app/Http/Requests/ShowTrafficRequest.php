@@ -4,14 +4,23 @@ declare(strict_types=1);
 
 namespace App\Http\Requests;
 
+use App\Contracts\Services\AnalyticsProvider;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Auth\Access\Response;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
+/**
+ * @phpstan-import-type TrafficFilter from AnalyticsProvider
+ */
 final class ShowTrafficRequest extends FormRequest
 {
+    /**
+     * @var list<TrafficFilter>
+     */
+    private const array FILTERS = ['page', 'referrer', 'country', 'device', 'browser'];
+
     public function authorize(): Response
     {
         $user = $this->user();
@@ -28,6 +37,7 @@ final class ShowTrafficRequest extends FormRequest
         return [
             'from' => ['nullable', Rule::date()->format('Y-m-d')->todayOrBefore()],
             'to' => ['nullable', Rule::date()->format('Y-m-d')->todayOrBefore(), Rule::when($this->filled('from'), 'after_or_equal:from')],
+            ...collect(self::FILTERS)->mapWithKeys(fn (string $filter): array => [$filter => ['nullable', 'string', 'max:2000']]),
         ];
     }
 
@@ -42,5 +52,18 @@ final class ShowTrafficRequest extends FormRequest
     public function to(): CarbonImmutable
     {
         return $this->date('to', 'Y-m-d')?->toImmutable() ?? today()->toImmutable();
+    }
+
+    /**
+     * The traffic filters present in the query. An empty one, `?referrer=`, matches direct visits or unknown values.
+     *
+     * @return array<TrafficFilter, string>
+     */
+    public function filters(): array
+    {
+        return collect(self::FILTERS)
+            ->filter(fn (string $filter): bool => $this->has($filter))
+            ->mapWithKeys(fn (string $filter): array => [$filter => $this->string($filter)->value()])
+            ->all();
     }
 }

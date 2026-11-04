@@ -83,3 +83,10 @@ it('rejects overly long queries', function (): void {
 it('requires a signed request', function (): void {
     $this->getJson(route('api-user-search.index', ['q' => 'taylor']))->assertUnauthorized();
 });
+
+it('is deprecated for the profile search', function (): void {
+    signedApiRequest($this->keyPair, 'GET', route('api-user-search.index', ['q' => 'taylor']))
+        ->assertOk()
+        ->assertHeader('Deprecation', 'true')
+        ->assertHeader('Link', '<'.route('api-profile-search.index').'>; rel="successor-version"');
+});

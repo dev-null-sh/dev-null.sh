@@ -24,7 +24,7 @@ final readonly class LinkCommitsQuery
             ->withCardDataFor($user)
             ->with([
                 'parent' => function (BelongsTo $parent) use ($user): void {
-                    $parent->getQuery()->withTrashed()->visibleTo($user)->with('user');
+                    $parent->getQuery()->withTrashed()->visibleTo($user)->with('author');
                 },
             ])
             ->orderBy('commits.created_at')->orderBy('commits.id');

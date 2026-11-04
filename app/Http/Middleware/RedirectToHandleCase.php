@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Middleware;
 
 use App\Models\Commit;
+use App\Models\Profile;
 use App\Models\User;
 use Closure;
 use Illuminate\Http\Request;
@@ -25,14 +26,15 @@ final readonly class RedirectToHandleCase
         /** @var Route $route */
         $route = $request->route();
 
-        $user = $route->parameter('user');
+        $name = $route->hasParameter('profile') ? 'profile' : 'user';
+        $owner = $route->parameter($name);
         $commit = $route->parameter('commit');
 
-        if ($user instanceof User && $route->originalParameter('user') !== $user->handle && (! $commit instanceof Commit || $commit->isVisibleTo($request->user()))) {
+        if (($owner instanceof User || $owner instanceof Profile) && $route->originalParameter($name) !== $owner->handle && (! $commit instanceof Commit || $commit->isVisibleTo($request->user()))) {
             // The raw query, since Symfony's normalized one keeps only the last value of a repeated key...
             $query = $request->server->getString('QUERY_STRING');
 
-            return redirect(route((string) $route->getName(), [...$route->parameters(), 'user' => $user->handle]).($query === '' ? '' : "?{$query}"), 301, ['Cache-Control' => 'max-age=86400, private']);
+            return redirect(route((string) $route->getName(), [...$route->parameters(), $name => $owner->handle]).($query === '' ? '' : "?{$query}"), 301, ['Cache-Control' => 'max-age=86400, private']);
         }
 
         return $next($request);

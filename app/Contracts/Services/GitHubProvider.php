@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Contracts\Services;
 
-use App\Enums\GitHubOrganizationMembership;
 use Carbon\CarbonImmutable;
 
 /**
@@ -13,7 +12,7 @@ use Carbon\CarbonImmutable;
  * GitHub doesn't answer.
  *
  * @phpstan-type Account array<array-key, mixed>
- * @phpstan-type PullRequest array{number: int, title: string, html_url: string, merged_at: string|null, updated_at: string, merge_commit_sha: string, user: array{id: int, login: string, avatar_url: string}}
+ * @phpstan-type Commit array{sha: string, message: string, url: string, committed_at: string, parents: list<string>, author: array{id: int|null, login: string, avatar_url: string}}
  * @phpstan-type SearchResults array{incomplete: bool, total: int, items: list<array<string, mixed>>}
  * @phpstan-type Issue array{number: int, title: string, url: string}
  * @phpstan-type RateLimit array{remaining: int, limit: int, resets_at: CarbonImmutable}
@@ -46,10 +45,17 @@ interface GitHubProvider
     public function login(string $githubId): ?string;
 
     /**
-     * Where the user the token is for stands in the organization. The token needs the read:org scope. Matched by the
-     * organization's ID, so a renamed handle that someone else took since doesn't count.
+     * Whether the user shows their membership of the organization on GitHub, which only members can do. Both are
+     * looked up by their immutable ID, so a renamed handle that someone else took since doesn't count.
      */
-    public function organizationMembership(string $token, string $handle, string $githubId): GitHubOrganizationMembership;
+    public function isPublicMember(string $organizationGithubId, string $githubId): bool;
+
+    /**
+     * Public organization members only. Null when the organization is unavailable or exceeds the bounded scan.
+     *
+     * @return list<string>|null
+     */
+    public function publicOrganizationMemberIds(string $login): ?array;
 
     /**
      * Whether the user the token is for has a GitHub Sponsors listing. Null when GitHub can't say.
@@ -57,9 +63,10 @@ interface GitHubProvider
     public function hasSponsorsListing(string $token): ?bool;
 
     /**
-     * The IDs of the accounts the user follows, up to the given number of pages.
+     * The IDs of the accounts the user follows, up to the given number of pages, the people apart from the
+     * organizations.
      *
-     * @return list<string>
+     * @return array{users: list<string>, organizations: list<string>}
      */
     public function followingIds(string $login, int $maxPages): array;
 
@@ -88,11 +95,12 @@ interface GitHubProvider
     public function readme(string $login): ?string;
 
     /**
-     * One page of the closed pull requests into the branch, most recently updated first.
+     * One page of the commits reachable from the branch, most recently committed first. The author has no ID when the
+     * commit's email belongs to no GitHub account.
      *
-     * @return list<PullRequest>
+     * @return list<Commit>
      */
-    public function closedPullRequests(string $repository, string $branch, int $page, int $perPage): array;
+    public function commits(string $repository, string $branch, int $page, int $perPage): array;
 
     /**
      * One page of the repository's contributors, most commits first, as GitHub lists them.

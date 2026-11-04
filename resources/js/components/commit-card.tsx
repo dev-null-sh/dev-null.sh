@@ -1,5 +1,5 @@
 import { Link, router, usePage } from '@inertiajs/react';
-import { CornerDownRight, Trash2 } from 'lucide-react';
+import { CornerDownRight } from 'lucide-react';
 import type { MouseEvent, PointerEvent, ReactNode } from 'react';
 import { useCallback, useContext, useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
@@ -43,27 +43,23 @@ import {
 } from '@/components/thread-position-badge';
 import { TimestampTooltip } from '@/components/timestamp-tooltip';
 import { Button } from '@/components/ui/button';
-import {
-    Tooltip,
-    TooltipContent,
-    TooltipTrigger,
-} from '@/components/ui/tooltip';
 import { UserPreview } from '@/components/user-preview';
 import {
     useCommitNotFound,
     useIsCommitDeleted,
 } from '@/hooks/use-deleted-resources';
 import { useNow } from '@/hooks/use-now';
+import { useOwnsCommit } from '@/hooks/use-owns-commit';
 import { clickedCommit } from '@/lib/commit-click';
 import { commitMutationOptions } from '@/lib/commit-mutation-options';
 import { measureCommitSize } from '@/lib/commit-size';
 import {
+    authorLaneColor,
     cn,
     formatFullDateTime,
     formatRelativeTime,
     isDeleted,
     isWithinSeconds,
-    laneColor,
     shortHash,
 } from '@/lib/utils';
 import { show } from '@/routes/user';
@@ -127,7 +123,7 @@ export function CommitCard({
     const nodeRef = useRef<HTMLAnchorElement>(null);
     const graphNodeRef = useGraphNode({
         id: commit.id,
-        lane: laneColor(commit.user.lane),
+        lane: authorLaneColor(commit.author),
         after: graphAfter,
         dimmed: isDimmed,
         ring: isGroupedWithPrevious ? railDotRing : 0,
@@ -153,15 +149,16 @@ export function CommitCard({
         'idle' | 'confirming' | 'deleting'
     >('idle');
 
-    const hasVisibleReplies = thread.isOpen && !!thread.replies?.length;
+    const hasVisibleReplies =
+        (thread.isOpen || thread.isFolding) && !!thread.replies?.length;
     const endsOnDot =
         hasRailTail && railNodePosition !== 'bottom' && endsWithDot;
     const graphEndId = `${commit.id}:end`;
-    const isOwn = commit.user_id === auth.user?.id;
+    const isOwn = useOwnsCommit()(commit);
     const isFresh = isOwn && isWithinSeconds(commit.created_at, 15);
     const isDeletable = isOwn && canDelete;
     const hash = shortHash(commit.id);
-    const permalink = CommitController.show({ user: commit.user, commit });
+    const permalink = CommitController.show({ profile: commit.author, commit });
 
     const openClickedCommit = (event: MouseEvent<HTMLElement>) => {
         const click = clickedCommit(
@@ -174,6 +171,21 @@ export function CommitCard({
             window.open(click.url, '_blank', 'noopener');
         } else if (click) {
             router.visit(click.url);
+        }
+    };
+
+    const deleteFrom = isDeletable
+        ? (trigger: HTMLButtonElement | null) => {
+              deleteButtonRef.current = trigger;
+              setDeletion('confirming');
+          }
+        : undefined;
+
+    const prefetchClickedCommit = (event: MouseEvent<HTMLElement>) => {
+        const click = clickedCommit(event, '', window.location.pathname);
+
+        if (click && !click.newTab) {
+            router.prefetch(click.url, { method: 'get' }, {});
         }
     };
 
@@ -256,6 +268,7 @@ export function CommitCard({
             data-commit={commit.id}
             data-permalink={wasDeleted ? undefined : permalink.url}
             data-test="commit"
+            onMouseDown={prefetchClickedCommit}
             onClick={openClickedCommit}
             onAuxClick={openClickedCommit}
             onPointerMove={
@@ -270,7 +283,7 @@ export function CommitCard({
                 data-graph-leaving={deletion === 'deleting' || undefined}
             >
                 <GraphRail
-                    lane={laneColor(commit.user.lane)}
+                    lane={authorLaneColor(commit.author)}
                     previousLane={previousLane}
                     endsWithDot={endsWithDot}
                     endsOnActions
@@ -290,18 +303,19 @@ export function CommitCard({
                     }}
                     node={
                         <UserPreview
-                            user={commit.user}
+                            user={commit.author}
                             anchor={nodeRef}
                             className="flex"
                         >
                             <LiveStreamTrigger
-                                user={commit.user}
+                                user={commit.author}
                                 hoverCard={false}
                                 className="flex"
                             >
                                 <Link
+                                    prefetch
                                     ref={nodeLinkRef}
-                                    href={show(commit.user)}
+                                    href={show(commit.author)}
                                     tabIndex={-1}
                                     className={cn(
                                         'group/node flex rounded-full',
@@ -315,7 +329,7 @@ export function CommitCard({
                                     {isGroupedWithPrevious ? (
                                         <RailDot className="group-hover/node:scale-125" />
                                     ) : (
-                                        <RailAvatar user={commit.user} />
+                                        <RailAvatar user={commit.author} />
                                     )}
                                 </Link>
                             </LiveStreamTrigger>
@@ -338,23 +352,25 @@ export function CommitCard({
                         <div className="min-w-0 flex-1">
                             <div className="flex items-baseline gap-1.5 text-[15px]">
                                 <UserPreview
-                                    user={commit.user}
+                                    user={commit.author}
                                     anchor={nodeRef}
                                     className="flex min-w-0 items-baseline gap-1.5"
                                     onHoverChange={onAuthorHover}
                                 >
                                     <Link
-                                        href={show(commit.user)}
+                                        prefetch
+                                        href={show(commit.author)}
                                         className="truncate font-semibold hover:underline"
                                     >
-                                        {commit.user.name}
+                                        {commit.author.name}
                                     </Link>
                                     <Link
-                                        href={show(commit.user)}
+                                        prefetch
+                                        href={show(commit.author)}
                                         tabIndex={-1}
                                         className="shrink-4 truncate font-mono text-[13px] text-muted-foreground"
                                     >
-                                        @{commit.user.handle}
+                                        @{commit.author.handle}
                                     </Link>
                                 </UserPreview>
                                 <span
@@ -365,9 +381,14 @@ export function CommitCard({
                                 </span>
                                 <TimestampTooltip
                                     date={commit.created_at}
-                                    author={commit.user}
+                                    author={
+                                        commit.author.type === 'user'
+                                            ? commit.author
+                                            : undefined
+                                    }
                                 >
                                     <Link
+                                        prefetch
                                         href={permalink}
                                         className="shrink-0 font-mono text-[13px] text-muted-foreground hover:underline"
                                         data-test="commit-permalink"
@@ -392,44 +413,17 @@ export function CommitCard({
                                     className="relative ml-auto flex shrink-0 items-center self-center"
                                 >
                                     <Link
+                                        prefetch
                                         href={permalink}
                                         tabIndex={-1}
                                         className={cn(
                                             'hidden font-mono text-[13px] text-muted-foreground transition-opacity hover:text-foreground sm:inline',
-                                            {
-                                                'commit-hover:opacity-0 commit-focus-within:opacity-0 [@media(hover:none)]:opacity-0':
-                                                    isDeletable,
-                                                'sm:hidden': isFocused,
-                                            },
+                                            { 'sm:hidden': isFocused },
                                         )}
                                         title={`Commit ${commit.id}`}
                                     >
                                         {hash}
                                     </Link>
-
-                                    {isDeletable && (
-                                        <Tooltip>
-                                            <TooltipTrigger asChild>
-                                                <button
-                                                    ref={deleteButtonRef}
-                                                    type="button"
-                                                    onClick={() =>
-                                                        setDeletion(
-                                                            'confirming',
-                                                        )
-                                                    }
-                                                    aria-label="Revert commit"
-                                                    className="-my-1 rounded-md p-1.5 text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive focus-visible:opacity-100 sm:absolute sm:top-1/2 sm:-right-1.5 sm:my-0 sm:-translate-y-1/2 sm:opacity-0 sm:commit-hover:opacity-100 sm:commit-focus-within:opacity-100 [@media(hover:none)]:opacity-100"
-                                                    data-test="delete-commit-button"
-                                                >
-                                                    <Trash2 className="size-4" />
-                                                </button>
-                                            </TooltipTrigger>
-                                            <TooltipContent>
-                                                Revert commit
-                                            </TooltipContent>
-                                        </Tooltip>
-                                    )}
                                 </span>
                             </div>
 
@@ -441,14 +435,15 @@ export function CommitCard({
                             )}
                             {commit.parent && !isDeleted(commit.parent) && (
                                 <Link
+                                    prefetch
                                     href={CommitController.show({
-                                        user: commit.parent.user,
+                                        profile: commit.parent.author,
                                         commit: commit.parent,
                                     })}
                                     className="mt-0.5 flex w-fit items-center gap-1 font-mono text-xs text-muted-foreground hover:text-foreground"
                                 >
                                     <CornerDownRight className="size-3" />
-                                    replying to @{commit.parent.user.handle}
+                                    replying to @{commit.parent.author.handle}
                                 </Link>
                             )}
                             <div ref={bodyRef} style={translation.bodyStyle}>
@@ -499,7 +494,11 @@ export function CommitCard({
                                 <p className="mt-2 font-mono text-[13px] text-muted-foreground">
                                     <TimestampTooltip
                                         date={commit.created_at}
-                                        author={commit.user}
+                                        author={
+                                            commit.author.type === 'user'
+                                                ? commit.author
+                                                : undefined
+                                        }
                                     >
                                         <time dateTime={commit.created_at}>
                                             {formatFullDateTime(
@@ -539,13 +538,17 @@ export function CommitCard({
                                         />
                                         {translation.button}
                                     </div>
-                                    <CommitSecondaryActions commit={commit} />
+                                    <CommitSecondaryActions
+                                        commit={commit}
+                                        onDelete={deleteFrom}
+                                    />
                                 </div>
                             ) : (
                                 <ThreadActions
                                     thread={thread}
                                     hasKeyboardShortcuts
                                     hasComposer={false}
+                                    onDelete={deleteFrom}
                                     actions={
                                         <>
                                             <CommitStarButton
@@ -574,7 +577,7 @@ export function CommitCard({
                 <RailSegment
                     lane={
                         hasRailTail && !endsWithDot
-                            ? laneColor(commit.user.lane)
+                            ? authorLaneColor(commit.author)
                             : undefined
                     }
                     isDimmed={isDimmed}
@@ -646,7 +649,7 @@ export function CommitCard({
                         <RailSegment
                             lane={
                                 hasRailTail && !endsWithDot
-                                    ? laneColor(commit.user.lane)
+                                    ? authorLaneColor(commit.author)
                                     : undefined
                             }
                             isDimmed={isDimmed}

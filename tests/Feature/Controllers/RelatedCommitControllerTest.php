@@ -17,7 +17,7 @@ it('responds with the related commits, without their vectors', function (): void
         ->assertOk()
         ->assertJsonCount(1, 'commits')
         ->assertJsonPath('commits.0.id', $related->id)
-        ->assertJsonPath('commits.0.user.handle', $related->user->handle)
+        ->assertJsonPath('commits.0.author.handle', $related->user->handle)
         ->assertJsonMissingPath('commits.0.embedding');
 })->skip(fn (): bool => pgvectorLacksIterativeScan(), 'Needs pgvector 0.8 or newer for hnsw.iterative_scan.');
 

@@ -30,7 +30,7 @@ it('calculates initial rank and zero progress for a new user without activity', 
         ->and($result['xp_breakdown']['commits']['xp'])->toBe(0)
         ->and($result['xp_breakdown']['shell_shocked']['xp'])->toBe(0)
         ->and($result['xp_breakdown']['contributor']['xp'])->toBe(0)
-        ->and($result['badges'])->toHaveCount(16);
+        ->and($result['badges'])->toHaveCount(17);
 
     foreach ($result['badges'] as $badge) {
         expect($badge['unlocked'])->toBeFalse()
@@ -321,6 +321,30 @@ it('does not identify Tom by a mutable handle', function (): void {
 
     expect(collect($result['badges'])->firstWhere('id', 'luddite')['unlocked'])->toBeFalse();
 });
+
+it('unlocks whoopsie only for the listed handles without adding xp', function (string $handle, bool $unlocked, int $progress): void {
+    $user = User::factory()->create(['handle' => $handle]);
+
+    $result = resolve(UserAchievementsQuery::class)->get($user, null);
+
+    expect(collect($result['badges'])->firstWhere('id', 'whoopsie'))->toBe([
+        'id' => 'whoopsie',
+        'name' => 'whoopsie',
+        'description' => 'Nuked production at least once.',
+        'icon' => 'mushroom-cloud',
+        'unlocked' => $unlocked,
+        'progress' => $progress,
+        'target' => 1,
+    ])->and($result['xp'])->toBe(0);
+})->with([
+    'paulinevos' => ['paulinevos', true, 1],
+    'nunomaduro' => ['nunomaduro', true, 1],
+    'brendt' => ['brendt', true, 1],
+    'mnapoli' => ['mnapoli', true, 1],
+    'mixed case' => ['PaulineVos', true, 1],
+    'unlisted' => ['local-dev', false, 0],
+    'partial match' => ['notpaulinevos', false, 0],
+]);
 
 it('adds the shell shocked reward to activity xp and includes the luddite penalty', function (bool $unfollowedTom, int $xp): void {
     $user = User::factory()->create(['created_at' => '2026-10-21 13:59:59']);

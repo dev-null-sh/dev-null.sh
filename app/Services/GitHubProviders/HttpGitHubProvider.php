@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Services\GitHubProviders;
 
 use App\Contracts\Services\GitHubProvider;
-use App\Enums\GitHubOrganizationMembership;
 use Carbon\CarbonImmutable;
 use Firebase\JWT\JWT;
 use Illuminate\Http\Client\ConnectionException;
@@ -19,7 +18,7 @@ use Illuminate\Support\Str;
 
 /**
  * @phpstan-import-type Account from GitHubProvider
- * @phpstan-import-type PullRequest from GitHubProvider
+ * @phpstan-import-type Commit from GitHubProvider
  * @phpstan-import-type SearchResults from GitHubProvider
  * @phpstan-import-type Issue from GitHubProvider
  * @phpstan-import-type RateLimit from GitHubProvider
@@ -59,29 +58,38 @@ final readonly class HttpGitHubProvider implements GitHubProvider
         return $account === null ? null : new Fluent($account)->string('login')->value();
     }
 
-    public function organizationMembership(string $token, string $handle, string $githubId): GitHubOrganizationMembership
+    public function isPublicMember(string $organizationGithubId, string $githubId): bool
     {
-        $response = $this->request($token)->get("user/memberships/orgs/{$handle}");
+        $login = $this->login($githubId);
 
-        if ($response->notFound()) {
-            return GitHubOrganizationMembership::NotMember;
+        if ($login === null) {
+            return false;
         }
 
-        if ($response->forbidden() && $response->hasHeader('X-GitHub-SSO')) {
-            return GitHubOrganizationMembership::SingleSignOn;
+        $response = $this->request()->get("organizations/{$organizationGithubId}/public_members/{$login}");
+
+        return ! $response->notFound() && $response->throw()->noContent();
+    }
+
+    public function publicOrganizationMemberIds(string $login): ?array
+    {
+        $ids = collect();
+
+        for ($page = 1; $page <= 10; $page++) {
+            $response = $this->request()->get('orgs/'.rawurlencode($login).'/public_members', ['per_page' => self::PerPage, 'page' => $page]);
+
+            if ($response->notFound()) {
+                return null;
+            }
+
+            $ids = $ids->concat($response->throw()->collect()->mapInto(Fluent::class)->map(fn (Fluent $member): string => $member->string('id')->value()));
+
+            if (! str_contains($response->header('Link'), 'rel="next"')) {
+                return array_values($ids->unique()->all());
+            }
         }
 
-        if ($response->forbidden() && str_contains($response->fluent()->string('message')->value(), 'OAuth App access restrictions')) {
-            return GitHubOrganizationMembership::Restricted;
-        }
-
-        $membership = $response->throw()->fluent();
-
-        return $membership->string('state')->value() === 'active'
-            && in_array($membership->string('role')->value(), ['admin', 'member'], true)
-            && (string) $membership->integer('organization.id') === $githubId
-            ? GitHubOrganizationMembership::Member
-            : GitHubOrganizationMembership::NotMember;
+        return null;
     }
 
     /**
@@ -114,12 +122,18 @@ final readonly class HttpGitHubProvider implements GitHubProvider
 
     public function followingIds(string $login, int $maxPages): array
     {
-        return $this->accountIds("users/{$login}/following", $maxPages);
+        $accounts = $this->accounts("users/{$login}/following", $maxPages);
+        $ids = fn (bool $organizations): array => array_values(array_map(
+            fn (array $account): string => (string) $account['id'],
+            array_filter($accounts, fn (array $account): bool => ($account['type'] === 'Organization') === $organizations),
+        ));
+
+        return ['users' => $ids(false), 'organizations' => $ids(true)];
     }
 
     public function followerIds(string $login, int $maxPages): array
     {
-        return $this->accountIds("users/{$login}/followers", $maxPages);
+        return array_map(fn (array $account): string => (string) $account['id'], $this->accounts("users/{$login}/followers", $maxPages));
     }
 
     public function sshKeys(string $login): array
@@ -152,19 +166,30 @@ final readonly class HttpGitHubProvider implements GitHubProvider
     }
 
     /**
-     * @return list<PullRequest>
+     * @return list<Commit>
      */
-    public function closedPullRequests(string $repository, string $branch, int $page, int $perPage): array
+    public function commits(string $repository, string $branch, int $page, int $perPage): array
     {
-        /** @var list<PullRequest> */
-        return $this->request()->get("repos/{$repository}/pulls", [
-            'state' => 'closed',
-            'base' => $branch,
-            'sort' => 'updated',
-            'direction' => 'desc',
+        return array_values($this->request()->get("repos/{$repository}/commits", [
+            'sha' => $branch,
             'per_page' => $perPage,
             'page' => $page,
-        ])->throw()->json();
+        ])->throw()->collect()->mapInto(Fluent::class)->map(fn (Fluent $commit): array => [
+            'sha' => $commit->string('sha')->value(),
+            'message' => $commit->string('commit.message')->value(),
+            'url' => $commit->string('html_url')->value(),
+            'committed_at' => $commit->string('commit.committer.date')->value(),
+            'parents' => array_values($commit->collect('parents')->mapInto(Fluent::class)->map(fn (Fluent $parent): string => $parent->string('sha')->value())->all()),
+            'author' => $commit->get('author') === null ? [
+                'id' => null,
+                'login' => $commit->string('commit.author.name')->value(),
+                'avatar_url' => 'https://avatars.githubusercontent.com/u/10137',
+            ] : [
+                'id' => $commit->integer('author.id'),
+                'login' => $commit->string('author.login')->value(),
+                'avatar_url' => $commit->string('author.avatar_url')->value(),
+            ],
+        ])->all());
     }
 
     public function contributors(string $repository, int $page, int $perPage): array
@@ -287,28 +312,26 @@ final readonly class HttpGitHubProvider implements GitHubProvider
     }
 
     /**
-     * The IDs of the accounts in a paginated list, up to the given number of pages.
+     * The accounts in a paginated list, up to the given number of pages.
      *
-     * @return list<string>
+     * @return list<array{id: int, type: string}>
      */
-    private function accountIds(string $path, int $maxPages): array
+    private function accounts(string $path, int $maxPages): array
     {
-        $ids = [];
+        $accounts = [];
 
         for ($page = 1; $page <= $maxPages; $page++) {
-            /** @var list<array{id: int}> $accounts */
-            $accounts = $this->request()->get($path, ['per_page' => self::PerPage, 'page' => $page])->throw()->json();
+            /** @var list<array{id: int, type: string}> $pageAccounts */
+            $pageAccounts = $this->request()->get($path, ['per_page' => self::PerPage, 'page' => $page])->throw()->json();
 
-            foreach ($accounts as $account) {
-                $ids[] = (string) $account['id'];
-            }
+            array_push($accounts, ...$pageAccounts);
 
-            if (count($accounts) < self::PerPage) {
+            if (count($pageAccounts) < self::PerPage) {
                 break;
             }
         }
 
-        return $ids;
+        return $accounts;
     }
 
     /**

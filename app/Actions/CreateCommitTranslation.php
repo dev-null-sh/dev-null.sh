@@ -26,7 +26,7 @@ final readonly class CreateCommitTranslation
     {
         $key = $this->translations->key($commit);
 
-        Cache::lock($key.':lock', 90)->block(35, function () use ($commit, $language, $key): void {
+        Cache::lock($key.':lock', 90)->block(5, function () use ($commit, $language, $key): void {
             $cached = $this->translations->cached($commit);
 
             if ($cached !== null && ($language === null || isset($cached['translations'][$language]) || in_array($cached['source_language'], [$language, 'und'], true))) {
@@ -39,7 +39,7 @@ final readonly class CreateCommitTranslation
                 ['source_language' => $source, 'body' => $body] = $this->translator->translate($commit->body, $language);
 
                 $reason = match (true) {
-                    ! in_array($source, [...$this->translations->languages(), 'und'], true) => 'unsupported_source_language',
+                    preg_match('/^[a-z]{2,3}\z/', $source) !== 1 => 'unsupported_source_language',
                     $language !== null && $source !== 'und' && blank($body) => 'empty_translation',
                     $language !== null && $source !== 'und' && mb_strlen($body) > 16000 => 'translation_too_long',
                     default => null,
