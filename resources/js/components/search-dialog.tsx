@@ -4,17 +4,18 @@ import type { LucideIcon } from 'lucide-react';
 import {
     ArrowRight,
     Bug,
+    Flame,
     History,
     Lightbulb,
     Radio,
     Search,
-    Sparkles,
     Square,
     SquarePen,
 } from 'lucide-react';
 import type { KeyboardEvent, ReactNode } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
+import HeadlineController from '@/actions/App/Http/Controllers/HeadlineController';
 import ProfileSearchController from '@/actions/App/Http/Controllers/ProfileSearchController';
 import SearchController from '@/actions/App/Http/Controllers/SearchController';
 import { AuthorAvatar } from '@/components/author-avatar';
@@ -30,11 +31,7 @@ import {
 } from '@/hooks/use-recent-searches';
 import { signIn } from '@/lib/auth';
 import { searchCandidates } from '@/lib/chat';
-import {
-    searchCommits,
-    suggestedQueries,
-    TooManySearches,
-} from '@/lib/commit-search';
+import { searchCommits, TooManySearches } from '@/lib/commit-search';
 import { useKeyLabels } from '@/lib/keyboard';
 import type { SearchAction } from '@/lib/search-actions';
 import { searchActions } from '@/lib/search-actions';
@@ -69,14 +66,8 @@ type Option =
     | { kind: 'organization'; id: string; organization: Organization }
     | { kind: 'commit'; id: string; commit: Commit }
     | { kind: 'all'; id: string; needsSignIn: boolean }
-    | { kind: 'suggestion'; id: string; term: string }
+    | { kind: 'topic'; id: string; term: string }
     | { kind: 'recent'; id: string; term: string };
-
-const suggestionOptions: Option[] = suggestedQueries.map((term, index) => ({
-    kind: 'suggestion',
-    id: `suggestion-${index}`,
-    term,
-}));
 
 /**
  * Searches developers, organizations and commits. Guests only search developers and organizations: each commit search pays for AI, so they're asked to
@@ -107,7 +98,8 @@ export function SearchDialog({
     pickerScope?: 'remote' | 'share';
     onCloseAutoFocus?: (event: Event) => void;
 }) {
-    const userId = usePage().props.auth.user?.id ?? null;
+    const { auth, hotTopics = [] } = usePage().props;
+    const userId = auth.user?.id ?? null;
     const recentSearches = useRecentSearches(userId);
     const keys = useKeyLabels();
     const [query, setQuery] = useState('');
@@ -178,10 +170,15 @@ export function SearchDialog({
         id: `recent-${index}`,
         term: recent,
     }));
+    const topicOptions: Option[] = hotTopics.map((topic) => ({
+        kind: 'topic',
+        id: topic.id,
+        term: topic.name,
+    }));
     const options =
         isPicking || !(isEmpty || foundNothing)
             ? results
-            : [...recentOptions, ...suggestionOptions];
+            : [...recentOptions, ...topicOptions];
 
     useEffect(() => {
         if (open && !isPicking && hasSearched && !isLoading && !isThrottled) {
@@ -201,7 +198,7 @@ export function SearchDialog({
     };
 
     const openOption = (option: Option) => {
-        if (option.kind === 'suggestion' || option.kind === 'recent') {
+        if (option.kind === 'recent') {
             type(option.term);
 
             return;
@@ -398,14 +395,19 @@ export function SearchDialog({
                             ))}
                         </ul>
                     ) : (
-                        <div
-                            role="status"
-                            className="px-5 py-8 text-center text-sm text-muted-foreground"
-                        >
-                            {isAwaitingDeveloperName
-                                ? 'Type a name or handle to find a developer'
-                                : 'Searching…'}
-                        </div>
+                        !foundNothing &&
+                        !isThrottled && (
+                            <div
+                                role="status"
+                                className="px-5 py-8 text-center text-sm text-muted-foreground"
+                            >
+                                {isAwaitingDeveloperName
+                                    ? 'Type a name or handle to find a developer'
+                                    : isEmpty
+                                      ? 'Start typing to search'
+                                      : 'Searching…'}
+                            </div>
+                        )
                     )}
 
                     <div className="hidden items-center gap-4 border-t bg-muted/40 px-4 py-2 text-xs text-muted-foreground sm:flex">
@@ -599,10 +601,10 @@ const headings: Record<Option['kind'], ReactNode> = {
             Recent searches
         </span>
     ),
-    suggestion: (
+    topic: (
         <span className="flex items-center gap-1.5">
-            <Sparkles aria-hidden className="size-3.5 text-primary" />
-            Try searching for…
+            <Flame aria-hidden className="size-3.5 text-(--lane-0)" />
+            Hot topics
         </span>
     ),
 };
@@ -618,9 +620,13 @@ function headingBefore(options: Option[], index: number): ReactNode {
 }
 
 function hrefFor(
-    option: Exclude<Option, { kind: 'action' | 'suggestion' | 'recent' }>,
+    option: Exclude<Option, { kind: 'action' | 'recent' }>,
     term: string,
 ) {
+    if (option.kind === 'topic') {
+        return HeadlineController.show(option.id);
+    }
+
     if (option.kind === 'developer') {
         return show(option.user);
     }
@@ -693,7 +699,6 @@ function ResultOption({
                 aria-selected={isActive}
             >
                 {option.kind === 'action' ||
-                option.kind === 'suggestion' ||
                 option.kind === 'recent' ||
                 (option.kind === 'all' && option.needsSignIn) ||
                 (option.kind === 'developer' && onPickDeveloper) ? (
@@ -747,7 +752,7 @@ function OptionContent({ option }: { option: Option }): ReactNode {
         return <CommitResult commit={option.commit} />;
     }
 
-    if (option.kind === 'suggestion' || option.kind === 'recent') {
+    if (option.kind === 'topic' || option.kind === 'recent') {
         return (
             <span className="flex min-w-0 flex-1 items-center justify-between gap-3 text-sm">
                 <span className="truncate" title={option.term}>
