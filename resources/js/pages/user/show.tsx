@@ -1,4 +1,4 @@
-import { Head, Link, usePage } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import {
     Building2,
     CalendarDays,
@@ -8,7 +8,13 @@ import {
     MessagesSquare,
 } from 'lucide-react';
 import type { CSSProperties } from 'react';
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import {
+    useEffect,
+    useLayoutEffect,
+    useRef,
+    useState,
+    useSyncExternalStore,
+} from 'react';
 import ConversationController from '@/actions/App/Http/Controllers/ConversationController';
 import { show } from '@/actions/App/Http/Controllers/UserController';
 import UserFollowersController from '@/actions/App/Http/Controllers/UserFollowersController';
@@ -48,6 +54,7 @@ import { useLiveStream } from '@/hooks/use-live-stream';
 import { refreshSharedState, useSharedState } from '@/hooks/use-shared-state';
 import AppLayout from '@/layouts/app-layout';
 import { commitStateKey } from '@/lib/commit-state';
+import { deletedResources } from '@/lib/deleted-resources';
 import { exactCountTitle, formatCount } from '@/lib/numbers';
 import { withPinChanges } from '@/lib/pinned-commit';
 import { profileAvatarPosition } from '@/lib/profile-avatar';
@@ -130,7 +137,33 @@ export default function Show({
         ]);
     }
 
-    const shownCommits = withPinChanges(commits, pinnedCommit, unpinned);
+    useSyncExternalStore(
+        deletedResources.subscribe,
+        () =>
+            unpinned
+                .filter(({ id }) => deletedResources.hasCommit(id))
+                .map(({ id }) => id)
+                .join('|'),
+        () => '',
+    );
+    useEffect(
+        () =>
+            router.on('flash', ({ detail: { flash } }) => {
+                if (flash.deleted) {
+                    deletedResources.markCommit(flash.deleted.id);
+                }
+                if (flash.restored) {
+                    deletedResources.restoreCommit(flash.restored.id);
+                }
+            }),
+        [],
+    );
+    const shownCommits = withPinChanges(
+        commits,
+        pinnedCommit,
+        unpinned,
+        deletedResources.hasCommit,
+    );
     const followersCount =
         user.followers_count + Number(isFollowingNow) - Number(isFollowing);
     const [pasteisCount] = useSharedState(

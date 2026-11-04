@@ -9,12 +9,14 @@ export function withPinChanges(
     commits: CursorPaginated<Commit>,
     pinned: Commit | null,
     unpinned: Commit[],
+    isUnavailable: (id: string) => boolean = () => false,
 ): CursorPaginated<Commit> {
     const oldest = commits.data.at(-1);
     const position = (commit: Commit) => `${commit.created_at}|${commit.id}`;
     const returning = unpinned.filter(
         (commit) =>
             commit.id !== pinned?.id &&
+            !isUnavailable(commit.id) &&
             !commits.data.some(({ id }) => id === commit.id) &&
             (commits.next_cursor === null ||
                 oldest === undefined ||

@@ -28,3 +28,13 @@ void test('an unpinned commit older than everything loaded waits for its page, u
 void test('a commit already listed is never shown twice', () => {
     assert.deepEqual(ids(withPinChanges(page([commit('b', 20)]), null, [commit('b', 20)])), ['b']);
 });
+
+void test('a deleted or hidden former pin never returns as an ordinary commit, but undo can restore it', () => {
+    const list = page([commit('c', 30), commit('a', 10)]);
+    const oldPin = commit('b', 20);
+    const hidden = new Set(['b']);
+
+    assert.deepEqual(ids(withPinChanges(list, null, [oldPin], (id) => hidden.has(id))), ['c', 'a']);
+    hidden.delete('b');
+    assert.deepEqual(ids(withPinChanges(list, null, [oldPin], (id) => hidden.has(id))), ['c', 'b', 'a']);
+});
