@@ -12,7 +12,11 @@ import {
     TooltipContent,
     TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { refreshSharedState, useSharedState } from '@/hooks/use-shared-state';
+import {
+    refreshSharedState,
+    sharedValue,
+    useSharedState,
+} from '@/hooks/use-shared-state';
 import { signIn } from '@/lib/auth';
 import { toastWhenThrottled } from '@/lib/throttle';
 import { cn } from '@/lib/utils';
@@ -85,6 +89,26 @@ export function useIsFollowing(
 const isPendingKey = (user: Pick<User, 'id'>): string =>
     `follow_pending:${user.id}`;
 
+const followingVersions = new Map<string, number>();
+
+/** A read already on its way cannot undo a follow clicked while it was out. */
+export function prepareFollowingUpdate(
+    user: Pick<User, 'id'>,
+): (following: boolean) => void {
+    const version = followingVersions.get(user.id);
+    const wasPending = sharedValue(isPendingKey(user)) === true;
+
+    return (following) => {
+        if (
+            !wasPending &&
+            version === followingVersions.get(user.id) &&
+            sharedValue(isPendingKey(user)) !== true
+        ) {
+            refreshSharedState(new Map([[isFollowingKey(user), following]]));
+        }
+    };
+}
+
 const hasBlockKey = (user: Pick<User, 'id'>): string => `has_block:${user.id}`;
 
 /**
@@ -155,6 +179,10 @@ export function useFollow(
         callbacks: {
             onBefore: () => !isPending,
             onStart: () => {
+                followingVersions.set(
+                    user.id,
+                    (followingVersions.get(user.id) ?? 0) + 1,
+                );
                 setIsPending(true);
                 setIsFollowing(!isFollowing);
             },

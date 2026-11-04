@@ -124,6 +124,7 @@ use App\Http\Controllers\SessionController;
 use App\Http\Controllers\SiteActivityController;
 use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\StarredCommitController;
+use App\Http\Controllers\SuggestedUserStateController;
 use App\Http\Controllers\SuggestionDismissalController;
 use App\Http\Controllers\SystemHealthController;
 use App\Http\Controllers\TermsController;
@@ -740,6 +741,8 @@ Route::middleware('auth')->group(function (): void {
         ->name('user-block.destroy');
 
     // Suggestion Dismissal...
+    Route::get('suggested-user-states', [SuggestedUserStateController::class, 'index'])
+        ->middleware('throttle:live-reads')->name('suggested-user-state.index');
     Route::post('@{user:handle}/dismiss', [SuggestionDismissalController::class, 'store'])
         ->name('suggestion-dismissal.store');
 

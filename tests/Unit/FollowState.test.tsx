@@ -101,7 +101,7 @@ vi.doMock('../../resources/js/lib/chat', async () => ({
     blockPartner: async () => true,
 }));
 
-const { FollowButton } =
+const { FollowButton, prepareFollowingUpdate } =
     await import('../../resources/js/components/follow-button');
 const { UserPreview } =
     await import('../../resources/js/components/user-preview');
@@ -323,6 +323,32 @@ function followFromProfile(user: SuggestedUser): void {
     (profileButton.props.onSuccess as () => void)();
     (profileButton.props.onFinish as () => void)();
 }
+
+test('a live follow read cannot undo a follow completed after that read began', () => {
+    const user = suggestion('newer-follow');
+    const apply = prepareFollowingUpdate(user);
+    followFromProfile(user);
+
+    apply(false);
+
+    assert.equal(suggestionLabel(user), 'Unfollow @newer-follow');
+});
+
+test('a live read begun during a pending follow does not undo it after completion', () => {
+    const user = suggestion('pending-live-follow');
+    const button = find(
+        FollowButton({ user, isFollowing: false }),
+        (props) => props['data-test'] === 'follow-button',
+    );
+    assert.ok(button);
+    (button.props.onStart as () => void)();
+    const apply = prepareFollowingUpdate(user);
+    (button.props.onFinish as () => void)();
+
+    apply(false);
+
+    assert.equal(suggestionLabel(user), 'Unfollow @pending-live-follow');
+});
 
 test('the profile preview menu offers a remote when they could be pushed to', () => {
     assert.deepEqual(previewRemote(suggestion('pushable'), true)?.props.href, {
