@@ -88,6 +88,6 @@ enum EventTheme: string
 
     private static function readerNow(Request $request): CarbonInterface
     {
-        return now(ReaderClock::of($request)->timeZone);
+        return now(ReaderClock::of($request)->ianaTimeZone());
     }
 }
