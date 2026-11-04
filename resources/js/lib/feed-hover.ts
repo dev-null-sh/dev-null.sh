@@ -28,7 +28,7 @@ export function isDimmedBy(
 export type FeedHighlightStore = ReturnType<typeof createFeedHighlight>;
 
 /**
- * Holds what the pointer highlights outside React state, so each commit re-renders only when its own look changes
+ * Holds what the pointer highlights outside React state, so each commit re-renders only when its dimming changes
  * instead of the whole feed re-rendering on every move between commits.
  */
 export function createFeedHighlight() {

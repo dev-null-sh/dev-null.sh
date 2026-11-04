@@ -4,7 +4,6 @@ import type { PointerEvent, ReactNode } from 'react';
 import {
     Fragment,
     useEffect,
-    useEffectEvent,
     useRef,
     useState,
     useSyncExternalStore,
@@ -27,14 +26,6 @@ import { authorLaneColor, cn, formatDayLabel, localDayKey } from '@/lib/utils';
 import type { Commit, CursorPaginated } from '@/types';
 
 const interludeAfter = 5;
-
-function commitCardAt(point: { x: number; y: number } | null) {
-    return point
-        ? document
-              .elementFromPoint(point.x, point.y)
-              ?.closest<HTMLElement>('[data-commit]')
-        : null;
-}
 
 export function CommitFeed({
     commits,
@@ -85,144 +76,28 @@ export function CommitFeed({
     const unhighlightTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
     const isScrolling = useRef(false);
     const authorUnderPointer = useRef<string | null>(null);
-    const pointer = useRef<{ x: number; y: number } | null>(null);
-    const litCard = useRef<HTMLElement | null>(null);
-    const isPointerOnCommit = useRef(false);
-    const commitMove = useRef<Event | null>(null);
-    const listedIds = useRef(new Set<string>());
-
-    // Crossing a day marker between two commits shouldn't flash the whole feed back on. A commit that scrolled away
-    // can report leaving after the one under the still pointer lit up, so only a pointer off the lit commit clears it.
-    const unhighlightSoon = () => {
-        clearTimeout(unhighlightTimer.current);
-        unhighlightTimer.current = setTimeout(() => {
-            if (commitCardAt(pointer.current) !== litCard.current) {
-                highlight.set({ commitId: null });
-            }
-        }, 150);
-    };
-
-    // A menu closing under the pointer, or a deleted commit, never reports a leave, so a move that reaches no commit
-    // counts as leaving them.
-    const leaveCommits = useEffectEvent(() => {
-        if (isPointerOnCommit.current) {
-            isPointerOnCommit.current = false;
-            unhighlightSoon();
-        }
-    });
 
     useEffect(() => () => clearTimeout(unhighlightTimer.current), []);
 
     useEffect(() => {
         let settleTimer: ReturnType<typeof setTimeout> | undefined;
-        let settleFrame = 0;
-        let lastWheelAt = -Infinity;
-        let isWheelScroll = false;
-
-        // Once a wheel scroll stops, the commit resting under the still pointer lights up as if the pointer had moved
-        // onto it. Keyboard scrolling leaves the feed alone, since the pointer isn't what the reader is following.
-        const highlightUnderPointer = () => {
-            const card = commitCardAt(pointer.current);
-            const commitId = card?.dataset.commit;
-
-            if (card && commitId && listedIds.current.has(commitId)) {
-                litCard.current = card;
-                isPointerOnCommit.current = true;
-                highlight.set({ commitId, authorId: null });
-            }
-        };
 
         const unhighlight = () => {
-            const now = performance.now();
-
-            // A smooth wheel or a fling keeps scrolling after its last wheel event, and a long render can split it in
-            // two, so a scroll that starts within a second of wheel scrolling continues it.
-            if (!isScrolling.current) {
-                isWheelScroll = now - lastWheelAt < 1000;
-            }
-
-            if (isWheelScroll) {
-                lastWheelAt = now;
-            }
-
             isScrolling.current = true;
             clearTimeout(unhighlightTimer.current);
             highlight.set({ commitId: null, authorId: null });
 
             clearTimeout(settleTimer);
-            cancelAnimationFrame(settleFrame);
-            // A long render can hold back the scroll events of a frame past the delay, and a frame dispatches them before
-            // its animation callbacks, so a scroll still under way cancels the settle.
             settleTimer = setTimeout(() => {
-                settleFrame = requestAnimationFrame(() => {
-                    isScrolling.current = false;
-
-                    if (isWheelScroll) {
-                        highlightUnderPointer();
-                    }
-                });
+                isScrolling.current = false;
             }, 300);
         };
 
-        const trackWheel = (event: WheelEvent) => {
-            if (event.ctrlKey || event.deltaY === 0) {
-                return;
-            }
-
-            lastWheelAt = performance.now();
-            isWheelScroll ||= isScrolling.current;
-        };
-
-        // A key or a press can start a scroll of its own, such as a shortcut or a button that scrolls to the top.
-        const forgetWheel = (
-            event: KeyboardEvent | globalThis.PointerEvent,
-        ) => {
-            if (
-                'key' in event &&
-                ['Alt', 'Control', 'Meta', 'Shift'].includes(event.key)
-            ) {
-                return;
-            }
-
-            lastWheelAt = -Infinity;
-            isWheelScroll = false;
-        };
-
-        const trackPointer = (event: globalThis.PointerEvent) => {
-            if (event.pointerType !== 'mouse') {
-                return;
-            }
-
-            pointer.current = { x: event.clientX, y: event.clientY };
-
-            if (event !== commitMove.current) {
-                leaveCommits();
-            }
-        };
-
-        const forgetPointer = (event: globalThis.PointerEvent) => {
-            if (event.pointerType === 'mouse' && event.relatedTarget === null) {
-                pointer.current = null;
-                leaveCommits();
-            }
-        };
-
         window.addEventListener('scroll', unhighlight, { passive: true });
-        window.addEventListener('wheel', trackWheel, { passive: true });
-        window.addEventListener('keydown', forgetWheel);
-        window.addEventListener('pointerdown', forgetWheel);
-        window.addEventListener('pointermove', trackPointer, { passive: true });
-        document.addEventListener('pointerout', forgetPointer);
 
         return () => {
             window.removeEventListener('scroll', unhighlight);
-            window.removeEventListener('wheel', trackWheel);
-            window.removeEventListener('keydown', forgetWheel);
-            window.removeEventListener('pointerdown', forgetWheel);
-            window.removeEventListener('pointermove', trackPointer);
-            document.removeEventListener('pointerout', forgetPointer);
             clearTimeout(settleTimer);
-            cancelAnimationFrame(settleFrame);
         };
     }, [highlight]);
 
@@ -242,12 +117,8 @@ export function CommitFeed({
         event: PointerEvent<HTMLElement>,
     ) => {
         if (isHovering) {
-            commitMove.current = event.nativeEvent;
-            isPointerOnCommit.current = true;
-
             if (isDeliberateHover(event, isScrolling.current)) {
                 clearTimeout(unhighlightTimer.current);
-                litCard.current = event.currentTarget;
                 // Author targets only report entering, so one that slid under the pointer while scrolling lights up on the next move.
                 highlight.set({
                     commitId,
@@ -258,12 +129,13 @@ export function CommitFeed({
             return;
         }
 
-        if (event.pointerType !== 'mouse') {
-            return;
-        }
+        clearTimeout(unhighlightTimer.current);
 
-        isPointerOnCommit.current = false;
-        unhighlightSoon();
+        // Crossing a day marker between two commits shouldn't flash the whole feed back on.
+        unhighlightTimer.current = setTimeout(
+            () => highlight.set({ commitId: null }),
+            150,
+        );
     };
 
     useEffect(
@@ -334,21 +206,6 @@ export function CommitFeed({
         return true;
     });
 
-    useEffect(() => {
-        listedIds.current = new Set(
-            [...listed, ...(pinnedCommit ? [pinnedCommit] : [])].map(
-                (commit) => commit.id,
-            ),
-        );
-
-        const { commitId } = highlight.get();
-
-        if (commitId !== null && !listedIds.current.has(commitId)) {
-            authorUnderPointer.current = null;
-            highlight.set({ commitId: null, authorId: null });
-        }
-    });
-
     if (listed.length === 0 && pinnedCommit === null) {
         return <div className="px-6 py-16 text-center sm:px-12">{empty}</div>;
     }
@@ -360,12 +217,11 @@ export function CommitFeed({
     // same author committed several in a row.
     const card = (commit: Commit) => (
         <Highlighted highlight={highlight} commit={commit}>
-            {({ isDimmed, isHovered }) => (
+            {(isDimmed) => (
                 <CommitCard
                     commit={commit}
                     endsWithDot
                     isDimmed={isDimmed}
-                    isHovered={isHovered}
                     isHighlighted={
                         highlightedPeriod !== null &&
                         commit.created_at.startsWith(highlightedPeriod)
@@ -397,12 +253,11 @@ export function CommitFeed({
                         </p>
                     </div>
                     <Highlighted highlight={highlight} commit={pinnedCommit}>
-                        {({ isDimmed, isHovered }) => (
+                        {(isDimmed) => (
                             <CommitCard
                                 commit={pinnedCommit}
                                 endsWithDot
                                 isDimmed={isDimmed}
-                                isHovered={isHovered}
                                 onHover={(isHovering, event) =>
                                     highlightCommit(
                                         pinnedCommit.id,
@@ -465,7 +320,7 @@ export function CommitFeed({
                                     highlight={highlight}
                                     commit={commit}
                                 >
-                                    {({ isDimmed }) =>
+                                    {(isDimmed) =>
                                         interlude(
                                             authorLaneColor(commit.author),
                                             isDimmed,
@@ -554,7 +409,7 @@ function Highlighted({
 }: {
     highlight: FeedHighlightStore;
     commit: Commit;
-    children: (state: { isDimmed: boolean; isHovered: boolean }) => ReactNode;
+    children: (isDimmed: boolean) => ReactNode;
 }) {
     const { dimsLanes } = usePage().props;
     const isDimmed = useSyncExternalStore(
@@ -562,13 +417,8 @@ function Highlighted({
         () => dimsLanes && isDimmedBy(highlight.get(), commit),
         () => false,
     );
-    const isHovered = useSyncExternalStore(
-        highlight.subscribe,
-        () => highlight.get().commitId === commit.id,
-        () => false,
-    );
 
-    return children({ isDimmed, isHovered });
+    return children(isDimmed);
 }
 
 export function CommitSkeleton() {
