@@ -377,6 +377,10 @@ export default function Show({
         count: number,
         signal?: AbortSignal,
     ): Promise<number | null> => {
+        if (signal?.aborted || document.visibilityState === 'hidden') {
+            return Promise.resolve(null);
+        }
+
         if (isRanked || !count || loadingNew.current) {
             return Promise.resolve(loadingNew.current ? null : 0);
         }
@@ -651,13 +655,15 @@ export default function Show({
         const controller = new AbortController();
         const read = atMostAtOnce(1);
         let isCatchingUp = false;
-        const arrivals = batchLogArrivals((ids) =>
+        const arrivals = batchLogArrivals((pending) =>
             read(async () => {
                 if (
                     controller.signal.aborted ||
                     document.visibilityState === 'hidden'
                 )
                     return null;
+                const ids = pending();
+                if (ids.length === 0) return 0;
                 return probe(ids, false, controller.signal, true);
             }),
         );

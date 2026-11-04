@@ -12,7 +12,7 @@ async function advance(milliseconds: number): Promise<void> {
 void test('busy batches advance through 1, 5, 10, 20 and 30 seconds without extending a window', async () => {
     mock.timers.enable({ apis: ['setTimeout'] });
     const batches: string[][] = [];
-    const queue = batchLogArrivals(async (ids) => {
+    const queue = batchLogArrivals(async (readIds) => { const ids = readIds();
         batches.push(ids);
         return ids.length;
     });
@@ -74,7 +74,7 @@ void test('irrelevant public signals do not advance the cooldown', async () => {
 void test('failed reads retain their batch and retry without new socket events', async () => {
     mock.timers.enable({ apis: ['setTimeout'] });
     const batches: string[][] = [];
-    const queue = batchLogArrivals(async (ids) => {
+    const queue = batchLogArrivals(async (readIds) => { const ids = readIds();
         batches.push(ids);
         if (batches.length === 1) throw new Error('network');
         if (batches.length === 2) return null;
@@ -94,7 +94,7 @@ void test('reads never overlap and cooldowns start after the preceding read fini
     mock.timers.enable({ apis: ['setTimeout'] });
     let complete: (added: number) => void = () => {};
     const batches: string[][] = [];
-    const queue = batchLogArrivals((ids) => {
+    const queue = batchLogArrivals((readIds) => { const ids = readIds();
         batches.push(ids);
         return new Promise((resolve) => { complete = resolve; });
     });
@@ -138,7 +138,7 @@ void test('signals newer than a feed read are returned for a prompt check, inclu
     assert.deepEqual(received(['a', 'b']), ['a', 'b']);
     const batches: string[][] = [];
     queue.cancel();
-    const other = batchLogArrivals(async (ids) => { batches.push(ids); return 0; });
+    const other = batchLogArrivals(async (readIds) => { const ids = readIds(); batches.push(ids); return 0; });
     other.request(['retained']);
     other.read()(['unrelated']);
     await advance(1_000);
@@ -149,7 +149,7 @@ void test('signals newer than a feed read are returned for a prompt check, inclu
 void test('hidden pages retain their work without reads and resume on the fast path', async () => {
     mock.timers.enable({ apis: ['setTimeout'] });
     const batches: string[][] = [];
-    const queue = batchLogArrivals(async (ids) => { batches.push(ids); return 2; });
+    const queue = batchLogArrivals(async (readIds) => { const ids = readIds(); batches.push(ids); return 2; });
     queue.request(['a']);
     queue.pause();
     queue.request(['b']);
@@ -165,7 +165,7 @@ void test('each feed owns its cadence and cancellation discards only its own wor
     mock.timers.enable({ apis: ['setTimeout'] });
     const batches: string[][] = [];
     const first = batchLogArrivals(async () => 2);
-    const second = batchLogArrivals(async (ids) => { batches.push(ids); return 0; });
+    const second = batchLogArrivals(async (readIds) => { const ids = readIds(); batches.push(ids); return 0; });
     first.request(['first']);
     first.cancel();
     first.request(['cancelled']);
@@ -179,7 +179,7 @@ void test('each feed owns its cadence and cancellation discards only its own wor
 void test('an authorized catch-up clears only signals that preceded it', async () => {
     mock.timers.enable({ apis: ['setTimeout'] });
     const batches: string[][] = [];
-    const queue = batchLogArrivals(async (ids) => { batches.push(ids); return 0; });
+    const queue = batchLogArrivals(async (readIds) => { const ids = readIds(); batches.push(ids); return 0; });
     queue.pause();
     queue.request(['before-catch-up']);
     const caughtUp = queue.read();

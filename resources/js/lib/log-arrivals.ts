@@ -3,7 +3,7 @@
  * A failed read keeps its work, and a page that is hidden keeps everything until it resumes.
  */
 export function batchLogArrivals(
-    refresh: (ids: string[]) => Promise<number | null>,
+    refresh: (pending: () => string[]) => Promise<number | null>,
 ): {
     request: (ids: string[]) => void;
     read: () => (ids?: string[]) => string[];
@@ -32,7 +32,11 @@ export function batchLogArrivals(
 
             const batch = new Map(pending);
             running = true;
-            void refresh([...batch.keys()])
+            void refresh(() =>
+                [...batch.keys()].filter(
+                    (id) => pending.get(id) === batch.get(id),
+                ),
+            )
                 .catch(() => null)
                 .then((added) => {
                     if (added !== null) {

@@ -417,6 +417,10 @@ function insertAt(
             };
             return render(current);
         },
+        switchLog: (next: Log) => {
+            log = next;
+            return render(current);
+        },
         deliver: (data: Commit[]) => {
             current = { ...current, data };
             render(current);
@@ -1083,4 +1087,110 @@ test('a failed full feed reload retains arrivals for the next read', async () =>
     retry.onSuccess?.({ props: { newCommitsCount: 0, removedCommitIds: [] } } as never);
     retry.onFinish?.({} as never);
     await vi.advanceTimersByTimeAsync(0);
+});
+
+test('hiding while an arrival probe is in flight must not start a hidden full read', async () => {
+    const fake = fakeConnection();
+    connectRealtime(fake.connection);
+    const feed = insertAt(0, false, [], 'latest', 0, false, true);
+    fake.joined.get('log')!.emit('visibility', { ids: ['new'] });
+    await vi.advanceTimersByTimeAsync(1000);
+    assert.equal(reload.mock.calls.length, 1);
+    const probe = reload.mock.calls[0][0] as ReloadOptions;
+    feed.visibility('hidden');
+    probe.onSuccess?.({props: {newCommitsCount: 1, removedCommitIds: []}} as never);
+    probe.onFinish?.({} as never);
+    await vi.advanceTimersByTimeAsync(0);
+    assert.equal(reload.mock.calls.length, 1, 'a new HTTP request must wait until visible');
+});
+
+test('cancelling during digest must not strand loadingNew on the next log', async () => {
+    const fake = fakeConnection();
+    connectRealtime(fake.connection);
+    const feed = insertAt(0, false, [], 'latest', 0, false, true);
+    let resolveDigest: (value: ArrayBuffer) => void = () => {};
+    vi.stubGlobal('crypto', {subtle: {digest: () => new Promise<ArrayBuffer>(resolve => {resolveDigest = resolve;})}});
+    feed.visibility('visible');
+    await vi.advanceTimersByTimeAsync(1000);
+    const oldProbe = reload.mock.calls[0][0] as ReloadOptions;
+    oldProbe.onSuccess?.({props: {newCommitsCount: 1, removedCommitIds: [], windowDigest: 'different'}} as never);
+    oldProbe.onFinish?.({} as never);
+    feed.switchLog('following');
+    resolveDigest(new ArrayBuffer(32));
+    await vi.advanceTimersByTimeAsync(0);
+    const before = reload.mock.calls.length;
+    feed.poll(1);
+    await vi.advanceTimersByTimeAsync(0);
+    assert.equal(reload.mock.calls.length, before + 1, 'the new log must be able to load incoming commits');
+});
+
+
+test('a queued arrival read covered by an urgent full read must not issue another request', async () => {
+    const fake = fakeConnection();
+    connectRealtime(fake.connection);
+    const feed = insertAt(0, false, [], 'latest', 0, false, true);
+    feed.visibility('visible');
+    await vi.advanceTimersByTimeAsync(1000);
+    const catchup = reload.mock.calls[0][0] as ReloadOptions;
+    fake.joined.get('log')!.emit('visibility', {ids:['already-covered']});
+    catchup.onSuccess?.({props: {newCommitsCount: 1, removedCommitIds: []}} as never);
+    catchup.onFinish?.({} as never);
+    await vi.advanceTimersByTimeAsync(0);
+    assert.equal(reload.mock.calls.length, 2);
+    const full = reload.mock.calls[1][0] as ReloadOptions;
+    await vi.advanceTimersByTimeAsync(1000);
+    assert.equal(reload.mock.calls.length, 2, 'arrival is serialized behind full read');
+    const data = [{id:'already-covered',author:{id:'author'}},...feed.data()] as Commit[];
+    full.onSuccess?.({props: {commits:{data}}} as never);
+    feed.deliver(data);
+    full.onFinish?.({} as never);
+    await vi.advanceTimersByTimeAsync(0);
+    assert.equal(reload.mock.calls.length, 2, 'full read already covered the queued arrival');
+});
+
+
+test('a wider arrival burst checks window membership and retains an eligible tail arrival', async () => {
+    const fake = fakeConnection();
+    connectRealtime(fake.connection);
+    const feed = insertAt(0, false, [], 'latest', 0, false, true);
+    vi.stubGlobal('crypto', {subtle: {digest: async () => new ArrayBuffer(32)}});
+    const ids = Array.from({length:205}, (_,i) => 'burst-'+i);
+    fake.joined.get('log')!.emit('visibility', {ids});
+    await vi.advanceTimersByTimeAsync(1000);
+    const options = reload.mock.calls[0][0] as ReloadOptions;
+    assert.ok(options.only?.includes('windowDigest'));
+    assert.equal((options.data as {arrived:string[]}).arrived.length,100);
+    options.onSuccess?.({props: {newCommitsCount: 0, arrivedCommitIds: [], removedCommitIds: [], windowDigest:'changed'}} as never);
+    options.onFinish?.({} as never);
+    await vi.advanceTimersByTimeAsync(0);
+    assert.equal(reload.mock.calls.length,2);
+    const full = reload.mock.calls[1][0] as ReloadOptions;
+    const data = [{id:ids[204],author:{id:'author'}},...feed.data()] as Commit[];
+    full.onSuccess?.({props:{commits:{data}}} as never);
+    feed.deliver(data);
+    full.onFinish?.({} as never);
+    await vi.advanceTimersByTimeAsync(6000);
+    assert.ok(feed.data().some(c=>c.id===ids[204]));
+    assert.equal(reload.mock.calls.length,2);
+});
+
+test('cancelling during digest must not strand loadingNew on viewer change', async () => {
+    const fake = fakeConnection();
+    connectRealtime(fake.connection);
+    const feed = insertAt(0, false, [], 'latest', 0, false, true);
+    let resolveDigest: (value: ArrayBuffer) => void = () => {};
+    vi.stubGlobal('crypto', {subtle: {digest: () => new Promise<ArrayBuffer>(resolve => {resolveDigest = resolve;})}});
+    feed.visibility('visible');
+    await vi.advanceTimersByTimeAsync(1000);
+    const oldProbe = reload.mock.calls[0][0] as ReloadOptions;
+    oldProbe.onSuccess?.({props: {newCommitsCount: 1, removedCommitIds: [], windowDigest: 'different'}} as never);
+    oldProbe.onFinish?.({} as never);
+    viewer = {id:'replacement-viewer'} as User;
+    feed.render();
+    resolveDigest(new ArrayBuffer(32));
+    await vi.advanceTimersByTimeAsync(0);
+    const before = reload.mock.calls.length;
+    feed.poll(1);
+    await vi.advanceTimersByTimeAsync(0);
+    assert.equal(reload.mock.calls.length, before+1, 'the replacement viewer must be able to load incoming commits');
 });
