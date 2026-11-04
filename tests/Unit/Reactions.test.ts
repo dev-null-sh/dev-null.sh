@@ -102,3 +102,22 @@ await test('takes two quick taps close together as a double tap', () => {
     assert.equal(isDoubleTap(first, { x: 160, y: 200, time: 1_100 }), false);
     assert.equal(isDoubleTap(null, first), false);
 });
+
+await test('summarizes repeated reactions without changing their order', () => {
+    const reactions = Array.from({ length: 120 }, (_, index) => ({
+        user_id: String(index),
+        emoji: index % 2 === 0 ? '🚀' : '❤️',
+    }));
+    const summaries = summarizeReactions(reactions, '63');
+
+    assert.deepEqual(summaries.map(({ emoji, count, isMine }) => ({
+        emoji,
+        count,
+        isMine,
+    })), [
+        { emoji: '🚀', count: 60, isMine: false },
+        { emoji: '❤️', count: 60, isMine: true },
+    ]);
+    assert.equal(summaries[0].userIds[0], '0');
+    assert.equal(summaries[0].userIds.at(-1), '118');
+});
