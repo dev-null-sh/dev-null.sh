@@ -1,4 +1,5 @@
 import type { User } from '@/types/auth';
+import type { Event } from '@/types/event';
 import type { Organization } from '@/types/organization';
 
 export type CommitStatus = 'pending' | 'approved' | 'rejected';
@@ -114,6 +115,7 @@ export type Commit = {
         | null;
     link_preview?: LinkPreview | null;
     poll?: Poll | null;
+    event?: Event | null;
     quoted_commit_id: string | null;
     quoted_commit?: QuotedCommit | DeletedCommit | null;
     images?: CommitImage[];
@@ -138,6 +140,7 @@ export type QuotedCommit = Pick<
     | 'poll'
     | 'link_preview'
     | 'images'
+    | 'event'
 >;
 
 export type DeletedCommit = {

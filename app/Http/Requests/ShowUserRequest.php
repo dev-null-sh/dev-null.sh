@@ -19,7 +19,7 @@ final class ShowUserRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'tab' => ['nullable', 'string', 'in:commits,replies,readme'],
+            'tab' => ['nullable', 'string', 'in:commits,replies,readme,events'],
         ];
     }
 
@@ -28,6 +28,7 @@ final class ShowUserRequest extends FormRequest
         return match ($this->input('tab')) {
             'replies' => 'replies',
             'readme' => 'readme',
+            'events' => 'events',
             default => 'commits',
         };
     }

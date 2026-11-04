@@ -8,6 +8,7 @@ use App\Actions\DeleteCommit;
 use App\Actions\DeleteCommitContent;
 use App\Models\Commit;
 use App\Models\CommitImage;
+use App\Models\Event;
 use App\Models\LinkPreview;
 use App\Models\Organization;
 use App\Models\Poll;
@@ -80,6 +81,7 @@ it('erases the content and only directly linked recaps once the undo window has 
     resolve(CreateCommitTopics::class)->handle($commit, ['laravel' => Organization::factory()->create()->id]);
     $headline = ($isReply ? $root : $commit)->headlines()->create(['name' => 'Laravel adds a new feature']);
     $poll = Poll::factory()->withOptions('Yes', 'No')->create(['commit_id' => $commit->id]);
+    $event = Event::factory()->for($commit)->create();
     resolve(DeleteCommit::class)->handle($commit);
     $headline->update(['summary' => 'A recap awaiting final erasure.', 'summary_created_at' => now()]);
     $this->travel(30)->seconds();
@@ -98,6 +100,7 @@ it('erases the content and only directly linked recaps once the undo window has 
     $this->assertDatabaseMissing('commit_topics', ['commit_id' => $commit->id]);
     $this->assertDatabaseMissing('commit_headline', ['commit_id' => $commit->id]);
     expect($headline->refresh()->summary)->toBe($isReply ? 'A recap awaiting final erasure.' : null);
+    $this->assertModelMissing($event);
 })->with(['root' => false, 'reply' => true]);
 
 it('erases the previews of links to the commit, which hold its body', function (): void {

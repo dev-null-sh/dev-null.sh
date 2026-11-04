@@ -8,6 +8,7 @@ use App\Contracts\Services\ModerationProvider;
 use App\Enums\CommitStatus;
 use App\Models\Commit;
 use App\Models\CommitImage;
+use App\Models\EventAgendaItem;
 use App\Models\PollOption;
 use Illuminate\Support\Facades\Storage;
 
@@ -26,7 +27,7 @@ final readonly class UpdateCommitAiDecision
     }
 
     /**
-     * Asks the AI whether the commit, images included, should be approved. The decision is mostly a hint for
+     * Asks the AI whether the commit, images and any event it announces included, should be approved. The decision is mostly a hint for
      * moderators: a clean commit is approved, and it is rejected, without a reason, when the AI is all but certain.
      * Failures, such as timeouts or rate limits, are thrown, so the caller can try again later.
      */
@@ -69,6 +70,8 @@ final readonly class UpdateCommitAiDecision
         return collect([$commit->body])
             ->merge($commit->images->map(fn (CommitImage $image): ?string => $image->description))
             ->merge($commit->poll?->options->map(fn (PollOption $option): string => $option->label) ?? [])
+            ->merge([$commit->event?->title, $commit->event?->location, $commit->event?->url])
+            ->merge($commit->event?->agendaItems->map(fn (EventAgendaItem $item): string => $item->label) ?? [])
             ->filter(fn (?string $part): bool => $part !== null && $part !== '')
             ->implode("\n\n");
     }

@@ -31,7 +31,9 @@ final readonly class ModerationController
                     'parent.author',
                     'linkPreview',
                     'images',
-                    'quotedCommit' => fn (BelongsTo $query): BelongsTo => $query->withTrashed()->with(['author', 'linkPreview', 'images'])->withPollFor($user),
+                    // An announcement's event is part of what gets approved: title, place, link and agenda.
+                    'event.agendaItems',
+                    'quotedCommit' => fn (BelongsTo $query): BelongsTo => $query->withTrashed()->with(['author', 'linkPreview', 'images', 'event'])->withPollFor($user),
                 ])
                 ->withStarsFor($user)
                 ->withPollFor($user)
