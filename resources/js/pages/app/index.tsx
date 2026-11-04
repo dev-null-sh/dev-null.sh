@@ -355,9 +355,9 @@ export default function Index({
                         </div>
 
                         <p className="mt-4 max-w-prose text-pretty">
-                            Read the log, publish commits, and keep up with your
-                            notifications without leaving your terminal. Built
-                            by{' '}
+                            Read the log, publish commits, chat in remotes, and
+                            keep up with your notifications without leaving your
+                            terminal. Built by{' '}
                             <a
                                 href="https://wendelladriel.com"
                                 target="_blank"
