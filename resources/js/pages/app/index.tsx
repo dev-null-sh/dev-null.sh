@@ -403,12 +403,20 @@ export default function Index({
 
                     <figure className="px-4 pb-8 sm:px-6">
                         <img
-                            src="/images/apps/tui.webp"
+                            src="/images/apps/tui-light.webp"
                             alt="/dev/null TUI with the Following log, commit threads, keyboard shortcuts, and a profile in the terminal."
-                            width={2468}
-                            height={1469}
+                            width={2483}
+                            height={1486}
                             loading="lazy"
-                            className="h-auto w-full"
+                            className="h-auto w-full dark:hidden"
+                        />
+                        <img
+                            src="/images/apps/tui-dark.webp"
+                            alt="/dev/null TUI with the Following log, commit threads, keyboard shortcuts, and a profile in the terminal."
+                            width={2483}
+                            height={1486}
+                            loading="lazy"
+                            className="hidden h-auto w-full dark:block"
                         />
                     </figure>
                 </section>
