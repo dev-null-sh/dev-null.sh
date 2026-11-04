@@ -9,6 +9,7 @@ import TermsController from '@/actions/App/Http/Controllers/TermsController';
 import { GitHubIcon } from '@/components/github-icon';
 import { HotTopics } from '@/components/hot-topics';
 import { LiveFollowing } from '@/components/live-following';
+import NewYearSnippet from '@/components/new-year-snippet';
 import { Button } from '@/components/ui/button';
 import { WhoToFollow } from '@/components/who-to-follow';
 import { WordmarkText } from '@/components/wordmark-text';
@@ -41,6 +42,8 @@ export function AppAside({
                     {keys.combo(keys.mod, 'K')}
                 </kbd>
             </button>
+
+            <NewYearSnippet />
 
             {user === null && (
                 <section

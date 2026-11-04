@@ -15,7 +15,7 @@ import {
     UserRound,
 } from 'lucide-react';
 import type { ReactElement, ReactNode } from 'react';
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import ConversationController from '@/actions/App/Http/Controllers/ConversationController';
 import LogController from '@/actions/App/Http/Controllers/LogController';
 import ModerationController from '@/actions/App/Http/Controllers/ModerationController';
@@ -48,6 +48,13 @@ import { useCurrentUrl } from '@/hooks/use-current-url';
 import { useMediaQuery } from '@/hooks/use-media-query';
 import { useNavOpen } from '@/hooks/use-nav-open';
 import { useKeyLabels } from '@/lib/keyboard';
+import type { MobileAppTabs as MobileAppTabsState } from '@/lib/mobile-app';
+import {
+    hideMobileAppTabs,
+    setMobileAppTabs,
+    useDocumentTheme,
+    useIsModalOpen,
+} from '@/lib/mobile-app';
 import { browserTimeZone, cn, toUrl } from '@/lib/utils';
 import { home, login } from '@/routes';
 import { show } from '@/routes/user';
@@ -522,7 +529,7 @@ export function MobileCommitButton({
  * Shares its real height, safe area included, as `--mobile-nav-height`, so full-screen pages can end right above it.
  */
 export function MobileNav({ children }: { children?: ReactNode }) {
-    const { auth } = usePage().props;
+    const { auth, isMobileApp } = usePage().props;
     const timeZone = auth.user?.timezone ?? browserTimeZone();
     const {
         changelog,
@@ -571,6 +578,21 @@ export function MobileNav({ children }: { children?: ReactNode }) {
         };
     }, []);
 
+    // The iOS app POC draws the tabs itself (temporary, see `@/lib/mobile-app`). The nav keeps the height of its tab bar, which the app adds to the safe area, so
+    // the commit button floats above the bar and full-screen pages end right above it.
+    if (isMobileApp) {
+        return (
+            <nav
+                ref={nav}
+                aria-label="Main"
+                className="pointer-events-none fixed inset-x-0 bottom-0 z-20 pb-[env(safe-area-inset-bottom)] *:pointer-events-auto md:hidden"
+            >
+                {children}
+                <MobileAppTabs items={allItems} />
+            </nav>
+        );
+    }
+
     return (
         <nav
             ref={nav}
@@ -583,7 +605,7 @@ export function MobileNav({ children }: { children?: ReactNode }) {
                     key={item.title}
                     item={item}
                     className={cn(
-                        'flex min-w-0 flex-1 flex-col items-center gap-1 py-1 text-[11px] font-medium tracking-tight text-muted-foreground',
+                        'flex min-w-0 flex-1 flex-col items-center py-1.5 text-muted-foreground',
                         { 'text-primary': item.isActive },
                     )}
                 >
@@ -603,14 +625,14 @@ export function MobileNav({ children }: { children?: ReactNode }) {
                             <NavIcon item={item} />
                         </span>
                     </span>
-                    <span className="max-w-full truncate">{item.title}</span>
+                    <span className="sr-only">{item.title}</span>
                 </NavLink>
             ))}
             <DropdownMenu>
                 <DropdownMenuTrigger
                     aria-label="More navigation"
                     className={cn(
-                        'flex min-w-0 flex-1 flex-col items-center gap-1 py-1 text-[11px] font-medium tracking-tight text-muted-foreground',
+                        'flex min-w-0 flex-1 flex-col items-center py-1.5 text-muted-foreground',
                         {
                             'text-primary': menuItems.some(
                                 (item) => item.isActive,
@@ -630,7 +652,6 @@ export function MobileNav({ children }: { children?: ReactNode }) {
                     >
                         <MobileMenuIcon className="size-5" />
                     </span>
-                    <span>Menu</span>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
                     className="w-48 md:hidden"
@@ -688,4 +709,48 @@ export function MobileNav({ children }: { children?: ReactNode }) {
             />
         </nav>
     );
+}
+
+// The rest of the navigation, Profile and Settings included, is in the account menu of the header.
+const MOBILE_APP_TABS: Record<string, string> = {
+    Log: 'commit',
+    Notifications: 'bell',
+    Remotes: 'bubble.left.and.bubble.right',
+};
+
+/**
+ * Hands the main items of the navigation to the iOS app's tab bar (temporary, see `@/lib/mobile-app`).
+ */
+function MobileAppTabs({
+    items,
+}: {
+    items: (NavItem & { isActive: boolean })[];
+}) {
+    const [appearance, tint] = useDocumentTheme().split(' ');
+    const isModalOpen = useIsModalOpen();
+    const tabs = items.filter((item) => item.title in MOBILE_APP_TABS);
+    const state: MobileAppTabsState = {
+        tabs: tabs.map((item) => ({
+            id: item.title.toLowerCase(),
+            title: item.title,
+            icon: MOBILE_APP_TABS[item.title],
+            url: toUrl(item.href),
+            badge: item.badge,
+            dot: item.hasIndicator,
+        })),
+        selected:
+            tabs.find((item) => item.isActive)?.title.toLowerCase() ?? null,
+        visible: !isModalOpen,
+        appearance: appearance === 'light' ? 'light' : 'dark',
+        tint: tint || null,
+    };
+    const key = JSON.stringify(state);
+
+    useEffect(() => {
+        setMobileAppTabs(JSON.parse(key) as MobileAppTabsState);
+    }, [key]);
+
+    useEffect(() => hideMobileAppTabs, []);
+
+    return null;
 }

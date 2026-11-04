@@ -881,30 +881,33 @@ export function ConversationThread({
             </div>
 
             {(isBrowsingHistory || isScrolledBack || unseen > 0) && (
-                <button
-                    type="button"
-                    onClick={jumpToLatest}
-                    aria-label={
-                        isBrowsingHistory || unseen === 0
+                // Anchored to the top of the composer, so it rises with a growing draft instead of covering it.
+                <div className="relative h-0 shrink-0">
+                    <button
+                        type="button"
+                        onClick={jumpToLatest}
+                        aria-label={
+                            isBrowsingHistory || unseen === 0
+                                ? 'Back to present'
+                                : undefined
+                        }
+                        className="absolute bottom-10 left-1/2 flex min-h-9 -translate-x-1/2 items-center gap-1.5 rounded-md bg-primary px-3 py-2 text-xs font-medium whitespace-nowrap text-primary-foreground shadow-lg focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
+                    >
+                        {isJumping ? (
+                            <Spinner aria-hidden className="size-3.5" />
+                        ) : (
+                            <ArrowDown aria-hidden className="size-3.5" />
+                        )}
+                        {isBrowsingHistory || unseen === 0
                             ? 'Back to present'
-                            : undefined
-                    }
-                    className="absolute bottom-[calc(var(--composer-height,4rem)+2.5rem)] left-1/2 flex min-h-9 -translate-x-1/2 items-center gap-1.5 rounded-md bg-primary px-3 py-2 text-xs font-medium whitespace-nowrap text-primary-foreground shadow-lg focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
-                >
-                    {isJumping ? (
-                        <Spinner aria-hidden className="size-3.5" />
-                    ) : (
-                        <ArrowDown aria-hidden className="size-3.5" />
-                    )}
-                    {isBrowsingHistory || unseen === 0
-                        ? 'Back to present'
-                        : `${unseen} new`}
-                    {isJumping && (
-                        <span className="sr-only" role="status">
-                            Loading original message
-                        </span>
-                    )}
-                </button>
+                            : `${unseen} new`}
+                        {isJumping && (
+                            <span className="sr-only" role="status">
+                                Loading original message
+                            </span>
+                        )}
+                    </button>
+                </div>
             )}
 
             {isOpen && draft.attachments.isDraggingFiles && (

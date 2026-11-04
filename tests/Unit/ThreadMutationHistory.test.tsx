@@ -30,6 +30,9 @@ vi.doMock('@inertiajs/react', async () => ({
         },
     ],
 }));
+vi.doMock('../../resources/js/hooks/use-media-query', () => ({
+    useMediaQuery: () => false,
+}));
 const { useThread } =
     await import('../../resources/js/components/commit-thread');
 const reply = (id: string) =>

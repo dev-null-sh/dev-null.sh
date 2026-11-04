@@ -10,6 +10,8 @@
     "license": "MIT",
     "require": {
         "php": "^8.5.0",
+        "ext-intl": "*",
+        "lib-icu": ">=57.1",
         "firebase/php-jwt": "^7.2.1",
         "inertiajs/inertia-laravel": "^3.6.0",
         "intervention/image": "^4.4.1",

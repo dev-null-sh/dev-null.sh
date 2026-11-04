@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Middleware;
 
 use App\Dto\ReaderClock;
+use App\Enums\EventTheme;
 use App\Enums\Feature;
 use App\Enums\Log;
 use App\Enums\RepliesPerPage;
@@ -125,6 +126,8 @@ final class HandleInertiaRequests extends Middleware
             // Guests see how many developers are here, next to the sign-in button...
             'developersCount' => fn (): ?int => $user instanceof User ? null : resolve(DevelopersCountQuery::class)->get(),
             'hasUnmoderatedCommits' => fn (): bool => $isAdmin && Commit::query()->pending()->exists(),
+            // The iOS app POC's web view, which draws its own tab bar (see resources/js/lib/mobile-app.ts)...
+            'isMobileApp' => str_contains((string) $request->userAgent(), 'DevNullCapacitorPOC/'),
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'showsWhoToFollow' => $showsWhoToFollow,
             ...$user instanceof User && $hasAside ? [
@@ -140,6 +143,9 @@ final class HandleInertiaRequests extends Middleware
                     ], $topics);
                 })->until(60),
             ] : [],
+            'eventTheme' => EventTheme::forRequest($request)?->value,
+            'eventYear' => EventTheme::greetedYear($request),
+            'eventThemeChoice' => EventTheme::choiceFrom(is_string($request->cookie('event_theme')) ? $request->cookie('event_theme') : null),
             'dimsLanes' => $request->cookie('lane_dimming') !== 'false',
             'repliesPerPage' => RepliesPerPage::of($request)->value,
             'clock' => ReaderClock::of($request)->toArray(),
