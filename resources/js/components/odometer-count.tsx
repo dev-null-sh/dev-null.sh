@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import { formatCount } from '@/lib/numbers';
+import { odometerPlaces } from '@/lib/odometer';
 import { cn } from '@/lib/utils';
 
 const ANIMATION_MS = 250;
@@ -43,9 +44,7 @@ export function OdometerCount({
     }, [value, emptyWhenZero]);
 
     const current = displayedCount(value, emptyWhenZero);
-    const length = Math.max(current.length, previous.length);
-    const currentChars = current.padStart(length, ' ');
-    const previousChars = previous.padStart(length, ' ');
+    const places = odometerPlaces(previous, current);
 
     return (
         <span
@@ -56,22 +55,10 @@ export function OdometerCount({
             )}
         >
             {isAnimating
-                ? Array.from({ length }, (_, index) => {
-                      const char = currentChars[index];
-                      const previousChar = previousChars[index];
-                      const place = length - index;
-                      const isDigit = char >= '0' && char <= '9';
-                      const previousIsDigit =
-                          previousChar >= '0' && previousChar <= '9';
+                ? places.map(({ char, previousChar, isRolling }, index) => {
+                      const place = places.length - index;
 
-                      if (
-                          char === previousChar ||
-                          (!isDigit && !previousIsDigit) ||
-                          (isDigit &&
-                              !previousIsDigit &&
-                              previousChar !== ' ') ||
-                          (!isDigit && previousIsDigit && char !== ' ')
-                      ) {
+                      if (!isRolling) {
                           return (
                               <span key={place} className="inline-block">
                                   {char}
