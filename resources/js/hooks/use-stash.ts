@@ -86,7 +86,9 @@ const loadImages = (): void => {
 
         imageStorageRestored = true;
         stored.forEach((draft, key) => {
-            if ([...clearedImagePrefixes].some((prefix) => key.startsWith(prefix))) {
+            if (
+                [...clearedImagePrefixes].some((prefix) => key.startsWith(prefix))
+            ) {
                 return;
             }
 
@@ -189,7 +191,11 @@ const storeImages = (
         return;
     }
 
-    if (!discard && next.length === 0 && images.get(key)?.images.length === 0) {
+    if (
+        !discard &&
+        next.length === 0 &&
+        images.get(key)?.images.length === 0
+    ) {
         return;
     }
 
