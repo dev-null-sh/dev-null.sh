@@ -20,6 +20,7 @@ enum UserUpdate: string
     case ScheduledCommits = 'scheduled-commits';
     case Account = 'account';
     case Relationships = 'relationships';
+    case Suggestions = 'suggestions';
     case Commits = 'commits';
     case Moderation = 'moderation';
     case Live = 'live';
