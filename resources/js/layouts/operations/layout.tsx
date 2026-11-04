@@ -195,7 +195,9 @@ function navGroups(): { label: string; items: NavEntry[] }[] {
 }
 
 function Poll({ only }: { only: string[] }) {
-    usePoll(REFRESH_SECONDS * 1000, backgroundPollOptions({ only }));
+    usePoll(REFRESH_SECONDS * 1000, backgroundPollOptions({ only }), {
+        background: 'pause',
+    });
 
     return null;
 }
