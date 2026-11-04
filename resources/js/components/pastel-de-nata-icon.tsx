@@ -4,7 +4,7 @@ export function PastelDeNataIcon({ className }: { className?: string }) {
             src="/pastel-de-nata.svg"
             alt=""
             aria-hidden="true"
-            className={`grayscale dark:invert ${className ?? ''}`}
+            className={`grayscale contrast-125 dark:invert ${className ?? ''}`}
         />
     );
 }
