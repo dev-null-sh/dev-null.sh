@@ -216,6 +216,7 @@ it('exports the pinned commit id', function (): void {
 });
 
 it('exports all the signed-in users commits including replies, deleted ones, and all moderation statuses', function (): void {
+    $this->freezeTime();
     $user = User::factory()->create();
     $other = User::factory()->create();
     $parent = Commit::factory()->for($other)->rejected()->create(['body' => 'Another developer private parent body']);
@@ -251,6 +252,7 @@ it('exports all the signed-in users commits including replies, deleted ones, and
             'source_language' => 'en',
             'translations' => ['nl' => 'Unicode-ondersteuning geleverd 🚀'],
             'expires_at' => now()->addDays(7)->getTimestamp(),
+            'translated_at' => now()->getTimestampMs(),
         ],
         'status' => 'approved',
         'pasteis_count' => 3,

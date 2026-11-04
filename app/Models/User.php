@@ -463,6 +463,14 @@ final class User extends Authenticatable
         return $this->onboarded_at !== null;
     }
 
+    /**
+     * The user's private channel, where only they hear what changed for them.
+     */
+    public function broadcastChannel(): string
+    {
+        return 'users.'.$this->id;
+    }
+
     public function isAdmin(): bool
     {
         /** @var list<string> $admins */

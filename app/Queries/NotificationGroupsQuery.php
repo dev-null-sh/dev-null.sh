@@ -10,12 +10,12 @@ use App\Models\Profile;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
-use Illuminate\Contracts\Pagination\CursorPaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Query\Builder as QueryBuilder;
+use Illuminate\Pagination\CursorPaginator;
 use Illuminate\Support\Facades\DB;
 
 final readonly class NotificationGroupsQuery

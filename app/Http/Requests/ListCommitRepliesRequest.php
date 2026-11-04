@@ -29,6 +29,19 @@ final class ListCommitRepliesRequest extends FormRequest
     }
 
     /**
+     * The replies a thread heard changed, to read again on their own rather than with everything loaded around them.
+     *
+     * @return list<string>|null
+     */
+    public function replyIds(): ?array
+    {
+        /** @var list<string>|null $ids */
+        $ids = $this->validated('ids');
+
+        return $ids;
+    }
+
+    /**
      * @return array<string, list<string>>
      */
     public function rules(): array
@@ -37,6 +50,8 @@ final class ListCommitRepliesRequest extends FormRequest
             'newest' => ['sometimes', 'boolean'],
             'limit' => ['sometimes', 'integer', 'between:1,50'],
             'except' => ['sometimes', 'nullable', 'uuid'],
+            'ids' => ['sometimes', 'array', 'list', 'max:50'],
+            'ids.*' => ['required', 'uuid', 'distinct'],
         ];
     }
 }

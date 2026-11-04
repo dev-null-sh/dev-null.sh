@@ -78,6 +78,7 @@ export function QuotedCommit({
                     refreshUrl={CommitLinkPreviewController.show.url(commit.id)}
                     preview={commit.link_preview}
                     isStatic
+                    source={{ commitId: commit.id }}
                 />
             )}
         </>

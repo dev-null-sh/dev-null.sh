@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Exceptions\ApiException;
+use App\Http\Controllers\Api\BroadcastAuthorizationController;
 use App\Http\Controllers\Api\CallController;
 use App\Http\Controllers\Api\CommitController as ApiCommitController;
 use App\Http\Controllers\Api\CommitPastelController;
@@ -147,6 +148,11 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
     // Signed by the mobile app with an SSH key that the user approved as a device...
     Route::middleware(AuthenticateSignedRequest::class)->group(function (): void {
         Route::get('me', [CurrentUserController::class, 'show'])->name('api-current-user.show');
+
+        // Live updates, on the user's own private channel...
+        Route::post('broadcasting/auth', [BroadcastAuthorizationController::class, 'store'])
+            ->middleware('throttle:broadcast-authorizations')
+            ->name('api-broadcast-authorization.store');
         Route::delete('me', [CurrentUserController::class, 'destroy'])->name('api-current-user.destroy');
 
         // Pastéis...

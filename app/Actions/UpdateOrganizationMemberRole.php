@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Enums\OrganizationRole;
+use App\Enums\UserUpdate;
+use App\Events\ProfilesUpdated;
+use App\Events\UsersUpdated;
 use App\Exceptions\OrganizationMustHaveAnAdmin;
 use App\Models\Organization;
 use App\Models\User;
@@ -29,6 +32,9 @@ final readonly class UpdateOrganizationMemberRole
             }
 
             $organization->members()->updateExistingPivot($member->id, ['role' => $role]);
+
+            event(new UsersUpdated([$member->id, ...$organization->members()->pluck('users.id')], UserUpdate::Account));
+            event(new ProfilesUpdated([$organization->id]));
         });
     }
 }

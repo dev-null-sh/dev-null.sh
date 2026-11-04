@@ -13,7 +13,7 @@
         "ext-intl": "*",
         "lib-icu": ">=57.1",
         "firebase/php-jwt": "^7.2.1",
-        "inertiajs/inertia-laravel": "^3.6.0",
+        "inertiajs/inertia-laravel": "^3.7.0",
         "intervention/image": "^4.4.1",
         "laravel/ai": "^1.3.0",
         "laravel/framework": "^13.39.0",
@@ -25,6 +25,7 @@
         "minishlink/web-push": "^11.0",
         "nunomaduro/essentials": "^1.2.0",
         "phpseclib/phpseclib": "^4.0.2",
+        "pusher/pusher-php-server": "^7.3",
         "resend/resend-php": "^1.17",
         "symfony/html-sanitizer": "^8.1.10",
         "tempest/highlight": "^2.30.0"

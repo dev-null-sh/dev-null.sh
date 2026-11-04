@@ -38,7 +38,7 @@ import { ChatDock } from '@/components/chat/chat-dock';
 import { TimeoutDialog } from '@/components/timeout-dialog';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
-import { useRemoteAlerts } from '@/hooks/use-chat';
+import { useRemoteAlerts, useRemoteUpdates } from '@/hooks/use-chat';
 import { backgroundPollOptions } from '@/lib/background-poll';
 import { cn } from '@/lib/utils';
 import { home } from '@/routes';
@@ -255,6 +255,7 @@ export default function OperationsLayout({ children }: PropsWithChildren) {
     const mobileNav = useRef<HTMLElement>(null);
 
     useRemoteAlerts(hasRemotes ? user.id : null);
+    useRemoteUpdates(hasRemotes ? user.id : null);
 
     useEffect(() => {
         mobileNav.current

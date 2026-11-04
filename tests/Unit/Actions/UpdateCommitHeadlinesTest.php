@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Actions\UpdateCommitHeadlines;
 use App\Enums\CommitStatus;
+use App\Events\HeadlinesUpdated;
 use App\Models\Commit;
 use App\Models\Headline;
 use Illuminate\Database\QueryException;
@@ -126,4 +127,24 @@ it('keeps quoted context public until its headline link is written', function ()
     expect($blocked)->toBeTrue()
         ->and($original->refresh()->status)->toBe(CommitStatus::Approved)
         ->and($quote->headlines()->sole()->name)->toBe('/dev/null iOS app beta');
+});
+
+it('tells the hot topics their headlines changed when reclassifying takes a commit off every headline it had', function (): void {
+    $commit = Commit::factory()->create(['headlines_classified_at' => now()->subDay()]);
+    $commit->headlines()->attach(Headline::factory()->create(['name' => 'Previous topic']));
+    Event::fake([HeadlinesUpdated::class]);
+
+    resolve(UpdateCommitHeadlines::class)->handle($commit, [], hash('sha256', $commit->body), reclassify: true);
+
+    expect($commit->headlines()->count())->toBe(0);
+    Event::assertDispatchedTimes(HeadlinesUpdated::class, 1);
+});
+
+it('tells the hot topics nothing when reclassifying a commit that had no headline leaves it with none', function (): void {
+    $commit = Commit::factory()->create(['headlines_classified_at' => now()->subDay()]);
+    Event::fake([HeadlinesUpdated::class]);
+
+    resolve(UpdateCommitHeadlines::class)->handle($commit, [], hash('sha256', $commit->body), reclassify: true);
+
+    Event::assertNotDispatched(HeadlinesUpdated::class);
 });

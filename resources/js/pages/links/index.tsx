@@ -174,6 +174,7 @@ function LinkCommits({
                             firstCommit.id,
                         )}
                         preview={link}
+                        source={{ commitId: firstCommit.id }}
                     />
                 ) : null}
 
