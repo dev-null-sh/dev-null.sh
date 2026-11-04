@@ -154,7 +154,9 @@ export async function startCall(partner: User): Promise<void> {
     }
 
     window.clearTimeout(endTimer);
-    update({ status: 'calling', partner, since: Date.now() });
+    const outgoing = { status: 'calling', partner, since: Date.now() } as const;
+    update(outgoing);
+    const isCurrent = () => state === outgoing;
 
     try {
         const peer = await connect(partner, true);
@@ -165,21 +167,28 @@ export async function startCall(partner: User): Promise<void> {
             { sdp: await gathered(peer) },
         );
     } catch (error) {
-        end(partner, failure(error, `Could not call @${partner.handle}.`));
+        if (isCurrent()) {
+            end(partner, failure(error, `Could not call @${partner.handle}.`));
+        }
 
         return;
     }
 
+    if (!isCurrent()) {
+        return;
+    }
+
+    const peer = connection;
     const ringsUntil = Date.now() + ringFor;
     let isChecking = false;
     let isCheckDue = false;
 
     const poll = async () => {
-        window.clearTimeout(timer);
-
-        if (state.status !== 'calling' || connection === null) {
+        if (!isCurrent() || peer === null || connection !== peer) {
             return;
         }
+
+        window.clearTimeout(timer);
 
         if (isChecking) {
             isCheckDue = true;
@@ -187,7 +196,6 @@ export async function startCall(partner: User): Promise<void> {
             return;
         }
 
-        const peer = connection;
         isChecking = true;
         isCheckDue = false;
 
@@ -197,7 +205,7 @@ export async function startCall(partner: User): Promise<void> {
             }>(ConversationCallController.show.url(url(partner)));
 
             // Unless the call was given up, or replaced by another one, while it checked.
-            if (state.status !== 'calling' || connection !== peer) {
+            if (!isCurrent() || connection !== peer) {
                 return;
             }
 
@@ -225,6 +233,10 @@ export async function startCall(partner: User): Promise<void> {
             // Try again on the next poll.
         } finally {
             isChecking = false;
+        }
+
+        if (!isCurrent() || connection !== peer) {
+            return;
         }
 
         timer = window.setTimeout(
@@ -679,6 +691,7 @@ function failure(error: unknown, fallback: string): string {
 }
 
 function end(partner: User, reason: string): void {
+    checkForAnswer = null;
     window.clearTimeout(timer);
     connection?.close();
     connection = null;
