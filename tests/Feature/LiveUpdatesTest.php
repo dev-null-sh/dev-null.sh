@@ -497,7 +497,7 @@ it('tells both people about a follow, the follower that their log changed, and t
         && $event->broadcastWith() === ['connections' => true]);
 });
 
-it('tells whoever shows the person that their stream started or ended, with the stream their profile shows', function (): void {
+it('announces stream changes without publishing stream details', function (): void {
     $user = User::factory()->create();
 
     $this->actingAs($user)->put(route('user-live.update'), ['url' => 'https://www.twitch.tv/octocat', 'hours' => 2]);
@@ -505,8 +505,8 @@ it('tells whoever shows the person that their stream started or ended, with the 
 
     $live = Event::dispatched(ProfilesUpdated::class)->map(fn (array $event): array => $event[0]->broadcastWith())->values()->all();
     expect($live)->toBe([
-        ['live' => ['url' => 'https://www.twitch.tv/octocat', 'thumbnail_url' => 'https://static-cdn.jtvnw.net/previews-ttv/live_user_octocat-1280x720.jpg', 'ends_at' => now()->addHours(2)->startOfSecond()->toJSON()]],
-        ['live' => null],
+        ['live' => true],
+        ['live' => true],
     ]);
 });
 

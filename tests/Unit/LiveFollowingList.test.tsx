@@ -53,18 +53,23 @@ function List({ people, url }: { people: Person[]; url: string }) {
 }
 
 beforeEach(() => {
+    vi.useFakeTimers();
+    vi.stubGlobal('fetch', async () =>
+        Response.json({ streams: { ines: null } }),
+    );
     fake = fakeConnection();
     connectRealtime(fake.connection);
 });
 
 afterEach(() => {
+    vi.useRealTimers();
     connectRealtime(null);
     vi.unstubAllGlobals();
     vi.stubGlobal('window', globalThis);
     vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
 });
 
-test('the live list keeps who it showed while the page is read, and changes on the next page', () => {
+test('the live list keeps who it showed while the page is read, and changes on the next page', async () => {
     const root = createRoot(container());
     const ines = { id: 'ines', live: stream('https://twitch.tv/ines') };
     const theo = { id: 'theo', live: stream('https://twitch.tv/theo') };
@@ -75,8 +80,9 @@ test('the live list keeps who it showed while the page is read, and changes on t
     // Someone followed going live is heard of, and their stream ending too, while the page is still open.
     act(() => root.render(<List people={[ines, theo]} url="/log/latest" />));
     act(() =>
-        fake.joined.get('profiles.ines')?.emit('profile', { live: null }),
+        fake.joined.get('profiles.ines')?.emit('profile', { live: true }),
     );
+    await act(() => vi.advanceTimersByTimeAsync(60));
     act(() => root.render(<List people={[theo]} url="/log/latest" />));
     assert.deepEqual(listed, [{ id: 'ines', live: null }]);
 

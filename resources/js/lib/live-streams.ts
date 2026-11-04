@@ -98,11 +98,7 @@ export function watchLiveStream(userId: string): () => void {
                             payload !== null &&
                             'live' in payload
                         ) {
-                            hear(
-                                userId,
-                                (payload.live as LiveStream | null) ?? null,
-                                Date.now(),
-                            );
+                            readLater(userId);
                         }
                     },
                 },

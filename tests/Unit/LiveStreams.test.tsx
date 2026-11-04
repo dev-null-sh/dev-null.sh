@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import { afterEach, test, vi } from 'vite-plus/test';
-import { currentLiveStream, watchLiveStream } from '../../resources/js/lib/live-streams';
+import {
+    currentLiveStream,
+    watchLiveStream,
+} from '../../resources/js/lib/live-streams';
 import { connectRealtime, pageReadAt } from '../../resources/js/lib/realtime';
 import type { LiveStream } from '../../resources/js/types/auth';
 import { fakeConnection } from './FakeRealtime';
@@ -22,10 +25,16 @@ afterEach(() => {
 
 function connect() {
     vi.stubGlobal('fetch', async (input: string) => {
-        const ids = new URL(input, 'http://localhost').searchParams.getAll('ids[]');
+        const ids = new URL(input, 'http://localhost').searchParams.getAll(
+            'ids[]',
+        );
         reads.push(ids);
 
-        return Response.json({ streams: Object.fromEntries(ids.map((id) => [id, current[id] ?? null])) });
+        return Response.json({
+            streams: Object.fromEntries(
+                ids.map((id) => [id, current[id] ?? null]),
+            ),
+        });
     });
     const fake = fakeConnection();
     connectRealtime(fake.connection);
@@ -41,7 +50,9 @@ test('a stream heard before the page was read gives way to what the page read', 
     const stop = watchLiveStream('ended');
     fake.joined.get('profiles.ended')?.join();
     await settle();
-    fake.joined.get('profiles.ended')?.emit('profile', { live: stream('https://www.twitch.tv/old') });
+    current = { ended: stream('https://www.twitch.tv/old') };
+    fake.joined.get('profiles.ended')?.emit('profile', { live: true });
+    await settle();
     await new Promise((resolve) => setTimeout(resolve, 5));
     pageReadAt(Date.now());
 
@@ -55,9 +66,14 @@ test('a stream heard after the page was read is shown over what the page read', 
     const stop = watchLiveStream('started');
     fake.joined.get('profiles.started')?.join();
     await settle();
-    fake.joined.get('profiles.started')?.emit('profile', { live: stream('https://www.twitch.tv/new') });
+    current = { started: stream('https://www.twitch.tv/new') };
+    fake.joined.get('profiles.started')?.emit('profile', { live: true });
+    await settle();
 
-    assert.equal(currentLiveStream('started', null, new Date())?.url, 'https://www.twitch.tv/new');
+    assert.equal(
+        currentLiveStream('started', null, new Date())?.url,
+        'https://www.twitch.tv/new',
+    );
     stop();
 });
 
@@ -65,13 +81,46 @@ test('listening again reads whether the people shown are live, in one request, s
     const fake = connect();
     pageReadAt(Date.now() - 1_000);
     const stops = [watchLiveStream('went-live'), watchLiveStream('stopped')];
-    current = { 'went-live': stream('https://www.twitch.tv/went-live'), stopped: null };
+    current = {
+        'went-live': stream('https://www.twitch.tv/went-live'),
+        stopped: null,
+    };
     fake.joined.get('profiles.went-live')?.join();
     fake.joined.get('profiles.stopped')?.join();
     await settle();
 
-    assert.deepEqual(reads.map((ids) => ids.sort()), [['stopped', 'went-live']]);
-    assert.equal(currentLiveStream('went-live', null, new Date())?.url, 'https://www.twitch.tv/went-live');
-    assert.equal(currentLiveStream('stopped', stream('https://www.twitch.tv/stopped'), new Date()), null);
+    assert.deepEqual(
+        reads.map((ids) => ids.sort()),
+        [['stopped', 'went-live']],
+    );
+    assert.equal(
+        currentLiveStream('went-live', null, new Date())?.url,
+        'https://www.twitch.tv/went-live',
+    );
+    assert.equal(
+        currentLiveStream(
+            'stopped',
+            stream('https://www.twitch.tv/stopped'),
+            new Date(),
+        ),
+        null,
+    );
     stops.forEach((stop) => stop());
+});
+
+test('public stream events cannot override a block-filtered read', async () => {
+    const fake = connect();
+    pageReadAt(Date.now() - 1_000);
+    const stop = watchLiveStream('blocked');
+    fake.joined.get('profiles.blocked')?.join();
+    await settle();
+    const before = reads.length;
+    fake.joined
+        .get('profiles.blocked')
+        ?.emit('profile', { live: stream('https://twitch.tv/blocked') });
+    await settle();
+
+    assert.equal(currentLiveStream('blocked', null, new Date()), null);
+    assert.equal(reads.length, before + 1);
+    stop();
 });
