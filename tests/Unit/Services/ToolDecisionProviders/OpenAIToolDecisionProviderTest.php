@@ -30,6 +30,15 @@ it('asks one question per tool under the shared policy, with the thread as conte
             ->and($questions->every(fn (array $question): bool => str_contains(json_encode($question), 'Sources are complementary, not mutually exclusive')))->toBeTrue()
             ->and($request['input'])->toContain('Tell me about badges', '@alice: How do bookmarks work?', '@tom: They save posts for later.', '"role":"assistant"');
 
+        expect(json_encode($questions->firstWhere('name', 'CommunityStats')))->toContain(
+            'breakdown by profile location',
+            'GitHub organization',
+            'public commits including replies',
+            'member or follower ranking does NOT qualify',
+            'DOES qualify for the count only',
+            'Do not use post search or repository tools to work around this',
+        );
+
         return $request->url() === 'https://api.openai.com/v1/decisions'
             && $request['model'] === 'gpt-6-luna'
             && $questions->pluck('name')->all() === ['SearchCommits', 'SearchKnowledgeBase', 'RepositoryInsights', 'SearchRepositoryHistory', 'CommunityStats']

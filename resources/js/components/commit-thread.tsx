@@ -77,6 +77,7 @@ import {
 import { useEmojiInsertion } from '@/hooks/use-emoji-insertion';
 import { useImageAttachments } from '@/hooks/use-image-attachments';
 import { focusCommit } from '@/hooks/use-keyboard-shortcuts';
+import { useLeaving } from '@/hooks/use-leaving';
 import { useLinkCard } from '@/hooks/use-link-card';
 import { useNow } from '@/hooks/use-now';
 import { useOwnsCommit } from '@/hooks/use-owns-commit';
@@ -186,10 +187,13 @@ type Thread = {
     remaining: number;
     perPage: number;
     isOpen: boolean;
+    /** Whether the replies, hidden, still show as they fold away, until `onFolded`. */
+    isFolding: boolean;
     isPreview: boolean;
     isLoading: boolean;
     isReplying: boolean;
     toggle: () => void;
+    onFolded: () => void;
     loadMore: () => void;
     loadAll: () => void;
     startReply: () => void;
@@ -839,6 +843,7 @@ export function useThread(
             }),
         [commit.id],
     );
+    const folding = useLeaving(isOpen);
 
     return {
         commit,
@@ -849,9 +854,11 @@ export function useThread(
         remaining: Math.max(count - (replies?.length ?? 0), 0),
         perPage: repliesPerPage,
         isOpen,
+        isFolding: folding.isLeaving,
         isPreview,
         isLoading,
         isReplying,
+        onFolded: folding.onLeft,
         toggle: () => {
             if (!isOpen && replies === null) {
                 void reload();
@@ -1050,7 +1057,7 @@ export function ThreadSpine({
     thread: Thread;
     className?: string;
 }) {
-    if (!thread.isOpen || !thread.replies?.length) {
+    if (!(thread.isOpen || thread.isFolding) || !thread.replies?.length) {
         return null;
     }
 
@@ -1151,8 +1158,9 @@ export function ThreadReplies({
     isOnTrunk?: boolean;
 }) {
     const nodeId = useGraphNodeId();
+    const { isFolding } = thread;
 
-    if (!thread.isOpen) {
+    if (!thread.isOpen && !isFolding) {
         return null;
     }
 
@@ -1166,10 +1174,20 @@ export function ThreadReplies({
               ? threadLayouts.flattened
               : threadLayouts.nested;
 
+    // Folding away, the replies stay where they are as the canvas draws their lines back out, the way they drew in.
     return (
         <div
-            className={cn('relative', layout)}
+            inert={isFolding}
+            className={cn('relative', layout, {
+                'motion-safe:animate-graph-fold': isFolding,
+            })}
             style={{ '--lane': laneOf(thread.commit) } as CSSProperties}
+            onAnimationEnd={(event) => {
+                if (isFolding && event.target === event.currentTarget) {
+                    thread.onFolded();
+                }
+            }}
+            data-graph-folding={isFolding || undefined}
             data-test="replies"
         >
             {thread.replies === null ? (

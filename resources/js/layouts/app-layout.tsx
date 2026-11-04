@@ -151,7 +151,8 @@ export default function AppLayout({ children }: AppLayoutProps) {
                     )}
                 >
                     <div data-nav-content>
-                        <MobileHeader onSearch={openSearch} />
+                        {/* Remotes have their own bar, so phones keep the height for the chat. */}
+                        {!isMessages && <MobileHeader onSearch={openSearch} />}
                         <CommitStarPolling>{children}</CommitStarPolling>
                     </div>
                 </main>
