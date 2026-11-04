@@ -91,6 +91,21 @@ it('erases the previews of links to the commits it erases, which hold their bodi
     expect($linking->fresh()->link_preview_id)->toBeNull();
 });
 
+it('erases the previews of links to replies to its commits in other threads, whose titles name it', function (): void {
+    $user = User::factory()->create();
+    $thread = Commit::factory()->create();
+    $answer = Commit::factory()->for(Commit::factory()->for($user)->for($thread, 'parent'), 'parent')->create();
+    $sibling = Commit::factory()->for($thread, 'parent')->create();
+    $answered = LinkPreview::factory()->create(['url' => route('commit.show', [$answer->user, $answer])]);
+    $kept = LinkPreview::factory()->create(['url' => route('commit.show', [$sibling->user, $sibling])]);
+
+    resolve(DeleteUser::class)->handle($user);
+
+    $this->assertModelMissing($answered);
+    $this->assertModelExists($kept);
+    $this->assertModelExists($answer);
+});
+
 it('keeps the quotes of others when erasing the quoted commits of a deleted user', function (): void {
     $user = User::factory()->create();
     $quote = Commit::factory()->for(Commit::factory()->for($user), 'quotedCommit')->create();
