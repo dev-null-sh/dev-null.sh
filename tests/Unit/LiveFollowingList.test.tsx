@@ -108,4 +108,3 @@ test('a stream the page handed without its end leaves the list when the page sai
     assert.equal(reads, 0);
     act(() => root.unmount());
 });
-
