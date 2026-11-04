@@ -815,7 +815,7 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
                                         (left?.opacity ?? 1)
                                     }
                                     clipPath={clipOf(left?.clip ?? -1)}
-                                    className="transition-opacity duration-200"
+                                    className="transition-opacity duration-150 ease-out"
                                     strokeWidth={strokeWidth}
                                     strokeDasharray={
                                         edge.dashed ? dash : undefined

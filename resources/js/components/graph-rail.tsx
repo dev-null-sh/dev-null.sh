@@ -43,7 +43,7 @@ type Props = {
     };
 };
 
-const dimmable = 'transition-opacity duration-200';
+export const dimmable = 'transition-opacity duration-150 ease-out';
 
 const stagedDash = 4;
 
@@ -380,7 +380,7 @@ export function RailDot({
         <span className="flex rounded-full bg-card">
             <span
                 className={cn(
-                    'size-3.5 rounded-full border-[3px] border-card bg-(--lane) shadow-[0_0_0_2px_var(--lane)] transition-[background-color,scale,opacity] duration-200',
+                    'size-3.5 rounded-full border-[3px] border-card bg-(--lane) shadow-[0_0_0_2px_var(--lane)] transition-[background-color,scale,opacity] duration-150 ease-out',
                     dimmedNode,
                     { 'bg-card': isHollow },
                     className,
@@ -412,7 +412,7 @@ export function RailAvatar({
         >
             <span
                 className={cn(
-                    'relative flex border-2 border-(--lane) p-0.5 transition-opacity duration-200',
+                    'relative flex border-2 border-(--lane) p-0.5 transition-opacity duration-150 ease-out',
                     isOrganization ? 'rounded-lg' : 'rounded-full',
                     dimmedNode,
                     {

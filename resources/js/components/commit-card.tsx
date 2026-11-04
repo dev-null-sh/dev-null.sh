@@ -31,6 +31,7 @@ import {
     RailAvatar,
     RailDot,
     RailSegment,
+    dimmable,
     railDotRing,
 } from '@/components/graph-rail';
 import { HiddenLinkPreviewContext } from '@/components/hidden-link-preview-context';
@@ -70,6 +71,7 @@ export function CommitCard({
     previousLane,
     isDimmed = false,
     isPreviousDimmed = false,
+    isHovered = false,
     isHighlighted = false,
     isGroupedWithPrevious = false,
     onAuthorHover,
@@ -96,6 +98,7 @@ export function CommitCard({
     graphAfter?: string;
     isDimmed?: boolean;
     isPreviousDimmed?: boolean;
+    isHovered?: boolean;
     isHighlighted?: boolean;
     isGroupedWithPrevious?: boolean;
     onAuthorHover?: (isHovering: boolean) => void;
@@ -257,9 +260,11 @@ export function CommitCard({
         <article
             ref={measureCommitSize}
             className={cn(
-                'grid scroll-mt-28 transition-[grid-template-rows,opacity,background-color] duration-300 ease-out outline-none hover:bg-accent/50 focus-visible:bg-accent',
+                'grid scroll-mt-28 transition-[grid-template-rows,opacity,background-color] [transition-duration:300ms,300ms,150ms] ease-out outline-none focus-visible:bg-accent',
                 {
-                    'bg-primary-soft/60': isHighlighted,
+                    'hover:bg-accent/50': !onHover,
+                    'bg-primary-soft/60': isHighlighted && !isHovered,
+                    'bg-accent/50': isHovered,
                     'cursor-pointer': !isFocused && !wasDeleted,
                 },
                 deletion === 'deleting'
@@ -346,7 +351,7 @@ export function CommitCard({
                 >
                     <div
                         inert={wasDeleted}
-                        className={cn('flex transition-opacity duration-200', {
+                        className={cn('flex', dimmable, {
                             'opacity-70': isDimmed,
                             'opacity-50': wasDeleted,
                         })}
@@ -602,7 +607,7 @@ export function CommitCard({
                 >
                     <div
                         inert={wasDeleted}
-                        className={cn('transition-opacity duration-200', {
+                        className={cn(dimmable, {
                             'opacity-70': isDimmed,
                             'opacity-50': wasDeleted,
                         })}
@@ -671,10 +676,9 @@ export function CommitCard({
                             })}
                         >
                             <div
-                                className={cn(
-                                    'transition-opacity duration-200',
-                                    { 'opacity-70': isDimmed },
-                                )}
+                                className={cn(dimmable, {
+                                    'opacity-70': isDimmed,
+                                })}
                             >
                                 <GraphDimmed isDimmed={isDimmed}>
                                     <GraphScope scope={commit.id}>
