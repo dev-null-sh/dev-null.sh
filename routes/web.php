@@ -325,10 +325,10 @@ Route::get('commits/{commit}/link-preview', [CommitLinkPreviewController::class,
 Route::get('commits/{commit}/status', [CommitStatusController::class, 'show'])
     ->name('commit-status.show');
 Route::get('commits/{commit}/translation', [CommitTranslationController::class, 'show'])
-    ->middleware('throttle:60,1')
+    ->middleware('throttle:live-reads')
     ->name('commit-translation.show');
 Route::get('commits/{commit}/poll', [CommitPollController::class, 'show'])
-    ->middleware('throttle:60,1')
+    ->middleware('throttle:live-reads')
     ->name('commit-poll.show');
 Route::get('commits/{commit}/replies', [CommitReplyController::class, 'index'])
     ->withTrashed()

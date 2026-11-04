@@ -37,3 +37,20 @@ it('hides the poll of a commit the viewer cannot see, and of a commit without on
     $this->getJson(route('commit-poll.show', $pending))->assertNotFound();
     $this->getJson(route('commit-poll.show', Commit::factory()->create()))->assertNotFound();
 });
+
+it('keeps live reads out of action budgets and preserves their own limit', function (): void {
+    $viewer = User::factory()->create();
+    $commit = Commit::factory()->create();
+    $commit->poll()->create(['duration' => 60, 'opened_at' => now()]);
+    $this->actingAs($viewer);
+
+    foreach (range(1, 60) as $read) {
+        $this->getJson(route('commit-poll.show', $commit))->assertOk();
+    }
+
+    $this->getJson(route('commit-poll.show', $commit))->assertTooManyRequests();
+    $this->getJson(route('commit-translation.show', [$commit, 'language' => 'en']))->assertTooManyRequests();
+    $this->postJson(route('issue.store'), [])->assertUnprocessable();
+    $this->actingAs(User::factory()->create())
+        ->getJson(route('commit-poll.show', $commit))->assertOk();
+});

@@ -213,6 +213,7 @@ final class AppServiceProvider extends ServiceProvider
         RateLimiter::for('broadcast-authorizations', fn (Request $request): Limit => Limit::perMinute(60)->by($this->userId($request)));
         RateLimiter::for('live-streams', fn (Request $request): Limit => Limit::perMinute(120)->by($request->user()->id ?? (string) $request->ip()));
         RateLimiter::for('commit-changes', fn (Request $request): Limit => Limit::perMinute(120)->by($request->user()->id ?? (string) $request->ip()));
+        RateLimiter::for('live-reads', fn (Request $request): Limit => Limit::perMinute(60)->by($request->user()->id ?? (string) $request->ip()));
 
         // Commit actions: rapid j/k with a star on most commits stays well under these...
         RateLimiter::for('stars', fn (Request $request): Limit => Limit::perMinute(60)->by($this->userId($request)));
