@@ -126,6 +126,8 @@ final class HandleInertiaRequests extends Middleware
             // Guests see how many developers are here, next to the sign-in button...
             'developersCount' => fn (): ?int => $user instanceof User ? null : resolve(DevelopersCountQuery::class)->get(),
             'hasUnmoderatedCommits' => fn (): bool => $isAdmin && Commit::query()->pending()->exists(),
+            // The iOS app POC's web view, which draws its own tab bar (see resources/js/lib/mobile-app.ts)...
+            'isMobileApp' => str_contains((string) $request->userAgent(), 'DevNullCapacitorPOC/'),
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'showsWhoToFollow' => $showsWhoToFollow,
             ...$user instanceof User && $hasAside ? [
