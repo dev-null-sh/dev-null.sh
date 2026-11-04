@@ -60,6 +60,8 @@ export function CommitStarPolling({ children }: { children: ReactNode }) {
     const subscriptions = useRef(new Set<Subscription>());
     const [observer, setObserver] = useState<IntersectionObserver | null>(null);
     const [visible, setVisible] = useState<ReadonlySet<string>>(new Set());
+    const shown = useRef(visible);
+    const syncVisible = useRef<() => void>(() => {});
     // Kept across the cards coming and going, so what was heard isn't forgotten when the cards on screen change.
     const dirty = useRef({
         changed: new Set<string>(),
@@ -72,6 +74,23 @@ export function CommitStarPolling({ children }: { children: ReactNode }) {
 
             return () => {
                 subscriptions.current.delete(subscription);
+
+                if (
+                    ![...subscriptions.current].some(
+                        ({ id }) => id === subscription.id,
+                    )
+                ) {
+                    setVisible((current) => {
+                        if (!current.has(subscription.id)) {
+                            return current;
+                        }
+
+                        const next = new Set(current);
+                        next.delete(subscription.id);
+
+                        return next;
+                    });
+                }
 
                 if (
                     ![...subscriptions.current].some(
@@ -101,12 +120,16 @@ export function CommitStarPolling({ children }: { children: ReactNode }) {
                 }
             });
 
-            setVisible(
-                new Set(
-                    [...subscriptions.current]
-                        .filter(({ element }) => onScreen.has(element))
-                        .map(({ id }) => id),
-                ),
+            const ids = new Set(
+                [...subscriptions.current]
+                    .filter(({ element }) => onScreen.has(element))
+                    .map(({ id }) => id),
+            );
+            setVisible((current) =>
+                current.size === ids.size &&
+                [...ids].every((id) => current.has(id))
+                    ? current
+                    : ids,
             );
         });
 
@@ -225,7 +248,7 @@ export function CommitStarPolling({ children }: { children: ReactNode }) {
                 return;
             }
 
-            const ids = [...changed].filter((id) => visible.has(id));
+            const ids = [...changed].filter((id) => shown.current.has(id));
             const disappearing = new Set(
                 [...hidden].filter((id) => ids.includes(id)),
             );
@@ -252,25 +275,44 @@ export function CommitStarPolling({ children }: { children: ReactNode }) {
             changed.add(id);
             refresh.request();
         };
-        const stops = [...visible].map((id) =>
-            listen(
-                commitChannel(id),
-                {
-                    engagement: hear(id),
-                    visibility: (payload) => {
-                        if (idsOf(payload).includes(id)) {
-                            hidden.add(id);
-                        }
+        const stops = new Map<string, () => void>();
+        const sync = () => {
+            stops.forEach((stop, id) => {
+                if (!shown.current.has(id)) {
+                    stop();
+                    stops.delete(id);
+                }
+            });
+            shown.current.forEach((id) => {
+                if (stops.has(id)) {
+                    return;
+                }
 
-                        hear(id)();
-                    },
-                },
-                hear(id),
-            ),
-        );
+                stops.set(
+                    id,
+                    listen(
+                        commitChannel(id),
+                        {
+                            engagement: hear(id),
+                            visibility: (payload) => {
+                                if (idsOf(payload).includes(id)) {
+                                    hidden.add(id);
+                                }
+
+                                hear(id)();
+                            },
+                        },
+                        hear(id),
+                    ),
+                );
+            });
+            onVisible();
+        };
+        syncVisible.current = sync;
+        sync();
 
         const interval = window.setInterval(() => {
-            const unheard = [...visible].filter(
+            const unheard = [...shown.current].filter(
                 (id) => !isListening(commitChannel(id)),
             );
 
@@ -290,13 +332,19 @@ export function CommitStarPolling({ children }: { children: ReactNode }) {
         }, fallbackPoll);
 
         return () => {
+            syncVisible.current = () => {};
             stops.forEach((stop) => stop());
             refresh.cancel();
             window.clearInterval(interval);
             document.removeEventListener('visibilitychange', onVisible);
             controller.abort();
         };
-    }, [visible, read]);
+    }, [read]);
+
+    useEffect(() => {
+        shown.current = visible;
+        syncVisible.current();
+    }, [visible]);
 
     return (
         <CommitStarPollingContext value={context}>
