@@ -42,11 +42,17 @@ function container(): Element {
 
 let shown: Record<string, string | null> = {};
 let listed: { id: string; live: string | null }[] = [];
+const seeShown = (id: string, url: string | null) => {
+    shown[id] = url;
+};
+const seeListed = (next: { id: string; live: string | null }[]) => {
+    listed = next;
+};
 let reads: number;
 let root: ReturnType<typeof createRoot>;
 
 function Shown({ person }: { person: Person }) {
-    shown[person.id] = useLiveStream(person)?.url ?? null;
+    seeShown(person.id, useLiveStream(person)?.url ?? null);
 
     return null;
 }
@@ -60,10 +66,12 @@ function Page({
     aside: Person[];
     url: string;
 }) {
-    listed = useListedLiveStreams(aside, url).map(({ user, live }) => ({
-        id: user.id,
-        live: live?.url ?? null,
-    }));
+    seeListed(
+        useListedLiveStreams(aside, url).map(({ user, live }) => ({
+            id: user.id,
+            live: live?.url ?? null,
+        })),
+    );
 
     return (
         <>
