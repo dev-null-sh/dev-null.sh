@@ -20,7 +20,7 @@ This is the source code of **[dev-null.sh](https://dev-null.sh)**, a social netw
 
 ## Contributing
 
-Requires PHP 8.5+, Composer, Bun, and PostgreSQL 17+ with `pgvector` and `pg_trgm`. Create a `devnull` database, then:
+Requires PHP 8.5+ with `intl`, Composer, Bun, and PostgreSQL 17+ with `pgvector` and `pg_trgm`. Create a `devnull` database, then:
 
 ```bash
 git clone https://github.com/dev-null-sh/dev-null.sh.git

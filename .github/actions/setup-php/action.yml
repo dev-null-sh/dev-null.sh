@@ -15,7 +15,7 @@ runs:
       with:
         php-version: 8.5
         tools: composer:v2
-        extensions: pdo_pgsql
+        extensions: intl, pdo_pgsql
         coverage: ${{ inputs.coverage }}
         ini-values: zend.assertions=1, memory_limit=-1
 
