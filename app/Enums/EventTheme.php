@@ -64,11 +64,11 @@ enum EventTheme: string
      */
     public static function choiceFrom(?string $cookie): string
     {
-        if ($cookie === self::DEFAULT || self::tryFrom((string) $cookie) instanceof self) {
-            return $cookie;
+        if ($cookie === self::DEFAULT) {
+            return self::DEFAULT;
         }
 
-        return self::AUTO;
+        return self::tryFrom($cookie ?? '')->value ?? self::AUTO;
     }
 
     /**
