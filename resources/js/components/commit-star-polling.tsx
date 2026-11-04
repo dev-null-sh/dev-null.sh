@@ -52,7 +52,7 @@ function isOnScreen(element: HTMLElement): boolean {
 /**
  * Keeps the counts of the cards on screen current. Each card on screen listens to its commit's channel, and what it
  * hears is read again in one batch, through the same endpoint the optimistic stars settle against. Without live
- * updates, the cards on screen are read every 30 seconds instead.
+ * updates, the cards on screen are read every 30 seconds instead. Failed live reads retry on that safety interval too.
  */
 export function CommitStarPolling({ children }: { children: ReactNode }) {
     const [mutations] = useState(createCommitStarMutations);
@@ -165,7 +165,7 @@ export function CommitStarPolling({ children }: { children: ReactNode }) {
             });
 
             if (!response.ok) {
-                return;
+                throw new Error(`Card read failed with ${response.status}`);
             }
 
             const { commits } = (await response.json()) as {
@@ -283,21 +283,23 @@ export function CommitStarPolling({ children }: { children: ReactNode }) {
         sync();
 
         const interval = window.setInterval(() => {
-            const unheard = [...shown.current].filter(
-                (id) => !isListening(commitChannel(id)),
+            if (document.hidden) {
+                return;
+            }
+
+            const stale = [...shown.current].filter(
+                (id) =>
+                    (changed.has(id) || !isListening(commitChannel(id))) &&
+                    [...subscriptions.current].some(
+                        (subscription) =>
+                            subscription.id === id &&
+                            isOnScreen(subscription.element),
+                    ),
             );
 
-            if (unheard.length > 0 && !document.hidden) {
-                void read(
-                    unheard.filter((id) =>
-                        [...subscriptions.current].some(
-                            (subscription) =>
-                                subscription.id === id &&
-                                isOnScreen(subscription.element),
-                        ),
-                    ),
-                    controller.signal,
-                ).catch(() => undefined);
+            if (stale.length > 0) {
+                stale.forEach((id) => changed.add(id));
+                refresh.request();
             }
         }, fallbackPoll);
 

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import type { ReactElement } from 'react';
 import { afterEach, beforeEach, test, vi } from 'vite-plus/test';
+import type { Commit } from '../../resources/js/types';
 import { fakeConnection, joinAll } from './FakeRealtime';
 import { hookHarness } from './HookHarness';
 
@@ -31,7 +32,9 @@ let context: {
     subscribe: (s: {
         id: string;
         element: HTMLElement;
-        prepare: () => null;
+        prepare: () =>
+            | ((state: Pick<Commit, 'id' | 'stars_count' | 'starred'>) => void)
+            | null;
     }) => () => void;
 };
 const element = () =>
@@ -151,4 +154,96 @@ test('a failed card recovery read does not mark a visible commit unavailable', a
     joinAll(fake);
     await vi.advanceTimersByTimeAsync(300);
     assert.equal(deletedResources.hasCommit('a'), false);
+});
+
+for (const status of [429, 503]) {
+    test(`a ${status} card read retries on the safety poll while its socket stays joined`, async () => {
+        let failing = false;
+        let stars = -1;
+        let requests = 0;
+        vi.stubGlobal('fetch', async () => {
+            requests++;
+            if (failing) return new Response(null, { status });
+            return Response.json({
+                commits: [
+                    {
+                        id: 'a',
+                        stars_count: requests,
+                        starred: false,
+                        pasteis_count: 4,
+                        replies_count: 2,
+                    },
+                ],
+            });
+        });
+        const a = element();
+        context.subscribe({
+            id: 'a',
+            element: a,
+            prepare: () => (state) => {
+                stars = state.stars_count;
+            },
+        });
+        report([{ target: a, isIntersecting: true }]);
+        render();
+        joinAll(fake);
+        await vi.advanceTimersByTimeAsync(300);
+        assert.equal(stars, 1);
+        failing = true;
+        fake.joined.get('commits.a')?.emit('engagement');
+        await vi.advanceTimersByTimeAsync(300);
+        assert.equal(requests, 2);
+        assert.equal(deletedResources.hasCommit('a'), false);
+        failing = false;
+        await vi.advanceTimersByTimeAsync(30_000);
+        assert.equal(requests, 3);
+        assert.equal(stars, 3);
+        await vi.advanceTimersByTimeAsync(30_000);
+        assert.equal(requests, 3);
+    });
+}
+
+test('a failed first batch preserves later batches for the safety retry', async () => {
+    let failing = true;
+    vi.stubGlobal('fetch', async (url: string) => {
+        const ids = [...new URL(url, 'http://localhost').searchParams]
+            .filter(([key]) => key.startsWith('ids['))
+            .map(([, value]) => value);
+        reads.push(ids);
+        return failing
+            ? new Response(null, { status: 503 })
+            : Response.json({
+                  commits: ids.map((id) => ({
+                      id,
+                      stars_count: 1,
+                      starred: false,
+                      pasteis_count: 0,
+                      replies_count: 0,
+                  })),
+              });
+    });
+    const entries = Array.from({ length: 101 }, (_, at) => {
+        const target = element();
+        context.subscribe({
+            id: `batch-${at}`,
+            element: target,
+            prepare: () => null,
+        });
+        return { target, isIntersecting: true };
+    });
+    report(entries);
+    render();
+    joinAll(fake);
+    await vi.advanceTimersByTimeAsync(300);
+    assert.deepEqual(
+        reads.map((ids) => ids.length),
+        [100],
+    );
+    failing = false;
+    await vi.advanceTimersByTimeAsync(30_000);
+    assert.deepEqual(
+        reads.map((ids) => ids.length),
+        [100, 100, 1],
+    );
+    assert.equal(new Set(reads.slice(1).flat()).size, 101);
 });
