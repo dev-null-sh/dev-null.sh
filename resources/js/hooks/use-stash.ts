@@ -173,12 +173,23 @@ const storeImages = (
     key: string,
     next: File[],
     descriptions: string[] = [],
+    discard = false,
 ): void => {
     if (next.length === 0) {
         restoredImageKeys.delete(key);
     }
 
-    if (next.length === 0 && images.get(key)?.images.length === 0) {
+    if (!imageStorageRestored && next.length === 0 && !discard) {
+        revokeObjectUrls(imagesFor(key).images);
+        images.delete(key);
+        pendingImageWrites.delete(key);
+        loadImages();
+        notify();
+
+        return;
+    }
+
+    if (!discard && next.length === 0 && images.get(key)?.images.length === 0) {
         return;
     }
 
@@ -306,7 +317,7 @@ export function useStash(userId: string, name: string): UseStashReturn {
         updateExcludedRecipientIds([]);
         setIsDraftRestored(false);
         discardBody(key);
-        storeImages(key, []);
+        storeImages(key, [], [], true);
     };
 
     return {
