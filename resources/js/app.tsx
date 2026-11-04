@@ -15,6 +15,7 @@ import { trackCurrentPage } from '@/lib/current-page';
 import { trackFollowRequests } from '@/lib/follow-requests';
 import { pageTitle } from '@/lib/page-title';
 import { trackPrefetchedPages } from '@/lib/prefetched-pages';
+import { trackSafetyHistory } from '@/lib/safety-history';
 import { registerServiceWorker } from '@/lib/service-worker';
 import { browserClock, clockOf, setReaderClock } from '@/lib/utils';
 import { trackVisualViewport } from '@/lib/visual-viewport';
@@ -25,6 +26,7 @@ trackCommitPhotoPage();
 trackVisualViewport();
 trackAnalyticsEvents();
 trackPrefetchedPages();
+trackSafetyHistory();
 
 void createInertiaApp({
     title: pageTitle,
