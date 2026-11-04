@@ -7,7 +7,8 @@ namespace App\Enums;
 use App\Dto\ReaderClock;
 use Carbon\CarbonInterface;
 use Illuminate\Http\Request;
-use IntlTimeZone;
+use IntlCalendar;
+use IntlGregorianCalendar;
 
 enum EventTheme: string
 {
@@ -65,11 +66,11 @@ enum EventTheme: string
      */
     public static function choiceFrom(?string $cookie): string
     {
-        if ($cookie === self::DEFAULT) {
-            return self::DEFAULT;
+        if ($cookie !== null && ($cookie === self::DEFAULT || self::tryFrom($cookie) instanceof self)) {
+            return $cookie;
         }
 
-        return self::tryFrom((string) $cookie)->value ?? self::AUTO;
+        return self::AUTO;
     }
 
     /**
@@ -89,9 +90,16 @@ enum EventTheme: string
 
     private static function readerNow(Request $request): CarbonInterface
     {
+        $now = now();
         $timeZone = ReaderClock::of($request)->timeZone;
 
-        // ICU accepts browser aliases that PHP's date database may omit.
-        return now($timeZone === null ? null : (IntlTimeZone::getIanaID($timeZone) ?: null));
+        if ($timeZone === null) {
+            return $now;
+        }
+
+        $calendar = new IntlGregorianCalendar($timeZone);
+        $calendar->setTime($now->getTimestampMs());
+
+        return $now->utcOffset(($calendar->get(IntlCalendar::FIELD_ZONE_OFFSET) + $calendar->get(IntlCalendar::FIELD_DST_OFFSET)) / 60000);
     }
 }
