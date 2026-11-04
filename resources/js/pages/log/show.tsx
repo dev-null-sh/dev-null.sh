@@ -527,7 +527,7 @@ export default function Show({
                     checksWindow: true,
                 }).options,
         ),
-        { autoStart: false },
+        { autoStart: false, background: 'pause' },
     );
 
     // Polling only backs live updates up: it runs while they aren't heard.

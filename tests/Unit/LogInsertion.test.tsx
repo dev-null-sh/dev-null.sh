@@ -18,6 +18,7 @@ const listeners = new Map<string, (event: unknown) => void>();
 let viewer: User | null = null;
 const reload = vi.fn();
 let pollOptions: () => ReloadOptions;
+let pollConfig: { autoStart?: boolean; background?: string } | undefined;
 let replaceCommits: (value: (old: unknown, props: unknown) => unknown) => void;
 vi.doMock('react', () => ({
     ...React,
@@ -80,8 +81,13 @@ vi.doMock('@inertiajs/react', () => ({
     Head: () => null,
     Link: () => null,
     usePage: () => ({ props: { auth: { organizations: [], user: viewer } } }),
-    usePoll: (_interval: number, options: () => ReloadOptions) => {
+    usePoll: (
+        _interval: number,
+        options: () => ReloadOptions,
+        config?: { autoStart?: boolean; background?: string },
+    ) => {
         pollOptions = options;
+        pollConfig = config;
         return { start: vi.fn(), stop: vi.fn() };
     },
     router: {
@@ -437,6 +443,11 @@ function insertAt(
         finish,
     };
 }
+
+test('log fallback polling pauses in background tabs', () => {
+    insertAt(500);
+    assert.deepEqual(pollConfig, { autoStart: false, background: 'pause' });
+});
 
 for (const offset of [1, 20, 39, 40, 80, 500]) {
     test(`keeps the reading row still when commits arrive ${offset}px from the top`, () => {
