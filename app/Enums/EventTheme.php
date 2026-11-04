@@ -7,6 +7,8 @@ namespace App\Enums;
 use App\Dto\ReaderClock;
 use Carbon\CarbonInterface;
 use Illuminate\Http\Request;
+use IntlCalendar;
+use IntlGregorianCalendar;
 
 enum EventTheme: string
 {
@@ -64,7 +66,7 @@ enum EventTheme: string
      */
     public static function choiceFrom(?string $cookie): string
     {
-        if ($cookie === self::DEFAULT || self::tryFrom((string) $cookie) instanceof self) {
+        if ($cookie !== null && ($cookie === self::DEFAULT || self::tryFrom($cookie) instanceof self)) {
             return $cookie;
         }
 
@@ -88,6 +90,16 @@ enum EventTheme: string
 
     private static function readerNow(Request $request): CarbonInterface
     {
-        return now(ReaderClock::of($request)->timeZone);
+        $now = now();
+        $timeZone = ReaderClock::of($request)->timeZone;
+
+        if ($timeZone === null) {
+            return $now;
+        }
+
+        $calendar = new IntlGregorianCalendar($timeZone);
+        $calendar->setTime($now->getTimestampMs());
+
+        return $now->utcOffset(($calendar->get(IntlCalendar::FIELD_ZONE_OFFSET) + $calendar->get(IntlCalendar::FIELD_DST_OFFSET)) / 60000);
     }
 }
