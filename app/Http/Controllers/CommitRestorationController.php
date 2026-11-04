@@ -6,6 +6,7 @@ namespace App\Http\Controllers;
 
 use App\Actions\CreateCommitRestoration;
 use App\Http\Requests\CreateCommitRestorationRequest;
+use App\Http\Resources\ShownStreams;
 use App\Models\Commit;
 use App\Models\User;
 use Illuminate\Container\Attributes\CurrentUser;
@@ -27,7 +28,9 @@ final readonly class CommitRestorationController
             'parent' => fn (BelongsTo $query): BelongsTo => $query->withTrashed()->visibleTo($user)->withVisibleReplyCount($user)->withContinuationId($user)->with('author'),
         ])->findOrFail($commit->id);
 
-        Inertia::flash('restored', $restored->setAttribute('is_pinned', $restored->author?->user?->pinned_commit_id === $restored->id));
+        $restored->setAttribute('is_pinned', $restored->author?->user?->pinned_commit_id === $restored->id);
+
+        Inertia::flash('restored', ShownStreams::commit($restored));
 
         return back();
     }

@@ -77,6 +77,32 @@ it('signs in as the existing user of a handle', function (): void {
     expect(User::query()->count())->toBe(1);
 });
 
+it('hands local sign in back to the app without signing in the browser', function (): void {
+    registerRoutes('local');
+
+    $user = User::factory()->create(['handle' => 'octocat']);
+    $verifier = str_repeat('v', 43);
+
+    $this->get(route('app-session.create', ['challenge' => AppSignIn::challengeFor($verifier)]))
+        ->assertRedirectToRoute('home');
+
+    $response = $this->withHeader('X-Inertia', 'true')
+        ->post(route('local-login.store'), ['_token' => session()->token(), 'handle' => 'octocat'])
+        ->assertStatus(409);
+
+    $location = $response->headers->get('X-Inertia-Location');
+    expect($location)->toStartWith(AppSignIn::CALLBACK.'?code=');
+    $this->assertGuest();
+
+    parse_str((string) parse_url((string) $location, PHP_URL_QUERY), $query);
+    $redeemed = resolve(AppSignIn::class)->redeem((string) $query['code'], $verifier);
+
+    assert($redeemed !== null);
+
+    expect($redeemed[0]->is($user))->toBeTrue()
+        ->and($redeemed[1])->toBeFalse();
+});
+
 it('signs in as the seeded local developer', function (): void {
     registerRoutes('local');
 

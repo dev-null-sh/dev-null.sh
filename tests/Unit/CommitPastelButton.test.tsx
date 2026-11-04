@@ -29,6 +29,8 @@ const toast = Object.assign(vi.fn(), { error: toastError });
 
 vi.doMock('react', () => ({
     ...React,
+    useEffect: () => {},
+    useEffectEvent: (callback: unknown) => callback,
     useRef: (initial: unknown) => {
         const index = cursor++;
         const own = refs.get(instance) ?? [];

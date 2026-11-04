@@ -4,6 +4,7 @@ import { ArrowUp } from 'lucide-react';
 import {
     useCallback,
     useEffect,
+    useEffectEvent,
     useLayoutEffect,
     useRef,
     useState,
@@ -22,10 +23,16 @@ import { useComposerVisibility } from '@/hooks/use-composer-visibility';
 import { useLaneSwipe } from '@/hooks/use-lane-swipe';
 import { useLastVisit } from '@/hooks/use-last-visit';
 import { useOwnsCommit } from '@/hooks/use-owns-commit';
+import { idsOf, useIsListening } from '@/hooks/use-realtime';
 import AppLayout from '@/layouts/app-layout';
-import { backgroundPollOptions } from '@/lib/background-poll';
+import {
+    backgroundPollOptions,
+    reloadInBackground,
+} from '@/lib/background-poll';
 import { emojify } from '@/lib/emoji';
+import { coalesce, listen, logChannel, userChannel } from '@/lib/realtime';
 import { cn } from '@/lib/utils';
+import { windowDigest } from '@/lib/window-digest';
 import type { Commit, CursorPaginated, Log } from '@/types';
 
 export default function Show({
@@ -62,7 +69,12 @@ export default function Show({
     const commitDialogClosedCount = useCommitDialogClosedCount();
     const viewerId = user?.id ?? 'guest';
     const newestId = isRanked ? undefined : commits.data[0]?.id;
-    const oldestLoadedId = commits.data.at(-1)?.id;
+    // The oldest loaded commits, oldest first: the range holds on the oldest the reader can still see.
+    const throughIds = commits.data
+        .slice(-20)
+        .map((commit) => commit.id)
+        .reverse()
+        .join(',');
     const tabsRef = useRef<HTMLDivElement>(null);
     const [tabsHeight, setTabsHeight] = useState(0);
     const feedRef = useRef<HTMLDivElement>(null);
@@ -336,73 +348,108 @@ export default function Show({
 
     const firstSeenId = useLastVisit(viewerId, log, commits.data);
 
-    const loadNewest = (count: number) => {
+    const loadNewest = (count: number): Promise<void> => {
         if (isRanked || !count || loadingNew.current) {
-            return;
+            return Promise.resolve();
         }
 
         const known = new Set(commits.data.map((commit) => commit.id));
+        const firstKnownIndex = (incoming: Commit[]) => {
+            const index = incoming.findIndex((commit) => known.has(commit.id));
+
+            return index === -1 ? incoming.length : index;
+        };
         loadingNew.current = true;
-        router.reload(
-            backgroundPollOptions({
-                only: ['commits', 'newCommitsCount'],
-                reset: ['commits'],
-                data: { since: '' },
-                // Retain the loaded range so inserting new commits preserves the reader's row.
-                headers: { 'X-Log-Through': oldestLoadedId ?? '' },
-                preserveUrl: true,
-                onCancelToken: (token) => {
-                    loadRequest.current = token;
-                },
-                onSuccess: (page) => {
-                    const incoming = page.props
-                        .commits as CursorPaginated<Commit>;
-                    const arrivals = incoming.data.filter(
+
+        return reloadInBackground({
+            only: ['commits', 'newCommitsCount'],
+            reset: ['commits'],
+            data: { since: '' },
+            // Retain the loaded range so inserting new commits preserves the reader's row.
+            headers: { 'X-Log-Through': throughIds },
+            preserveUrl: true,
+            onCancelToken: (token) => {
+                loadRequest.current = token;
+            },
+            onSuccess: (page) => {
+                const incoming = page.props.commits as CursorPaginated<Commit>;
+                // Only what came in above the commits already shown is news: older ones approved since are
+                // placed among them without a notice.
+                const arrivals = incoming.data
+                    .slice(0, firstKnownIndex(incoming.data))
+                    .filter(
                         (commit) =>
                             !known.has(commit.id) && !ownsCommit(commit),
                     );
-                    if (
-                        arrivals.length === 0 ||
-                        (document.visibilityState === 'visible' &&
-                            window.scrollY <= 0)
-                    )
-                        return;
+                if (
+                    arrivals.length === 0 ||
+                    (document.visibilityState === 'visible' &&
+                        window.scrollY <= 0)
+                )
+                    return;
 
-                    setNotice((current) => ({
-                        commits: [
-                            ...arrivals,
-                            ...(current?.leaving
-                                ? []
-                                : (current?.commits ?? [])
-                            ).filter((commit) =>
-                                incoming.data.some(
-                                    (row) => row.id === commit.id,
-                                ),
-                            ),
-                        ],
-                        leaving: false,
-                    }));
-                },
-                onFinish: () => {
-                    loadingNew.current = false;
-                    loadRequest.current = null;
-                },
-            })(),
-        );
+                setNotice((current) => ({
+                    commits: [
+                        ...arrivals,
+                        ...(current?.leaving
+                            ? []
+                            : (current?.commits ?? [])
+                        ).filter((commit) =>
+                            incoming.data.some((row) => row.id === commit.id),
+                        ),
+                    ],
+                    leaving: false,
+                }));
+            },
+            onFinish: () => {
+                loadingNew.current = false;
+                loadRequest.current = null;
+            },
+        });
     };
 
-    const { stop: stopPolling } = usePoll(
-        30_000,
-        backgroundPollOptions(() => ({
-            only: ['newCommitsCount', 'removedCommitIds'],
+    /**
+     * Asks whether the log has new commits, and which of the commits it shows, or heard about, changed: the ones
+     * gone leave, and older ones approved since are placed among the rest. A log that shows nothing yet asks for
+     * everything, so its first commit is found too. Checking the window also counts what the log holds between the
+     * oldest and newest commits loaded: a different count than shown means something was missed, and the loaded
+     * range is read again. A ranked log is never reshaped, only rid of what is gone.
+     */
+    const probeOptions = ({
+        heard = [],
+        checked = [],
+        checksWindow = false,
+    }: {
+        heard?: string[];
+        checked?: string[];
+        checksWindow?: boolean;
+    }) => {
+        const arrived = isRanked ? [] : heard;
+        let followUp = Promise.resolve();
+
+        const options = {
+            only: [
+                'newCommitsCount',
+                'removedCommitIds',
+                ...(arrived.length > 0 ? ['arrivedCommitIds'] : []),
+                ...(checksWindow && !isRanked ? ['windowDigest'] : []),
+            ],
             data: {
                 since: newestId,
-                pending: notice?.leaving
-                    ? []
-                    : (notice?.commits.map((commit) => commit.id) ?? []),
+                ...(newestId === undefined && !isRanked
+                    ? { everything: 1 }
+                    : {}),
+                pending: [
+                    ...(notice?.leaving
+                        ? []
+                        : (notice?.commits.map((commit) => commit.id) ?? [])),
+                    ...checked,
+                ].slice(0, 100),
+                arrived,
             },
+            headers: { 'X-Log-Through': throughIds },
             preserveUrl: true,
-            onSuccess: (page) => {
+            onSuccess: (page: { props: PageProps }) => {
                 const removed = new Set(
                     page.props.removedCommitIds as string[],
                 );
@@ -431,11 +478,172 @@ export default function Show({
                         },
                     );
                 }
-                loadNewest(page.props.newCommitsCount as number);
+                const expected = page.props.windowDigest as
+                    | string
+                    | null
+                    | undefined;
+                const shown = commits.data
+                    .map((commit) => commit.id)
+                    .filter((id) => !removed.has(id));
+                const newest = Math.max(
+                    page.props.newCommitsCount as number,
+                    (
+                        (page.props.arrivedCommitIds as string[] | undefined) ??
+                        []
+                    ).length,
+                );
+                // The loaded window is read again, as deep as it was, when it no longer holds what it shows, or when it
+                // can't be told, as none of its oldest commits is still the reader's to see.
+                followUp =
+                    typeof expected === 'string' && shown.length > 0
+                        ? windowDigest(shown).then((digest) =>
+                              loadNewest(
+                                  digest === expected
+                                      ? newest
+                                      : commits.data.length + 1,
+                              ),
+                          )
+                        : expected === null && shown.length > 0
+                          ? loadNewest(commits.data.length + 1)
+                          : loadNewest(newest);
             },
-        })),
-        { autoStart: newestId !== undefined },
+        };
+
+        return {
+            options,
+            settled: () => followUp,
+        };
+    };
+
+    const isHearingLog = useIsListening(logChannel);
+    const { start: startPolling, stop: stopPolling } = usePoll(
+        isRanked ? 60_000 : 30_000,
+        backgroundPollOptions(
+            () =>
+                probeOptions({
+                    checked: isRanked
+                        ? commits.data.slice(0, 100).map((commit) => commit.id)
+                        : [],
+                    checksWindow: true,
+                }).options,
+        ),
+        { autoStart: false },
     );
+
+    // Polling only backs live updates up: it runs while they aren't heard.
+    useEffect(() => {
+        if (isHearingLog) {
+            stopPolling();
+        } else {
+            startPolling();
+        }
+    }, [isHearingLog, startPolling, stopPolling]);
+
+    /**
+     * One check at a time, settling once its request and any reload it led to do. What was heard waits for the
+     * next one in batches of a hundred, so a burst is worked through rather than cut short.
+     */
+    const probe = useEffectEvent(
+        async (
+            heard: Set<string>,
+            isCatchingUp: boolean,
+            signal: AbortSignal,
+        ): Promise<boolean> => {
+            const loaded = new Set(commits.data.map((commit) => commit.id));
+            const checked = [...heard]
+                .filter((id) => loaded.has(id))
+                .slice(0, 100);
+            const arrived = [...heard]
+                .filter((id) => !loaded.has(id))
+                .slice(0, 100);
+            [...checked, ...arrived].forEach((id) => heard.delete(id));
+
+            // Catching up on a ranked log checks every commit it shows, a hundred at a time.
+            const batches =
+                isCatchingUp && isRanked
+                    ? Array.from(
+                          { length: Math.ceil(commits.data.length / 100) },
+                          (_, index) =>
+                              commits.data
+                                  .slice(index * 100, index * 100 + 100)
+                                  .map((commit) => commit.id),
+                      )
+                    : [checked];
+
+            for (const batch of batches.length > 0 ? batches : [[]]) {
+                if (signal.aborted) {
+                    return false;
+                }
+
+                const { options, settled } = probeOptions({
+                    heard: arrived,
+                    checked: batch,
+                    checksWindow: isCatchingUp,
+                });
+
+                await reloadInBackground(options, signal);
+                await settled();
+            }
+
+            return heard.size > 0;
+        },
+    );
+
+    useEffect(() => {
+        const heard = new Set<string>();
+        const controller = new AbortController();
+        let isCatchingUp = false;
+        const refresh = coalesce(async () => {
+            const catchingUp = isCatchingUp;
+            isCatchingUp = false;
+
+            if (await probe(heard, catchingUp, controller.signal)) {
+                refresh.request();
+            }
+        }, 1_000);
+
+        const stop = listen(
+            logChannel,
+            {
+                visibility: (payload) => {
+                    idsOf(payload).forEach((id) => heard.add(id));
+                    refresh.request();
+                },
+            },
+            () => {
+                // Joining, after the log was read, came back from history or lost its connection, checks the whole
+                // window: anything may have changed meanwhile.
+                isCatchingUp = true;
+                refresh.request();
+            },
+        );
+
+        // Following, muting or blocking someone changes which commits the viewer's log holds, so the window is checked.
+        const stopRelationships =
+            viewerId === 'guest'
+                ? () => {}
+                : listen(
+                      userChannel(viewerId),
+                      {
+                          relationships: () => {
+                              isCatchingUp = true;
+                              refresh.request();
+                          },
+                      },
+                      // A block or mute missed while not listening leaves no trace on the commits shown.
+                      () => {
+                          isCatchingUp = true;
+                          refresh.request();
+                      },
+                  );
+
+        return () => {
+            stop();
+            stopRelationships();
+            refresh.cancel();
+            controller.abort();
+        };
+    }, [log, viewerId]);
 
     // Showing a log remembers it, so pages prefetched before it still carry the previous log in their shared props.
     useEffect(() => {
