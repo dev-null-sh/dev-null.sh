@@ -9,9 +9,9 @@ use App\Models\Commit;
 use App\Models\CommitReport;
 use App\Models\User;
 use Carbon\CarbonImmutable;
-use Illuminate\Contracts\Pagination\CursorPaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Pagination\CursorPaginator;
 
 final readonly class ReportedCommitsQuery
 {

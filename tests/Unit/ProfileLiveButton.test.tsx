@@ -18,7 +18,11 @@ test('offers ending the stream while you are live', () => {
         <ProfileLiveButton
             user={{
                 id: 'me',
-                live: { url: 'https://twitch.tv/me', thumbnail_url: '' },
+                live: {
+                    url: 'https://twitch.tv/me',
+                    thumbnail_url: '',
+                    ends_at: new Date(Date.now() + 3_600_000).toISOString(),
+                },
             }}
         />,
     );

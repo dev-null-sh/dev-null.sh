@@ -7,6 +7,7 @@ namespace App\Http\Controllers;
 use App\Enums\OrganizationRole;
 use App\Enums\UserUpdate;
 use App\Http\Requests\ShowOrganizationRequest;
+use App\Http\Resources\ShownStreams;
 use App\Models\Organization;
 use App\Models\User;
 use App\Queries\OrganizationCommitsQuery;
@@ -18,6 +19,7 @@ use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Pagination\CursorPaginator;
 use Inertia\Inertia;
 use Inertia\LiveProp;
 use Inertia\Response;
@@ -50,9 +52,9 @@ final readonly class OrganizationController
         return Inertia::render('organization/show', [
             'organization' => Inertia::live(fn (): Organization => $organization->refresh(), 'profile', $profile),
             'tab' => $request->tab(...),
-            'commits' => Inertia::scroll(fn () => ($request->tab() === 'mentions' ? $mentions : $organizationCommits)->builder($organization, $currentUser)
+            'commits' => Inertia::scroll(fn (): CursorPaginator => ShownStreams::page(($request->tab() === 'mentions' ? $mentions : $organizationCommits)->builder($organization, $currentUser)
                 ->cursorPaginate(20)
-                ->appends(['tab' => $request->tab()])),
+                ->appends(['tab' => $request->tab()]))),
             'claimUrl' => route('organization-admin.store', $organization),
             // Admins land on the Profile tab, which only they have...
             'settingsUrl' => $relationship(fn (): ?string => match ($currentUser instanceof User ? $organization->roleOf($currentUser) : null) {

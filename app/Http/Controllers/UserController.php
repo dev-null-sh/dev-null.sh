@@ -9,7 +9,7 @@ use App\Enums\PushAccess;
 use App\Enums\UserUpdate;
 use App\Http\Requests\DeleteUserRequest;
 use App\Http\Requests\ShowUserRequest;
-use App\Models\Commit;
+use App\Http\Resources\ShownStreams;
 use App\Models\User;
 use App\Queries\BioProfilesQuery;
 use App\Queries\FollowersYouKnowQuery;
@@ -65,7 +65,7 @@ final readonly class UserController
         $relationship = fn (Closure $value): Closure|LiveProp => $currentUser instanceof User ? Inertia::live($value, UserUpdate::Account->value, new PrivateChannel($currentUser)) : $value;
 
         return Inertia::render('user/show', [
-            'user' => Inertia::live($getCountedUser, 'profile', $profile),
+            'user' => Inertia::live(fn (): ?array => ShownStreams::user($getCountedUser()), 'profile', $profile),
             'bioProfiles' => fn (): array => $bioProfiles->get($user),
             'pasteisReceived' => Inertia::live(fn (): ?int => $currentUser?->pasteis_mode ? $user->pasteis_received : null, 'profile', $profile),
             'isFollowing' => $relationship(fn (): bool => $currentUser?->isFollowing($user) ?? false),
@@ -82,14 +82,14 @@ final readonly class UserController
             'achievements' => fn (): array => $achievements->get($user, $currentUser, $getStreaks()),
             'moderation' => fn (): ?array => $currentUser?->isAdmin() === true && ! $user->isAdmin() ? $moderation->get([$user])[$user->id] : null,
             'tab' => $request->tab(...),
-            'pinnedCommit' => Inertia::live(fn (): ?Commit => $request->tab() === 'commits' ? $pinned->get($user, $currentUser) : null, 'profile', $profile),
+            'pinnedCommit' => Inertia::live(fn (): ?array => ShownStreams::commit($request->tab() === 'commits' ? $pinned->get($user, $currentUser) : null), 'profile', $profile),
             'readme' => fn (): string|false|null => $request->tab() === 'readme' ? $readme->get($user) : null,
             // The README tab shows no commits, so it doesn't look for any.
-            'commits' => Inertia::scroll(fn () => $request->tab() === 'readme'
+            'commits' => Inertia::scroll(fn (): CursorPaginator => ShownStreams::page($request->tab() === 'readme'
                 ? new CursorPaginator([], 20)
                 : $commits->builder($user, $currentUser, $request->tab() === 'replies')
                     ->cursorPaginate(20)
-                    ->appends(['tab' => $request->tab()])),
+                    ->appends(['tab' => $request->tab()]))),
         ])->withViewData(['preview' => $currentUser instanceof User || $request->inertia() ? null : $metadata->user($getCountedUser())]);
     }
 

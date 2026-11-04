@@ -7,6 +7,7 @@ namespace App\Http\Controllers;
 use App\Actions\UpdateUserLog;
 use App\Enums\Log;
 use App\Http\Requests\ShowLogRequest;
+use App\Http\Resources\ShownStreams;
 use App\Models\Commit;
 use App\Models\User;
 use App\Queries\LatestLogCommitsQuery;
@@ -15,7 +16,6 @@ use App\Queries\SuggestedCommitsQuery;
 use App\Services\PageMetadata;
 use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Pagination\CursorPaginator;
-use Illuminate\Support\Collection;
 use Inertia\Inertia;
 use Inertia\Response;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
@@ -47,7 +47,7 @@ final readonly class LogController
 
         return Inertia::render('log/show', [
             'log' => $log,
-            'commits' => Inertia::scroll(fn (): CursorPaginator => $commits->paginate($log, $user, $request->through(), $request->cursor($log))),
+            'commits' => Inertia::scroll(fn (): CursorPaginator => ShownStreams::page($commits->paginate($log, $user, $request->through(), $request->cursor($log)))),
             'isRanked' => $log->isRanked(),
             'newCommitsCount' => Inertia::optional(function () use ($request, $user, $log, $latest): int {
                 $seen = $request->since();
@@ -57,9 +57,9 @@ final readonly class LogController
             'removedCommitIds' => Inertia::optional(fn (): array => $latest->missing($log, $user, $request->pending())),
             'arrivedCommitIds' => Inertia::optional(fn (): array => $latest->arrived($log, $user, $request->arrived(), $request->through())),
             'windowDigest' => Inertia::optional(fn (): ?string => $latest->window($log, $user, $request->through(), $request->since())),
-            'suggestions' => fn (): Collection => $user instanceof User && $log === Log::Following && ! $user->following()->exists()
-                ? $suggested->get($user)
-                : new Collection(),
+            'suggestions' => fn (): array => $user instanceof User && $log === Log::Following && ! $user->following()->exists()
+                ? ShownStreams::commits($suggested->get($user))
+                : [],
         ]);
     }
 }

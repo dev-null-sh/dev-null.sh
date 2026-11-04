@@ -40,8 +40,6 @@ declare module '@inertiajs/core' {
             now: number;
             suggestedUsers?: SuggestedUser[];
             liveFollowing?: User[];
-            /** When each stream on now runs out, by person, for streams pages show without their end. */
-            liveDeadlines?: Record<string, string>;
             hotTopics?: { id: string; name: string; summary: string | null }[];
             [key: string]: unknown;
         };

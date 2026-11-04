@@ -10,6 +10,7 @@ use App\Enums\Log;
 use App\Enums\RepliesPerPage;
 use App\Enums\UserUpdate;
 use App\Http\Requests\ListNotificationsRequest;
+use App\Http\Resources\ShownStreams;
 use App\Models\Commit;
 use App\Models\Organization;
 use App\Models\User;
@@ -18,18 +19,17 @@ use App\Queries\ConversationsQuery;
 use App\Queries\DevelopersCountQuery;
 use App\Queries\HeadlineSummaryQuery;
 use App\Queries\HotHeadlinesQuery;
-use App\Queries\LiveDeadlinesQuery;
 use App\Queries\LiveFollowingQuery;
 use App\Queries\NotificationGroupsQuery;
 use App\Queries\SuggestedUsersQuery;
 use App\Services\CommitTranslations;
 use App\Services\Features;
+use Carbon\CarbonInterface;
 use Closure;
 use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Collection;
 use Inertia\Inertia;
 use Inertia\LiveProp;
 use Inertia\Middleware;
@@ -90,12 +90,12 @@ final class HandleInertiaRequests extends Middleware
         $hasAside = ! $request->routeIs('onboarding.show') && ! $request->is('operations', 'operations/*');
 
         $suggestedUsers = $user instanceof User && $showsWhoToFollow && $hasAside
-            ? Inertia::defer(fn (): Collection => resolve(SuggestedUsersQuery::class)->get(
+            ? Inertia::defer(fn (): array => ShownStreams::users(resolve(SuggestedUsersQuery::class)->get(
                 $user,
                 round: max(0, (int) $request->cookie('who_to_follow_round')),
                 spares: 3,
                 context: $context,
-            ))
+            )))
             : null;
 
         // Counts the user's private updates refresh, wherever they were changed from. Guests have no channel.
@@ -103,13 +103,26 @@ final class HandleInertiaRequests extends Middleware
             ? Inertia::live($value, on: array_values(array_map(fn (UserUpdate $update): string => $update->value, $updates)), channel: new PrivateChannel($user))
             : $value;
 
+        // Kept across pages until the first stream it lists runs out at most, so a stream extended meanwhile is read again.
+        $liveFollowing = $user instanceof User && $hasAside
+            ? Inertia::once(function () use (&$liveFollowing, $user): array {
+                $following = resolve(LiveFollowingQuery::class)->get($user);
+                $liveFollowing?->until($following->reduce(
+                    fn (CarbonInterface $until, User $followed): CarbonInterface => $followed->live_ends_at?->min($until) ?? $until,
+                    now()->addMinute(),
+                ));
+
+                return ShownStreams::users($following);
+            })->live(UserUpdate::Live->value, new PrivateChannel($user))
+            : null;
+
         return [
             ...parent::share($request),
             'name' => config('app.name'),
             'repository' => config('services.github.repository'),
             'auth' => [
                 // What the user saved anywhere, from their profile to their preferences, shows on every page they have open.
-                'user' => $live(fn (): ?User => $request->user()?->loadCounts(), UserUpdate::Account),
+                'user' => $live(fn (): ?array => ShownStreams::user($request->user()?->loadCounts()), UserUpdate::Account),
                 'bioProfiles' => $live(fn (): array => $user instanceof User ? resolve(BioProfilesQuery::class)->get($user) : [], UserUpdate::Account),
                 // The organizations the user is a member of, shown like the commits they author: theirs too, and who they
                 // can post as once the feature is on.
@@ -145,15 +158,11 @@ final class HandleInertiaRequests extends Middleware
             // Guests see how many developers are here, next to the sign-in button...
             'developersCount' => fn (): ?int => $user instanceof User ? null : resolve(DevelopersCountQuery::class)->get(),
             'hasUnmoderatedCommits' => $isAdmin ? $live(fn (): bool => Commit::query()->pending()->exists(), UserUpdate::Moderation) : false,
-            // Pages show people's streams without their end: this says when each one on now runs out, so it stops
-            // showing then on a page left open, read again at most once a minute.
-            'liveDeadlines' => Inertia::once(fn (): array => resolve(LiveDeadlinesQuery::class)->get($user instanceof User ? $user : null))->until(60),
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'showsWhoToFollow' => $showsWhoToFollow,
-            ...$user instanceof User && $hasAside ? [
+            ...$user instanceof User && $liveFollowing !== null ? [
                 // Drawn again when someone followed goes live or stops, never on its own, so it doesn't reshuffle.
-                'liveFollowing' => Inertia::once(fn (): Collection => resolve(LiveFollowingQuery::class)->get($user))->until(60)
-                    ->live(UserUpdate::Live->value, new PrivateChannel($user)),
+                'liveFollowing' => $liveFollowing,
                 'hotTopics' => Inertia::once(function () use ($user): array {
                     $topics = resolve(HotHeadlinesQuery::class)->get($user);
                     $summaries = resolve(HeadlineSummaryQuery::class)->getMany(array_column($topics, 'id'), $user);

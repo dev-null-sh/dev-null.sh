@@ -8,6 +8,7 @@ use App\Actions\UpdateCommitStatuses;
 use App\Enums\CommitStatus;
 use App\Http\Requests\ShowModerationRequest;
 use App\Http\Requests\UpdateModerationRequest;
+use App\Http\Resources\ShownStreams;
 use App\Models\Commit;
 use App\Models\User;
 use App\Services\CommitTranslations;
@@ -15,6 +16,7 @@ use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Pagination\CursorPaginator;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -23,7 +25,7 @@ final readonly class ModerationController
     public function show(ShowModerationRequest $request, #[CurrentUser] User $user): Response
     {
         return Inertia::render('moderation/show', [
-            'commits' => Inertia::scroll(fn () => Commit::query()
+            'commits' => Inertia::scroll(fn (): CursorPaginator => ShownStreams::page(Commit::query()
                 ->pending()
                 ->with([
                     'author',
@@ -39,7 +41,7 @@ final readonly class ModerationController
                 ->oldest()
                 ->oldest('id')
                 ->cursorPaginate(20)
-                ->through($this->forModerators(...))),
+                ->through($this->forModerators(...)))),
             // Of the commits a queue showed, those no longer waiting: decided, deleted or gone.
             'decidedCommitIds' => Inertia::optional(function () use ($request): array {
                 $waiting = Commit::query()->pending()->whereKey($request->loaded())->pluck('id');

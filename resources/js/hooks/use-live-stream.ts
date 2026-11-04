@@ -2,7 +2,6 @@ import { useEffect, useState, useSyncExternalStore } from 'react';
 import { useNow } from '@/hooks/use-now';
 import {
     currentLiveStream,
-    handedLiveStream,
     liveStreamsVersion,
     subscribeToLiveStreams,
     watchLiveStream,
@@ -31,15 +30,9 @@ export function useLiveStream(
     const now = useNow();
 
     useLiveStreamsVersion();
-    const handed =
-        id === undefined ? user?.live : handedLiveStream(id, user?.live);
-    const isUndated = handed != null && handed.ends_at === undefined;
-    useEffect(
-        () => (id === undefined ? undefined : watchLiveStream(id, isUndated)),
-        [id, isUndated],
-    );
+    useEffect(() => (id === undefined ? undefined : watchLiveStream(id)), [id]);
 
-    return id === undefined ? null : currentLiveStream(id, handed, now);
+    return id === undefined ? null : currentLiveStream(id, user?.live, now);
 }
 
 /**
@@ -51,7 +44,6 @@ export function useListedLiveStreams<
     T extends { id: string; live?: LiveStream | null },
 >(users: T[], pageUrl: string): { user: T; live: LiveStream | null }[] {
     const now = useNow();
-    const handedOf = (user: T) => handedLiveStream(user.id, user.live);
     const [listed, setListed] = useState<{ url: string; users: T[] } | null>(
         null,
     );
@@ -59,8 +51,7 @@ export function useListedLiveStreams<
         listed?.url === pageUrl
             ? listed.users
             : users.filter(
-                  (user) =>
-                      currentLiveStream(user.id, handedOf(user), now) !== null,
+                  (user) => currentLiveStream(user.id, user.live, now) !== null,
               );
 
     if (listed?.url !== pageUrl) {
@@ -69,25 +60,12 @@ export function useListedLiveStreams<
 
     useLiveStreamsVersion();
     const ids = shown.map((user) => user.id).join(' ');
-    const undated = shown
-        .filter((user) => {
-            const handed = handedOf(user);
-
-            return handed != null && handed.ends_at === undefined;
-        })
-        .map((user) => user.id)
-        .join(' ');
     useEffect(() => {
-        const handed = new Set(undated.split(' '));
         const stops =
-            ids === ''
-                ? []
-                : ids
-                      .split(' ')
-                      .map((id) => watchLiveStream(id, handed.has(id)));
+            ids === '' ? [] : ids.split(' ').map((id) => watchLiveStream(id));
 
         return () => stops.forEach((stop) => stop());
-    }, [ids, undated]);
+    }, [ids]);
 
     return shown.map((listedUser) => {
         const user =
@@ -96,7 +74,7 @@ export function useListedLiveStreams<
 
         return {
             user,
-            live: currentLiveStream(user.id, handedOf(user), now),
+            live: currentLiveStream(user.id, user.live, now),
         };
     });
 }

@@ -6,7 +6,7 @@ namespace App\Queries;
 
 use App\Models\Commit;
 use App\Models\User;
-use Illuminate\Contracts\Pagination\CursorPaginator;
+use Illuminate\Pagination\CursorPaginator;
 
 final readonly class CommitRepliesQuery
 {
