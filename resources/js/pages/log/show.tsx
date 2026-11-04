@@ -635,10 +635,11 @@ export default function Show({
             ) {
                 if (signal.aborted) return null;
                 const { options, settled } = probeOptions({
-                    heard: arrived.slice(0, 100),
+                    heard: offset === 0 ? arrived.slice(0, 100) : [],
                     checked: pending.slice(offset, offset + 100),
-                    checksWindow: isCatchingUp || arrived.length > 100,
-                    checksArrivals,
+                    checksWindow:
+                        offset === 0 && (isCatchingUp || arrived.length > 100),
+                    checksArrivals: checksArrivals && offset === 0,
                     signal,
                 });
                 await reloadInBackground(options, signal);

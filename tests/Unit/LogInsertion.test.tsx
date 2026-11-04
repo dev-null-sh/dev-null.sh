@@ -1194,3 +1194,47 @@ test('cancelling during digest must not strand loadingNew on viewer change', asy
     await vi.advanceTimersByTimeAsync(0);
     assert.equal(reload.mock.calls.length, before+1, 'the replacement viewer must be able to load incoming commits');
 });
+
+for (const log of ['latest', 'following'] as const) {
+    test(`${log} checks arrivals once while recovering more than a hundred loaded commits`, async () => {
+        const fake = fakeConnection();
+        connectRealtime(fake.connection);
+        const feed = insertAt(700, false, [], log, 0, false, true);
+        const loaded = [
+            ...feed.data(),
+            ...Array.from({ length: 150 }, (_, index) => ({ id: `loaded-${index}` })),
+        ] as Commit[];
+        feed.deliver(loaded);
+        for (let offset = 0; offset < loaded.length; offset += 100) {
+            fake.joined.get('log')!.emit('visibility', {
+                ids: loaded.slice(offset, offset + 100).map(commit => commit.id),
+            });
+        }
+        feed.visibility('visible');
+        await vi.advanceTimersByTimeAsync(1_000);
+        const first = reload.mock.calls[0][0] as ReloadOptions;
+        assert.ok(first.only?.includes('windowDigest'));
+        first.onSuccess?.({ props: { newCommitsCount: 1, removedCommitIds: [] } } as never);
+        first.onFinish?.({} as never);
+        await vi.advanceTimersByTimeAsync(0);
+        const incoming = [{ id: 'arrival', author: { id: 'author' } }, ...loaded] as Commit[];
+        const full = reload.mock.calls[1][0] as ReloadOptions;
+        full.onSuccess?.({ props: { commits: { data: incoming } } } as never);
+        feed.deliver(incoming);
+        full.onFinish?.({} as never);
+        await vi.advanceTimersByTimeAsync(0);
+
+        const second = reload.mock.calls[2][0] as ReloadOptions;
+        assert.deepEqual((second.data as { pending: string[] }).pending, loaded.slice(100).map(commit => commit.id));
+        second.onSuccess?.({ props: { newCommitsCount: 1, removedCommitIds: ['loaded-149'] } } as never);
+        second.onFinish?.({} as never);
+        await vi.advanceTimersByTimeAsync(0);
+
+        assert.equal(reload.mock.calls.length, 3, 'one full feed read serves every removal chunk');
+        assert.deepEqual(second.only, ['removedCommitIds']);
+        assert.deepEqual((second.data as { arrived: string[] }).arrived, []);
+        assert.equal(feed.data().some(commit => commit.id === 'loaded-149'), false);
+        const notice = feed.render().find(node => node.type === 'button')!;
+        assert.equal(notice.props['aria-label'], '1 new commit above. Scroll to top');
+    });
+}
