@@ -35,3 +35,14 @@ await test('prefixes every line the selection touches', () => {
     assert.deepEqual(apply('What shipped', 3, 3, 'heading'), ['## What shipped', '']);
     assert.deepEqual(apply('a\nquote', 2, 2, 'quote'), ['a\n> quote', '']);
 });
+
+await test('does not prefix the next line when selection ends after a newline', () => {
+    assert.deepEqual(apply('first\nsecond', 0, 6, 'bulleted'), [
+        '- first\nsecond',
+        '',
+    ]);
+    assert.deepEqual(apply('first\nsecond\nthird', 0, 13, 'numbered'), [
+        '1. first\n2. second\nthird',
+        '',
+    ]);
+});
