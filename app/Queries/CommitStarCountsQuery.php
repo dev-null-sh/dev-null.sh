@@ -24,6 +24,7 @@ final readonly class CommitStarCountsQuery
             ->visibleTo($viewer)
             ->withStarsFor($viewer)
             ->withVisibleReplyCount($viewer)
+            ->withContinuationId($viewer)
             ->get()
             ->toBase()
             ->map(fn (Commit $commit): array => [

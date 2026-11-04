@@ -43,6 +43,6 @@ final readonly class CommitRepliesQuery
      */
     public function count(Commit $commit, ?User $user): int
     {
-        return Commit::withTrashed()->withVisibleReplyCount($user)->findOrFail($commit->id)->replies_count;
+        return Commit::withTrashed()->withVisibleReplyCount($user)->withContinuationId($user)->findOrFail($commit->id)->replies_count;
     }
 }

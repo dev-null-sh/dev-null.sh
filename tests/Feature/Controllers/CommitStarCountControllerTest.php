@@ -156,3 +156,14 @@ it('counts the pastéis and only the replies the viewer can see', function (): v
         ->assertJsonPath('commits.0.pasteis_count', 3)
         ->assertJsonPath('commits.0.replies_count', 2);
 });
+
+it('keeps the continuation out of refreshed card counts', function (): void {
+    $author = User::factory()->create();
+    $commit = Commit::factory()->for($author)->create();
+    Commit::factory()->for($author)->for($commit, 'parent')->create();
+    Commit::factory()->for($commit, 'parent')->create();
+
+    $this->actingAs(User::factory()->create())
+        ->getJson(route('commit-star-count.index', ['ids' => [$commit->id]]))
+        ->assertOk()->assertJsonPath('commits.0.replies_count', 1);
+});

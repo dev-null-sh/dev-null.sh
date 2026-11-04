@@ -1109,3 +1109,16 @@ it('counts the replies of a deleted commit that stays in its thread', function (
         ->assertOk()
         ->assertJsonPath('parent.replies_count', 1);
 });
+
+it('keeps the continuation out of the count when refreshing individual replies', function (): void {
+    $author = User::factory()->create();
+    $parent = Commit::factory()->for($author)->create();
+    Commit::factory()->for($author)->for($parent, 'parent')->create();
+    $reply = Commit::factory()->for($parent, 'parent')->create();
+
+    $this->actingAs(User::factory()->create())
+        ->getJson(route('commit-reply.index', [$parent, 'ids' => [$reply->id]]))
+        ->assertOk()
+        ->assertJsonPath('parent.replies_count', 1)
+        ->assertJsonPath('data.0.id', $reply->id);
+});
