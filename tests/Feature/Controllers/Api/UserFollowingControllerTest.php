@@ -4,21 +4,11 @@ declare(strict_types=1);
 
 use App\Models\User;
 
-it('lists the people a user follows to guests, newest follow first', function (): void {
+it('lists who a user follows only to signed requests, like the web to members', function (): void {
     $user = User::factory()->create(['handle' => 'octocat']);
-    $earlier = User::factory()->create();
-    $later = User::factory()->create();
-    $user->following()->attach($earlier, ['created_at' => now()->subMinute()]);
-    $user->following()->attach($later);
-    $user->followers()->attach(User::factory()->create());
+    $user->following()->attach(User::factory()->create());
 
-    $this->getJson('/api/v1/users/octocat/following')
-        ->assertOk()
-        ->assertJsonPath('data.*.id', [$later->id, $earlier->id])
-        ->assertJsonMissingPath('data.0.lane')
-        ->assertJsonMissingPath('data.0.is_followed')
-        ->assertJsonMissingPath('data.0.follows_you')
-        ->assertJsonPath('meta.next_cursor', null);
+    $this->getJson('/api/v1/users/octocat/following')->assertUnauthorized();
 });
 
 it('says for a signed request whether its user follows each one, and whether each follows them', function (): void {
@@ -50,11 +40,13 @@ it('pages through the people a user follows 30 at a time', function (): void {
         $user->following()->attach($person, ['created_at' => now()->subMinutes($index)]);
     }
 
-    $first = $this->getJson(route('api-user-following.index', $user))
+    $keyPair = apiKeyPairFor(User::factory()->create());
+
+    $first = signedApiRequest($keyPair, 'GET', route('api-user-following.index', $user))
         ->assertOk()
         ->assertJsonCount(30, 'data');
 
-    $this->getJson($first->json('links.next'))
+    signedApiRequest($keyPair, 'GET', $first->json('links.next'))
         ->assertOk()
         ->assertJsonPath('data.*.id', [$followed->last()->id]);
 });
@@ -73,15 +65,11 @@ it('lists no one a profile follows across a block for a signed request', functio
         // Only the one who blocked is told who, for the blocked page.
         ->assertJsonPath('user.id', $showsUser ? $user->id : null)
         ->assertJsonMissingPath('data');
-
-    $this->getJson(route('api-user-following.index', $user))
-        ->assertOk()
-        ->assertJsonCount(1, 'data');
 })->with([
     'blocking' => [fn (User $viewer, User $user) => $viewer->blocking()->attach($user), 'user_blocked', true],
     'blocked' => [fn (User $viewer, User $user) => $user->blocking()->attach($viewer), 'user_unavailable', false],
 ]);
 
 it('returns not found for unknown handles', function (): void {
-    $this->getJson('/api/v1/users/missing/following')->assertNotFound();
+    signedApiRequest(apiKeyPairFor(User::factory()->create()), 'GET', '/api/v1/users/missing/following')->assertNotFound();
 });

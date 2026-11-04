@@ -171,6 +171,7 @@ export function SuggestedUserRow({
                     >
                         <Link
                             href={show(user)}
+                            prefetch
                             className="group flex min-w-0 flex-1 items-center gap-3"
                         >
                             <span
@@ -603,7 +604,7 @@ function WhoToFollowHidden({ onUndo }: { onUndo: () => void }) {
             <div className="mt-1 flex items-center justify-between gap-3">
                 <p className="min-w-0 text-xs text-muted-foreground">
                     Bring it back in{' '}
-                    <Link href={edit()} className="underline">
+                    <Link href={edit()} prefetch className="underline">
                         Settings
                     </Link>
                     .

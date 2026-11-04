@@ -12,6 +12,7 @@ import {
     PopoverContent,
 } from '@/components/ui/popover';
 import { UserAvatar } from '@/components/user-avatar';
+import { useLiveStream } from '@/hooks/use-live-stream';
 import { hostname } from '@/lib/urls';
 import { cn } from '@/lib/utils';
 import { show } from '@/routes/user';
@@ -78,6 +79,8 @@ export function LiveAvatarMarker({ className }: { className?: string }) {
                 'absolute -bottom-1.5 left-1/2 -translate-x-1/2 ring-2 ring-card',
                 className,
             )}
+            // On a graph node, it hangs below the ring: the lines go round it and its 2px ring.
+            data-graph-overhang="2"
         />
     );
 }
@@ -94,7 +97,7 @@ export function LiveStreamTrigger({
     className,
     children,
 }: {
-    user: Pick<User, 'name' | 'handle' | 'avatar_url' | 'live'>;
+    user: Pick<User, 'id' | 'name' | 'handle' | 'avatar_url' | 'live'>;
     hoverCard?: boolean;
     showProfile?: boolean;
     className?: string;
@@ -106,7 +109,7 @@ export function LiveStreamTrigger({
 
     useEffect(() => () => clearTimeout(timer.current), []);
 
-    const stream = user.live;
+    const stream = useLiveStream(user);
 
     if (!stream) {
         return <span className={className}>{children}</span>;
@@ -227,6 +230,7 @@ function LiveStreamSheet({
                             <Button variant="secondary" asChild>
                                 <Link
                                     href={show(user)}
+                                    prefetch
                                     onClick={() => onOpenChange(false)}
                                 >
                                     Open profile

@@ -4,13 +4,14 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Enums\UserUpdate;
+use App\Events\UsersUpdated;
 use App\Models\Conversation;
+use App\Models\ConversationParticipant;
 use App\Models\Message;
 use App\Models\MessageImage;
 use App\Models\MessageVoice;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 
 final readonly class DeleteOrgs
 {
@@ -29,8 +30,12 @@ final readonly class DeleteOrgs
             ...MessageVoice::query()->whereIn('message_id', $messageIds)->get(['path'])->map(fn (MessageVoice $voice): string => $voice->path),
         ];
 
+        resolve(DeleteStoredFiles::class)->retain($paths);
+
+        $members = ConversationParticipant::query()->whereIn('conversation_id', (clone $orgs)->select('id'))->distinct()->pluck('user_id');
+
         $orgs->delete();
 
-        DB::afterCommit(fn (): bool => Storage::disk()->delete($paths));
+        event(new UsersUpdated($members, UserUpdate::Inbox));
     }
 }

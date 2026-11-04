@@ -8,6 +8,7 @@ use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\Conversation;
 use App\Models\ConversationParticipant;
 use App\Models\Message;
+use App\Models\Profile;
 use App\Models\User;
 use Illuminate\Support\Collection;
 use Inertia\Testing\AssertableInertia;
@@ -44,6 +45,22 @@ it('lists maintainers first, then everyone by name', function (): void {
             ->where('thread.members', fn (Collection $members): bool => $members->pluck('user.name')->all() === $order));
 
     expect($this->actingAs($nuno)->getJson(route('inbox.index'))->json('conversations.0.members.*.user.name'))->toBe($order);
+});
+
+it('adds people whatever the case of their handles, but each only once', function (): void {
+    $mark = User::factory()->create();
+    [$nuno] = followersOf($mark, 1);
+
+    $this->actingAs($mark)
+        ->postJson(route('org.store'), ['members' => [mb_strtoupper($nuno->handle), $nuno->handle]])
+        ->assertJsonValidationErrors(['members.0', 'members.1']);
+
+    $org = $this->actingAs($mark)
+        ->postJson(route('org.store'), ['members' => [mb_strtoupper($nuno->handle)]])
+        ->assertCreated()
+        ->json('org.id');
+
+    expect(Conversation::query()->findOrFail($org)->roleOf($nuno)?->value)->toBe('contributor');
 });
 
 it('identifies orgs by uuids', function (): void {
@@ -149,6 +166,15 @@ it('lets maintainers rename the org', function (): void {
 
     expect(Conversation::query()->findOrFail($org)->name)->toBe('polling crew')
         ->and(Message::query()->latest('id')->firstOrFail()->event)->toBe(OrgEvent::Renamed);
+});
+
+it('starts an org only with people on /dev/null, not developers looked up from GitHub', function (): void {
+    $mark = User::factory()->create();
+    [$nuno] = followersOf($mark, 1);
+
+    $this->actingAs($mark)->postJson(route('org.store'), ['members' => [$nuno->handle, Profile::factory()->create()->handle]])
+        ->assertUnprocessable()
+        ->assertOnlyJsonValidationErrors('members.1');
 });
 
 it('requires remotes and authentication', function (): void {

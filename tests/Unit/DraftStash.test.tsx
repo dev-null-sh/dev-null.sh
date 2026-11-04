@@ -342,3 +342,62 @@ test('drafts release image URLs on replacement, drop and logout while keeping re
             revoke.mockRestore();
         }
 });
+
+test('reply recipient exclusions survive closing and reloading a draft and clear on drop or logout', async () => {
+    vi.resetModules();
+    vi.doMock('react', mockReactHooks);
+    let hooks = await import('../../resources/js/hooks/use-stash');
+    vi.stubGlobal('window', { addEventListener() {} });
+    vi.useFakeTimers();
+    state = [];
+    const render = (user = 'recipient-author', name = 'reply-parent') => {
+        cursor = 0;
+        return hooks.useStash(user, name);
+    };
+
+    try {
+        let draft = render();
+        assert.deepEqual(draft.excludedRecipientIds, []);
+        draft.updateExcludedRecipientIds(['excluded-developer']);
+        draft.updateBody('My unfinished reply');
+        state = [];
+        draft = render();
+        assert.equal(draft.body, 'My unfinished reply');
+        assert.deepEqual(draft.excludedRecipientIds, ['excluded-developer']);
+        vi.advanceTimersByTime(300);
+
+        vi.resetModules();
+        hooks = await import('../../resources/js/hooks/use-stash');
+        state = [];
+        draft = render();
+        assert.equal(draft.body, 'My unfinished reply');
+        assert.deepEqual(draft.excludedRecipientIds, ['excluded-developer']);
+        state = [];
+        assert.deepEqual(render('another-author').excludedRecipientIds, []);
+        state = [];
+        assert.deepEqual(
+            render('recipient-author', 'reply-other').excludedRecipientIds,
+            [],
+        );
+        state = [];
+        draft = render();
+        draft.drop();
+        state = [];
+        draft = render();
+        assert.equal(draft.body, '');
+        assert.deepEqual(draft.excludedRecipientIds, []);
+        draft.updateExcludedRecipientIds(['excluded-developer']);
+        draft.updateImages([image]);
+        state = [];
+        draft = render();
+        assert.deepEqual(draft.images, [image]);
+        assert.deepEqual(draft.excludedRecipientIds, ['excluded-developer']);
+        hooks.clearStashes('recipient-author');
+        state = [];
+        assert.deepEqual(render().excludedRecipientIds, []);
+    } finally {
+        hooks.clearStashes('recipient-author');
+        vi.useRealTimers();
+        vi.unstubAllGlobals();
+    }
+});

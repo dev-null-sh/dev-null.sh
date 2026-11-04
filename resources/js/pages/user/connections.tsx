@@ -1,5 +1,6 @@
 import { Head, InfiniteScroll, Link, router, usePage } from '@inertiajs/react';
 import { ArrowLeft } from 'lucide-react';
+import { useState } from 'react';
 import type { CSSProperties } from 'react';
 import UserFollowersController from '@/actions/App/Http/Controllers/UserFollowersController';
 import UserFollowersYouKnowController from '@/actions/App/Http/Controllers/UserFollowersYouKnowController';
@@ -7,15 +8,23 @@ import UserFollowingController from '@/actions/App/Http/Controllers/UserFollowin
 import UserMutualsController from '@/actions/App/Http/Controllers/UserMutualsController';
 import { EmptyFeed } from '@/components/commit-feed';
 import { FollowButton } from '@/components/follow-button';
+import { OrganizationAvatar } from '@/components/organization-avatar';
+import { OrganizationFollowButton } from '@/components/organization-follow-button';
 import { PageTabs } from '@/components/page-tabs';
+import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { UserAvatar } from '@/components/user-avatar';
+import { useRealtime } from '@/hooks/use-realtime';
 import AppLayout from '@/layouts/app-layout';
+import { reloadInBackground } from '@/lib/background-poll';
 import { laneColor } from '@/lib/utils';
+import { windowDigest } from '@/lib/window-digest';
 import { show } from '@/routes/user';
-import type { CursorPaginated, User } from '@/types';
+import type { CursorPaginated, Organization, User } from '@/types';
 
-type Connection = User & { is_followed: boolean };
+type Connection = User & { is_followed: boolean; follows_you: boolean };
+
+type FollowedOrganization = Organization & { is_followed: boolean };
 
 type ConnectionType =
     | 'followers'
@@ -35,8 +44,9 @@ function ConnectionFollowButton({ person }: { person: Connection }) {
         <FollowButton
             user={person}
             isFollowing={person.is_followed}
+            followsYou={person.follows_you}
             size="sm"
-            className="mt-4 min-w-24 shrink-0"
+            className="mt-4 min-w-26 shrink-0"
             only={['auth']}
             preserveState
             onSuccess={() => router.flushAll()}
@@ -48,13 +58,96 @@ export default function Connections({
     user,
     type,
     users,
+    organizations,
 }: {
     user: User;
     type: ConnectionType;
     users: CursorPaginated<Connection>;
+    /**
+     * Only on the Following list, above the people.
+     */
+    organizations?: CursorPaginated<FollowedOrganization>;
 }) {
     const { auth } = usePage().props;
     const title = titles[type];
+    // Follows changing while the list is open are offered as a refresh, keeping the pages loaded until then.
+    const [hasChanged, setHasChanged] = useState(false);
+
+    useRealtime(
+        { name: `profiles.${user.id}`, type: 'public' },
+        ['profile'],
+        (_event, payload) => {
+            if (
+                typeof payload === 'object' &&
+                payload !== null &&
+                'connections' in payload
+            ) {
+                setHasChanged(true);
+            }
+        },
+        // Joining the channel, at first or again, may follow changes nobody heard: the people loaded are compared
+        // with who the list holds now, as far as it was loaded, and a refresh is offered only if they differ.
+        () => {
+            const loaded = {
+                users: users.data.map((connection) => connection.id),
+                organizations: (organizations?.data ?? []).map(
+                    (organization) => organization.id,
+                ),
+            };
+
+            void reloadInBackground({
+                only: ['loadedDigest'],
+                data: {
+                    loaded: {
+                        users: loaded.users.length,
+                        organizations: loaded.organizations.length,
+                    },
+                },
+                preserveUrl: true,
+                onSuccess: (page) => {
+                    const expected = page.props.loadedDigest as
+                        | Partial<Record<keyof typeof loaded, string>>
+                        | undefined;
+
+                    void Promise.all(
+                        (Object.keys(loaded) as (keyof typeof loaded)[])
+                            .filter((list) => expected?.[list] !== undefined)
+                            .map(
+                                async (list) =>
+                                    (await windowDigest(loaded[list])) !==
+                                    expected?.[list],
+                            ),
+                    ).then((changes) => {
+                        if (expected === undefined || changes.some(Boolean)) {
+                            setHasChanged(true);
+                        }
+                    });
+                },
+            });
+        },
+    );
+
+    // The refreshed list takes the place of the one shown, rather than moving the people already there: it is
+    // drawn anew in the same render that brings it.
+    const [refreshedFrom, setRefreshedFrom] = useState<typeof users | null>(
+        null,
+    );
+    const [listed, setListed] = useState(0);
+
+    if (refreshedFrom !== null && users !== refreshedFrom) {
+        setRefreshedFrom(null);
+        setListed(listed + 1);
+    }
+
+    const refresh = () => {
+        setRefreshedFrom(users);
+        router.reload({
+            only: ['users', 'organizations'],
+            reset: ['users', 'organizations'],
+            onSuccess: () => setHasChanged(false),
+            onError: () => setRefreshedFrom(null),
+        });
+    };
     const knowsFollowers = auth.user !== null && auth.user.id !== user.id;
     const emptyMessages: Record<ConnectionType, string> = {
         followers: `Nobody is following @${user.handle} yet.`,
@@ -71,6 +164,7 @@ export default function Connections({
                 <div className="flex h-14 items-center gap-3 border-b px-4 sm:px-6">
                     <Link
                         href={show(user)}
+                        prefetch
                         aria-label={`Back to @${user.handle}`}
                         className="text-muted-foreground hover:text-foreground"
                     >
@@ -82,6 +176,15 @@ export default function Connections({
                     <p className="shrink-0 font-mono text-[13px] text-muted-foreground">
                         @{user.handle}
                     </p>
+                    {hasChanged && (
+                        <button
+                            type="button"
+                            onClick={refresh}
+                            className="ml-auto shrink-0 text-sm font-medium text-primary hover:underline focus-visible:underline"
+                        >
+                            Refresh the list
+                        </button>
+                    )}
                 </div>
                 <PageTabs
                     label="Connections"
@@ -108,16 +211,95 @@ export default function Connections({
                             href: UserFollowingController.index(user),
                             isActive: type === 'following',
                         },
-                        {
-                            title: 'Mutuals',
-                            href: UserMutualsController.index(user),
-                            isActive: type === 'mutuals',
-                        },
+                        ...(auth.user?.id !== user.id
+                            ? [
+                                  {
+                                      title: 'Mutuals',
+                                      href: UserMutualsController.index(user),
+                                      isActive: type === 'mutuals',
+                                  },
+                              ]
+                            : []),
                     ]}
                 />
             </div>
 
-            {users.data.length === 0 ? (
+            {organizations !== undefined && organizations.data.length > 0 && (
+                <section
+                    aria-labelledby="followed-organizations"
+                    className="border-b"
+                >
+                    <h2
+                        id="followed-organizations"
+                        className="px-4 pt-4 pb-1 text-sm font-medium text-muted-foreground sm:px-6"
+                    >
+                        Organizations
+                    </h2>
+                    <InfiniteScroll
+                        data="organizations"
+                        manual
+                        onlyNext
+                        preserveUrl
+                        next={({ hasMore, loading, fetch }) =>
+                            hasMore && (
+                                <div className="px-4 pb-3 sm:px-6">
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="-ml-3"
+                                        onClick={fetch}
+                                        disabled={loading}
+                                    >
+                                        {loading && <Spinner />}
+                                        Show more organizations
+                                    </Button>
+                                </div>
+                            )
+                        }
+                    >
+                        <ul key={listed} className="divide-y">
+                            {organizations.data.map((organization) => (
+                                <li
+                                    key={organization.id}
+                                    className="flex items-start gap-3 pr-4 hover:bg-muted/50 sm:pr-6"
+                                >
+                                    <Link
+                                        href={show(organization.handle)}
+                                        prefetch
+                                        className="flex min-w-0 flex-1 items-start gap-3 py-3 pl-4 sm:pl-6"
+                                    >
+                                        <OrganizationAvatar
+                                            organization={organization}
+                                            className="size-10"
+                                        />
+                                        <div className="min-w-0">
+                                            <p className="truncate font-medium">
+                                                {organization.name}
+                                            </p>
+                                            <p className="truncate font-mono text-sm text-muted-foreground">
+                                                @{organization.handle}
+                                            </p>
+                                            {organization.bio && (
+                                                <p className="mt-1 line-clamp-2 text-sm">
+                                                    {organization.bio}
+                                                </p>
+                                            )}
+                                        </div>
+                                    </Link>
+                                    <OrganizationFollowButton
+                                        organization={organization}
+                                        isFollowing={organization.is_followed}
+                                        size="sm"
+                                        className="mt-4 min-w-24 shrink-0"
+                                    />
+                                </li>
+                            ))}
+                        </ul>
+                    </InfiniteScroll>
+                </section>
+            )}
+
+            {users.data.length === 0 && !organizations?.data.length ? (
                 <div className="px-6 py-16 text-center sm:px-12">
                     <EmptyFeed
                         command={
@@ -129,7 +311,7 @@ export default function Connections({
                         {emptyMessages[type]}
                     </EmptyFeed>
                 </div>
-            ) : (
+            ) : users.data.length === 0 ? null : (
                 <InfiniteScroll
                     data="users"
                     onlyNext
@@ -140,7 +322,12 @@ export default function Connections({
                         </div>
                     }
                 >
-                    <ul className="divide-y">
+                    {Boolean(organizations?.data.length) && (
+                        <h2 className="px-4 pt-4 pb-1 text-sm font-medium text-muted-foreground sm:px-6">
+                            People
+                        </h2>
+                    )}
+                    <ul key={listed} className="divide-y">
                         {users.data.map((person) => (
                             <li
                                 key={person.id}
@@ -148,6 +335,7 @@ export default function Connections({
                             >
                                 <Link
                                     href={show(person)}
+                                    prefetch
                                     className="flex min-w-0 flex-1 items-start gap-3 py-3 pl-4 sm:pl-6"
                                 >
                                     <UserAvatar
@@ -162,12 +350,28 @@ export default function Connections({
                                         }
                                     />
                                     <div className="min-w-0">
-                                        <p className="truncate font-medium">
+                                        <p
+                                            className="truncate font-medium"
+                                            title={person.name}
+                                        >
                                             {person.name}
                                         </p>
-                                        <p className="truncate font-mono text-sm text-muted-foreground">
-                                            @{person.handle}
-                                        </p>
+                                        <div className="flex min-w-0 items-center gap-2">
+                                            <p
+                                                className="truncate font-mono text-sm text-muted-foreground"
+                                                title={`@${person.handle}`}
+                                            >
+                                                @{person.handle}
+                                            </p>
+                                            {(type === 'following' ||
+                                                (type === 'followers' &&
+                                                    knowsFollowers)) &&
+                                                person.follows_you && (
+                                                    <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
+                                                        Follows you
+                                                    </span>
+                                                )}
+                                        </div>
                                         {person.bio && (
                                             <p className="mt-1 line-clamp-2 text-sm">
                                                 {person.bio}

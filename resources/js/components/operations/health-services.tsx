@@ -112,17 +112,15 @@ function GitHubRateLimitSkeleton() {
 }
 
 /**
- * Whether the app can reach what it depends on: the database, the cache and, when a token is configured, GitHub's API
- * with how much of its hourly allowance is left. GitHub answers slowly, so it is deferred behind a skeleton.
+ * Whether the app can reach what it depends on: the database, the cache and GitHub's API with how much of its hourly
+ * allowance is left. GitHub answers slowly, so it is deferred behind a skeleton.
  */
 export function ServicesPanel({
     connectivity,
     githubRateLimit,
-    tracksGitHub,
 }: {
     connectivity: Connectivity;
     githubRateLimit: GitHubRateLimit | null | undefined;
-    tracksGitHub: boolean;
 }) {
     return (
         <Panel title="Services">
@@ -133,16 +131,14 @@ export function ServicesPanel({
                 <Field label="cache">
                     <Reachable isUp={connectivity.cache} />
                 </Field>
-                {tracksGitHub && (
-                    <Field label="github api">
-                        <Deferred
-                            data="githubRateLimit"
-                            fallback={<GitHubRateLimitSkeleton />}
-                        >
-                            <GitHubRateLimitValue rateLimit={githubRateLimit} />
-                        </Deferred>
-                    </Field>
-                )}
+                <Field label="github api">
+                    <Deferred
+                        data="githubRateLimit"
+                        fallback={<GitHubRateLimitSkeleton />}
+                    >
+                        <GitHubRateLimitValue rateLimit={githubRateLimit} />
+                    </Deferred>
+                </Field>
             </dl>
         </Panel>
     );

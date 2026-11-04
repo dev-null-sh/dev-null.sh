@@ -1,4 +1,4 @@
-import { Head, Link, router, usePoll } from '@inertiajs/react';
+import { Head, Link, router, usePage, usePoll } from '@inertiajs/react';
 import {
     ArrowLeft,
     Clock3,
@@ -11,6 +11,8 @@ import LogController from '@/actions/App/Http/Controllers/LogController';
 import ScheduledCommitController from '@/actions/App/Http/Controllers/ScheduledCommitController';
 import ScheduledCommitSubmissionController from '@/actions/App/Http/Controllers/ScheduledCommitSubmissionController';
 import { FoldedCommitBody } from '@/components/commit-body';
+import { OrganizationAvatar } from '@/components/organization-avatar';
+import { StableLabel } from '@/components/stable-label';
 import { Button } from '@/components/ui/button';
 import {
     Tooltip,
@@ -18,14 +20,18 @@ import {
     TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { useNow } from '@/hooks/use-now';
+import { useIsListening } from '@/hooks/use-realtime';
 import AppLayout from '@/layouts/app-layout';
 import { backgroundPollOptions } from '@/lib/background-poll';
 import { emojify } from '@/lib/emoji';
+import { userChannel } from '@/lib/realtime';
 import { formatClockDateTime, readerClock } from '@/lib/utils';
-import type { BodySegment } from '@/types';
+import type { BodySegment, OrganizationAuthor } from '@/types';
 
 type ScheduledCommit = {
     id: string;
+    // The organization it goes out as, or null when it goes out as you.
+    author: OrganizationAuthor | null;
     body: string | null;
     body_segments: BodySegment[];
     preview_segments: BodySegment[] | null;
@@ -85,7 +91,26 @@ export default function Index({
                   }
                 : scheduled;
         });
-    usePoll(30_000, backgroundPollOptions({ only: ['scheduledCommits'] }));
+    const isCommitting = (id: string) =>
+        busy?.id === id && busy.action === 'commit';
+    // The queue is refreshed as its commits are submitted, moderated and deleted, and only polled while that isn't heard.
+    const { auth } = usePage().props;
+    const isHearingQueue = useIsListening(
+        auth.user === null ? null : userChannel(auth.user.id),
+    );
+    const { start, stop } = usePoll(
+        30_000,
+        backgroundPollOptions({ only: ['scheduledCommits'] }),
+        { autoStart: false },
+    );
+
+    useEffect(() => {
+        if (isHearingQueue) {
+            stop();
+        } else {
+            start();
+        }
+    }, [isHearingQueue, start, stop]);
 
     useEffect(() => {
         if (busy !== null || returnFocusTo.current === null) {
@@ -211,6 +236,24 @@ export default function Index({
                                         >
                                             {when}
                                         </time>
+                                        {scheduled.author && (
+                                            <p className="mt-2 flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+                                                <OrganizationAvatar
+                                                    organization={
+                                                        scheduled.author
+                                                    }
+                                                    className="size-4 rounded-sm"
+                                                    pixels={32}
+                                                />
+                                                <span
+                                                    className="truncate"
+                                                    title={`As @${scheduled.author.handle}`}
+                                                >
+                                                    As @
+                                                    {scheduled.author.handle}
+                                                </span>
+                                            </p>
+                                        )}
                                     </div>
                                     {scheduled.status === 'scheduled' && (
                                         <div className="flex shrink-0 gap-2">
@@ -224,10 +267,13 @@ export default function Index({
                                                     commitNow(scheduled)
                                                 }
                                             >
-                                                {busy?.id === scheduled.id &&
-                                                busy.action === 'commit'
-                                                    ? 'Committing…'
-                                                    : 'Commit now'}
+                                                <StableLabel
+                                                    label="Commit now"
+                                                    pendingLabel="Committing…"
+                                                    isPending={isCommitting(
+                                                        scheduled.id,
+                                                    )}
+                                                />
                                             </Button>
                                             <Tooltip>
                                                 <TooltipTrigger asChild>
@@ -240,19 +286,35 @@ export default function Index({
                                                                 id: scheduled.id,
                                                                 action: 'cancel',
                                                             });
-                                                            router.delete(
-                                                                ScheduledCommitController.destroy(
-                                                                    scheduled.id,
-                                                                ),
-                                                                {
-                                                                    preserveScroll: true,
-                                                                    onFinish:
-                                                                        () =>
-                                                                            setBusy(
-                                                                                null,
+                                                            router
+                                                                .optimistic<{
+                                                                    scheduledCommits: typeof scheduledCommits;
+                                                                }>((props) => ({
+                                                                    scheduledCommits:
+                                                                        {
+                                                                            ...props.scheduledCommits,
+                                                                            data: props.scheduledCommits.data.filter(
+                                                                                (
+                                                                                    row,
+                                                                                ) =>
+                                                                                    row.id !==
+                                                                                    scheduled.id,
                                                                             ),
-                                                                },
-                                                            );
+                                                                        },
+                                                                }))
+                                                                .delete(
+                                                                    ScheduledCommitController.destroy(
+                                                                        scheduled.id,
+                                                                    ),
+                                                                    {
+                                                                        preserveScroll: true,
+                                                                        onFinish:
+                                                                            () =>
+                                                                                setBusy(
+                                                                                    null,
+                                                                                ),
+                                                                    },
+                                                                );
                                                         }}
                                                         className="self-center rounded-md p-1.5 text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive disabled:pointer-events-none disabled:opacity-50"
                                                     >
@@ -328,14 +390,16 @@ export default function Index({
                 scheduledCommits.next_page_url) && (
                 <div className="flex justify-between border-t px-6 py-4 text-sm text-primary">
                     {scheduledCommits.prev_page_url ? (
-                        <Link href={scheduledCommits.prev_page_url}>
+                        <Link href={scheduledCommits.prev_page_url} prefetch>
                             Previous
                         </Link>
                     ) : (
                         <span />
                     )}
                     {scheduledCommits.next_page_url && (
-                        <Link href={scheduledCommits.next_page_url}>Next</Link>
+                        <Link href={scheduledCommits.next_page_url} prefetch>
+                            Next
+                        </Link>
                     )}
                 </div>
             )}
