@@ -604,7 +604,7 @@ Sign in with GitHub: the app makes a signing key that stays on your phone and si
 
 ### Mac app
 
-**/dev/null for Mac** is a native Mac app for all of /dev/null: the Following, Latest, and Trending logs, writing and scheduling commits, replies, quotes, polls, stars, Starred, notifications, profiles, organization pages, search, Remotes, and calls. It is free, universal (Apple silicon and Intel), and requires macOS 14 or later. Download it from **/apps**, the home for /dev/null's apps, which shows the version and size of the current download (`/mac` redirects there, and **Settings → Devices** links to it).
+**/dev/null for Mac** is a native Mac app for all of /dev/null: the Following, Latest, and Trending logs, writing and scheduling commits, replies, quotes, polls, stars, Starred, notifications, profiles, organization pages, search, Remotes, and calls. It is free, universal (Apple silicon and Intel), and requires macOS 14 or later. Download it from **/apps**, the home for /dev/null's apps, which shows the version and size of the current download (`/mac` redirects there, and **Settings → Devices** links to it). The page also has copyable commands to install it with Homebrew, from the cask in [dev-null-sh/mac-os-app](https://github.com/dev-null-sh/mac-os-app): `brew tap dev-null-sh/devnull https://github.com/dev-null-sh/mac-os-app`, then `brew install --cask dev-null-sh/devnull/devnull`.
 
 To install it, open `DevNull.dmg`, drag /dev/null onto Applications, and open it. The file is named `DevNull.app`, because a slash can't go in a file name; everywhere else, the app is called /dev/null. The app is signed and notarized by Apple, so macOS opens it without a warning.
 
