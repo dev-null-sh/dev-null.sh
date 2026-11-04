@@ -7,7 +7,8 @@ namespace App\Enums;
 use App\Dto\ReaderClock;
 use Carbon\CarbonInterface;
 use Illuminate\Http\Request;
-use IntlTimeZone;
+use Illuminate\Support\Facades\Date;
+use IntlDateFormatter;
 
 enum EventTheme: string
 {
@@ -26,7 +27,7 @@ enum EventTheme: string
     {
         $choice = $request->cookie('event_theme');
 
-        return self::current(is_string($choice) ? $choice : null, self::readerNow($request));
+        return self::current(is_string($choice) ? $choice : null, self::readerDate($request));
     }
 
     /**
@@ -34,7 +35,7 @@ enum EventTheme: string
      */
     public static function autoForRequest(Request $request): ?self
     {
-        return self::on(self::readerNow($request));
+        return self::on(self::readerDate($request));
     }
 
     /**
@@ -42,9 +43,9 @@ enum EventTheme: string
      */
     public static function greetedYear(Request $request): int
     {
-        $now = self::readerNow($request);
+        $date = self::readerDate($request);
 
-        return $now->month === 12 ? $now->year + 1 : $now->year;
+        return $date->month === 12 ? $date->year + 1 : $date->year;
     }
 
     /**
@@ -87,11 +88,23 @@ enum EventTheme: string
         };
     }
 
-    private static function readerNow(Request $request): CarbonInterface
+    /**
+     * Read the local calendar with ICU so browser aliases never reach PHP's date parser.
+     */
+    private static function readerDate(Request $request): CarbonInterface
     {
-        $timeZone = ReaderClock::of($request)->timeZone;
+        $now = now();
+        $formatter = new IntlDateFormatter(
+            'en_US',
+            IntlDateFormatter::NONE,
+            IntlDateFormatter::NONE,
+            ReaderClock::of($request)->timeZone ?? $now->getTimezone(),
+            IntlDateFormatter::GREGORIAN,
+            'yyyy-MM-dd',
+        );
+        $date = $formatter->format($now);
+        assert(is_string($date));
 
-        // ICU accepts browser aliases that PHP's date database may omit.
-        return now($timeZone === null ? null : (IntlTimeZone::getIanaID($timeZone) ?: null));
+        return Date::parse($date, 'UTC');
     }
 }
