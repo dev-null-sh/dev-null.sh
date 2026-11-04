@@ -1,4 +1,4 @@
-import { Head, Link, router, usePage } from '@inertiajs/react';
+import { Head, Link, usePage } from '@inertiajs/react';
 import {
     Building2,
     CalendarDays,
@@ -8,13 +8,7 @@ import {
     MessagesSquare,
 } from 'lucide-react';
 import type { CSSProperties } from 'react';
-import {
-    useEffect,
-    useLayoutEffect,
-    useRef,
-    useState,
-    useSyncExternalStore,
-} from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import ConversationController from '@/actions/App/Http/Controllers/ConversationController';
 import { show } from '@/actions/App/Http/Controllers/UserController';
 import UserFollowersController from '@/actions/App/Http/Controllers/UserFollowersController';
@@ -51,12 +45,11 @@ import {
 } from '@/components/user-moderation-menu';
 import { useIsMuting, UserSafetyMenu } from '@/components/user-safety-menu';
 import { useLiveStream } from '@/hooks/use-live-stream';
+import { useProfileCommits } from '@/hooks/use-profile-commits';
 import { refreshSharedState, useSharedState } from '@/hooks/use-shared-state';
 import AppLayout from '@/layouts/app-layout';
 import { commitStateKey } from '@/lib/commit-state';
-import { deletedResources } from '@/lib/deleted-resources';
 import { exactCountTitle, formatCount } from '@/lib/numbers';
-import { withPinChanges } from '@/lib/pinned-commit';
 import { profileAvatarPosition } from '@/lib/profile-avatar';
 import { formatClockMonth, laneColor, laneTint } from '@/lib/utils';
 import type {
@@ -121,49 +114,7 @@ export default function Show({
     const [isHeaderVisible, setIsHeaderVisible] = useState(false);
     const [isFollowingNow] = useIsFollowing(user, isFollowing);
     const [isMutingNow] = useIsMuting(user, isMuting);
-    // The list was read without the commit pinned then, so a commit unpinned since, from anywhere, goes back in it.
-    const [previousPin, setPreviousPin] = useState(pinnedCommit);
-    const [unpinned, setUnpinned] = useState<Commit[]>([]);
-
-    if (pinnedCommit?.id !== previousPin?.id) {
-        setPreviousPin(pinnedCommit);
-        setUnpinned((current) => [
-            ...current.filter(
-                (commit) =>
-                    commit.id !== pinnedCommit?.id &&
-                    commit.id !== previousPin?.id,
-            ),
-            ...(previousPin ? [previousPin] : []),
-        ]);
-    }
-
-    useSyncExternalStore(
-        deletedResources.subscribe,
-        () =>
-            unpinned
-                .filter(({ id }) => deletedResources.hasCommit(id))
-                .map(({ id }) => id)
-                .join('|'),
-        () => '',
-    );
-    useEffect(
-        () =>
-            router.on('flash', ({ detail: { flash } }) => {
-                if (flash.deleted) {
-                    deletedResources.markCommit(flash.deleted.id);
-                }
-                if (flash.restored) {
-                    deletedResources.restoreCommit(flash.restored.id);
-                }
-            }),
-        [],
-    );
-    const shownCommits = withPinChanges(
-        commits,
-        pinnedCommit,
-        unpinned,
-        deletedResources.hasCommit,
-    );
+    const shownCommits = useProfileCommits(user.id, commits, pinnedCommit);
     const followersCount =
         user.followers_count + Number(isFollowingNow) - Number(isFollowing);
     const [pasteisCount] = useSharedState(

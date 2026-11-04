@@ -8,7 +8,6 @@ import {
 } from 'react';
 import type { ReactNode } from 'react';
 import { index } from '@/actions/App/Http/Controllers/CommitStarCountController';
-import { idsOf } from '@/hooks/use-realtime';
 import { refreshSharedState, sharedValue } from '@/hooks/use-shared-state';
 import type { SharedValue } from '@/hooks/use-shared-state';
 import { createCommitStarMutations } from '@/lib/commit-star-mutations';
@@ -63,10 +62,7 @@ export function CommitStarPolling({ children }: { children: ReactNode }) {
     const shown = useRef(visible);
     const syncVisible = useRef<() => void>(() => {});
     // Kept across the cards coming and going, so what was heard isn't forgotten when the cards on screen change.
-    const dirty = useRef({
-        changed: new Set<string>(),
-        hidden: new Set<string>(),
-    });
+    const dirty = useRef(new Set<string>());
     const subscribe = useCallback(
         (subscription: Subscription) => {
             subscriptions.current.add(subscription);
@@ -139,109 +135,97 @@ export function CommitStarPolling({ children }: { children: ReactNode }) {
         return () => next.disconnect();
     }, []);
 
-    const read = useCallback(
-        async (ids: string[], hidden: Set<string>, signal: AbortSignal) => {
-            const listeners = subscriptions.current;
-            const updates = new Map<Subscription, (state: StarState) => void>();
+    const read = useCallback(async (ids: string[], signal: AbortSignal) => {
+        const listeners = subscriptions.current;
+        const updates = new Map<Subscription, (state: StarState) => void>();
 
-            for (const subscription of listeners) {
-                if (!ids.includes(subscription.id)) {
-                    continue;
-                }
+        for (const subscription of listeners) {
+            if (!ids.includes(subscription.id)) {
+                continue;
+            }
 
-                const update = subscription.prepare();
+            const update = subscription.prepare();
 
-                if (update) {
-                    updates.set(subscription, update);
+            if (update) {
+                updates.set(subscription, update);
+            }
+        }
+
+        // Counts this page changed itself while the read was out stay as they are.
+        const versions = new Map(
+            ids.map((id) => [id, localCountVersion('replies_count', id)]),
+        );
+
+        for (let offset = 0; offset < ids.length; offset += 100) {
+            const batch = ids.slice(offset, offset + 100);
+            const response = await fetch(index.url({ query: { ids: batch } }), {
+                headers: { Accept: 'application/json' },
+                cache: 'no-store',
+                signal: AbortSignal.any([signal, AbortSignal.timeout(10_000)]),
+            });
+
+            if (!response.ok) {
+                return;
+            }
+
+            const { commits } = (await response.json()) as {
+                commits: CardState[];
+            };
+            const states = new Map(commits.map((state) => [state.id, state]));
+
+            if (signal.aborted) {
+                return;
+            }
+
+            for (const [subscription, update] of updates) {
+                const state = states.get(subscription.id);
+
+                if (state && listeners.has(subscription)) {
+                    update(state);
                 }
             }
 
-            // Counts this page changed itself while the read was out stay as they are.
-            const versions = new Map(
-                ids.map((id) => [id, localCountVersion('replies_count', id)]),
-            );
+            const counts = new Map<string, SharedValue>();
 
-            for (let offset = 0; offset < ids.length; offset += 100) {
-                const batch = ids.slice(offset, offset + 100);
-                const response = await fetch(
-                    index.url({ query: { ids: batch } }),
-                    {
-                        headers: { Accept: 'application/json' },
-                        cache: 'no-store',
-                        signal: AbortSignal.any([
-                            signal,
-                            AbortSignal.timeout(10_000),
-                        ]),
-                    },
-                );
-
-                if (!response.ok) {
-                    return;
-                }
-
-                const { commits } = (await response.json()) as {
-                    commits: CardState[];
-                };
-                const states = new Map(
-                    commits.map((state) => [state.id, state]),
-                );
-
-                if (signal.aborted) {
-                    return;
-                }
-
-                for (const [subscription, update] of updates) {
-                    const state = states.get(subscription.id);
-
-                    if (state && listeners.has(subscription)) {
-                        update(state);
-                    }
-                }
-
-                const counts = new Map<string, SharedValue>();
-
-                // Pastéis are only ever given, so an older read can never lower what an award just raised.
-                states.forEach((state) => {
-                    counts.set(
-                        commitStateKey('pasteis_count', state.id),
-                        Math.max(
-                            state.pasteis_count,
-                            Number(
-                                sharedValue(
-                                    commitStateKey('pasteis_count', state.id),
-                                ) ?? 0,
-                            ),
+            // Pastéis are only ever given, so an older read can never lower what an award just raised.
+            states.forEach((state) => {
+                counts.set(
+                    commitStateKey('pasteis_count', state.id),
+                    Math.max(
+                        state.pasteis_count,
+                        Number(
+                            sharedValue(
+                                commitStateKey('pasteis_count', state.id),
+                            ) ?? 0,
                         ),
-                    );
-
-                    if (
-                        versions.get(state.id) ===
-                        localCountVersion('replies_count', state.id)
-                    ) {
-                        counts.set(
-                            commitStateKey('replies_count', state.id),
-                            state.replies_count,
-                        );
-                    }
-                });
-                refreshSharedState(counts);
-
-                // A commit heard to change that the viewer can no longer see was deleted or hidden, and one they
-                // can see again, as after undoing a deletion, gets its actions back.
-                batch.forEach((id) =>
-                    states.has(id)
-                        ? deletedResources.restoreCommit(id)
-                        : hidden.has(id) && deletedResources.markCommit(id),
+                    ),
                 );
-            }
-        },
-        [],
-    );
+
+                if (
+                    versions.get(state.id) ===
+                    localCountVersion('replies_count', state.id)
+                ) {
+                    counts.set(
+                        commitStateKey('replies_count', state.id),
+                        state.replies_count,
+                    );
+                }
+            });
+            refreshSharedState(counts);
+
+            // This authorized read returns every visible requested commit, including on join recovery when a
+            // deletion event was missed. An omitted commit is unavailable; undo makes it available again.
+            batch.forEach((id) =>
+                states.has(id)
+                    ? deletedResources.restoreCommit(id)
+                    : deletedResources.markCommit(id),
+            );
+        }
+    }, []);
 
     useEffect(() => {
         const controller = new AbortController();
-        const changed = dirty.current.changed;
-        const hidden = dirty.current.hidden;
+        const changed = dirty.current;
         // What a hidden tab hears waits until it is shown, rather than being read for nobody or forgotten.
         const refresh = coalesce(async () => {
             if (document.hidden) {
@@ -249,18 +233,11 @@ export function CommitStarPolling({ children }: { children: ReactNode }) {
             }
 
             const ids = [...changed].filter((id) => shown.current.has(id));
-            const disappearing = new Set(
-                [...hidden].filter((id) => ids.includes(id)),
-            );
-            ids.forEach((id) => {
-                changed.delete(id);
-                hidden.delete(id);
-            });
+            ids.forEach((id) => changed.delete(id));
 
             if (ids.length > 0) {
-                await read(ids, disappearing, controller.signal).catch(() => {
+                await read(ids, controller.signal).catch(() => {
                     ids.forEach((id) => changed.add(id));
-                    disappearing.forEach((id) => hidden.add(id));
                 });
             }
         }, 300);
@@ -294,13 +271,7 @@ export function CommitStarPolling({ children }: { children: ReactNode }) {
                         commitChannel(id),
                         {
                             engagement: hear(id),
-                            visibility: (payload) => {
-                                if (idsOf(payload).includes(id)) {
-                                    hidden.add(id);
-                                }
-
-                                hear(id)();
-                            },
+                            visibility: hear(id),
                         },
                         hear(id),
                     ),
@@ -325,7 +296,6 @@ export function CommitStarPolling({ children }: { children: ReactNode }) {
                                 isOnScreen(subscription.element),
                         ),
                     ),
-                    new Set(),
                     controller.signal,
                 ).catch(() => undefined);
             }

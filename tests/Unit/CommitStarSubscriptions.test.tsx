@@ -19,6 +19,8 @@ vi.doMock('react', async () => ({
 }));
 const { CommitStarPolling } =
     await import('../../resources/js/components/commit-star-polling');
+const { deletedResources } =
+    await import('../../resources/js/lib/deleted-resources');
 const { connectRealtime } = await import('../../resources/js/lib/realtime');
 let report: (
     entries: { target: HTMLElement; isIntersecting: boolean }[],
@@ -89,6 +91,8 @@ beforeEach(() => {
 });
 afterEach(() => {
     harness.unmount();
+    deletedResources.restoreCommit('a');
+    deletedResources.restoreCommit('b');
     connectRealtime(null);
     vi.unstubAllGlobals();
     vi.useRealTimers();
@@ -117,4 +121,34 @@ test('scrolling in one card does not reconcile every already-visible card again'
     fake.joined.get('commits.a')?.emit('engagement');
     await vi.advanceTimersByTimeAsync(300);
     assert.deepEqual(reads.flat(), ['a']);
+});
+
+test('returning on screen recovers a deletion whose visibility event was missed', async () => {
+    const a = element();
+    context.subscribe({ id: 'a', element: a, prepare: () => null });
+    report([{ target: a, isIntersecting: true }]);
+    render();
+    joinAll(fake);
+    await vi.advanceTimersByTimeAsync(300);
+    deletedResources.restoreCommit('a');
+    report([{ target: a, isIntersecting: false }]);
+    render();
+    fake.joined.get('commits.a')?.emit('visibility', { ids: ['a'] });
+    reads.length = 0;
+    report([{ target: a, isIntersecting: true }]);
+    render();
+    await vi.advanceTimersByTimeAsync(300);
+    assert.deepEqual(reads.flat(), ['a']);
+    assert.equal(deletedResources.hasCommit('a'), true);
+});
+
+test('a failed card recovery read does not mark a visible commit unavailable', async () => {
+    vi.stubGlobal('fetch', async () => new Response(null, { status: 503 }));
+    const a = element();
+    context.subscribe({ id: 'a', element: a, prepare: () => null });
+    report([{ target: a, isIntersecting: true }]);
+    render();
+    joinAll(fake);
+    await vi.advanceTimersByTimeAsync(300);
+    assert.equal(deletedResources.hasCommit('a'), false);
 });
