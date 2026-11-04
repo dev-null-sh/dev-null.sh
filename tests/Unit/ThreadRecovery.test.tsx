@@ -8,6 +8,9 @@ import { hookHarness } from './HookHarness';
 const harness = hookHarness();
 
 vi.doMock('react', () => harness.react);
+vi.doMock('../../resources/js/hooks/use-media-query', () => ({
+    useMediaQuery: () => false,
+}));
 vi.doMock('@inertiajs/react', async () => ({
     ...(await vi.importActual('@inertiajs/react')),
     usePage: () => ({

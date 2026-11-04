@@ -10,6 +10,9 @@ const visitListeners = { start: new Set<() => void>(), finish: new Set<() => voi
 let viewer = 'a';
 
 vi.doMock('react', () => harness.react);
+vi.doMock('../../resources/js/hooks/use-media-query', () => ({
+    useMediaQuery: () => false,
+}));
 vi.doMock('@inertiajs/react', async () => ({
     ...(await vi.importActual('@inertiajs/react')),
     usePage: () => ({
