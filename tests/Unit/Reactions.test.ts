@@ -101,4 +101,5 @@ await test('takes two quick taps close together as a double tap', () => {
     assert.equal(isDoubleTap(first, { x: 100, y: 200, time: 1_400 }), false);
     assert.equal(isDoubleTap(first, { x: 160, y: 200, time: 1_100 }), false);
     assert.equal(isDoubleTap(null, first), false);
+    assert.equal(isDoubleTap(first, { x: 100, y: 200, time: 900 }), false);
 });
