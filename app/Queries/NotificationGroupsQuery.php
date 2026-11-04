@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Queries;
 
 use App\Enums\NotificationType;
+use App\Models\Commit;
 use App\Models\Notification;
 use App\Models\Profile;
 use App\Models\User;
@@ -72,6 +73,33 @@ final readonly class NotificationGroupsQuery
         ]);
 
         return $groups;
+    }
+
+    /**
+     * How starred the actor's reply, mention or quote is and whether the user starred it, by the commit's ID: the
+     * inbox lets the user star it from the notification.
+     *
+     * @param  iterable<int, Notification>  $notifications
+     * @return array<string, array{stars_count: int, starred: bool}>
+     */
+    public function commitStars(User $user, iterable $notifications): array
+    {
+        $commitIds = new Collection($notifications)
+            ->whereIn('type', [NotificationType::Replied, NotificationType::Mentioned, NotificationType::Quoted])
+            ->map(fn (Notification $notification): ?string => $notification->commit?->id)
+            ->filter()
+            ->all();
+
+        return Commit::query()
+            ->whereKey($commitIds)
+            ->select('commits.id')
+            ->withStarsFor($user)
+            ->get()
+            ->mapWithKeys(fn (Commit $commit): array => [$commit->id => [
+                'stars_count' => (int) $commit->stars_count,
+                'starred' => (bool) $commit->starred,
+            ]])
+            ->all();
     }
 
     /**
