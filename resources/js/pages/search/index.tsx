@@ -1,20 +1,21 @@
+import { Tab, TabGroup, TabList, TabPanel, TabPanels } from '@headlessui/react';
 import { Head, router, usePage } from '@inertiajs/react';
 import { ArrowRight, History, Search, Sparkles, X } from 'lucide-react';
 import type { FormEvent } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import SearchController from '@/actions/App/Http/Controllers/SearchController';
-import { CommitCard } from '@/components/commit-card';
-import { CommitSkeleton, EmptyFeed } from '@/components/commit-feed';
-import { GraphCanvas } from '@/components/graph-canvas';
+import { SearchResults } from '@/components/commit-search-results';
 import { rememberSearch, useRecentSearches } from '@/hooks/use-recent-searches';
 import AppLayout from '@/layouts/app-layout';
 import { searchCommits, suggestedQueries } from '@/lib/commit-search';
-import { laneColor } from '@/lib/utils';
-import type { Commit } from '@/types';
+import { CommitSearchResults } from '@/lib/commit-search-results';
 
 const skeletonDelay = 300;
 
-type Results = { term: string; commits: Commit[] };
+type Results = {
+    relevant: CommitSearchResults;
+    latest: CommitSearchResults;
+};
 
 export default function Index({ query }: { query: string }) {
     const userId = usePage().props.auth.user?.id ?? null;
@@ -24,16 +25,15 @@ export default function Index({ query }: { query: string }) {
     const { results, isWaiting } = useCommitSearch(query);
 
     const search = (term: string) => {
-        router.get(
-            SearchController.index({ query: term === '' ? {} : { q: term } }),
-            {},
-            {
-                preserveState: true,
-                preserveScroll: true,
-                replace: true,
-                onSuccess: () => rememberSearch(userId, term),
-            },
-        );
+        router.replace({
+            url: SearchController.index.url({
+                query: term === '' ? {} : { q: term },
+            }),
+            props: (props: { query: string }) => ({ ...props, query: term }),
+            preserveState: true,
+            preserveScroll: true,
+            onSuccess: () => rememberSearch(userId, term),
+        });
     };
 
     const submit = (event: FormEvent) => {
@@ -89,7 +89,43 @@ export default function Index({ query }: { query: string }) {
             </header>
 
             {query !== '' && (
-                <SearchResults results={results} isWaiting={isWaiting} />
+                <TabGroup key={query}>
+                    <TabList
+                        aria-label="Search result order"
+                        className="flex border-b"
+                    >
+                        {['Most relevant', 'Latest'].map((title) => (
+                            <Tab
+                                key={title}
+                                className="relative flex min-h-12 flex-1 justify-center py-3.5 text-[15px] font-medium text-muted-foreground outline-offset-[-3px] transition-colors hover:bg-accent hover:text-foreground data-selected:text-foreground"
+                            >
+                                <span className="relative">
+                                    {title}
+                                    <span
+                                        aria-hidden
+                                        className="absolute inset-x-0 -bottom-3.5 h-[3px] bg-primary opacity-0 in-data-selected:opacity-100"
+                                    />
+                                </span>
+                            </Tab>
+                        ))}
+                    </TabList>
+                    <TabPanels>
+                        <TabPanel>
+                            <SearchResults
+                                results={results?.relevant ?? null}
+                                isWaiting={isWaiting}
+                            />
+                        </TabPanel>
+                        <TabPanel>
+                            <SearchResults
+                                results={results?.latest ?? null}
+                                isWaiting={isWaiting}
+                                heading="Latest commits · past week"
+                                empty="No matches from the past week. Try Most relevant for older matches, or search for another idea."
+                            />
+                        </TabPanel>
+                    </TabPanels>
+                </TabGroup>
             )}
             {recentSearches.length > 0 && (
                 <Suggestions onPick={pick} recent={recentSearches} />
@@ -118,10 +154,14 @@ function useCommitSearch(query: string) {
         const timeout = setTimeout(() => setIsWaiting(true), skeletonDelay);
 
         searchCommits(query, undefined, controller.signal)
-            .then((commits) => setResults({ term: query, commits }))
+            .then((commits) => {
+                const relevant = new CommitSearchResults(query, commits);
+                setResults({ relevant, latest: relevant.latest() });
+            })
             .catch(() => {
                 if (!controller.signal.aborted) {
-                    setResults({ term: query, commits: [] });
+                    const relevant = new CommitSearchResults(query, []);
+                    setResults({ relevant, latest: relevant.latest() });
                 }
             })
             .finally(() => {
@@ -138,83 +178,6 @@ function useCommitSearch(query: string) {
     }, [query]);
 
     return { results, isWaiting };
-}
-
-export function SearchResults({
-    results,
-    isWaiting,
-}: {
-    results: Results | null;
-    isWaiting: boolean;
-}) {
-    if (results === null) {
-        return <ResultsSkeleton isVisible={isWaiting} />;
-    }
-
-    return (
-        <section aria-labelledby="search-results" aria-busy={isWaiting}>
-            <div className="flex h-11 items-center justify-between border-b px-4 sm:px-6">
-                <h2 id="search-results" className="font-semibold">
-                    Most relevant commits
-                </h2>
-                <span className="font-mono text-xs text-muted-foreground tabular-nums">
-                    {results.commits.length}{' '}
-                    {results.commits.length === 1 ? 'match' : 'matches'}
-                </span>
-            </div>
-
-            {results.commits.length === 0 ? (
-                <div className="px-6 py-16 text-center sm:px-12">
-                    <EmptyFeed
-                        command={`fatal: nothing close to '${results.term}'`}
-                    >
-                        Try describing the idea in other words, or pick one of
-                        the searches below.
-                    </EmptyFeed>
-                </div>
-            ) : (
-                <GraphCanvas>
-                    {results.commits.map((commit, index) => {
-                        const previous = results.commits[index - 1];
-
-                        return (
-                            <CommitCard
-                                key={commit.id}
-                                commit={commit}
-                                previousLane={
-                                    previous && laneColor(previous.user.lane)
-                                }
-                                graphAfter={previous?.id}
-                                endsWithDot={
-                                    index === results.commits.length - 1
-                                }
-                            />
-                        );
-                    })}
-                </GraphCanvas>
-            )}
-        </section>
-    );
-}
-
-/**
- * Takes the loaded header's height even before it shows, so the results land without pushing anything around.
- */
-function ResultsSkeleton({ isVisible }: { isVisible: boolean }) {
-    return (
-        <div
-            role="status"
-            aria-label="Searching commits"
-            className={isVisible ? 'opacity-100' : 'opacity-0'}
-        >
-            <div className="flex h-11 items-center border-b px-4 sm:px-6">
-                <span className="h-3 w-20 rounded bg-muted motion-safe:animate-pulse" />
-            </div>
-            <CommitSkeleton />
-            <CommitSkeleton />
-            <CommitSkeleton />
-        </div>
-    );
 }
 
 function Suggestions({

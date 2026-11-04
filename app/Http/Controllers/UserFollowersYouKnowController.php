@@ -21,7 +21,10 @@ final readonly class UserFollowersYouKnowController
             'user' => $user,
             'type' => ConnectionType::FollowersYouKnow,
             'users' => Inertia::scroll(fn () => $followersYouKnow->builder($user, $currentUser)
-                ->withExists(['followers as is_followed' => fn (Builder $query): Builder => $query->whereKey($currentUser->id)])
+                ->withExists([
+                    'followers as is_followed' => fn (Builder $query): Builder => $query->whereKey($currentUser->id),
+                    'following as follows_you' => fn (Builder $query): Builder => $query->whereKey($currentUser->id),
+                ])
                 ->cursorPaginate(30)),
         ]);
     }

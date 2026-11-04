@@ -10,9 +10,11 @@ use App\Dto\NewPoll;
 use App\Enums\GifProvider;
 use App\Enums\PollDuration;
 use App\Models\Commit;
+use App\Models\Organization;
 use App\Models\User;
 use App\Rules\CommitBodyLength;
 use App\Rules\GifUrl;
+use App\Rules\OrganizationToPostAs;
 use App\Rules\VisibleCommit;
 use App\Services\CommitBodies;
 use App\Services\Urls;
@@ -114,6 +116,7 @@ final class CreateCommitRequest extends FormRequest
 
         return [
             'body' => self::bodyRules($this->hasFile('images')),
+            'author' => ['nullable', 'string', new OrganizationToPostAs($user)],
             'quoted_commit_id' => ['nullable', 'uuid', 'prohibits:parent_id', new VisibleCommit($user, 'That commit is no longer available to quote.')],
             'link_preview_url' => ['nullable', 'string', Rule::in(is_string($body) ? resolve(Urls::class)->all($body) : [])],
             ...$attachmentRules,
@@ -216,5 +219,16 @@ final class CreateCommitRequest extends FormRequest
     public function prepareForValidation(): void
     {
         self::normalizeBody($this);
+    }
+
+    /**
+     * The organization the user posts as, or null when they post as themselves.
+     */
+    public function organization(): ?Organization
+    {
+        $user = $this->user();
+        assert($user instanceof User);
+
+        return OrganizationToPostAs::of($user, $this->input('author'));
     }
 }

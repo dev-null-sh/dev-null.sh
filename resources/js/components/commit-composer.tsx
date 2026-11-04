@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import ScheduledCommitController from '@/actions/App/Http/Controllers/ScheduledCommitController';
 import { ActionTooltip } from '@/components/action-tooltip';
+import { AuthorSwitcher } from '@/components/author-switcher';
 import { BodyCounter } from '@/components/body-counter';
 import { CommitGif, GifAttachmentPreview } from '@/components/commit-gif';
 import {
@@ -20,6 +21,7 @@ import {
     PreviewToggle,
     useComposerPreview,
 } from '@/components/composer-preview';
+import { EmojiPickerButton } from '@/components/emoji-picker';
 import { GraphRail, RailAvatar } from '@/components/graph-rail';
 import InputError from '@/components/input-error';
 import type { UseIssueCommandReturn } from '@/components/issue-command';
@@ -39,6 +41,7 @@ import {
 } from '@/components/schedule-picker';
 import { StashLabel } from '@/components/stash-label';
 import { Button } from '@/components/ui/button';
+import { useEmojiInsertion } from '@/hooks/use-emoji-insertion';
 import { useImageAttachments } from '@/hooks/use-image-attachments';
 import { useLinkCard } from '@/hooks/use-link-card';
 import type { UseLinkCardReturn } from '@/hooks/use-link-card';
@@ -67,9 +70,10 @@ import {
     cn,
     isRejectedSubmission,
     laneColor,
+    organizationLaneColor,
 } from '@/lib/utils';
 import { show } from '@/routes/user';
-import type { User } from '@/types';
+import type { OrganizationAuthor, User } from '@/types';
 
 // The ring moves quickly while a post starts and slows toward the limit, yet only closes at the limit.
 function bodyProgress(count: number): number {
@@ -99,6 +103,8 @@ function CommitComposerBody({
     id,
     isInDialog,
     user,
+    author,
+    onAuthorChange,
     stash,
     attachments,
     linkCard,
@@ -119,6 +125,8 @@ function CommitComposerBody({
     id: string;
     isInDialog: boolean;
     user: User;
+    author: OrganizationAuthor | null;
+    onAuthorChange: (author: OrganizationAuthor | null) => void;
     stash: UseStashReturn;
     attachments: ReturnType<typeof useImageAttachments>;
     linkCard: UseLinkCardReturn;
@@ -137,7 +145,7 @@ function CommitComposerBody({
     onGifOpenChange: (open: boolean) => void;
 }) {
     const keys = useKeyLabels();
-    const { body, isRestored } = stash;
+    const { body, isRestored, updateBody } = stash;
     const { auth } = usePage().props;
     const {
         isScheduling,
@@ -194,6 +202,26 @@ function CommitComposerBody({
         return () => observer.disconnect();
     }, [isInDialog]);
 
+    const ownNode = isInDialog ? (
+        <RailAvatar user={user} progress={progress} />
+    ) : (
+        <Link
+            prefetch
+            href={show(user)}
+            aria-label="View your profile"
+            className="flex rounded-full"
+        >
+            <RailAvatar user={user} progress={progress} />
+        </Link>
+    );
+
+    const insertEmoji = useEmojiInsertion({
+        body,
+        updateBody,
+        textareaRef,
+        maxLength: isIssue ? maxBodyLength : maxRawBodyLength,
+    });
+
     return (
         <div
             className={cn('relative flex', { 'min-h-0': isInDialog })}
@@ -203,22 +231,27 @@ function CommitComposerBody({
                 <ImageDropOverlay className="inset-2" />
             )}
             <GraphRail
-                lane={laneColor(user.lane)}
+                lane={
+                    author === null
+                        ? laneColor(user.lane)
+                        : organizationLaneColor(author.lane)
+                }
                 variant="staged"
                 isFilled={isFilled}
                 hasTail={!isInDialog}
                 node={
-                    isInDialog ? (
-                        <RailAvatar user={user} progress={progress} />
-                    ) : (
-                        <Link
-                            href={show(user)}
-                            aria-label="View your profile"
-                            className="flex rounded-full"
-                        >
+                    <AuthorSwitcher
+                        user={user}
+                        author={author}
+                        onChange={onAuthorChange}
+                        fallback={ownNode}
+                    >
+                        {author === null ? (
                             <RailAvatar user={user} progress={progress} />
-                        </Link>
-                    )
+                        ) : (
+                            <RailAvatar user={author} />
+                        )}
+                    </AuthorSwitcher>
                 }
             />
 
@@ -293,13 +326,22 @@ function CommitComposerBody({
                             aria-invalid={error ? true : undefined}
                             aria-describedby={`${id}-count`}
                             className={cn(
-                                'col-start-1 row-start-1 block field-sizing-content max-h-[60dvh] min-h-10 w-full resize-none overflow-x-hidden overflow-y-auto bg-transparent py-1.5 text-[17px] leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:outline-none',
+                                'col-start-1 row-start-1 block field-sizing-content max-h-[60dvh] min-h-10 w-full resize-none overflow-x-hidden overflow-y-auto bg-transparent py-1.5 pr-9 text-[17px] leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:outline-none',
                                 {
                                     invisible: preview.isPreviewing,
                                     'max-h-none': isInDialog,
                                 },
                             )}
                         />
+                        {!preview.isPreviewing && (
+                            <div className="sticky bottom-0 col-start-1 row-start-1 self-end justify-self-end">
+                                <EmojiPickerButton
+                                    disabled={processing}
+                                    onPick={insertEmoji}
+                                    className="size-8"
+                                />
+                            </div>
+                        )}
                         {preview.isPreviewing && (
                             <ComposerPreviewBody
                                 preview={preview}
@@ -428,6 +470,7 @@ function CommitComposerBody({
                                 message={scheduleError}
                             />
                             <Link
+                                prefetch
                                 href={ScheduledCommitController.index()}
                                 className="text-xs font-medium text-primary hover:underline"
                             >
@@ -623,6 +666,7 @@ export function CommitComposer({
     const { isScheduling, scheduledAt, setScheduledAt, setIsScheduling } =
         schedule;
     const { user } = useUser();
+    const [author, setAuthor] = useState<OrganizationAuthor | null>(null);
     const stash = useStash(user.id, 'commit');
     const { body } = stash;
     const linkCard = useLinkCard(body);
@@ -737,6 +781,7 @@ export function CommitComposer({
             transform={(data) => ({
                 ...data,
                 commit_rules_accepted: commitRules.hasAccepted(),
+                ...(author !== null && { author: author.handle }),
                 ...(hasImages && {
                     images: attachments.images,
                     image_descriptions: attachments.descriptions,
@@ -756,6 +801,7 @@ export function CommitComposer({
                 }
 
                 drop();
+                setAuthor(null);
                 setScheduledAt('');
                 setIsScheduling(false);
                 attachments.clear();
@@ -776,6 +822,8 @@ export function CommitComposer({
                         id={id}
                         isInDialog={isInDialog}
                         user={user}
+                        author={author}
+                        onAuthorChange={setAuthor}
                         stash={stash}
                         attachments={attachments}
                         linkCard={linkCard}

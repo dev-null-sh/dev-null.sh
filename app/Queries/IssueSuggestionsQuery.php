@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace App\Queries;
 
-use App\Services\GitHub;
+use App\Contracts\Services\GitHubProvider;
 use Illuminate\Http\Client\HttpClientException;
 use Illuminate\Support\Facades\Cache;
 
 final readonly class IssueSuggestionsQuery
 {
-    public function __construct(private GitHub $github)
+    public function __construct(private GitHubProvider $github)
     {
         //
     }
@@ -28,19 +28,10 @@ final readonly class IssueSuggestionsQuery
         /** @var array{number: int, title: string, url: string}|false $issue */
         $issue = Cache::remember("issue-suggestion:{$repository}:{$number}", 300, function () use ($repository, $number): array|false {
             try {
-                $issue = $this->github->request()
-                    ->get("repos/{$repository}/issues/{$number}")
-                    ->throw()
-                    ->fluent();
+                return $this->github->issue($repository, $number) ?? false;
             } catch (HttpClientException) {
                 return false;
             }
-
-            return [
-                'number' => $issue->integer('number'),
-                'title' => $issue->string('title')->value(),
-                'url' => $issue->string('html_url')->value(),
-            ];
         });
 
         return $issue === false ? null : $issue;

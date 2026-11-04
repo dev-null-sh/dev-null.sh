@@ -2,9 +2,8 @@
 
 declare(strict_types=1);
 
-use App\Http\Middleware\HandleInertiaRequests;
+use App\Models\Organization;
 use App\Models\User;
-use Illuminate\Support\Facades\DB;
 
 it('lists who a user is following', function (): void {
     $user = User::factory()->create(['handle' => 'octocat']);
@@ -22,6 +21,55 @@ it('lists who a user is following', function (): void {
             ->where('user.handle', 'octocat')
             ->has('users.data', 1)
             ->where('users.data.0.id', $followed->id));
+});
+
+it('lists the organizations a user follows apart, newest follow first, marking those the viewer follows', function (): void {
+    $viewer = User::factory()->create();
+    $user = User::factory()->create();
+    $person = User::factory()->create();
+    $laravel = Organization::factory()->create(['handle' => 'laravel']);
+    $bref = Organization::factory()->create(['handle' => 'brefphp']);
+    $user->following()->attach($person);
+    $user->followedOrganizations()->attach($bref, ['created_at' => now()->subDay()]);
+    $user->followedOrganizations()->attach($laravel, ['created_at' => now()]);
+    $viewer->followedOrganizations()->attach($bref);
+
+    $this->actingAs($viewer)->get(route('user-following.index', $user))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->has('users.data', 1)
+            ->where('users.data.0.id', $person->id)
+            ->has('organizations.data', 2)
+            ->where('organizations.data.0.id', $laravel->id)
+            ->where('organizations.data.0.handle', 'laravel')
+            ->where('organizations.data.0.is_followed', false)
+            ->where('organizations.data.1.id', $bref->id)
+            ->where('organizations.data.1.is_followed', true)
+            ->missing('organizations.data.0.pivot')
+            ->missing('organizations.data.0.github_id'));
+});
+
+it('pages through the organizations with a cursor of their own, 10 at a time', function (): void {
+    $user = User::factory()->create();
+    $organizations = Organization::factory()->count(11)->create();
+
+    foreach ($organizations as $index => $organization) {
+        $user->followedOrganizations()->attach($organization, ['created_at' => now()->subMinutes($index)]);
+    }
+
+    $viewer = User::factory()->create();
+
+    $first = $this->actingAs($viewer)->get(route('user-following.index', $user));
+
+    $first->assertInertia(fn ($page) => $page->has('organizations.data', 10));
+
+    $next = $first->viewData('page')['props']['organizations']['next_page_url'];
+
+    expect($next)->toContain('organizations_cursor=');
+
+    $this->get($next)->assertInertia(fn ($page) => $page
+        ->has('organizations.data', 1)
+        ->where('organizations.data.0.id', $organizations->last()->id));
 });
 
 it('marks the users the viewer follows', function (): void {
@@ -57,57 +105,10 @@ it('looks missing to people across a block', function (bool $viewerBlocks): void
     $response->assertNotFound();
 })->with([true, false]);
 
-it('lists them to guests, without anyone marked as followed', function (): void {
-    $user = User::factory()->create();
-    $user->following()->attach(User::factory()->create());
-
-    $response = $this->get(route('user-following.index', $user));
-
-    $response->assertOk()
-        ->assertInertia(fn ($page) => $page
-            ->component('user/connections')
-            ->has('users.data', 1)
-            ->where('users.data.0.is_followed', false));
-});
-
-it('previews the list to guests without letting search engines index it', function (): void {
-    $user = User::factory()->create(['handle' => 'octocat', 'name' => 'The Octocat']);
-
-    $this->get(route('user-following.index', $user))
-        ->assertOk()
-        ->assertSee('<title>People followed by The Octocat (@octocat) on /dev/null</title>', false)
-        ->assertSee('<meta name="robots" content="noindex, follow">', false)
-        ->assertSee('<link rel="canonical" href="'.route('user-following.index', $user).'">', false)
-        ->assertSee('<meta property="og:image" content="'.route('user-open-graph-image.show', $user).'?v=', false);
-});
-
-it('does not count the user for guests loading more of the list', function (): void {
-    $user = User::factory()->create();
-    $user->following()->attach(User::factory()->create());
-
-    DB::enableQueryLog();
-
-    $this->get(route('user-following.index', $user), [
-        'X-Inertia' => 'true',
-        'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request()),
-        'X-Inertia-Partial-Component' => 'user/connections',
-        'X-Inertia-Partial-Data' => 'users',
-    ])
-        ->assertOk()
-        ->assertJsonCount(1, 'props.users.data')
-        ->assertJsonMissingPath('props.user');
-
-    expect(collect(DB::getQueryLog())->pluck('query')->all())
-        ->not->toBeEmpty()
-        ->each->not->toContain('count(*)');
-});
-
-it('keeps the default link preview of the list for signed-in users', function (): void {
+it('sends guests to the log, and back to the list once they sign in', function (): void {
     $user = User::factory()->create();
 
-    $this->actingAs(User::factory()->create())
-        ->get(route('user-following.index', $user))
-        ->assertOk()
-        ->assertDontSee('<meta name="robots"', false)
-        ->assertDontSee('og:url', false);
+    $this->get(route('user-following.index', $user))->assertRedirect(route('home'));
+
+    expect(session('url.intended'))->toBe(route('user-following.index', $user));
 });

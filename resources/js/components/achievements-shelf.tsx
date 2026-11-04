@@ -4,7 +4,6 @@ import {
     BotOff,
     Box,
     ChevronRight,
-    Cookie,
     FileCode,
     Flame,
     GitMerge,
@@ -19,6 +18,7 @@ import {
 import type { CSSProperties } from 'react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { DragonBallIcon } from '@/components/dragon-ball-icon';
+import { PastelDeNataIcon } from '@/components/pastel-de-nata-icon';
 import {
     Popover,
     PopoverContent,
@@ -47,7 +47,7 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
     sparkles: Sparkles,
     'git-merge': GitMerge,
     key: Key,
-    cookie: Cookie,
+    'pastel-de-nata': PastelDeNataIcon,
     'bot-off': BotOff,
     bomb: Bomb,
     'dragon-ball': DragonBallIcon,
@@ -64,7 +64,7 @@ export function AchievementsShelf({
 }) {
     const unlockedBadges = achievements.badges.filter((b) => b.unlocked);
     const unlockedCount = unlockedBadges.length;
-    const [visibleCount, setVisibleCount] = useState(0);
+    const [visibleCount, setVisibleCount] = useState(unlockedCount);
     const [open, setOpen] = useState(false);
     const rowRef = useRef<HTMLButtonElement>(null);
     const moreRef = useRef<HTMLSpanElement>(null);

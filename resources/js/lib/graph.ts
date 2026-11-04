@@ -15,6 +15,14 @@ export type GraphNode = Point & {
     dimmed?: boolean;
     /** On its way out, like an end dot scaling out as the thread goes on below it: linked to nothing, it only keeps its cut-out. */
     isLeaving?: boolean;
+    /** What hangs off the node beyond its ring, like a LIVE badge, cut out of the lines too. */
+    overhangs?: Overhang[];
+};
+
+export type Overhang = Point & {
+    width: number;
+    height: number;
+    radius: number;
 };
 
 export type GraphEdge = {
@@ -269,6 +277,17 @@ export function leavingOf(
     );
 
     return clip === -1 ? { opacity } : { opacity, clip };
+}
+
+/**
+ * Whether a line folds away with the replies folding, like the branch to a reply as its thread hides its replies: it
+ * draws itself back out, the way it drew itself in.
+ */
+export function isFolding(
+    edge: GraphEdge,
+    folding: ReadonlySet<string>,
+): boolean {
+    return folding.has(edge.from) || folding.has(edge.to);
 }
 
 export function sameNodes(a: GraphNode[], b: GraphNode[]): boolean {

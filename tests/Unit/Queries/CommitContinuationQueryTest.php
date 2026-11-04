@@ -23,7 +23,7 @@ it('follows the author replying to themselves down the thread', function (): voi
 
     expect($continuation->pluck('id')->all())->toBe([$second->id, $third->id])
         ->and($continuation->pluck('replies_count')->all())->toBe([1, 1])
-        ->and($continuation->every(fn (Commit $commit): bool => $commit->relationLoaded('user')))->toBeTrue();
+        ->and($continuation->every(fn (Commit $commit): bool => $commit->relationLoaded('author')))->toBeTrue();
 });
 
 it('continues from a commit in the middle of the thread', function (): void {

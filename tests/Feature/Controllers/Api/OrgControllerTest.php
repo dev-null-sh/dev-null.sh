@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Enums\OrgEvent;
 use App\Models\Conversation;
 use App\Models\Message;
+use App\Models\Profile;
 use App\Models\User;
 use App\Models\UserTimeout;
 use Illuminate\Support\Facades\RateLimiter;
@@ -33,6 +34,18 @@ it('starts an org with people who follow the user, who maintains it', function (
         ->and($org->roleOf($nuno)?->value)->toBe('contributor')
         ->and($org->roleOf($taylor)?->value)->toBe('contributor')
         ->and(Message::query()->sole()->event)->toBe(OrgEvent::Created);
+});
+
+it('refuses to start an org for a user in timeout, as the web does', function (): void {
+    [$nuno] = followersOf($this->user, 1);
+    UserTimeout::factory()->for($this->user)->create();
+
+    signedApiRequest($this->keyPair, 'POST', route('api-org.store'), ['name' => 'buy my course', 'members' => [$nuno->handle]])
+        ->assertForbidden()
+        ->assertJsonPath('code', 'timed_out');
+
+    expect(Conversation::query()->exists())->toBeFalse()
+        ->and(Message::query()->exists())->toBeFalse();
 });
 
 it('leaves an org without a name when none is given', function (?string $name): void {
@@ -112,6 +125,7 @@ it('refuses an org it cannot start', function (Closure $data, array $fields): vo
     'no members' => [fn (User $nuno): array => ['name' => 'core'], ['members']],
     'an empty list' => [fn (User $nuno): array => ['members' => []], ['members']],
     'someone who does not exist' => [fn (User $nuno): array => ['members' => [$nuno->handle, 'nobody-by-that-name']], ['members.1']],
+    'a developer not on /dev/null yet' => [fn (User $nuno): array => ['members' => [$nuno->handle, Profile::factory()->create()->handle]], ['members.1']],
     'the same person twice' => [fn (User $nuno): array => ['members' => [$nuno->handle, $nuno->handle]], ['members.0', 'members.1']],
     'a long name' => [fn (User $nuno): array => ['name' => Str::repeat('a', 61), 'members' => [$nuno->handle]], ['name']],
 ]);

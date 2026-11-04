@@ -20,15 +20,17 @@ import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import CommitLinkPreviewController from '@/actions/App/Http/Controllers/CommitLinkPreviewController';
 import CommitReplyController from '@/actions/App/Http/Controllers/CommitReplyController';
 import { ActionTooltip } from '@/components/action-tooltip';
+import { AuthorAvatar } from '@/components/author-avatar';
+import { AuthorSwitcher } from '@/components/author-switcher';
 import { BodyCounter } from '@/components/body-counter';
 import { FoldedCommitBody } from '@/components/commit-body';
 import { CommitGif, GifAttachmentPreview } from '@/components/commit-gif';
 import {
+    ComposerMediaButton,
     ImageDropOverlay,
     ImagePickerPreviews,
     imageErrorFrom,
 } from '@/components/commit-image-picker';
-import { ComposerMediaButton } from '@/components/commit-image-picker';
 import { CommitImages } from '@/components/commit-images';
 import { CommitPastelButton } from '@/components/commit-pastel-button';
 import { CommitRulesDialog, useCommitRules } from '@/components/commit-rules';
@@ -41,6 +43,7 @@ import {
     PreviewToggle,
     useComposerPreview,
 } from '@/components/composer-preview';
+import { EmojiPickerButton } from '@/components/emoji-picker';
 import {
     graphDash,
     graphStrokeWidth,
@@ -55,6 +58,8 @@ import InputError from '@/components/input-error';
 import { LinkCardPicker } from '@/components/link-card-picker';
 import { LinkPreview } from '@/components/link-preview';
 import { MentionTextarea } from '@/components/mention-textarea';
+import { OrganizationAvatar } from '@/components/organization-avatar';
+import { ReplyRecipientPicker } from '@/components/reply-recipient-picker';
 import { StashLabel } from '@/components/stash-label';
 import { showTimeout, timeoutFrom } from '@/components/timeout-dialog';
 import { TimestampTooltip } from '@/components/timestamp-tooltip';
@@ -70,10 +75,13 @@ import {
     useCommitNotFound,
     useIsCommitDeleted,
 } from '@/hooks/use-deleted-resources';
+import { useEmojiInsertion } from '@/hooks/use-emoji-insertion';
 import { useImageAttachments } from '@/hooks/use-image-attachments';
 import { focusCommit } from '@/hooks/use-keyboard-shortcuts';
+import { useLeaving } from '@/hooks/use-leaving';
 import { useLinkCard } from '@/hooks/use-link-card';
 import { useNow } from '@/hooks/use-now';
+import { useOwnsCommit } from '@/hooks/use-owns-commit';
 import { useSharedState } from '@/hooks/use-shared-state';
 import { moveCaretToEnd, useHasStash, useStash } from '@/hooks/use-stash';
 import { useUser } from '@/hooks/use-user';
@@ -89,7 +97,7 @@ import { useGifProviderKey } from '@/lib/gif-provider-key';
 import { gifFormFields, toCommitGif } from '@/lib/gif-providers';
 import type { GifProviderId } from '@/lib/gif-providers';
 import { hasModKey } from '@/lib/keyboard';
-import { exactCountTitle, formatCount, formatExactCount } from '@/lib/numbers';
+import { exactCountTitle, formatCount } from '@/lib/numbers';
 import {
     characterCount,
     cn,
@@ -105,6 +113,7 @@ import type {
     CursorPaginated,
     DeletedFlash,
     FlashToast,
+    OrganizationAuthor,
     ThreadCommit,
 } from '@/types';
 
@@ -163,10 +172,13 @@ type Thread = {
     remaining: number;
     perPage: number;
     isOpen: boolean;
+    /** Whether the replies, hidden, still show as they fold away, until `onFolded`. */
+    isFolding: boolean;
     isPreview: boolean;
     isLoading: boolean;
     isReplying: boolean;
     toggle: () => void;
+    onFolded: () => void;
     loadMore: () => void;
     loadAll: () => void;
     startReply: () => void;
@@ -493,6 +505,7 @@ export function useThread(
             }),
         [commit.id],
     );
+    const folding = useLeaving(isOpen);
 
     return {
         commit,
@@ -503,9 +516,11 @@ export function useThread(
         remaining: Math.max(count - (replies?.length ?? 0), 0),
         perPage: repliesPerPage,
         isOpen,
+        isFolding: folding.isLeaving,
         isPreview,
         isLoading,
         isReplying,
+        onFolded: folding.onLeft,
         toggle: () => {
             if (!isOpen && replies === null) {
                 reload();
@@ -552,9 +567,10 @@ export function ShowThreadLink({ thread }: { thread: Thread }) {
 
     return (
         <Link
-            href={CommitController.show({ user: commit.user, commit })}
+            prefetch
+            href={CommitController.show({ profile: commit.author, commit })}
             className="mt-2 -ml-2 flex w-fit items-center gap-1 rounded-md px-2 py-0.5 text-[13px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-            aria-label={`Show thread by @${commit.user.handle}`}
+            aria-label={`Show thread by @${commit.author.handle}`}
             data-test="show-thread-link"
         >
             <ListTree className="size-4" aria-hidden />
@@ -569,6 +585,7 @@ export function ThreadActions({
     hasKeyboardShortcuts = false,
     hasComposer = true,
     isReply = false,
+    onDelete,
 }: {
     thread: Thread;
     actions?: ReactNode;
@@ -576,6 +593,7 @@ export function ThreadActions({
     /** False when the caller renders the reply composer itself, as ThreadReplyComposer. */
     hasComposer?: boolean;
     isReply?: boolean;
+    onDelete?: (trigger: HTMLButtonElement | null) => void;
 }) {
     const { auth } = usePage().props;
     const { commit } = thread;
@@ -669,6 +687,7 @@ export function ThreadActions({
                         commit={commit}
                         keyShortcut={hasKeyboardShortcuts ? 'y' : undefined}
                         isReply={isReply}
+                        onDelete={onDelete}
                     />
                 )}
             </div>
@@ -683,6 +702,7 @@ export function ThreadReplyComposer({ thread }: { thread: Thread }) {
 
     return thread.isReplying && !isDeleted(commit) ? (
         <ReplyComposer
+            key={commit.id}
             parent={commit}
             onCancel={thread.cancelReply}
             onReplied={thread.onReplied}
@@ -697,7 +717,7 @@ export function ThreadSpine({
     thread: Thread;
     className?: string;
 }) {
-    if (!thread.isOpen || !thread.replies?.length) {
+    if (!(thread.isOpen || thread.isFolding) || !thread.replies?.length) {
         return null;
     }
 
@@ -798,8 +818,9 @@ export function ThreadReplies({
     isOnTrunk?: boolean;
 }) {
     const nodeId = useGraphNodeId();
+    const { isFolding } = thread;
 
-    if (!thread.isOpen) {
+    if (!thread.isOpen && !isFolding) {
         return null;
     }
 
@@ -813,10 +834,20 @@ export function ThreadReplies({
               ? threadLayouts.flattened
               : threadLayouts.nested;
 
+    // Folding away, the replies stay where they are as the canvas draws their lines back out, the way they drew in.
     return (
         <div
-            className={cn('relative', layout)}
+            inert={isFolding}
+            className={cn('relative', layout, {
+                'motion-safe:animate-graph-fold': isFolding,
+            })}
             style={{ '--lane': laneOf(thread.commit) } as CSSProperties}
+            onAnimationEnd={(event) => {
+                if (isFolding && event.target === event.currentTarget) {
+                    thread.onFolded();
+                }
+            }}
+            data-graph-folding={isFolding || undefined}
             data-test="replies"
         >
             {thread.replies === null ? (
@@ -889,13 +920,15 @@ function ReplySkeleton() {
         <div
             role="status"
             aria-label="Loading replies"
-            className="flex gap-2 pt-2.5 pl-(--indent) motion-safe:animate-pulse sm:gap-2.5"
+            className="pt-2.5 pl-(--indent) motion-safe:animate-in motion-safe:delay-300 motion-safe:fill-mode-backwards motion-safe:fade-in"
         >
-            <span className="size-6 shrink-0 rounded-full bg-muted sm:size-7" />
-            <span className="flex-1">
-                <span className="my-1 block h-3 w-1/3 rounded bg-muted" />
-                <span className="my-1.5 block h-3 w-3/4 rounded bg-muted" />
-                <span className="mt-2.5 block h-3 w-24 rounded bg-muted" />
+            <span className="flex gap-2 motion-safe:animate-pulse sm:gap-2.5">
+                <span className="size-6 shrink-0 rounded-full bg-muted sm:size-7" />
+                <span className="flex-1">
+                    <span className="my-1 block h-3 w-1/3 rounded bg-muted" />
+                    <span className="my-1.5 block h-3 w-3/4 rounded bg-muted" />
+                    <span className="mt-2.5 block h-3 w-24 rounded bg-muted" />
+                </span>
             </span>
         </div>
     );
@@ -959,7 +992,7 @@ function MoreRepliesButton({
                             <>
                                 {' to '}
                                 <span className="font-mono text-xs">
-                                    @{thread.commit.user.handle}
+                                    @{thread.commit.author.handle}
                                 </span>
                             </>
                         )}
@@ -1105,11 +1138,11 @@ function CommitReply({
         [nodeRef],
     );
 
-    const isOwn = reply.user_id === auth.user?.id;
+    const isOwn = useOwnsCommit()(reply);
     const isFlattened = depth > maxIndentDepth;
     const isQuote = reply.quoted_commit_id === parent.id;
     const permalink = CommitController.show({
-        user: reply.user,
+        profile: reply.author,
         commit: reply,
     });
 
@@ -1158,14 +1191,15 @@ function CommitReply({
                 )}
             >
                 <div className="relative shrink-0">
-                    <UserPreview user={reply.user} anchor={avatarRef}>
+                    <UserPreview user={reply.author} anchor={avatarRef}>
                         <Link
+                            prefetch
                             ref={avatarNodeRef}
-                            href={show(reply.user)}
+                            href={show(reply.author)}
                             className="block rounded-full"
                         >
-                            <UserAvatar
-                                user={reply.user}
+                            <AuthorAvatar
+                                author={reply.author}
                                 className="size-6 ring-2 ring-(--lane) ring-offset-2 ring-offset-card sm:size-7"
                                 style={
                                     {
@@ -1191,26 +1225,29 @@ function CommitReply({
                 >
                     <div className="flex items-baseline gap-1.5 text-sm">
                         <UserPreview
-                            user={reply.user}
+                            user={reply.author}
                             anchor={avatarRef}
                             className="flex min-w-0 items-baseline gap-1.5"
                         >
                             <Link
-                                href={show(reply.user)}
+                                prefetch
+                                href={show(reply.author)}
                                 className="truncate font-semibold hover:underline"
                             >
-                                {reply.user.name}
+                                {reply.author.name}
                             </Link>
                             <Link
-                                href={show(reply.user)}
+                                prefetch
+                                href={show(reply.author)}
                                 tabIndex={-1}
                                 className="hidden truncate font-mono text-xs text-muted-foreground sm:inline"
                             >
-                                @{reply.user.handle}
+                                @{reply.author.handle}
                             </Link>
                         </UserPreview>
                         {isQuote && (
                             <Link
+                                prefetch
                                 href={permalink}
                                 className="shrink-0 font-mono text-xs text-primary hover:underline"
                                 data-test="quote-reply-label"
@@ -1223,9 +1260,14 @@ function CommitReply({
                         </span>
                         <TimestampTooltip
                             date={reply.created_at}
-                            author={reply.user}
+                            author={
+                                reply.author.type === 'user'
+                                    ? reply.author
+                                    : undefined
+                            }
                         >
                             <Link
+                                prefetch
                                 href={permalink}
                                 className="shrink-0 font-mono text-xs text-muted-foreground hover:underline"
                             >
@@ -1259,7 +1301,7 @@ function CommitReply({
                                 {isQuote ? 'quoting' : 'replying to'}{' '}
                                 {isDeleted(parent)
                                     ? '[deleted]'
-                                    : `@${parent.user.handle}`}
+                                    : `@${parent.author.handle}`}
                             </span>
                         </p>
                     )}
@@ -1316,6 +1358,7 @@ function CommitReply({
                                 <>
                                     <CommitStarButton
                                         commit={reply}
+                                        keyShortcut="s"
                                         className="px-2 py-0.5"
                                     />
                                     <CommitPastelButton
@@ -1336,6 +1379,7 @@ function CommitReply({
     );
 }
 
+/** Composes a reply with optional recipients inherited from the parent, excluding the signed-in user. */
 function ReplyComposer({
     parent,
     onCancel,
@@ -1348,7 +1392,24 @@ function ReplyComposer({
     const { user } = useUser();
     const gifKey = useGifProviderKey(user.id);
     const [gifOpen, setGifOpen] = useState(false);
+    const [author, setAuthor] = useState<OrganizationAuthor | null>(null);
     const commitNotFound = useCommitNotFound();
+    const participants = Array.from(
+        new Map(
+            [
+                [parent.author.id, parent.author.handle],
+                ...Object.entries(parent.mentions ?? {}).map(([handle, id]) => [
+                    id,
+                    handle,
+                ]),
+            ]
+                .filter(([id]) => id !== user.id)
+                .map(([id, handle]) => [id, { id, handle }]),
+        ).values(),
+    );
+    const hasRecipientChoice = participants.some(
+        ({ id }) => id !== parent.author.id,
+    );
     const {
         body,
         images,
@@ -1356,6 +1417,8 @@ function ReplyComposer({
         gif,
         isRestored,
         key: stashKey,
+        excludedRecipientIds,
+        updateExcludedRecipientIds,
         updateBody,
         updateImages,
         updateGif,
@@ -1374,6 +1437,7 @@ function ReplyComposer({
             body: string;
             images: File[];
             image_descriptions: string[];
+            reply_recipients: string[];
             link_preview_url?: string;
             commit_rules_accepted?: boolean;
             gif_provider?: GifProviderId;
@@ -1390,6 +1454,7 @@ function ReplyComposer({
         body: '',
         images: [],
         image_descriptions: [],
+        reply_recipients: [],
     });
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const commitRules = useCommitRules();
@@ -1407,6 +1472,13 @@ function ReplyComposer({
             updateGif(null);
         }
     }, [attachments.images.length, gif, updateGif]);
+
+    const insertEmoji = useEmojiInsertion({
+        body,
+        updateBody,
+        textareaRef,
+        maxLength: maxRawBodyLength,
+    });
 
     const returnFocusToCommit = () => {
         const commit =
@@ -1457,10 +1529,18 @@ function ReplyComposer({
             images: gif === null ? images : [],
             image_descriptions: gif === null ? descriptions : [],
             ...(gif !== null ? gifFormFields(gif) : {}),
+            reply_recipients: participants
+                .filter(
+                    ({ id }) =>
+                        id !== parent.author.id &&
+                        !excludedRecipientIds.includes(id),
+                )
+                .map(({ id }) => id),
             commit_rules_accepted: commitRules.hasAccepted(),
             ...(linkCard.isChosen
                 ? { link_preview_url: linkCard.link ?? '' }
                 : {}),
+            ...(author !== null && { author: author.handle }),
         }));
 
         request
@@ -1468,6 +1548,7 @@ function ReplyComposer({
                 onSuccess: (reply) => {
                     attachments.clear();
                     drop();
+                    setAuthor(null);
                     linkCard.reset();
                     returnFocusToCommit();
                     router.flash(() => reply);
@@ -1504,8 +1585,16 @@ function ReplyComposer({
                 <ImageDropOverlay className="-inset-px" />
             )}
             <label htmlFor={`reply-${parent.id}`} className="sr-only">
-                Reply to @{parent.user.handle}
+                Reply to @{parent.author.handle}
             </label>
+            {hasRecipientChoice && (
+                <ReplyRecipientPicker
+                    participants={participants}
+                    authorId={parent.author.id}
+                    excludedIds={excludedRecipientIds}
+                    onExcludedIdsChange={updateExcludedRecipientIds}
+                />
+            )}
             <div className="grid">
                 <MentionTextarea
                     ref={textareaRef}
@@ -1520,12 +1609,25 @@ function ReplyComposer({
                     onPaste={attachments.onPaste}
                     onFocus={isRestored ? moveCaretToEnd : undefined}
                     maxLength={maxRawBodyLength}
-                    placeholder={`Reply to @${parent.user.handle}`}
+                    placeholder={
+                        hasRecipientChoice
+                            ? 'Post your reply'
+                            : `Reply to @${parent.author.handle}`
+                    }
                     className={cn(
-                        'col-start-1 row-start-1 block field-sizing-content max-h-[50dvh] min-h-9 w-full resize-none overflow-x-hidden overflow-y-auto bg-transparent px-1 text-base leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:outline-none md:text-[15px]',
+                        'col-start-1 row-start-1 block field-sizing-content max-h-[50dvh] min-h-9 w-full resize-none overflow-x-hidden overflow-y-auto bg-transparent pr-9 pl-1 text-base leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:outline-none md:text-[15px]',
                         { invisible: preview.isPreviewing },
                     )}
                 />
+                {!preview.isPreviewing && (
+                    <div className="col-start-1 row-start-1 self-end justify-self-end">
+                        <EmojiPickerButton
+                            disabled={processing}
+                            onPick={insertEmoji}
+                            className="size-8"
+                        />
+                    </div>
+                )}
                 {preview.isPreviewing && (
                     <ComposerPreviewBody
                         preview={preview}
@@ -1540,7 +1642,14 @@ function ReplyComposer({
                 <CommitGif gif={toCommitGif(gif)} />
             )}
             <InputError
-                message={errors.body ?? errors.link_preview_url}
+                message={
+                    errors.body ??
+                    errors.reply_recipients ??
+                    Object.entries(errors).find(([key]) =>
+                        key.startsWith('reply_recipients.'),
+                    )?.[1] ??
+                    errors.link_preview_url
+                }
                 className="px-1"
             />
             {!preview.isPreviewing && (
@@ -1564,6 +1673,21 @@ function ReplyComposer({
             />
             <div className="mt-1.5 flex flex-wrap items-center justify-end gap-x-2 gap-y-1">
                 <div className="mr-auto flex min-w-0 items-center gap-2">
+                    <AuthorSwitcher
+                        user={user}
+                        author={author}
+                        onChange={setAuthor}
+                        fallback={null}
+                    >
+                        {author === null ? (
+                            <UserAvatar user={user} className="size-6" />
+                        ) : (
+                            <OrganizationAvatar
+                                organization={author}
+                                className="size-6"
+                            />
+                        )}
+                    </AuthorSwitcher>
                     <ComposerMediaButton
                         gifKey={gifKey}
                         gifOpen={gifOpen}

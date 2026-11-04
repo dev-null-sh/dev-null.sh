@@ -23,6 +23,8 @@ export type UseStashReturn = {
     readonly descriptions: string[];
     readonly gif: GifAttachment | null;
     readonly isRestored: boolean;
+    readonly excludedRecipientIds: string[];
+    readonly updateExcludedRecipientIds: (ids: string[]) => void;
     readonly updateBody: (body: string) => void;
     readonly updateImages: (images: File[], descriptions?: string[]) => void;
     readonly updateGif: (gif: GifAttachment | null) => void;
@@ -233,6 +235,14 @@ export function useHasStash(userId: string | null, name: string): boolean {
 export function useStash(userId: string, name: string): UseStashReturn {
     const key = keyFor(userId, name);
     const [body, setBody] = useState(() => read(key));
+    const recipientKey = `${key}:excluded-recipients`;
+    const [excludedRecipientIds, setExcludedRecipientIds] = useState(() =>
+        readStorage(recipientKey).split(',').filter(Boolean),
+    );
+    const updateExcludedRecipientIds = (ids: string[]): void => {
+        setExcludedRecipientIds(ids);
+        writeStorage(recipientKey, ids.join(','));
+    };
     const { draftImages, descriptions, isImagesRestored } = useDraftImages(key);
     const gif = useSyncExternalStore(
         subscribe,
@@ -278,6 +288,7 @@ export function useStash(userId: string, name: string): UseStashReturn {
     const drop = (): void => {
         cancelImageRead(key);
         setBody('');
+        updateExcludedRecipientIds([]);
         setIsDraftRestored(false);
         discardBody(key);
         storeImages(key, []);
@@ -293,6 +304,8 @@ export function useStash(userId: string, name: string): UseStashReturn {
         isRestored:
             (isDraftRestored || isImagesRestored) &&
             (body !== '' || draftImages.length > 0 || gif !== null),
+        excludedRecipientIds,
+        updateExcludedRecipientIds,
         updateBody,
         updateImages,
         updateGif,

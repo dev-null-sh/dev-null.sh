@@ -12,7 +12,7 @@ use Illuminate\Http\JsonResponse;
 
 final readonly class CommitSearchController
 {
-    public function index(ListCommitSearchRequest $request, #[CurrentUser] ?User $user, CommitSearchQuery $search): JsonResponse
+    public function index(ListCommitSearchRequest $request, #[CurrentUser] User $user, CommitSearchQuery $search): JsonResponse
     {
         return response()->json([
             'commits' => $search->get($request->string('q')->value(), $user, $request->limit()),

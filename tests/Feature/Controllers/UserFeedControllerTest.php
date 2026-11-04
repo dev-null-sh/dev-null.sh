@@ -224,3 +224,9 @@ it('lists an attached gif as an enclosure', function (): void {
         ->toContain('type="image/gif"')
         ->toContain('https://media2.giphy.com/media/xT9IgzoKnwFNmISR8I/giphy-downsized-medium.gif?cid=abc123');
 });
+
+it('serves the feed of a user whatever the case of the handle', function (): void {
+    User::factory()->create(['handle' => 'OctoCat']);
+
+    $this->get('/@octocat/feed.atom')->assertOk();
+});

@@ -12,7 +12,7 @@ it('lists the newest follow first', function (): void {
     $user->followers()->attach($later);
     $user->followers()->attach($earlier, ['created_at' => now()->subMinute()]);
 
-    expect(resolve(UserConnectionsQuery::class)->builder($user->followers(), null)->get()->modelKeys())
+    expect(resolve(UserConnectionsQuery::class)->builder($user->followers(), User::factory()->create())->get()->modelKeys())
         ->toBe([$later->id, $earlier->id]);
 });
 
@@ -31,13 +31,4 @@ it('says whether the viewer follows each one, and whether each follows the viewe
     expect($connections->modelKeys())->toBe([$mutual->id, $stranger->id])
         ->and($connections->pluck('is_followed')->all())->toBe([true, false])
         ->and($connections->pluck('follows_you')->all())->toBe([true, false]);
-});
-
-it('says neither to a guest', function (): void {
-    $user = User::factory()->create();
-    $user->following()->attach(User::factory()->create());
-
-    $connection = resolve(UserConnectionsQuery::class)->builder($user->following(), null)->sole();
-
-    expect($connection->getAttributes())->not->toHaveKeys(['is_followed', 'follows_you']);
 });

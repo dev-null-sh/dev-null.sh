@@ -84,6 +84,21 @@ it('counts each person once in the active users of the day they are first seen',
         ->toBe([['seen_at' => '2026-10-19', 'count' => 2]]);
 });
 
+it('remembers each day a person was seen, once a day', function (): void {
+    $other = User::factory()->create();
+
+    $this->actingAs($this->user)->get(route('log.show', Log::Following))->assertOk();
+    $this->actingAs($this->user)->get(route('log.show', Log::Following))->assertOk();
+    $this->travelTo(now()->addDay());
+    $this->actingAs($this->user->fresh())->get(route('log.show', Log::Following))->assertOk();
+    $this->actingAs($other)->get(route('log.show', Log::Following))->assertOk();
+
+    $days = fn (User $user): array => DB::table('user_active_days')->where('user_id', $user->id)->oldest('seen_at')->pluck('seen_at')->all();
+
+    expect($days($this->user))->toBe(['2026-10-19', '2026-10-20'])
+        ->and($days($other))->toBe(['2026-10-20']);
+});
+
 it('does not count someone twice when another request saw them first', function (): void {
     $stale = User::query()->find($this->user->id);
     $this->user->update(['last_seen_at' => '2026-10-19']);

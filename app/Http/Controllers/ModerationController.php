@@ -26,11 +26,12 @@ final readonly class ModerationController
             'commits' => Inertia::scroll(fn () => Commit::query()
                 ->pending()
                 ->with([
+                    'author',
                     'user',
-                    'parent.user',
+                    'parent.author',
                     'linkPreview',
                     'images',
-                    'quotedCommit' => fn (BelongsTo $query): BelongsTo => $query->withTrashed()->with(['user', 'linkPreview', 'images'])->withPollFor($user),
+                    'quotedCommit' => fn (BelongsTo $query): BelongsTo => $query->withTrashed()->with(['author', 'linkPreview', 'images'])->withPollFor($user),
                 ])
                 ->withStarsFor($user)
                 ->withPollFor($user)
@@ -38,7 +39,7 @@ final readonly class ModerationController
                 ->oldest()
                 ->oldest('id')
                 ->cursorPaginate(20)
-                ->through($this->withAiDecision(...))),
+                ->through($this->forModerators(...))),
         ]);
     }
 
@@ -56,10 +57,10 @@ final readonly class ModerationController
     }
 
     /**
-     * The AI's decision is hidden everywhere else, but moderators see it.
+     * The AI's decision and who posted an organization's commit are hidden everywhere else, but moderators see them.
      */
-    private function withAiDecision(Commit $commit): Commit
+    private function forModerators(Commit $commit): Commit
     {
-        return $commit->makeVisible(['ai_decision', 'ai_categories']);
+        return $commit->makeVisible(['ai_decision', 'ai_categories'])->withPoster();
     }
 }

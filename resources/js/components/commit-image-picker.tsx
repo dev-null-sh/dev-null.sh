@@ -1,5 +1,5 @@
 import { ImagePlay, ImagePlus, X } from 'lucide-react';
-import { useId, useRef, useState } from 'react';
+import { useId, useLayoutEffect, useRef, useState } from 'react';
 import { ActionTooltip } from '@/components/action-tooltip';
 import type { ShownImage } from '@/components/commit-images';
 import { GifPickerDialog } from '@/components/gif-picker-dialog';
@@ -93,6 +93,28 @@ export function revokeObjectUrls(images: File[]): void {
             objectUrls.delete(image);
         }
     });
+}
+
+/** Releases previews owned by a form whose files are not retained in the draft stash. */
+export function useImagePreviewCleanup(images: File[]): void {
+    const previous = useRef<File[]>([]);
+    const mounted = useRef(false);
+
+    useLayoutEffect(() => {
+        mounted.current = true;
+        revokeObjectUrls(
+            previous.current.filter((image) => !images.includes(image)),
+        );
+        previous.current = images;
+
+        return () => {
+            mounted.current = false;
+            // Strict Mode replays effects before this runs, keeping live previews valid.
+            queueMicrotask(() => {
+                if (!mounted.current) revokeObjectUrls(images);
+            });
+        };
+    }, [images]);
 }
 
 export function ImagePickerButton({
