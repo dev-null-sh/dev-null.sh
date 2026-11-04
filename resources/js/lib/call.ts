@@ -159,12 +159,18 @@ export async function startCall(partner: User): Promise<void> {
     const isCurrent = () => state === outgoing;
 
     try {
-        const peer = await connect(partner, true);
-        await peer.setLocalDescription(await peer.createOffer());
+        const peer = await connect(partner, true, isCurrent);
+        if (peer === null || !isCurrent()) return;
+        const offer = await peer.createOffer();
+        if (!isCurrent()) return;
+        await peer.setLocalDescription(offer);
+        if (!isCurrent()) return;
+        const sdp = await gathered(peer);
+        if (!isCurrent()) return;
         await request(
             ConversationCallController.store.url(url(partner)),
             'POST',
-            { sdp: await gathered(peer) },
+            { sdp },
         );
     } catch (error) {
         if (isCurrent()) {
@@ -266,30 +272,46 @@ export async function acceptCall(): Promise<void> {
     }
 
     const { partner, sdp } = state;
-    update({ status: 'connecting', partner });
+    const accepting = { status: 'connecting', partner } as const;
+    update(accepting);
+    let peer: RTCPeerConnection | null = null;
+    const isCurrent = () =>
+        state === accepting ||
+        (state.status === 'connected' && connection === peer);
 
     try {
-        const peer = await connect(partner, false);
+        peer = await connect(partner, false, isCurrent);
+        if (peer === null || !isCurrent()) return;
         await peer.setRemoteDescription({ type: 'offer', sdp });
+        if (!isCurrent()) return;
         peer.getTransceivers().forEach((transceiver) => {
             if (transceiver.receiver.track.kind === 'video') {
                 transceiver.direction = 'sendrecv';
             }
         });
-        await peer.setLocalDescription(await peer.createAnswer());
+        const answer = await peer.createAnswer();
+        if (!isCurrent()) return;
+        await peer.setLocalDescription(answer);
+        if (!isCurrent()) return;
+        const description = await gathered(peer);
+        if (!isCurrent()) return;
         await request(
             ConversationCallController.update.url(url(partner)),
             'PUT',
-            { sdp: await gathered(peer) },
+            { sdp: description },
         );
     } catch (error) {
-        void forget(partner, { failed: true });
-        end(partner, failure(error, 'Could not answer the call.'));
+        if (isCurrent()) {
+            void forget(partner, { failed: true });
+            end(partner, failure(error, 'Could not answer the call.'));
+        }
 
         return;
     }
 
-    giveUpConnecting(partner);
+    if (isCurrent()) {
+        giveUpConnecting(partner);
+    }
 }
 
 export function declineCall(): void {
@@ -512,19 +534,26 @@ function takeIncomingCall(
 async function connect(
     partner: User,
     isCaller: boolean,
-): Promise<RTCPeerConnection> {
+    isCurrent: () => boolean,
+): Promise<RTCPeerConnection | null> {
     const { ice_servers: iceServers, is_relay_only: isRelayOnly } =
         await request<{
             ice_servers: RTCIceServer[];
             is_relay_only: boolean;
         }>(ConversationCallIceServerController.index.url(url(partner)));
+    if (!isCurrent()) return null;
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    // Permission may finish after hangup. Those tracks belong to this setup, never to a replacement call.
+    if (!isCurrent()) {
+        stream.getTracks().forEach((track) => track.stop());
+        return null;
+    }
+    microphone = stream;
     // Only through the relay: a direct route would hand each person the other's IP address.
     const peer = new RTCPeerConnection({
         iceServers,
         iceTransportPolicy: isRelayOnly ? 'relay' : 'all',
     });
-    microphone = stream;
     connection = peer;
     stream.getTracks().forEach((track) => peer.addTrack(track, stream));
 
