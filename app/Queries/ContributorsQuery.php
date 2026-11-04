@@ -63,22 +63,23 @@ final readonly class ContributorsQuery
     }
 
     /**
-     * Whether the user is a contributor, found by their GitHub account. False while GitHub can't say and there is no
-     * recent list to fall back on.
+     * Whether the user is a contributor, found by their GitHub account. Profiles never wait for GitHub, so this is false
+     * while there is no list yet or GitHub can't say, and there is no recent list to fall back on.
      */
     public function includes(User $user): bool
     {
-        return in_array($user->github_id, array_column($this->accounts() ?? [], 'github_id'), true);
+        return in_array($user->github_id, array_column($this->accounts(wait: false) ?? [], 'github_id'), true);
     }
 
     /**
      * The GitHub accounts behind the contributors. Once there is a list from the past week, nobody waits for GitHub: an
      * expired list is served for another minute while GitHub is asked after the response, so other visitors don't ask
-     * meanwhile. Without one, GitHub is asked right away, and null means it didn't answer.
+     * meanwhile. Without one, GitHub is asked right away, and null means it didn't answer. When the caller doesn't wait,
+     * it gets null at once instead, and only the first such caller in a minute asks GitHub, after the response.
      *
      * @return list<Account>|null
      */
-    private function accounts(): ?array
+    private function accounts(bool $wait = true): ?array
     {
         $repository = config()->string('services.github.repository');
         $key = "about:contributor-accounts:{$repository}";
@@ -89,6 +90,14 @@ final readonly class ContributorsQuery
         if ($contributors === null) {
             /** @var list<Account>|null $contributors */
             $contributors = Cache::get("{$key}:last");
+
+            if ($contributors === null && ! $wait) {
+                if (Cache::add("{$key}:refreshing", true, self::FailedTtl)) {
+                    defer(fn (): array|false => $this->refresh($repository, $key));
+                }
+
+                return null;
+            }
 
             if ($contributors === null) {
                 $contributors = $this->refresh($repository, $key);

@@ -10,6 +10,7 @@ use App\Enums\UnixRank;
 use App\Models\Commit;
 use App\Models\SshKey;
 use App\Models\User;
+use App\Queries\ContributorsQuery;
 use App\Queries\UserAchievementsQuery;
 
 beforeEach(function (): void {
@@ -391,6 +392,7 @@ it('awards contributor and 25 xp to repository contributors, found by their GitH
     $user = User::factory()->create(['handle' => 'renamed', 'github_id' => (string) crc32('xHeaven')]);
     $github = $this->mock(GitHubProvider::class);
     $github->shouldReceive('contributors')->andReturn($contributes ? [gitHubContributor('xHeaven', 187)] : [gitHubContributor('jubianchi', 1)]);
+    resolve(ContributorsQuery::class)->get();
 
     $result = resolve(UserAchievementsQuery::class)->get($user, null);
 

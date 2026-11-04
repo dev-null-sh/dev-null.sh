@@ -199,12 +199,28 @@ it('forgets the last list after a week without an answer from GitHub', function 
     expect(resolve(ContributorsQuery::class)->get())->toBeNull();
 });
 
+it('never makes profiles wait for GitHub on a cold cache, and asks it once after the response', function (): void {
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('contributors')->andReturn([gitHubContributor('xHeaven', 187)]);
+    $contributor = User::factory()->create(['github_id' => (string) crc32('xHeaven')]);
+
+    expect(resolve(ContributorsQuery::class)->includes($contributor))->toBeFalse()
+        ->and(resolve(ContributorsQuery::class)->includes($contributor))->toBeFalse();
+    $github->shouldNotHaveReceived('contributors');
+
+    resolve(DeferredCallbackCollection::class)->invoke();
+
+    expect(resolve(ContributorsQuery::class)->includes($contributor))->toBeTrue();
+    $github->shouldHaveReceived('contributors')->once();
+});
+
 it('includes a user by their GitHub account, not their handle', function (): void {
     $github = $this->mock(GitHubProvider::class);
     $github->shouldReceive('contributors')->andReturn([gitHubContributor('xHeaven', 187)]);
 
     $contributor = User::factory()->create(['handle' => 'jubianchi', 'github_id' => (string) crc32('xHeaven')]);
     $namesake = User::factory()->create(['handle' => 'xHeaven']);
+    resolve(ContributorsQuery::class)->get();
 
     expect(resolve(ContributorsQuery::class)->includes($contributor))->toBeTrue()
         ->and(resolve(ContributorsQuery::class)->includes($namesake))->toBeFalse();
