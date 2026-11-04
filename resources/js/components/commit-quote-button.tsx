@@ -17,6 +17,7 @@ import {
     PreviewToggle,
     useComposerPreview,
 } from '@/components/composer-preview';
+import { EmojiPickerButton } from '@/components/emoji-picker';
 import InputError from '@/components/input-error';
 import { LinkCardPicker } from '@/components/link-card-picker';
 import { MentionTextarea } from '@/components/mention-textarea';
@@ -32,6 +33,7 @@ import {
 } from '@/components/ui/dialog';
 import { UserAvatar } from '@/components/user-avatar';
 import { useMarkCommitDeleted } from '@/hooks/use-deleted-resources';
+import { useEmojiInsertion } from '@/hooks/use-emoji-insertion';
 import { useImageAttachments } from '@/hooks/use-image-attachments';
 import { useLinkCard } from '@/hooks/use-link-card';
 import { useOwnsCommit } from '@/hooks/use-owns-commit';
@@ -151,6 +153,12 @@ function QuoteComposer({
         body,
         textareaRef,
         isSubmittable: isQuotable,
+    });
+    const insertEmoji = useEmojiInsertion({
+        body,
+        updateBody,
+        textareaRef,
+        maxLength: maxRawBodyLength,
     });
 
     const submitOnModEnter = (event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -281,10 +289,19 @@ function QuoteComposer({
                                     }
                                     aria-describedby={`${id}-count`}
                                     className={cn(
-                                        'col-start-1 row-start-1 block field-sizing-content max-h-[40dvh] min-h-10 w-full resize-none overflow-x-hidden overflow-y-auto bg-transparent py-1.5 text-[17px] leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:outline-none',
+                                        'col-start-1 row-start-1 block field-sizing-content max-h-[40dvh] min-h-10 w-full resize-none overflow-x-hidden overflow-y-auto bg-transparent py-1.5 pr-9 text-[17px] leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:outline-none',
                                         { invisible: preview.isPreviewing },
                                     )}
                                 />
+                                {!preview.isPreviewing && (
+                                    <div className="sticky bottom-0 col-start-1 row-start-1 self-end justify-self-end">
+                                        <EmojiPickerButton
+                                            disabled={processing}
+                                            onPick={insertEmoji}
+                                            className="size-8"
+                                        />
+                                    </div>
+                                )}
                                 {preview.isPreviewing && (
                                     <ComposerPreviewBody
                                         preview={preview}
