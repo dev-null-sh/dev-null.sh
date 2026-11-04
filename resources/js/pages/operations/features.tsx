@@ -23,6 +23,11 @@ const FEATURES: Record<
         description:
             "Members posting and replying as their organization, from the composer's Post as menu and the API. Off until the rest of organization commits ships; commits already posted as an organization stay up either way.",
     },
+    now_playing: {
+        label: 'now playing',
+        description:
+            "Members linking a Last.fm account to share what they're listening to. Off until the rest of now playing ships; off also hides the tracks of accounts already linked.",
+    },
 };
 
 /**

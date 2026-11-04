@@ -49,6 +49,20 @@ dataset('rate limits', [
         120,
         60,
     ],
+    'now playing' => [
+        fn (): array => [
+            ['GET', route('user-now-playing.show', User::factory()->create())],
+        ],
+        60,
+        60,
+    ],
+    'last.fm links' => [
+        fn (): array => [
+            ['PUT', route('user-now-playing.update')],
+        ],
+        10,
+        60,
+    ],
     'issue suggestions' => [
         fn (): array => [
             ['GET', route('issue-suggestion.index', ['q' => '722'])],

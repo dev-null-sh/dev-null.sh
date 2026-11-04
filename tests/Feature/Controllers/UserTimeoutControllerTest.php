@@ -195,6 +195,22 @@ it('stops a user in timeout from going live, but lets them end a stream', functi
     expect($user->refresh()->live_url)->toBeNull();
 });
 
+it('stops a user in timeout from linking Last.fm, but lets them unlink it', function (): void {
+    $user = User::factory()->create(['lastfm_username' => 'rj']);
+    UserTimeout::factory()->for($user)->create();
+
+    $this->actingAs($user)
+        ->putJson(route('user-now-playing.update'), ['lastfm_username' => 'buymycourse'])
+        ->assertForbidden()
+        ->assertJsonPath('timeout.reason', 'Spam or self-promotion');
+
+    expect($user->refresh()->lastfm_username)->toBe('rj');
+
+    $this->delete(route('user-now-playing.destroy'))->assertRedirect();
+
+    expect($user->refresh()->lastfm_username)->toBeNull();
+});
+
 it('stops a user in timeout from starting, renaming, or growing orgs, and from messaging or pinning in them', function (): void {
     $user = User::factory()->create();
     [$member, $newcomer] = followersOf($user, 2);

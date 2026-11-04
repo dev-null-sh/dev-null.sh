@@ -44,6 +44,10 @@ return [
         'private_key' => env('GITHUB_APP_PRIVATE_KEY'),
     ],
 
+    'lastfm' => [
+        'key' => env('LASTFM_API_KEY'),
+    ],
+
     'postmark' => [
         'key' => env('POSTMARK_API_KEY'),
     ],

@@ -146,6 +146,7 @@ use App\Http\Controllers\UserLaneController;
 use App\Http\Controllers\UserLiveController;
 use App\Http\Controllers\UserMuteController;
 use App\Http\Controllers\UserMutualsController;
+use App\Http\Controllers\UserNowPlayingController;
 use App\Http\Controllers\UserPasteisModeController;
 use App\Http\Controllers\UserPreviewController;
 use App\Http\Controllers\UserProfileController;
@@ -307,6 +308,9 @@ Route::get('mentions/{user}/preview', [UserPreviewController::class, 'show'])
 Route::get('@{user:handle}/preview', [UserPreviewController::class, 'show'])
     ->middleware('throttle:people')
     ->name('user-preview.show');
+Route::get('@{user:handle}/now-playing', [UserNowPlayingController::class, 'show'])
+    ->middleware('throttle:now-playing')
+    ->name('user-now-playing.show');
 Route::get('@{profile:handle}/og.png', [ProfileOpenGraphImageController::class, 'show'])
     ->name('user-open-graph-image.show');
 Route::get('@{user:handle}/feed.atom', [UserFeedController::class, 'show'])
@@ -677,6 +681,12 @@ Route::middleware('auth')->group(function (): void {
         ->middleware(PreventPostingInTimeout::class)
         ->name('user-live.update');
     Route::delete('settings/live', [UserLiveController::class, 'destroy'])->name('user-live.destroy');
+
+    // User Now Playing...
+    Route::put('settings/now-playing', [UserNowPlayingController::class, 'update'])
+        ->middleware([PreventPostingInTimeout::class, 'throttle:lastfm-links'])
+        ->name('user-now-playing.update');
+    Route::delete('settings/now-playing', [UserNowPlayingController::class, 'destroy'])->name('user-now-playing.destroy');
 
     // Appearance...
     Route::get('settings/appearance', fn () => Inertia::render('appearance/update'))->name('appearance.edit');
