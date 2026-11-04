@@ -185,48 +185,81 @@ export async function startVoiceRecording(): Promise<VoiceRecording> {
 
     // The recorder starts before anything else is set up, since opening the level meter's audio context can take a
     // moment, and every one of them would be cut from the start of the note.
-    const recorder = new MediaRecorder(
-        stream,
-        MediaRecorder.isTypeSupported(opusType)
-            ? { mimeType: opusType, audioBitsPerSecond: opusBitsPerSecond }
-            : {},
-    );
-    const chunks: Blob[] = [];
-    const started = new Promise<number>((resolve, reject) => {
-        recorder.onstart = () => resolve(performance.now());
-        recorder.onerror = () =>
-            reject(new VoiceNoteError('fatal: could not start recording'));
-    });
-    const stopped = new Promise<Blob>((resolve) => {
-        recorder.ondataavailable = (event) => chunks.push(event.data);
-        recorder.onstop = () =>
-            resolve(new Blob(chunks, { type: recorder.mimeType }));
-    });
-
-    recorder.start();
-
-    const meter = new AudioContext();
-    const analyser = meter.createAnalyser();
-    const frame = new Float32Array(analyser.fftSize);
-
-    meter.createMediaStreamSource(stream).connect(analyser);
-    void meter.resume().catch(() => undefined);
-
-    const level = () => {
-        analyser.getFloatTimeDomainData(frame);
-
-        return Math.sqrt(
-            frame.reduce((peak, sample) => Math.max(peak, Math.abs(sample)), 0),
-        );
-    };
-    const levels: number[] = [];
-    const sampling = window.setInterval(() => levels.push(level()), 50);
+    let recorder: MediaRecorder | null = null;
+    let meter: AudioContext | undefined;
+    let sampling: number | undefined;
 
     const release = () => {
-        window.clearInterval(sampling);
-        stream.getTracks().forEach((track) => track.stop());
-        void meter.close().catch(() => undefined);
+        if (sampling !== undefined) {
+            window.clearInterval(sampling);
+        }
+
+        try {
+            if (recorder !== null && recorder.state !== 'inactive') {
+                recorder.stop();
+            }
+        } catch {
+            // Stopping the recorder must not prevent releasing the microphone.
+        }
+
+        stream.getTracks().forEach((track) => {
+            try {
+                track.stop();
+            } catch {
+                // Release the remaining tracks even if one cannot be stopped.
+            }
+        });
+        void meter?.close().catch(() => undefined);
     };
+
+    const chunks: Blob[] = [];
+    let started: Promise<number>;
+    let stopped: Promise<Blob>;
+    let level: () => number;
+    let activeRecorder: MediaRecorder;
+    const levels: number[] = [];
+
+    try {
+        activeRecorder = new MediaRecorder(
+            stream,
+            MediaRecorder.isTypeSupported(opusType)
+                ? { mimeType: opusType, audioBitsPerSecond: opusBitsPerSecond }
+                : {},
+        );
+        recorder = activeRecorder;
+        started = new Promise<number>((resolve, reject) => {
+            activeRecorder.onstart = () => resolve(performance.now());
+            activeRecorder.onerror = () =>
+                reject(new VoiceNoteError('fatal: could not start recording'));
+        });
+        stopped = new Promise<Blob>((resolve) => {
+            activeRecorder.ondataavailable = (event) => chunks.push(event.data);
+            activeRecorder.onstop = () =>
+                resolve(new Blob(chunks, { type: activeRecorder.mimeType }));
+        });
+
+        activeRecorder.start();
+        meter = new AudioContext();
+        const analyser = meter.createAnalyser();
+        const frame = new Float32Array(analyser.fftSize);
+        meter.createMediaStreamSource(stream).connect(analyser);
+        void meter.resume().catch(() => undefined);
+        level = () => {
+            analyser.getFloatTimeDomainData(frame);
+
+            return Math.sqrt(
+                frame.reduce(
+                    (peak, sample) => Math.max(peak, Math.abs(sample)),
+                    0,
+                ),
+            );
+        };
+        sampling = window.setInterval(() => levels.push(level()), 50);
+    } catch (error) {
+        release();
+
+        throw error;
+    }
 
     let startedAt: number;
 
@@ -247,8 +280,13 @@ export async function startVoiceRecording(): Promise<VoiceRecording> {
                 Math.round(performance.now() - startedAt),
             );
 
-            recorder.stop();
-            release();
+            try {
+                if (activeRecorder.state !== 'inactive') {
+                    activeRecorder.stop();
+                }
+            } finally {
+                release();
+            }
 
             const recording = await stopped;
 
@@ -270,10 +308,6 @@ export async function startVoiceRecording(): Promise<VoiceRecording> {
                 : wavDraftOf(recording);
         },
         cancel: () => {
-            if (recorder.state !== 'inactive') {
-                recorder.stop();
-            }
-
             release();
         },
     };
