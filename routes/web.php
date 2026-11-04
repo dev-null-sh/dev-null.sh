@@ -426,6 +426,10 @@ Route::middleware('auth')->group(function (): void {
     Route::get('organizations/{organization}/settings/profile', [OrganizationProfileController::class, 'edit'])
         ->whereUuid('organization')
         ->name('organization-profile.edit');
+    Route::put('organizations/{organization}/settings/profile', [OrganizationProfileController::class, 'update'])
+        ->whereUuid('organization')
+        ->middleware('throttle:profile-syncs')
+        ->name('organization-profile.update');
     Route::put('organizations/{organization}/settings/lane', [OrganizationLaneController::class, 'update'])
         ->whereUuid('organization')
         ->name('organization-lane.update');

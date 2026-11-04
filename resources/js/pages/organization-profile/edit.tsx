@@ -1,24 +1,127 @@
 import { Form, Head, router } from '@inertiajs/react';
+import { ArrowUpRight, RefreshCw } from 'lucide-react';
 import type { CSSProperties } from 'react';
 import { useState } from 'react';
 import OrganizationLaneController from '@/actions/App/Http/Controllers/OrganizationLaneController';
+import OrganizationProfileController from '@/actions/App/Http/Controllers/OrganizationProfileController';
 import Heading from '@/components/heading';
 import InputError from '@/components/input-error';
 import { LaneOptions } from '@/components/lane-picker';
 import { OrganizationAvatar } from '@/components/organization-avatar';
 import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/spinner';
+import { useNow } from '@/hooks/use-now';
 import AppLayout from '@/layouts/app-layout';
 import OrganizationSettingsLayout from '@/layouts/organization-settings/layout';
-import { organizationLaneColor, withViewTransition } from '@/lib/utils';
+import {
+    formatFullDateTime,
+    formatSyncedAgo,
+    organizationLaneColor,
+    withViewTransition,
+} from '@/lib/utils';
 import type { Lane, Organization } from '@/types';
 
-export default function Edit({ organization }: { organization: Organization }) {
+export default function Edit({
+    organization,
+    githubSyncedAt,
+}: {
+    organization: Organization;
+    githubSyncedAt: string | null;
+}) {
     const { lane } = organization;
+    const now = useNow();
     const [selected, setSelected] = useState<Lane | null>(lane);
 
     return (
         <>
             <Head title={`Profile of @${organization.handle}`} />
+
+            <section className="px-4 py-6 sm:px-6">
+                <Heading
+                    title="Profile information"
+                    description="The organization's public profile is mirrored from GitHub. Edit it there, then sync to update it here."
+                />
+
+                <dl className="mt-5 divide-y rounded-lg border text-sm">
+                    {[
+                        { label: 'name', value: organization.name },
+                        { label: 'username', value: `@${organization.handle}` },
+                        { label: 'bio', value: organization.bio },
+                        { label: 'location', value: organization.location },
+                        { label: 'website', value: organization.website },
+                    ].map((field) => (
+                        <div
+                            key={field.label}
+                            className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-3 px-4 py-2.5"
+                        >
+                            <dt className="font-mono text-[13px] text-muted-foreground">
+                                {field.label}
+                            </dt>
+                            <dd
+                                className={
+                                    field.value
+                                        ? 'wrap-break-word'
+                                        : 'font-mono text-[13px] text-muted-foreground'
+                                }
+                            >
+                                {field.value ?? 'null'}
+                            </dd>
+                        </div>
+                    ))}
+                </dl>
+
+                <div className="mt-5 flex flex-wrap gap-2">
+                    <Button asChild>
+                        <a
+                            href={`https://github.com/organizations/${organization.handle}/settings/profile`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                        >
+                            Edit on GitHub
+                            <ArrowUpRight />
+                        </a>
+                    </Button>
+                    <Form
+                        {...OrganizationProfileController.update.form(
+                            organization.id,
+                        )}
+                        options={{ preserveScroll: true }}
+                        onSuccess={() => router.flushAll()}
+                    >
+                        {({ processing }) => (
+                            <Button
+                                type="submit"
+                                variant="outline"
+                                disabled={processing}
+                                aria-busy={processing}
+                                data-test="sync-organization-profile-button"
+                            >
+                                {processing ? <Spinner /> : <RefreshCw />}
+                                Sync from GitHub
+                            </Button>
+                        )}
+                    </Form>
+                </div>
+
+                <p
+                    className="mt-3 text-sm text-muted-foreground"
+                    aria-live="polite"
+                >
+                    {githubSyncedAt ? (
+                        <>
+                            Last synced{' '}
+                            <time
+                                dateTime={githubSyncedAt}
+                                title={formatFullDateTime(githubSyncedAt)}
+                            >
+                                {formatSyncedAgo(githubSyncedAt, now)}
+                            </time>
+                        </>
+                    ) : (
+                        'Not yet synced from GitHub'
+                    )}
+                </p>
+            </section>
 
             <section className="px-4 py-6 sm:px-6">
                 <Heading

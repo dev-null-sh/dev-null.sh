@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Actions\UpdateOrganizationProfile;
 use App\Enums\OrganizationRole;
 use App\Http\Requests\ShowOrganizationProfileRequest;
 use App\Models\Organization;
+use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -20,6 +22,22 @@ final readonly class OrganizationProfileController
         return Inertia::render('organization-profile/edit', [
             'organization' => $organization,
             'role' => OrganizationRole::Admin,
+            'githubSyncedAt' => $organization->github_synced_at?->toIso8601String(),
         ]);
+    }
+
+    public function update(ShowOrganizationProfileRequest $request, Organization $organization, UpdateOrganizationProfile $action): RedirectResponse
+    {
+        $synced = $action->handle($organization);
+
+        Inertia::flash('toast', $synced ? [
+            'type' => 'success',
+            'message' => 'Synced from GitHub.',
+        ] : [
+            'type' => 'error',
+            'message' => 'Could not sync from GitHub. Try again in a minute.',
+        ]);
+
+        return back();
     }
 }
