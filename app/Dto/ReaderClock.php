@@ -43,21 +43,6 @@ final readonly class ReaderClock implements Arrayable
     }
 
     /**
-     * The time zone under its current IANA name, which PHP's date functions accept even when the OS ships without the
-     * legacy aliases browsers may still report (Asia/Calcutta becomes Asia/Kolkata).
-     */
-    public function ianaTimeZone(): ?string
-    {
-        if ($this->timeZone === null) {
-            return null;
-        }
-
-        $ianaId = IntlTimeZone::getIanaID($this->timeZone);
-
-        return is_string($ianaId) && $ianaId !== '' ? $ianaId : null;
-    }
-
-    /**
      * @return array{timeZone: string|null, hourCycle: string|null}
      */
     public function toArray(): array
