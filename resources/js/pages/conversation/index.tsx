@@ -31,6 +31,7 @@ import { cn, laneColor } from '@/lib/utils';
 import { show } from '@/routes/user';
 import type { InboxPage, OrgRef, OrgThread, Thread, User } from '@/types';
 
+/** Renders the Remotes inbox and any conversation or org thread checked out from it. */
 export default function Index({
     inbox,
     partner,
@@ -173,6 +174,7 @@ export default function Index({
 
                     <InboxPanel
                         user={user}
+                        enableLaneSwipe={target === null}
                         activeKey={target === null ? null : targetKey(target)}
                         onOpen={open}
                         onLeaveActive={blocked}

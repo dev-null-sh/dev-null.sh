@@ -1,6 +1,6 @@
 import type { Log } from '@/types';
 
-const lanes: Log[] = ['following', 'latest', 'trending'];
+export const logLanes: readonly Log[] = ['following', 'latest', 'trending'];
 
 const shortestSwipe = 60;
 
@@ -8,11 +8,12 @@ const shortestSwipe = 60;
  * Swiping left moves to the lane on the right, like dragging the next tab into view. A swipe has to be mostly sideways,
  * so scrolling the feed at an angle never changes lanes.
  */
-export function swipedLane(
-    from: Log,
+export function swipedLane<Lane extends string>(
+    from: Lane,
+    lanes: readonly Lane[],
     deltaX: number,
     deltaY: number,
-): Log | null {
+): Lane | null {
     if (
         Math.abs(deltaX) < shortestSwipe ||
         Math.abs(deltaX) < Math.abs(deltaY) * 2
@@ -20,5 +21,11 @@ export function swipedLane(
         return null;
     }
 
-    return lanes[lanes.indexOf(from) + (deltaX < 0 ? 1 : -1)] ?? null;
+    const currentIndex = lanes.indexOf(from);
+
+    if (currentIndex === -1) {
+        return null;
+    }
+
+    return lanes[currentIndex + (deltaX < 0 ? 1 : -1)] ?? null;
 }

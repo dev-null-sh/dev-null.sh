@@ -25,9 +25,11 @@ import { useOwnsCommit } from '@/hooks/use-owns-commit';
 import AppLayout from '@/layouts/app-layout';
 import { backgroundPollOptions } from '@/lib/background-poll';
 import { emojify } from '@/lib/emoji';
+import { logLanes } from '@/lib/lane-swipe';
 import { cn } from '@/lib/utils';
 import type { Commit, CursorPaginated, Log } from '@/types';
 
+/** Renders a log feed and preserves the reader's position as newer commits arrive. */
 export default function Show({
     log,
     commits,
@@ -74,7 +76,9 @@ export default function Show({
     const returningToTop = useRef(false);
     const nativeAnchoring = useRef<string | null>(null);
     const [composer, setComposer] = useState<HTMLDivElement | null>(null);
-    useLaneSwipe(feedRef, log);
+    useLaneSwipe(feedRef, log, logLanes, (lane) =>
+        router.visit(LogController.show(lane), { viewTransition: true }),
+    );
     useComposerVisibility(composer, tabsHeight);
 
     useLayoutEffect(() => {
