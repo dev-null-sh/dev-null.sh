@@ -79,20 +79,14 @@ void test('retries transient open failures, shares attempts, and reuses success'
             readStoredImages(),
             readStoredImages(),
         ]);
-        assert.deepEqual(
-            failed.map((images) => images.size),
-            [0, 0],
-        );
+        assert.deepEqual(failed, [null, null]);
         assert.equal(attempts, 1);
 
         const asynchronouslyFailed = await Promise.all([
             readStoredImages(),
             readStoredImages(),
         ]);
-        assert.deepEqual(
-            asynchronouslyFailed.map((images) => images.size),
-            [0, 0],
-        );
+        assert.deepEqual(asynchronouslyFailed, [null, null]);
         assert.equal(attempts, 2);
 
         const recovered = await Promise.all([
@@ -138,8 +132,8 @@ void test('does not retry a synchronous IndexedDB permission denial', async () =
             new URL('../../resources/js/lib/image-storage.ts?sync-denied', import.meta.url).href,
         );
         const { readStoredImages } = deniedModule;
-        assert.equal((await readStoredImages()).size, 0);
-        assert.equal((await readStoredImages()).size, 0);
+        assert.equal(await readStoredImages(), null);
+        assert.equal(await readStoredImages(), null);
         assert.equal(attempts, 1);
     } finally {
         if (originalWindow === undefined) {
@@ -183,8 +177,8 @@ void test('does not retry an IndexedDB open after permission is denied', async (
             new URL('../../resources/js/lib/image-storage.ts?denied', import.meta.url).href,
         );
         const { readStoredImages } = deniedModule;
-        assert.equal((await readStoredImages()).size, 0);
-        assert.equal((await readStoredImages()).size, 0);
+        assert.equal(await readStoredImages(), null);
+        assert.equal(await readStoredImages(), null);
         assert.equal(attempts, 1);
     } finally {
         if (originalWindow === undefined) {
