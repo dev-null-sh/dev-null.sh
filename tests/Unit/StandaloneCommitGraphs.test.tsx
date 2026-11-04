@@ -158,7 +158,7 @@ test('keeps the graph of each report apart, even when two people report the same
     assert.equal(html.match(/data-test="graph-canvas"/g)?.length, 2);
 });
 
-test('ends the chain of search results on a dot below the last one', async () => {
+test('ends each search result on its own dot, as in a feed', async () => {
     const html = await render(() => (
         <SearchResults
             results={{
@@ -173,12 +173,7 @@ test('ends the chain of search results on a dot below the last one', async () =>
         />
     ));
 
-    assert.equal(html.match(/data-test="rail-end-dot"/g)?.length, 1);
-    // In the last card: past everything the second one shows.
-    assert.ok(
-        html.indexOf('data-test="rail-end-dot"') >
-            html.lastIndexOf('Commit two'),
-    );
+    assert.equal(html.match(/data-test="rail-end-dot"/g)?.length, 3);
 });
 
 test('draws related commits in a canvas of their own, chained one after the other and ending on a dot below the last one', async () => {
