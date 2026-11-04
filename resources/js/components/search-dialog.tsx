@@ -721,7 +721,7 @@ function ResultOption({
                 ) : (
                     <Link
                         href={hrefFor(option, term)}
-                        prefetch
+                        prefetch={option.kind !== 'topic'}
                         tabIndex={-1}
                         onMouseMove={onHover}
                         onClick={onOpen}

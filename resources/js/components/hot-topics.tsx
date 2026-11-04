@@ -28,7 +28,7 @@ export function HotTopics() {
                     <li key={topic.id}>
                         <Link
                             href={show(topic.id)}
-                            prefetch
+                            prefetch={false}
                             className="group -mx-2 flex min-h-8 flex-col justify-center rounded-lg px-2 py-1 text-sm transition-[background-color] hover:bg-accent focus-visible:outline-ring"
                             title={topic.name}
                         >
