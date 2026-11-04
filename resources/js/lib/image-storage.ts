@@ -9,17 +9,32 @@ const storeName = 'images';
 let database: Promise<IDBDatabase | null> | undefined;
 
 const open = (): Promise<IDBDatabase | null> => {
-    database ??= new Promise((resolve) => {
+    let retry = true;
+
+    database ??= new Promise<IDBDatabase | null>((resolve) => {
         try {
             const request = window.indexedDB.open(databaseName, 1);
 
             request.onupgradeneeded = () =>
                 request.result.createObjectStore(storeName);
             request.onsuccess = () => resolve(request.result);
-            request.onerror = () => resolve(null);
-        } catch {
+            request.onerror = () => {
+                retry = request.error?.name !== 'SecurityError';
+                resolve(null);
+            };
+        } catch (error) {
+            retry = !(
+                error instanceof DOMException && error.name === 'SecurityError'
+            );
             resolve(null);
         }
+    }).then((connection) => {
+        // Retry transient failures, but do not repeatedly request storage after permission is denied.
+        if (connection === null && retry) {
+            database = undefined;
+        }
+
+        return connection;
     });
 
     return database;
