@@ -1,5 +1,5 @@
 import { Head } from '@inertiajs/react';
-import { Download } from 'lucide-react';
+import { Download, Puzzle } from 'lucide-react';
 import { useSyncExternalStore } from 'react';
 import type { ReactNode, SVGAttributes } from 'react';
 import { CopyableCode } from '@/components/copyable-code';
@@ -409,6 +409,98 @@ export default function Index({
                             height={1469}
                             loading="lazy"
                             className="h-auto w-full"
+                        />
+                    </figure>
+                </section>
+
+                <section aria-labelledby="extension-title" className="border-t">
+                    <div className="px-4 pt-8 pb-6 sm:px-6 sm:pt-10">
+                        <div className="flex items-center gap-4">
+                            <picture className="size-16 shrink-0 sm:size-[72px]">
+                                <img
+                                    src="/images/apps/mac-icon-light.webp"
+                                    alt=""
+                                    width={256}
+                                    height={256}
+                                    className="size-full dark:hidden"
+                                />
+                                <img
+                                    src="/images/apps/mac-icon-dark.webp"
+                                    alt=""
+                                    width={256}
+                                    height={256}
+                                    className="hidden size-full dark:block"
+                                />
+                            </picture>
+                            <h2
+                                id="extension-title"
+                                className="text-[1.75rem] leading-tight font-semibold tracking-tight text-balance sm:text-3xl"
+                            >
+                                <WordmarkText>
+                                    /dev/null for your browser
+                                </WordmarkText>
+                            </h2>
+                        </div>
+
+                        <p className="mt-4 max-w-prose text-pretty">
+                            Read and commit without leaving GitHub: a{' '}
+                            <WordmarkText>/dev/null</WordmarkText> tab on
+                            organizations, a Commit button on repositories,
+                            issues, and pull requests, and a Follow button next
+                            to GitHub&apos;s. Built by{' '}
+                            <a
+                                href="https://github.com/jubianchi"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className={textLink}
+                            >
+                                Julien Bianchi
+                            </a>
+                            .{' '}
+                            <a
+                                href="https://github.com/jubianchi/dev-null-ext"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className={textLink}
+                            >
+                                Check the GitHub repository
+                            </a>
+                            .
+                        </p>
+
+                        <div className="mt-6 space-y-3">
+                            <Button size="lg" className="h-11" asChild>
+                                <a
+                                    href="https://chromewebstore.google.com/detail/devnull/hokhoefheignhmakhfbccmlnkkfbnico"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                >
+                                    <Puzzle aria-hidden />
+                                    Add to Chrome
+                                </a>
+                            </Button>
+                            <p className="text-sm text-pretty text-muted-foreground">
+                                Works in Chrome and other Chromium browsers.
+                            </p>
+                        </div>
+                    </div>
+
+                    <figure className="px-4 pb-8 sm:px-6">
+                        <img
+                            src="/images/apps/browser-extension-light.webp"
+                            alt="The /dev/null tab of the dev-null-sh organization on GitHub: a composer above the commits mentioning it."
+                            width={1000}
+                            height={744}
+                            loading="lazy"
+                            className="h-auto w-full rounded-lg border dark:hidden"
+                        />
+                        <img
+                            src="/images/apps/browser-extension-dark.webp"
+                            alt="The /dev/null tab of the dev-null-sh organization on GitHub: a composer above the commits mentioning it."
+                            width={1000}
+                            height={744}
+                            loading="lazy"
+                            className="hidden h-auto w-full rounded-lg border dark:block"
                         />
                     </figure>
                 </section>
