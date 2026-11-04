@@ -160,7 +160,7 @@ it('follows the organizations they follow on github, and keeps the ones not on d
     resolve(CreateUserGitHubFollows::class)->handle($user);
 
     expect($user->followedOrganizations()->pluck('organizations.id')->all())->toBe([$organization->id])
-        ->and(DB::table('pending_organization_follows')->get(['user_id', 'github_id'])->map(fn (object $row): array => (array) $row)->all())->toBe([['user_id' => $user->id, 'github_id' => '958072']])
+        ->and(DB::table('pending_follows')->get(['user_id', 'github_id'])->map(fn (object $row): array => (array) $row)->all())->toBe([['user_id' => $user->id, 'github_id' => '958072']])
         ->and($user->refresh()->github_organization_follows_imported_at)->not->toBeNull()
         ->and(Notification::query()->count())->toBe(0);
 });

@@ -166,6 +166,14 @@ export function laneColor(lane: Lane): string {
 }
 
 /**
+ * A lane to write text in. A custom lane can be any colour, even one close to the background, so its lightness is
+ * kept within what the theme can read.
+ */
+export function laneTextColor(lane: Lane): string {
+    return `oklch(from ${laneColor(lane)} clamp(var(--lane-text-min-l), l, var(--lane-text-max-l)) c h)`;
+}
+
+/**
  * Organizations are in /dev/null's blue until their admins choose a lane.
  */
 export function organizationLaneColor(lane: Lane | null): string {

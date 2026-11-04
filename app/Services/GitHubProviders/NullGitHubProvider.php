@@ -36,6 +36,11 @@ final readonly class NullGitHubProvider implements GitHubProvider
         return false;
     }
 
+    public function publicOrganizationMemberIds(string $login): ?array
+    {
+        return null;
+    }
+
     public function hasSponsorsListing(string $token): ?bool
     {
         return null;

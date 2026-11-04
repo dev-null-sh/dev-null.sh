@@ -26,22 +26,29 @@ beforeEach(function (): void {
     ));
 });
 
-it('records the terms as accepted when the app says which version it showed before sign-in', function (): void {
-    signedApiRequest($this->keyPair, 'POST', route('api-device.store'), ['code' => $this->code, 'code_verifier' => $this->verifier, 'terms_version' => config('legal.terms_version')])
+it('records the terms in force as accepted when the app says the person accepted them before sign-in', function (): void {
+    signedApiRequest($this->keyPair, 'POST', route('api-device.store'), ['code' => $this->code, 'code_verifier' => $this->verifier, 'terms_accepted' => true])
         ->assertOk()
         ->assertJsonPath('data.terms_accepted', true);
 
     expect($this->user->refresh()->hasAcceptedCurrentTerms())->toBeTrue();
 });
 
-it('leaves the terms alone when the app does not say, and refuses a version that is not in force', function (): void {
-    signedApiRequest($this->keyPair, 'POST', route('api-device.store'), ['code' => $this->code, 'code_verifier' => $this->verifier, 'terms_version' => '1999-01-01'])
-        ->assertUnprocessable()
-        ->assertJsonValidationErrors('terms_version');
-
-    signedApiRequest($this->keyPair, 'POST', route('api-device.store'), ['code' => $this->code, 'code_verifier' => $this->verifier])
+it('leaves the terms alone when the app does not say they were accepted', function (array $terms): void {
+    signedApiRequest($this->keyPair, 'POST', route('api-device.store'), ['code' => $this->code, 'code_verifier' => $this->verifier, ...$terms])
         ->assertOk()
         ->assertJsonPath('data.terms_accepted', false);
+
+    expect($this->user->refresh()->terms_accepted_at)->toBeNull();
+})->with([
+    'not mentioned' => [[]],
+    'refused' => [['terms_accepted' => false]],
+]);
+
+it('refuses a terms answer that is not a yes or no', function (): void {
+    signedApiRequest($this->keyPair, 'POST', route('api-device.store'), ['code' => $this->code, 'code_verifier' => $this->verifier, 'terms_accepted' => 'maybe'])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('terms_accepted');
 
     expect($this->user->refresh()->terms_accepted_at)->toBeNull();
 });

@@ -1,7 +1,8 @@
 import type { VisitOptions } from '@inertiajs/core';
-import { router } from '@inertiajs/react';
-import { Ban, Ellipsis, Volume2, VolumeX } from 'lucide-react';
+import { Link, router } from '@inertiajs/react';
+import { Ban, Ellipsis, MessagesSquare, Volume2, VolumeX } from 'lucide-react';
 import { useState } from 'react';
+import ConversationController from '@/actions/App/Http/Controllers/ConversationController';
 import UserBlockController from '@/actions/App/Http/Controllers/UserBlockController';
 import UserMuteController from '@/actions/App/Http/Controllers/UserMuteController';
 import { rememberBlock } from '@/components/follow-button';
@@ -19,6 +20,7 @@ import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
+    DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useSharedState } from '@/hooks/use-shared-state';
@@ -36,14 +38,18 @@ export function UserSafetyMenu({
     user,
     isMuting: initialIsMuting,
     isBlocking,
+    canPush = false,
     className,
     onOpenChange,
+    onBlockChange,
 }: {
     user: Pick<User, 'id' | 'handle'>;
     isMuting: boolean;
     isBlocking: boolean;
+    canPush?: boolean;
     className?: string;
     onOpenChange?: (isOpen: boolean) => void;
+    onBlockChange?: () => void;
 }) {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isConfirmingBlock, setIsConfirmingBlock] = useState(false);
@@ -67,9 +73,7 @@ export function UserSafetyMenu({
             | 'onHttpException'
         >,
     ) => {
-        router.visit(action, {
-            preserveScroll: true,
-            preserveState: true,
+        visitSafety(action, {
             ...options,
             onStart: (visit) => {
                 setIsSaving(true);
@@ -78,13 +82,6 @@ export function UserSafetyMenu({
             onFinish: () => {
                 setIsSaving(false);
                 changeOpen(false, false);
-            },
-            onSuccess: (page) => {
-                clearMentionSuggestionsCache();
-
-                options.onSuccess?.(page);
-
-                router.flushAll();
             },
         });
     };
@@ -124,6 +121,20 @@ export function UserSafetyMenu({
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-52">
+                    {canPush && (
+                        <>
+                            <DropdownMenuItem asChild>
+                                <Link
+                                    href={ConversationController.show(user)}
+                                    data-test="user-remote"
+                                >
+                                    <MessagesSquare />
+                                    Remote @{user.handle}
+                                </Link>
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                        </>
+                    )}
                     <DropdownMenuItem disabled={isSaving} onSelect={toggleMute}>
                         {isMuting ? <Volume2 /> : <VolumeX />}
                         {isMuting
@@ -135,7 +146,9 @@ export function UserSafetyMenu({
                         disabled={isSaving}
                         onSelect={() =>
                             isBlocking
-                                ? visit(UserBlockController.destroy(user), {})
+                                ? visit(UserBlockController.destroy(user), {
+                                      onSuccess: () => onBlockChange?.(),
+                                  })
                                 : changeOpen(false, true)
                         }
                     >
@@ -147,40 +160,90 @@ export function UserSafetyMenu({
                 </DropdownMenuContent>
             </DropdownMenu>
 
-            <Dialog
+            <BlockUserDialog
+                user={user}
                 open={isConfirmingBlock}
                 onOpenChange={(open) => changeOpen(false, open)}
-            >
-                <DialogContent>
-                    <DialogTitle>Block @{user.handle}?</DialogTitle>
-                    <DialogDescription>
-                        You'll stop following each other. Neither of you will be
-                        able to message, follow, reply to, or star the other, or
-                        see each other's commits. They won't be told, but
-                        they'll see your profile as unavailable. You can unblock
-                        them any time from your settings.
-                    </DialogDescription>
-
-                    <DialogFooter className="gap-2">
-                        <DialogClose asChild>
-                            <Button variant="outline">Cancel</Button>
-                        </DialogClose>
-
-                        <Button
-                            variant="destructive"
-                            disabled={isSaving}
-                            onClick={() =>
-                                visit(UserBlockController.store(user), {
-                                    onSuccess: () => rememberBlock(user),
-                                })
-                            }
-                            data-test="confirm-block-button"
-                        >
-                            Block
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+                onBlockChange={onBlockChange}
+            />
         </>
+    );
+}
+
+/**
+ * Muting and blocking change whose commits and mentions you see, so every cached page and suggestion forgets them.
+ */
+export function visitSafety(
+    action: Parameters<typeof router.visit>[0],
+    { onSuccess, ...options }: VisitOptions = {},
+): void {
+    router.visit(action, {
+        preserveScroll: true,
+        preserveState: true,
+        ...options,
+        onSuccess: (page) => {
+            clearMentionSuggestionsCache();
+
+            onSuccess?.(page);
+
+            router.flushAll();
+            router.reload({ only: ['hotTopics'] });
+        },
+    });
+}
+
+export function BlockUserDialog({
+    user,
+    open,
+    onOpenChange,
+    onBlockChange,
+}: {
+    user: Pick<User, 'id' | 'handle'>;
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    onBlockChange?: () => void;
+}) {
+    const [isSaving, setIsSaving] = useState(false);
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent>
+                <DialogTitle>Block @{user.handle}?</DialogTitle>
+                <DialogDescription>
+                    You'll stop following each other. Neither of you will be
+                    able to message, follow, reply to, or star the other, or see
+                    each other's commits. They won't be told, but they'll see
+                    your profile as unavailable. You can unblock them any time
+                    from your settings.
+                </DialogDescription>
+
+                <DialogFooter className="gap-2">
+                    <DialogClose asChild>
+                        <Button variant="outline">Cancel</Button>
+                    </DialogClose>
+
+                    <Button
+                        variant="destructive"
+                        disabled={isSaving}
+                        onClick={() =>
+                            visitSafety(UserBlockController.store(user), {
+                                onStart: () => setIsSaving(true),
+                                onFinish: () => {
+                                    setIsSaving(false);
+                                    onOpenChange(false);
+                                },
+                                onSuccess: () => {
+                                    rememberBlock(user);
+                                    onBlockChange?.();
+                                },
+                            })
+                        }
+                        data-test="confirm-block-button"
+                    >
+                        Block
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
     );
 }

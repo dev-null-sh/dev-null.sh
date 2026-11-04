@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Middleware;
 
 use App\Dto\ReaderClock;
+use App\Enums\EventTheme;
 use App\Enums\Feature;
 use App\Enums\Log;
 use App\Enums\RepliesPerPage;
@@ -15,6 +16,8 @@ use App\Models\User;
 use App\Queries\BioProfilesQuery;
 use App\Queries\ConversationsQuery;
 use App\Queries\DevelopersCountQuery;
+use App\Queries\HeadlineSummaryQuery;
+use App\Queries\HotHeadlinesQuery;
 use App\Queries\LiveFollowingQuery;
 use App\Queries\NotificationGroupsQuery;
 use App\Queries\SuggestedUsersQuery;
@@ -131,7 +134,20 @@ final class HandleInertiaRequests extends Middleware
             'showsWhoToFollow' => $showsWhoToFollow,
             ...$user instanceof User && $hasAside ? [
                 'liveFollowing' => Inertia::once(fn (): Collection => resolve(LiveFollowingQuery::class)->get($user))->until(60),
+                'hotTopics' => Inertia::once(function () use ($user): array {
+                    $topics = resolve(HotHeadlinesQuery::class)->get($user);
+                    $summaries = resolve(HeadlineSummaryQuery::class)->getMany(array_column($topics, 'id'), $user);
+
+                    return array_map(fn (array $headline): array => [
+                        'id' => $headline['id'],
+                        'name' => $headline['name'],
+                        'summary' => $summaries->get($headline['id']),
+                    ], $topics);
+                })->until(60),
             ] : [],
+            'eventTheme' => EventTheme::forRequest($request)?->value,
+            'eventYear' => EventTheme::greetedYear($request),
+            'eventThemeChoice' => EventTheme::choiceFrom(is_string($request->cookie('event_theme')) ? $request->cookie('event_theme') : null),
             'dimsLanes' => $request->cookie('lane_dimming') !== 'false',
             'repliesPerPage' => RepliesPerPage::of($request)->value,
             'clock' => ReaderClock::of($request)->toArray(),

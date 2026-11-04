@@ -9,8 +9,9 @@ use App\Models\Commit;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
+use Illuminate\Database\Eloquent\Builder;
 
-#[Signature('commits:link-headlines {--batch-size='.ProcessCommitHeadlines::BATCH_SIZE.' : Commits per batch (1–100)}')]
+#[Signature('commits:link-headlines {--batch-size='.ProcessCommitHeadlines::BATCH_SIZE.' : Commits per batch (1–100)} {--reclassify : Include already classified commits and replace their headline assignments}')]
 #[Description('Classify all unprocessed approved root commits in lazy batches and link shared headlines')]
 final class LinkCommitHeadlinesCommand extends Command
 {
@@ -25,12 +26,14 @@ final class LinkCommitHeadlinesCommand extends Command
         }
 
         $processed = 0;
+        $reclassify = (bool) $this->option('reclassify');
 
         $commits = Commit::query()->approved()->whereNull('parent_id')->where('body', '!=', '')
-            ->whereNull('headlines_classified_at')->whereDoesntHave('headlines')->select('id')->lazyById($batchSize);
+            ->when(! $reclassify, fn (Builder $query) => $query->whereNull('headlines_classified_at')->whereDoesntHave('headlines'))
+            ->select('id')->lazyById($batchSize);
 
         foreach ($commits->chunk($batchSize) as $batch) {
-            dispatch_sync(new ProcessCommitHeadlines(array_values($batch->map(fn (Commit $commit): string => $commit->id)->all())));
+            dispatch_sync(new ProcessCommitHeadlines(array_values($batch->map(fn (Commit $commit): string => $commit->id)->all()), $reclassify));
             $processed += $batch->count();
         }
 

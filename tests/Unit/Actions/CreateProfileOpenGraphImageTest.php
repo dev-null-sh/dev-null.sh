@@ -2,9 +2,10 @@
 
 declare(strict_types=1);
 
-use App\Actions\CreateOrganizationOpenGraphImage;
+use App\Actions\CreateProfileOpenGraphImage;
 use App\Actions\CreateUserOpenGraphImage;
 use App\Models\Organization;
+use App\Models\Profile;
 use App\Models\User;
 use App\Services\OpenGraphCanvas;
 
@@ -12,7 +13,7 @@ it('draws the avatar of an organization square, where a person is round', functi
     $organization = Organization::factory()->create(['avatar_url' => null, 'bio' => null]);
     $user = User::factory()->create(['avatar_url' => null, 'bio' => null]);
 
-    $organizationImage = imagecreatefromstring(resolve(CreateOrganizationOpenGraphImage::class)->handle($organization));
+    $organizationImage = imagecreatefromstring(resolve(CreateProfileOpenGraphImage::class)->handle($organization));
     $userImage = imagecreatefromstring(resolve(CreateUserOpenGraphImage::class)->handle($user));
 
     expect($organizationImage)->toBeInstanceOf(GdImage::class)
@@ -24,7 +25,7 @@ it('draws the avatar of an organization square, where a person is round', functi
 it('draws the rail in the blue of /dev/null while the admins chose no lane', function (): void {
     $organization = Organization::factory()->create(['avatar_url' => null, 'bio' => null]);
 
-    $image = imagecreatefromstring(resolve(CreateOrganizationOpenGraphImage::class)->handle($organization));
+    $image = imagecreatefromstring(resolve(CreateProfileOpenGraphImage::class)->handle($organization));
 
     expect($image)->toBeInstanceOf(GdImage::class)
         ->and(imagecolorat($image, OpenGraphCanvas::RAIL_X, 440))->toBe(OpenGraphCanvas::PRIMARY);
@@ -32,7 +33,7 @@ it('draws the rail in the blue of /dev/null while the admins chose no lane', fun
 
 it('draws the rail in the lane the admins chose, drawing it again once they change it', function (): void {
     $organization = Organization::factory()->create(['avatar_url' => null, 'bio' => null, 'preferred_lane' => 1]);
-    $action = resolve(CreateOrganizationOpenGraphImage::class);
+    $action = resolve(CreateProfileOpenGraphImage::class);
 
     $palette = imagecreatefromstring($action->handle($organization));
     $organization->update(['preferred_lane' => null, 'lane_color' => '#1a2b3c']);
@@ -50,7 +51,17 @@ it('fits descriptions that would overflow the card', function (): void {
         'bio' => str_repeat('The PHP framework for web artisans, shipping before lunch. ', 4),
     ]);
 
-    $image = resolve(CreateOrganizationOpenGraphImage::class)->handle($organization);
+    $image = resolve(CreateProfileOpenGraphImage::class)->handle($organization);
 
     expect(array_slice((array) getimagesizefromstring($image), 0, 2))->toBe([1200, 630]);
+});
+
+it('draws an unclaimed developer round, with a grey rail and what they are missing', function (): void {
+    $profile = Profile::factory()->create(['avatar_url' => null, 'bio' => null]);
+
+    $image = imagecreatefromstring(resolve(CreateProfileOpenGraphImage::class)->handle($profile));
+
+    expect($image)->toBeInstanceOf(GdImage::class)
+        ->and(imagecolorat($image, OpenGraphCanvas::RAIL_X, 440))->toBe(OpenGraphCanvas::INK_MUTED)
+        ->and(imagecolorat($image, 204, 162))->toBe(0xF6F7F8);
 });

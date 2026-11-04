@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Enums\Log;
+use App\Enums\ProfileType;
 use App\Http\Controllers\AboutController;
 use App\Http\Controllers\AppController;
 use App\Http\Controllers\BanController;
@@ -56,6 +57,7 @@ use App\Http\Controllers\FailedJobRetryController;
 use App\Http\Controllers\FailedJobsController;
 use App\Http\Controllers\FeatureController;
 use App\Http\Controllers\ForecastController;
+use App\Http\Controllers\HeadlineController;
 use App\Http\Controllers\InboxController;
 use App\Http\Controllers\IssueController;
 use App\Http\Controllers\IssueSuggestionController;
@@ -99,8 +101,10 @@ use App\Http\Controllers\OrgPingController;
 use App\Http\Controllers\OrgReadController;
 use App\Http\Controllers\OrgTypingController;
 use App\Http\Controllers\PartnerController;
+use App\Http\Controllers\PendingFollowController;
 use App\Http\Controllers\PrivacyController;
 use App\Http\Controllers\ProductMetricsController;
+use App\Http\Controllers\ProfileLookupController;
 use App\Http\Controllers\ProfileOpenGraphImageController;
 use App\Http\Controllers\ProfileSearchController;
 use App\Http\Controllers\PushSubscriptionController;
@@ -120,6 +124,7 @@ use App\Http\Controllers\SystemHealthController;
 use App\Http\Controllers\TermsController;
 use App\Http\Controllers\TestEmailController;
 use App\Http\Controllers\TrafficController;
+use App\Http\Controllers\UnclaimedProfileController;
 use App\Http\Controllers\UnsubscriptionController;
 use App\Http\Controllers\UserActivityGraphController;
 use App\Http\Controllers\UserAutomaticTranslationController;
@@ -153,6 +158,7 @@ use App\Http\Middleware\RequireCommitRules;
 use App\Http\Middleware\SerializePushSessions;
 use App\Http\Middleware\SerializePushSubscriptions;
 use App\Http\Middleware\ThrottleCommits;
+use App\Models\Profile;
 use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Middleware\SubstituteBindings;
@@ -224,8 +230,9 @@ Route::get('changelog', [ChangelogController::class, 'index'])->name('changelog.
 
 // Public pages, readable by guests and crawlers...
 Route::middleware([RememberIntendedUrl::class, RedirectToHandleCase::class])->group(function (): void {
-    // A handle no user has may be an organization's. Bindings run before the rest of the route's middleware, like
-    // the one sharing the page's props, so the organization's page goes through that rest first, like any page.
+    // A handle no user has may be an organization's, an unclaimed developer's, or one to look up on GitHub. Bindings
+    // run before the rest of the route's middleware, like the one sharing the page's props, so the page goes through
+    // that rest first, like any page.
     Route::get('@{user:handle}', [UserController::class, 'show'])
         ->missing(function (Request $request): mixed {
             $router = resolve(Router::class);
@@ -233,7 +240,11 @@ Route::middleware([RememberIntendedUrl::class, RedirectToHandleCase::class])->gr
             return new Pipeline(app())
                 ->send($request)
                 ->through(collect($router->gatherRouteMiddleware(resolve(RoutingRoute::class)))->skipUntil(SubstituteBindings::class)->skip(1)->all())
-                ->then(fn (Request $request): SymfonyResponse => $router->prepareResponse($request, app()->call(resolve(OrganizationController::class)->show(...))));
+                ->then(fn (Request $request): SymfonyResponse => $router->prepareResponse($request, app()->call(resolve(match (Profile::query()->firstWhere('handle', $request->route('user'))?->type) {
+                    ProfileType::Organization => OrganizationController::class,
+                    ProfileType::User => UnclaimedProfileController::class,
+                    null => ProfileLookupController::class,
+                })->show(...))));
         })
         ->name('user.show');
     // Who follows whom is for members, so scrapers can't walk the graph page by page...
@@ -328,6 +339,11 @@ Route::get('search/commits', [CommitSearchController::class, 'index'])
     ->middleware(['auth', 'throttle:search'])
     ->name('commit-search.index');
 
+Route::get('headlines/{headline}', [HeadlineController::class, 'show'])
+    ->whereUuid('headline')
+    ->middleware(['auth', 'throttle:search'])
+    ->name('headline.show');
+
 Route::middleware('auth')->group(function (): void {
     Route::post('issues', [IssueController::class, 'store'])
         ->middleware([PreventPostingInTimeout::class, 'throttle:10,1'])
@@ -346,6 +362,11 @@ Route::middleware('auth')->group(function (): void {
 
     // Banned, where a banned user is sent from everywhere else...
     Route::get('banned', [BannedController::class, 'show'])->name('banned.show');
+
+    // Looking a handle up on GitHub from its page, which spends GitHub's shared budget...
+    Route::post('profile-lookups', [ProfileLookupController::class, 'store'])
+        ->middleware('throttle:profile-lookups')
+        ->name('profile-lookup.store');
 
     // Claiming an organization's page, which GitHub confirms the user belongs to...
     Route::post('organizations/{organization}/claim', [OrganizationAdminController::class, 'store'])
@@ -656,6 +677,16 @@ Route::middleware('auth')->group(function (): void {
     Route::delete('@{user:handle}/follow', [UserFollowController::class, 'destroy'])
         ->middleware('throttle:follows')
         ->name('user-follow.destroy');
+
+    // Waiting to follow a developer who isn't on /dev/null yet...
+    Route::post('profiles/{profile}/pending-follow', [PendingFollowController::class, 'store'])
+        ->whereUuid('profile')
+        ->middleware('throttle:follows')
+        ->name('pending-follow.store');
+    Route::delete('profiles/{profile}/pending-follow', [PendingFollowController::class, 'destroy'])
+        ->whereUuid('profile')
+        ->middleware('throttle:follows')
+        ->name('pending-follow.destroy');
 
     // Organization Follow...
     Route::post('organizations/{organization}/follow', [OrganizationFollowController::class, 'store'])

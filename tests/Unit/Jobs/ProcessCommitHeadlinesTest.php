@@ -16,6 +16,24 @@ use Illuminate\Support\Sleep;
 use Laravel\Ai\Classification;
 use Laravel\Ai\Responses\Data\BooleanAnswer;
 
+it('processes pre-reclassification queued batches without reclassifying existing results', function (): void {
+    $commit = Commit::factory()->create(['body' => 'New release']);
+    $classified = Commit::factory()->create(['headlines_classified_at' => now()]);
+    $job = new ReflectionClass(ProcessCommitHeadlines::class)->newInstanceWithoutConstructor();
+    $job->__unserialize(['commitIds' => [$commit->id, $classified->id]]);
+
+    $provider = $this->mock(HeadlineProvider::class);
+    $provider->shouldReceive('candidates')->once()->with(['New release'])->andReturn([0]);
+    $provider->shouldReceive('matches')->once()->andReturn([]);
+    $provider->shouldReceive('generate')->once()->andReturn(['New release']);
+    $provider->shouldReceive('deduplicate')->once()->andReturn(['New release']);
+
+    $job->handle($provider);
+
+    expect($commit->headlines()->sole()->name)->toBe('New release')
+        ->and($classified->headlines()->count())->toBe(0);
+});
+
 it('filters a batch, links matches and shares the first of similar generated headlines', function (): void {
     $commits = Commit::factory()->count(4)->sequence(
         ['body' => 'Sunny day'], ['body' => 'Trying pgvector'], ['body' => 'New Laravel AI features'], ['body' => 'Laravel SDK agents'],

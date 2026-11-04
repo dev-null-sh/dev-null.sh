@@ -40,7 +40,7 @@ export const activityWindows: Record<ActivityScale, string> = {
 function levelColor(level: number): string {
     return level === 0
         ? 'var(--muted)'
-        : `color-mix(in oklab, var(--lane) ${levelMix[level]}%, var(--card))`;
+        : `color-mix(in oklab, ${level === levelMix.length - 1 ? 'var(--graph-peak, var(--lane))' : 'var(--lane)'} ${levelMix[level]}%, var(--card))`;
 }
 
 function levelOf(count: number, max: number): number {
@@ -262,6 +262,7 @@ export function ActivityCells({
         <div
             ref={containerRef}
             className="relative"
+            data-activity-cells
             style={{ '--lane': color } as CSSProperties}
         >
             {scale === 'year' ? (

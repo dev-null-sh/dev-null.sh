@@ -279,6 +279,17 @@ export function leavingOf(
     return clip === -1 ? { opacity } : { opacity, clip };
 }
 
+/**
+ * Whether a line folds away with the replies folding, like the branch to a reply as its thread hides its replies: it
+ * draws itself back out, the way it drew itself in.
+ */
+export function isFolding(
+    edge: GraphEdge,
+    folding: ReadonlySet<string>,
+): boolean {
+    return folding.has(edge.from) || folding.has(edge.to);
+}
+
 export function sameNodes(a: GraphNode[], b: GraphNode[]): boolean {
     return JSON.stringify(a) === JSON.stringify(b);
 }

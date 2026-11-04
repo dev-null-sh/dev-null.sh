@@ -576,7 +576,11 @@ test('metrics dates follow viewer date order without changing UTC buckets or dat
             {
                 date: '2026-10-18',
                 count: 7,
-                returning: 4,
+                regular: 3,
+                back: 1,
+                lost: 2,
+                lost_complete: true,
+                backfilled: false,
                 activated: 2,
                 not_activated: 1,
                 pending: 0,
@@ -584,7 +588,11 @@ test('metrics dates follow viewer date order without changing UTC buckets or dat
             {
                 date: '2026-10-19',
                 count: 3,
-                returning: 2,
+                regular: 1,
+                back: 1,
+                lost: 3,
+                lost_complete: false,
+                backfilled: false,
                 activated: 0,
                 not_activated: 0,
                 pending: 1,
@@ -660,7 +668,7 @@ test('metrics dates follow viewer date order without changing UTC buckets or dat
     assert.match(dayFirst, /5 fewer than the 7 of 18 Oct, net/);
     assert.match(
         dayFirst,
-        /3 active, 2 returning users, back after any gap, 5 fewer than the 7 of 18 Oct, net, 1 new: 1 under 12h/,
+        /3 active, 1 regulars, 1 back after 7\+ days away, 3 lost: not back in the 7 following days, so far, 5 fewer than the 7 of 18 Oct, net, 1 new: 1 under 12h/,
     );
     assert.equal(
         (dayFirst.match(/<th scope="row">19 Oct<\/th>/g) ?? []).length,

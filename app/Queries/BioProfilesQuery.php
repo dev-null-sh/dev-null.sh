@@ -17,7 +17,7 @@ final readonly class BioProfilesQuery
     }
 
     /**
-     * The users and organizations on dev/null that the user's bio and company mention, as their handle by lowercase
+     * The users, organizations and unclaimed developers on dev/null that the user's bio and company mention, as their handle by lowercase
      * handle, so the profile links them here rather than to GitHub.
      *
      * @return array<string, string>

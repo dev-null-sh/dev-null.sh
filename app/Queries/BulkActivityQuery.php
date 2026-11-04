@@ -39,9 +39,10 @@ final readonly class BulkActivityQuery
 
     /**
      * The accounts that followed, starred, replied or posted the most in the last days, the busiest first, bots left
-     * out, as long as they reached a threshold no normal use does: a rate a day times the days. Newcomers are the people
-     * reached who signed up in that time too, which tells an account working through every new signup from an active
-     * member. Deleted commits still count: what was removed was still sent.
+     * out, as long as they reached a threshold no normal use does: a rate a day times the days. Whoever is reached is the
+     * commit's author, so an organization rather than the member who posted for it. Newcomers are the people reached who
+     * signed up in that time too, which tells an account working through every new signup from an active member.
+     * Deleted commits still count: what was removed was still sent.
      *
      * - Follows: people followed, leaving out the follows imported from GitHub, created in the transaction that records
      *   either side's import, so the 10 seconds before it.
@@ -74,28 +75,28 @@ final readonly class BulkActivityQuery
                 limit ?
                 SQL, [$since, $bots, $since, $thresholds['follows']['total'], $limit]),
             'stars' => DB::select(<<<'SQL'
-                select s.user_id, count(*) as count, count(distinct c.user_id) as reach,
-                    count(distinct c.user_id) filter (where author.created_at >= ?) as newcomers
+                select s.user_id, count(*) as count, count(distinct c.author_id) as reach,
+                    count(distinct c.author_id) filter (where author.created_at >= ?) as newcomers
                 from stars s
                 join users starrer on starrer.id = s.user_id
                 join commits c on c.id = s.commit_id
-                join users author on author.id = c.user_id
+                left join users author on author.id = c.author_id
                 where starrer.github_id <> all(?::text[]) and s.created_at >= ?
                 group by s.user_id
-                having count(distinct c.user_id) >= ?
+                having count(distinct c.author_id) >= ?
                 order by reach desc, count desc, s.user_id
                 limit ?
                 SQL, [$since, $bots, $since, $thresholds['stars']['total'], $limit]),
             'replies' => DB::select(<<<'SQL'
-                select r.user_id, count(*) as count, count(distinct p.user_id) as reach,
-                    count(distinct p.user_id) filter (where author.created_at >= ?) as newcomers
+                select r.user_id, count(*) as count, count(distinct p.author_id) as reach,
+                    count(distinct p.author_id) filter (where author.created_at >= ?) as newcomers
                 from commits r
                 join users replier on replier.id = r.user_id
                 join commits p on p.id = r.parent_id
-                join users author on author.id = p.user_id
-                where replier.github_id <> all(?::text[]) and r.created_at >= ? and p.user_id <> r.user_id
+                left join users author on author.id = p.author_id
+                where replier.github_id <> all(?::text[]) and r.created_at >= ? and p.author_id is distinct from r.user_id
                 group by r.user_id
-                having count(distinct p.user_id) >= ?
+                having count(distinct p.author_id) >= ?
                 order by reach desc, count desc, r.user_id
                 limit ?
                 SQL, [$since, $bots, $since, $thresholds['replies']['total'], $limit]),
