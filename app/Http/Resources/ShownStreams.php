@@ -93,12 +93,12 @@ final class ShownStreams
      * The page of commit cards, paginated as before.
      *
      * @param  CursorPaginator<int, Commit>  $page
-     * @return CursorPaginator<int, array<mixed>|null>
+     * @return CursorPaginator<int, ShownCommitResource>
      */
     public static function page(CursorPaginator $page): CursorPaginator
     {
         $shown = clone $page;
-        $shown->setCollection($page->getCollection()->map(fn (Commit $commit): ?array => self::commit($commit)));
+        $shown->setCollection($page->getCollection()->map(fn (Commit $commit): ShownCommitResource => new ShownCommitResource($commit)));
 
         return $shown;
     }

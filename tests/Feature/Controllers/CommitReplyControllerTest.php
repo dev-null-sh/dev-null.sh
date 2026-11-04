@@ -8,6 +8,7 @@ use App\Actions\DeleteUser;
 use App\Ai\Agents\Tom;
 use App\Contracts\Services\ToolDecisionProvider;
 use App\Enums\CommitStatus;
+use App\Enums\LivePlatform;
 use App\Http\Requests\CreateCommitReplyRequest;
 use App\Jobs\DetectCommitLanguage;
 use App\Jobs\ReplyAsTom;
@@ -210,6 +211,52 @@ it('lists replies 50 at a time with a cursor to the next page', function (): voi
         ->assertJsonPath('data.0.body', 'Reply 50')
         ->assertJsonPath('data.1.body', 'Reply 51')
         ->assertJsonPath('next_cursor', null);
+});
+
+it('pages both ways through deleted reply boundaries without exposing their hidden timestamps', function (): void {
+    $this->freezeSecond();
+    $parent = Commit::factory()->create();
+    $tombstone = Commit::factory()->for($parent, 'parent')->create(['body' => 'Private deleted body', 'created_at' => now()->subMinutes(3)]);
+    Commit::factory()->for($tombstone, 'parent')->create();
+    $tombstone->delete();
+    $streamer = User::factory()->create(['live_platform' => LivePlatform::Twitch, 'live_url' => 'https://www.twitch.tv/streamer', 'live_ends_at' => now()->addHour()]);
+    $next = Commit::factory()->for($parent, 'parent')->for($streamer)->create(['created_at' => now()->subMinutes(2)]);
+    $last = Commit::factory()->for($parent, 'parent')->create(['created_at' => now()->subMinute()]);
+    Commit::factory()->for($last, 'parent')->create();
+    $last->delete();
+
+    $first = $this->actingAs(User::factory()->create())
+        ->getJson(route('commit-reply.index', [$parent, 'limit' => 1]))
+        ->assertOk()
+        ->assertJsonPath('data.0.id', $tombstone->id)
+        ->assertJsonMissingPath('data.0.body')
+        ->assertJsonMissingPath('data.0.author')
+        ->assertJsonMissingPath('data.0.created_at');
+
+    expect(array_keys($first->json('data.0')))->toBe(['id', 'parent_id', 'deleted_at', 'replies_count']);
+
+    $second = $this->getJson(route('commit-reply.index', [$parent, 'limit' => 1, 'cursor' => $first->json('next_cursor')]))
+        ->assertOk()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.id', $next->id)
+        ->assertJsonPath('data.0.author.live.ends_at', now()->addHour()->toJSON());
+
+    $third = $this->getJson(route('commit-reply.index', [$parent, 'limit' => 1, 'cursor' => $second->json('next_cursor')]))
+        ->assertOk()
+        ->assertJsonPath('data.0.id', $last->id)
+        ->assertJsonMissingPath('data.0.created_at')
+        ->assertJsonMissingPath('data.0.body')
+        ->assertJsonMissingPath('data.0.author')
+        ->assertJsonPath('next_cursor', null);
+
+    $this->getJson(route('commit-reply.index', [$parent, 'limit' => 1, 'cursor' => $third->json('prev_cursor')]))
+        ->assertOk()
+        ->assertJsonPath('data', $second->json('data'));
+
+    $this->getJson(route('commit-reply.index', [$parent, 'limit' => 1, 'cursor' => $second->json('prev_cursor')]))
+        ->assertOk()
+        ->assertJsonPath('data', $first->json('data'))
+        ->assertJsonPath('prev_cursor', null);
 });
 
 it('orders replies created at the same time by id across pages', function (): void {
