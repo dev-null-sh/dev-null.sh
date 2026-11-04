@@ -163,6 +163,7 @@ use App\Http\Middleware\RequireCommitRules;
 use App\Http\Middleware\SerializePushSessions;
 use App\Http\Middleware\SerializePushSubscriptions;
 use App\Http\Middleware\ThrottleCommits;
+use App\Http\Middleware\ThrottleIssues;
 use App\Models\Profile;
 use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
 use Illuminate\Http\Request;
@@ -372,7 +373,7 @@ Route::get('headlines/{headline}', [HeadlineController::class, 'show'])
 
 Route::middleware('auth')->group(function (): void {
     Route::post('issues', [IssueController::class, 'store'])
-        ->middleware([PreventPostingInTimeout::class, 'throttle:10,1'])
+        ->middleware([PreventPostingInTimeout::class, 'throttle:10,1', ThrottleIssues::class])
         ->name('issue.store');
 
     // Session...

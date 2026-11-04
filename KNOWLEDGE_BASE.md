@@ -587,6 +587,7 @@ A signed request sees what the web shows you, such as your own pending commits a
 - stash or reopen conversations and orgs, pin and mute them, merge or drop message requests, and send typing indicators;
 - switch Pastéis mode and give pastéis;
 - report commits;
+- open `/feature` and `/bug` issues, within the same ten a day as the web;
 - search people and organizations by name or handle, and commits by meaning, with the web's limit of 15 commit searches a minute;
 - schedule commits, list your queue, cancel a scheduled commit, or post it early;
 - pin a commit to your profile, or unpin it;
@@ -636,9 +637,9 @@ Start a fresh commit draft with **`/bug `** or **`/feature `** to switch it into
 
 Empty issue drafts show a short Markdown template: steps and expected versus actual behavior for bugs, or the problem and proposal for features. The first top-level `# Heading` becomes the issue title and is removed from the body; the remaining Markdown is preserved. Without a heading, the first line is used as the title and the full draft remains in the body.
 
-Successful issue creation is limited to **ten issues per day per user**. Rejected drafts and failed requests do not use that allowance. If GitHub or the connection fails, the draft stays available. Check upstream before retrying an uncertain submission to avoid duplicates. Use a commit's Report control instead when reporting abusive content.
+Successful issue creation is limited to **ten issues per day per user**, on the web and through the signed API together. Rejected drafts and failed requests do not use that allowance. If GitHub or the connection fails, the draft stays available. Check upstream before retrying an uncertain submission to avoid duplicates. Use a commit's Report control instead when reporting abusive content.
 
-Sources: [issue command UI](resources/js/components/issue-command.tsx), [issue validation](app/Http/Requests/CreateIssueRequest.php), [issue controller](app/Http/Controllers/IssueController.php).
+Sources: [issue command UI](resources/js/components/issue-command.tsx), [issue validation](app/Http/Requests/CreateIssueRequest.php), [issue controller](app/Http/Controllers/IssueController.php), [issue limit](app/Http/Middleware/ThrottleIssues.php).
 
 ### Exporting your data
 
