@@ -17,7 +17,7 @@ Every UI change keeps the layout still. Nothing may flash, jump, clip or reflow 
 ## Navigation and requests
 
 - Every Inertia `<Link>` to a GET page prefetches on hover (`prefetch`). A GET page never writes; the only exceptions are `log/{log}` (remembers the log), `notifications` (marks read, remembers the filter), `remotes/@{partner}` and `remotes/orgs/{org}` (mark read), and every link to them keeps `prefetch={false}`. `starred` also keeps it, because starring changes the list. A new GET page that must write joins this list.
-- Never prefetch a non-GET link, an external URL, a guest's sign-in link, or a URL that is not an Inertia page (images, feeds, downloads, JSON).
+- Never prefetch a non-GET link, an external URL, a guest's sign-in link, a mention of a handle nobody here has (guests get a missing page, and a feed would ask for it on every hover), or a URL that is not an Inertia page (images, feeds, downloads, JSON).
 - A click target that is not a link (the commit card surface) prefetches on `mousedown`, never on hover: scrolling a feed hovers every card.
 - After an action that changes what a prefetched page shows, flush that page (`router.flush(url)`, `router.flushAll()`, or `invalidateCacheTags`), so the next click does not show the old state.
 - One user intent is one request. When the server would only echo the URL back (a search query, a filter), change it on the client with `router.replace({ url, props })`. Data the first paint needs comes with the page as a prop or a deferred prop, never from a fetch in a mount effect.

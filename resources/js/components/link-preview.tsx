@@ -1,9 +1,11 @@
-import { Link } from '@inertiajs/react';
+import { Link, usePage } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import AppLogoIcon from '@/components/app-logo-icon';
 import { LinkEmbed } from '@/components/link-embed';
 import { Skeleton } from '@/components/ui/skeleton';
+import type { RealtimeChannel } from '@/lib/realtime';
+import { coalesce, commitChannel, listen, userChannel } from '@/lib/realtime';
 import { commitLinkTo, hostname } from '@/lib/urls';
 import { shortHash } from '@/lib/utils';
 import type { LinkPreview as LinkPreviewData } from '@/types';
@@ -14,15 +16,92 @@ const POLL_DELAYS = [1000, 2000, 3000, 5000, 8000, 13000];
 const drawnCommitPattern = /\/og\.png(?:\?|$)/;
 
 /**
+ * Where the commit or message showing the preview hears that its link was read: a published commit on its own
+ * channel, everything else on the viewer's.
+ */
+export type LinkPreviewSource = { commitId: string } | { isMessage: true };
+
+function useLinkPreviewChannels(
+    source: LinkPreviewSource | undefined,
+): { channel: RealtimeChannel; event: string }[] {
+    const userId = usePage().props.auth.user?.id;
+
+    if (source === undefined) {
+        return [];
+    }
+
+    const mine = (event: string) =>
+        userId === undefined ? [] : [{ channel: userChannel(userId), event }];
+
+    return 'commitId' in source
+        ? [
+              { channel: commitChannel(source.commitId), event: 'preview' },
+              ...mine('commits'),
+          ]
+        : mine('remotes.conversation');
+}
+
+/**
  * A link is unfurled in the background after its commit or message is posted, so a pending preview is fetched again
- * from the refresh URL until the page behind it has been read, instead of only showing up after a reload.
+ * from the refresh URL until the page behind it has been read, instead of only showing up after a reload. It is also
+ * read again as soon as its link is heard to be read, even long after the polling gave up, as when a retry succeeds
+ * or every retry failed.
  */
 function useFetchedLinkPreview(
     refreshUrl: string,
     preview: LinkPreviewData,
+    source?: LinkPreviewSource,
 ): { preview: LinkPreviewData; isWaiting: boolean } {
     const [fetched, setFetched] = useState<LinkPreviewData | null>(null);
     const [hasGivenUp, setHasGivenUp] = useState(false);
+    const channels = useLinkPreviewChannels(source);
+    const listened = channels
+        .map(({ channel, event }) => `${channel.type}:${channel.name}:${event}`)
+        .join(' ');
+
+    useEffect(() => {
+        if (!preview.is_pending || listened === '') {
+            return;
+        }
+
+        const controller = new AbortController();
+        const read = coalesce(async () => {
+            const response = await fetch(refreshUrl, {
+                headers: { Accept: 'application/json' },
+                cache: 'no-store',
+                signal: controller.signal,
+            });
+
+            if (!response.ok) {
+                return;
+            }
+
+            const { link_preview } = (await response.json()) as {
+                link_preview: LinkPreviewData | null;
+            };
+
+            if (link_preview && !link_preview.is_pending) {
+                setFetched(link_preview);
+            }
+        }, 300);
+        // Joining a channel, which can come after the link was read, also reads the preview again: it is still
+        // pending, so a read is all it takes.
+        const stops = listened.split(' ').map((key) => {
+            const [type, name, event] = key.split(':');
+
+            return listen(
+                { name, type: type === 'private' ? 'private' : 'public' },
+                { [event]: read.request },
+                read.request,
+            );
+        });
+
+        return () => {
+            stops.forEach((stop) => stop());
+            read.cancel();
+            controller.abort();
+        };
+    }, [refreshUrl, preview.is_pending, listened]);
 
     useEffect(() => {
         if (!preview.is_pending) {
@@ -123,14 +202,17 @@ export function LinkPreview({
     refreshUrl,
     preview: initialPreview,
     isStatic = false,
+    source,
 }: {
     refreshUrl: string;
     preview: LinkPreviewData;
     isStatic?: boolean;
+    source?: LinkPreviewSource;
 }) {
     const { preview, isWaiting } = useFetchedLinkPreview(
         refreshUrl,
         initialPreview,
+        source,
     );
     const [isImageBroken, setIsImageBroken] = useState(false);
     const commitLink = commitLinkTo(preview.url);

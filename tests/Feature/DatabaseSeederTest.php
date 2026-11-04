@@ -5,14 +5,19 @@ declare(strict_types=1);
 use App\Enums\InboxTab;
 use App\Enums\OrganizationRole;
 use App\Models\Commit;
+use App\Models\Headline;
 use App\Models\Notification;
 use App\Models\Organization;
 use App\Models\User;
 use App\Queries\ConversationsQuery;
+use App\Queries\HeadlineSummaryQuery;
+use App\Queries\HotHeadlinesQuery;
 use App\Queries\LogQueries\FollowingLogQuery;
 use App\Queries\NotificationGroupsQuery;
 use App\Queries\OrganizationMentionsQuery;
 use Database\Seeders\DatabaseSeeder;
+use Database\Seeders\HeadlineSeeder;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Event;
 
 it('gives the local developer people to follow and followers', function (): void {
@@ -24,6 +29,55 @@ it('gives the local developer people to follow and followers', function (): void
         ->and($localDeveloper->following()->count())->toBe(3)
         ->and($localDeveloper->followers()->count())->toBe(5);
 });
+
+it('gives the local developer five hot topics with linked discussions and available recaps', function (string $seeder): void {
+    $localDeveloper = User::factory()->create(['github_id' => 'local', 'handle' => 'local-dev']);
+
+    $this->seed($seeder);
+
+    $topics = resolve(HotHeadlinesQuery::class)->get($localDeveloper);
+    $headlines = Headline::query()->whereIn('id', array_column($topics, 'id'))->get();
+
+    expect($topics)->toHaveCount(5)
+        ->and(array_column($topics, 'name'))->toContain('Database indexing', 'Open-source maintenance')
+        ->and(array_column($topics, 'commits_count'))->toBe([2, 2, 2, 2, 2])
+        ->and($headlines->filter(fn (Headline $headline): bool => resolve(HeadlineSummaryQuery::class)->get($headline, $localDeveloper) !== null))->toHaveCount(4);
+
+    foreach ($headlines as $headline) {
+        $this->actingAs($localDeveloper)->get(route('headline.show', $headline))
+            ->assertOk()->assertInertia(fn ($page) => $page
+            ->component('headline/show')
+            ->where('name', $headline->name)
+            ->where('commits', fn (Collection $commits): bool => collect($headline->commits->modelKeys())->diff($commits->pluck('id'))->isEmpty()));
+    }
+})->with([DatabaseSeeder::class, HeadlineSeeder::class]);
+
+it('reuses headline fixtures and refreshes their recaps when the standalone seeder runs again', function (string $seeder): void {
+    $this->seed($seeder);
+    $headlines = Headline::query()->orderBy('name')->pluck('id', 'name')->all();
+    $commits = Commit::query()->orderBy('id')->pluck('id')->all();
+    $users = User::query()->count();
+    Headline::query()->update(['summary' => 'An outdated recap.', 'summary_created_at' => now()->subDay()]);
+
+    $this->travel(10)->hours();
+    $this->seed(HeadlineSeeder::class);
+
+    expect(Headline::query()->orderBy('name')->pluck('id', 'name')->all())->toBe($headlines)
+        ->and(Headline::query()->withCount('commits')->get()->pluck('commits_count')->all())->toBe([2, 2, 2, 2, 2])
+        ->and(Commit::query()->orderBy('id')->pluck('id')->all())->toBe($commits)
+        ->and(resolve(HotHeadlinesQuery::class)->get())->toHaveCount(5);
+    $this->assertDatabaseCount('users', $users);
+    $this->assertDatabaseHas('headlines', [
+        'name' => 'Database indexing',
+        'summary' => 'Developers compare composite and partial indexes to speed up queries without adding unnecessary write overhead.',
+        'summary_created_at' => now(),
+    ]);
+    $this->assertDatabaseHas('headlines', [
+        'name' => 'Open-source maintenance',
+        'summary' => null,
+        'summary_created_at' => null,
+    ]);
+})->with([DatabaseSeeder::class, HeadlineSeeder::class]);
 
 it('reuses an existing local developer', function (): void {
     $localDeveloper = User::factory()->create(['github_id' => 'local']);

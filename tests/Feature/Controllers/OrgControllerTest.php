@@ -6,6 +6,7 @@ use App\Enums\OrgEvent;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\Conversation;
 use App\Models\Message;
+use App\Models\Profile;
 use App\Models\User;
 use Inertia\Testing\AssertableInertia;
 
@@ -145,6 +146,15 @@ it('lets maintainers rename the org', function (): void {
 
     expect(Conversation::query()->findOrFail($org)->name)->toBe('polling crew')
         ->and(Message::query()->latest('id')->firstOrFail()->event)->toBe(OrgEvent::Renamed);
+});
+
+it('starts an org only with people on /dev/null, not developers looked up from GitHub', function (): void {
+    $mark = User::factory()->create();
+    [$nuno] = followersOf($mark, 1);
+
+    $this->actingAs($mark)->postJson(route('org.store'), ['members' => [$nuno->handle, Profile::factory()->create()->handle]])
+        ->assertUnprocessable()
+        ->assertOnlyJsonValidationErrors('members.1');
 });
 
 it('requires remotes and authentication', function (): void {
