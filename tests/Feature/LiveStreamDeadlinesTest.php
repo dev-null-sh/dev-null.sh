@@ -10,6 +10,7 @@ use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\CommitReport;
 use App\Models\LinkPreview;
+use App\Models\Notification;
 use App\Models\User;
 use Illuminate\Testing\TestResponse;
 
@@ -63,6 +64,42 @@ it('says when each followed stream in the aside runs out', function (): void {
     $this->actingAs($viewer);
 
     expect(inertiaGet(route('starred.index'))->json('props.liveFollowing.0.live'))->toBe(streamOf($streamer));
+});
+
+it('dates a notification actor before its hover card needs to read the preview', function (): void {
+    $this->freezeSecond();
+    $viewer = User::factory()->create();
+    $streamer = streamingFor(30);
+    Notification::factory()->for($viewer, 'recipient')->for($streamer->profile, 'actor')->create();
+    $this->actingAs($viewer);
+
+    $page = inertiaGet(route('notification.index'));
+
+    expect($page->json('props.notifications.data.0.actor.live'))->toBe(streamOf($streamer))
+        ->and($page->json('props.notifications.data.0.actors.0.live'))->toBe(streamOf($streamer));
+});
+
+it('dates every notification actor in the stack and the expanded group without exposing private fields', function (): void {
+    $this->freezeSecond();
+    $viewer = User::factory()->create();
+    $commit = Commit::factory()->for($viewer)->create();
+    $first = streamingFor(30);
+    $second = streamingFor(60);
+    Notification::factory()->for($viewer, 'recipient')->for($first->profile, 'actor')->starred($commit)->create(['created_at' => now()->subMinute()]);
+    $latest = Notification::factory()->for($viewer, 'recipient')->for($second->profile, 'actor')->starred($commit)->create();
+    $this->actingAs($viewer);
+
+    $page = inertiaGet(route('notification.index'));
+    $actors = collect($page->json('props.notifications.data.0.actors'))->keyBy('id');
+
+    expect($actors[$first->id]['live'])->toBe(streamOf($first))
+        ->and($actors[$second->id]['live'])->toBe(streamOf($second));
+
+    $group = $this->getJson(route('notification-group.show', $latest))->assertOk();
+
+    expect($group->json('data.0.actor.live'))->toBe(streamOf($second))
+        ->and($group->json('data.1.actor.live'))->toBe(streamOf($first));
+    $group->assertJsonMissingPath('data.0.actor.email')->assertJsonMissingPath('data.0.actor.live_ends_at');
 });
 
 it('keeps the aside across pages no longer than the first stream it lists lasts, so one extended meanwhile is read again', function (): void {

@@ -7,6 +7,7 @@ namespace App\Http\Resources;
 use App\Dto\ThreadContinuation;
 use App\Models\Commit;
 use App\Models\CommitReport;
+use App\Models\Notification;
 use App\Models\Profile;
 use App\Models\User;
 use Illuminate\Pagination\CursorPaginator;
@@ -19,6 +20,14 @@ use Illuminate\Support\Collection;
  */
 final class ShownStreams
 {
+    /**
+     * @return array<mixed>
+     */
+    public static function profile(Profile $profile): array
+    {
+        return self::authored($profile->toArray(), $profile);
+    }
+
     /**
      * @return array<mixed>|null
      */
@@ -99,6 +108,18 @@ final class ShownStreams
     {
         $shown = clone $page;
         $shown->setCollection($page->getCollection()->map(fn (Commit $commit): ShownCommitResource => new ShownCommitResource($commit)));
+
+        return $shown;
+    }
+
+    /**
+     * @param  CursorPaginator<int, Notification>  $page
+     * @return CursorPaginator<int, ShownNotificationResource>
+     */
+    public static function notifications(CursorPaginator $page): CursorPaginator
+    {
+        $shown = clone $page;
+        $shown->setCollection($page->getCollection()->map(fn (Notification $notification): ShownNotificationResource => new ShownNotificationResource($notification)));
 
         return $shown;
     }
