@@ -30,6 +30,7 @@ import {
     reloadInBackground,
 } from '@/lib/background-poll';
 import { emojify } from '@/lib/emoji';
+import { animateScrollToTop, scrollLogToTop } from '@/lib/log-scroll';
 import { coalesce, listen, logChannel, userChannel } from '@/lib/realtime';
 import { cn } from '@/lib/utils';
 import { windowDigest } from '@/lib/window-digest';
@@ -99,6 +100,22 @@ export default function Show({
                     nativeAnchoring.current;
                 nativeAnchoring.current = null;
             }
+        };
+    }, [log]);
+
+    useEffect(() => {
+        let cancel: VoidFunction | undefined;
+        const scroll = () => {
+            cancel?.();
+            returningToTop.current = window.scrollY > 0;
+            followAnchor.current = null;
+            cancel = animateScrollToTop();
+        };
+        window.addEventListener('log:scroll-top', scroll);
+
+        return () => {
+            cancel?.();
+            window.removeEventListener('log:scroll-top', scroll);
         };
     }, [log]);
 
@@ -751,11 +768,17 @@ export default function Show({
                             title: 'Following',
                             href: LogController.show('following'),
                             isActive: log === 'following',
+                            onClick:
+                                log === 'following'
+                                    ? scrollLogToTop
+                                    : undefined,
                         },
                         {
                             title: 'Latest',
                             href: LogController.show('latest'),
                             isActive: log === 'latest',
+                            onClick:
+                                log === 'latest' ? scrollLogToTop : undefined,
                         },
                         {
                             title: 'Trending',
@@ -779,11 +802,7 @@ export default function Show({
                 >
                     <button
                         type="button"
-                        onClick={() => {
-                            returningToTop.current = true;
-                            followAnchor.current = null;
-                            window.scrollTo({ top: 0, behavior: 'smooth' });
-                        }}
+                        onClick={() => scrollLogToTop()}
                         aria-label={announcementLabel}
                         title={announcementLabel}
                         className={cn(
