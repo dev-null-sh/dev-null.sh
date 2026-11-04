@@ -4,15 +4,42 @@ const listeners = new Set<() => void>();
 let now = Date.now();
 let interval: ReturnType<typeof setInterval> | undefined;
 
+const tick = () => {
+    now = Date.now();
+    listeners.forEach((notify) => notify());
+};
+
+const start = () => {
+    if (interval === undefined) {
+        now = Date.now();
+        interval = setInterval(tick, 30_000);
+    }
+};
+
+const onVisibilityChange = () => {
+    if (document.visibilityState === 'hidden') {
+        clearInterval(interval);
+        interval = undefined;
+    } else if (listeners.size > 0) {
+        tick();
+        start();
+    }
+};
+
 const subscribe = (listener: () => void) => {
     listeners.add(listener);
 
-    if (interval === undefined) {
-        now = Date.now();
-        interval = setInterval(() => {
-            now = Date.now();
-            listeners.forEach((notify) => notify());
-        }, 30_000);
+    if (listeners.size === 1) {
+        if (typeof document !== 'undefined') {
+            document.addEventListener('visibilitychange', onVisibilityChange);
+        }
+
+        if (
+            typeof document === 'undefined' ||
+            document.visibilityState !== 'hidden'
+        ) {
+            start();
+        }
     }
 
     return () => {
@@ -21,6 +48,12 @@ const subscribe = (listener: () => void) => {
         if (listeners.size === 0) {
             clearInterval(interval);
             interval = undefined;
+            if (typeof document !== 'undefined') {
+                document.removeEventListener(
+                    'visibilitychange',
+                    onVisibilityChange,
+                );
+            }
         }
     };
 };
