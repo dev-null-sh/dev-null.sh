@@ -268,7 +268,7 @@ export function ComposerPollPreview({
     return (
         <div className={className} data-test="composer-poll-preview">
             <CommitPoll
-                commit={{ id: '', user_id: '', status: 'pending' }}
+                commit={{ id: '', author: { id: '' }, status: 'pending' }}
                 poll={{
                     id: '',
                     closes_at: auth.isAdmin

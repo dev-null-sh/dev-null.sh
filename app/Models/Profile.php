@@ -12,11 +12,18 @@ use Illuminate\Database\Eloquent\Attributes\Visible;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 /**
  * A GitHub account at its "@handle", mirrored from GitHub: what GitHub calls a profile owner. The handle is GitHub's
- * login, which can be renamed, so the account is matched by its GitHub ID.
+ * login, which can be renamed, so the account is matched by its GitHub ID. Users and organizations share the ID of
+ * their profile, so it names either, and what only they have lives on `User` or `Organization`. A user's profile with
+ * no user is an unclaimed one: a developer looked up from GitHub, who isn't on /dev/null yet.
+ *
+ * Like on GitHub, a handle is one whatever its case: the column is `citext`, so a plain `where('handle', ...)` matches
+ * any case and its unique index refuses the same handle in another case. Never lowercase it in a query to compare
+ * it. Only search filters lowercase it, as `LOWER(handle) LIKE ...`, which the trigram index serves.
  *
  * @property-read string $id
  * @property-read ProfileType $type
@@ -31,6 +38,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
  * @property-read User|null $user
+ * @property-read Organization|null $organization
  */
 #[Visible([
     'handle',
@@ -40,7 +48,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
     'location',
     'website',
 ])]
-#[Touches(['user'])]
+#[Touches(['user', 'organization'])]
 final class Profile extends Model
 {
     /** @use HasFactory<ProfileFactory> */
@@ -52,11 +60,6 @@ final class Profile extends Model
      * The GitHub identity a user shows, which lives on their profile.
      */
     public const array USER_ATTRIBUTES = ['handle', 'name', 'avatar_url', 'bio', 'location', 'website', 'github_synced_at'];
-
-    /**
-     * Organizations are refreshed from GitHub when a commit mentions them, at most this often.
-     */
-    public const int FRESH_FOR_HOURS = 24;
 
     /**
      * @return array<string, string>
@@ -80,10 +83,79 @@ final class Profile extends Model
     }
 
     /**
+     * Shown, a profile is its user's or its organization's, with what is its type's alone, like a user's live stream.
+     *
+     * @return array<mixed>
+     */
+    public function toArray(): array
+    {
+        return ['type' => $this->type, ...$this->owner()?->toArray() ?? []];
+    }
+
+    public function mention(): string
+    {
+        return '@'.$this->handle;
+    }
+
+    /**
+     * How link previews title the profile, without repeating a name that is just the handle.
+     */
+    public function nameWithHandle(): string
+    {
+        return $this->name === $this->handle ? $this->mention() : $this->name.' ('.$this->mention().')';
+    }
+
+    /**
+     * Loaded from its profile, the user reads their GitHub identity from it.
+     *
      * @return HasOne<User, $this>
      */
     public function user(): HasOne
     {
-        return $this->hasOne(User::class, 'github_id', 'github_id');
+        return $this->hasOne(User::class, 'id')->without('profile')->chaperone('profile');
+    }
+
+    /**
+     * Loaded from its profile, the organization reads its GitHub identity from it.
+     *
+     * @return HasOne<Organization, $this>
+     */
+    public function organization(): HasOne
+    {
+        return $this->hasOne(Organization::class, 'id')->without('profile')->chaperone('profile');
+    }
+
+    /**
+     * The commits from the profile, a user's or an organization's.
+     *
+     * @return HasMany<Commit, $this>
+     */
+    public function commits(): HasMany
+    {
+        return $this->hasMany(Commit::class, 'author_id');
+    }
+
+    /**
+     * The user or the organization whose profile it is.
+     */
+    public function owner(): User|Organization|null
+    {
+        return $this->user ?? $this->organization;
+    }
+
+    /**
+     * A developer looked up from GitHub who never signed in, so no user owns the profile yet: signing in makes it theirs.
+     */
+    public function isUnclaimed(): bool
+    {
+        return $this->type === ProfileType::User && ! $this->user instanceof User;
+    }
+
+    /**
+     * Changes whenever what an unclaimed profile's link preview draws changes, so a shared link shows the new card.
+     */
+    public function openGraphImageVersion(): string
+    {
+        return hash('xxh3', (string) json_encode([$this->name, $this->handle, $this->avatar_url, $this->bio]));
     }
 }

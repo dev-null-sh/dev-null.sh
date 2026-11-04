@@ -8,6 +8,7 @@ use App\Actions\UpdateCommitStatuses;
 use App\Enums\CommitStatus;
 use App\Http\Requests\ShowModerationRequest;
 use App\Http\Requests\UpdateModerationRequest;
+use App\Http\Resources\ShownStreams;
 use App\Models\Commit;
 use App\Models\User;
 use App\Services\CommitTranslations;
@@ -15,6 +16,7 @@ use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Pagination\CursorPaginator;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -23,14 +25,15 @@ final readonly class ModerationController
     public function show(ShowModerationRequest $request, #[CurrentUser] User $user): Response
     {
         return Inertia::render('moderation/show', [
-            'commits' => Inertia::scroll(fn () => Commit::query()
+            'commits' => Inertia::scroll(fn (): CursorPaginator => ShownStreams::page(Commit::query()
                 ->pending()
                 ->with([
+                    'author',
                     'user',
-                    'parent.user',
+                    'parent.author',
                     'linkPreview',
                     'images',
-                    'quotedCommit' => fn (BelongsTo $query): BelongsTo => $query->withTrashed()->with(['user', 'linkPreview', 'images'])->withPollFor($user),
+                    'quotedCommit' => fn (BelongsTo $query): BelongsTo => $query->withTrashed()->with(['author', 'linkPreview', 'images'])->withPollFor($user),
                 ])
                 ->withStarsFor($user)
                 ->withPollFor($user)
@@ -38,7 +41,21 @@ final readonly class ModerationController
                 ->oldest()
                 ->oldest('id')
                 ->cursorPaginate(20)
-                ->through($this->withAiDecision(...))),
+                ->through($this->forModerators(...)))),
+            // Of the commits a queue showed, those no longer waiting: decided, deleted or gone.
+            'decidedCommitIds' => Inertia::optional(function () use ($request): array {
+                $waiting = Commit::query()->pending()->whereKey($request->loaded())->pluck('id');
+
+                return array_values(array_filter($request->loaded(), fn (string $id): bool => ! $waiting->contains($id)));
+            }),
+            'arrivedCommitIds' => Inertia::optional(fn (): array => Commit::query()
+                ->pending()
+                ->where('updated_at', '>', $request->since())
+                ->oldest()
+                ->oldest('id')
+                ->limit(100)
+                ->pluck('id')
+                ->all()),
         ]);
     }
 
@@ -56,10 +73,10 @@ final readonly class ModerationController
     }
 
     /**
-     * The AI's decision is hidden everywhere else, but moderators see it.
+     * The AI's decision and who posted an organization's commit are hidden everywhere else, but moderators see them.
      */
-    private function withAiDecision(Commit $commit): Commit
+    private function forModerators(Commit $commit): Commit
     {
-        return $commit->makeVisible(['ai_decision', 'ai_categories']);
+        return $commit->makeVisible(['ai_decision', 'ai_categories'])->withPoster();
     }
 }

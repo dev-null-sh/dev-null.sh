@@ -4,19 +4,23 @@ import type { LucideIcon } from 'lucide-react';
 import {
     ArrowRight,
     Bug,
+    Flame,
     History,
     Lightbulb,
     Radio,
     Search,
-    Sparkles,
     Square,
     SquarePen,
 } from 'lucide-react';
 import type { KeyboardEvent, ReactNode } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
+import HeadlineController from '@/actions/App/Http/Controllers/HeadlineController';
+import ProfileSearchController from '@/actions/App/Http/Controllers/ProfileSearchController';
 import SearchController from '@/actions/App/Http/Controllers/SearchController';
-import UserSearchController from '@/actions/App/Http/Controllers/UserSearchController';
+import { AuthorAvatar } from '@/components/author-avatar';
+import { HotTopicContent } from '@/components/hot-topics';
+import { OrganizationAvatar } from '@/components/organization-avatar';
 import { DialogOverlay, DialogPortal } from '@/components/ui/dialog';
 import { Spinner } from '@/components/ui/spinner';
 import { UserAvatar } from '@/components/user-avatar';
@@ -26,12 +30,9 @@ import {
     rememberSearch,
     useRecentSearches,
 } from '@/hooks/use-recent-searches';
+import { signIn } from '@/lib/auth';
 import { searchCandidates } from '@/lib/chat';
-import {
-    searchCommits,
-    suggestedQueries,
-    TooManySearches,
-} from '@/lib/commit-search';
+import { searchCommits, TooManySearches } from '@/lib/commit-search';
 import { useKeyLabels } from '@/lib/keyboard';
 import type { SearchAction } from '@/lib/search-actions';
 import { searchActions } from '@/lib/search-actions';
@@ -40,9 +41,14 @@ import {
     searchesCommits,
     searchIntent,
 } from '@/lib/search-intent';
-import { cn, formatRelativeTime, laneColor } from '@/lib/utils';
+import {
+    authorLaneColor,
+    cn,
+    formatRelativeTime,
+    laneColor,
+} from '@/lib/utils';
 import { show } from '@/routes/user';
-import type { Commit, User } from '@/types';
+import type { Commit, CommitAuthor, Organization, User } from '@/types';
 
 const developerDebounce = 120;
 
@@ -58,19 +64,15 @@ type Found<T> = { term: string; items: T[]; throttled?: boolean };
 type Option =
     | { kind: 'action'; id: string; action: SearchAction }
     | { kind: 'developer'; id: string; user: User; reason?: string | null }
+    | { kind: 'organization'; id: string; organization: Organization }
     | { kind: 'commit'; id: string; commit: Commit }
-    | { kind: 'all'; id: string }
-    | { kind: 'suggestion'; id: string; term: string }
+    | { kind: 'all'; id: string; needsSignIn: boolean }
+    | { kind: 'topic'; id: string; term: string; summary: string | null }
     | { kind: 'recent'; id: string; term: string };
 
-const suggestionOptions: Option[] = suggestedQueries.map((term, index) => ({
-    kind: 'suggestion',
-    id: `suggestion-${index}`,
-    term,
-}));
-
 /**
- * Searches developers and commits. Picking a developer for a new conversation narrows it to developers, says why
+ * Searches developers, organizations and commits. Guests only search developers and organizations: each commit search pays for AI, so they're asked to
+ * sign in for those instead. Picking a developer for a new conversation narrows it to developers, says why
  * anyone can't be messaged, and hands the pick back instead of opening their profile. Given `onAction`, it also offers
  * to write a commit, open an issue or go live when the search names one, above what it found.
  */
@@ -81,6 +83,10 @@ export function SearchDialog({
     excludeId,
     onAction,
     isLive = false,
+    pickerTitle = 'New remote',
+    pickerPlaceholder = 'Message a developer',
+    pickerScope = 'remote',
+    onCloseAutoFocus,
 }: {
     open: boolean;
     onOpenChange: (open: boolean) => void;
@@ -88,24 +94,34 @@ export function SearchDialog({
     excludeId?: string;
     onAction?: (action: SearchAction) => void;
     isLive?: boolean;
+    pickerTitle?: string;
+    pickerPlaceholder?: string;
+    pickerScope?: 'remote' | 'share';
+    onCloseAutoFocus?: (event: Event) => void;
 }) {
-    const userId = usePage().props.auth.user?.id ?? null;
+    const { auth, hotTopics = [] } = usePage().props;
+    const userId = auth.user?.id ?? null;
     const recentSearches = useRecentSearches(userId);
     const keys = useKeyLabels();
     const [query, setQuery] = useState('');
     const input = useRef<HTMLInputElement>(null);
     const [activeIndex, setActiveIndex] = useState(0);
     const isPicking = onPickDeveloper !== undefined;
+    const isMember = userId !== null;
 
     const term = query.trim();
     const developerTerm = term.replace(/^@/u, '');
     const intent = isPicking ? 'developer' : searchIntent(term);
-    const commitTerm = searchesCommits(intent) ? term : '';
+    const commitQuery = searchesCommits(intent) ? term : '';
+    const commitTerm = isMember ? commitQuery : '';
 
-    const developers = useDebouncedSearch(
+    const developers = useDebouncedSearch<FoundDeveloper | FoundOrganization>(
         developerTerm,
         developerDebounce,
-        isPicking ? searchRemoteCandidates : searchDevelopers,
+        isPicking
+            ? (value, signal) =>
+                  searchCandidates(value, { for: pickerScope }, signal)
+            : searchDevelopers,
     );
     const commits = useDebouncedSearch(
         commitTerm,
@@ -115,13 +131,23 @@ export function SearchDialog({
 
     const visibleDevelopers = developers
         .resultsFor(developerTerm)
-        .filter(({ user }) => user.id !== excludeId);
+        .filter(
+            (found): found is FoundDeveloper =>
+                'user' in found && found.user.id !== excludeId,
+        );
+    const visibleOrganizations = developers
+        .resultsFor(developerTerm)
+        .filter((found): found is FoundOrganization => 'organization' in found);
     const visibleCommits = commits.resultsFor(commitTerm);
     const results = optionsFor(
         intent,
         intent === 'topic' ? visibleDevelopers.slice(0, 2) : visibleDevelopers,
+        intent === 'topic'
+            ? visibleOrganizations.slice(0, 2)
+            : visibleOrganizations,
         visibleCommits,
-        commitTerm,
+        commitQuery,
+        !isMember,
         onAction && !isPicking ? searchActions(term, { isLive }) : [],
     );
     const isLoading = developers.isLoading || commits.isLoading;
@@ -145,10 +171,16 @@ export function SearchDialog({
         id: `recent-${index}`,
         term: recent,
     }));
+    const topicOptions: Option[] = hotTopics.map((topic) => ({
+        kind: 'topic',
+        id: topic.id,
+        term: topic.name,
+        summary: topic.summary,
+    }));
     const options =
         isPicking || !(isEmpty || foundNothing)
             ? results
-            : [...recentOptions, ...suggestionOptions];
+            : [...recentOptions, ...topicOptions];
 
     useEffect(() => {
         if (open && !isPicking && hasSearched && !isLoading && !isThrottled) {
@@ -168,13 +200,19 @@ export function SearchDialog({
     };
 
     const openOption = (option: Option) => {
-        if (option.kind === 'suggestion' || option.kind === 'recent') {
+        if (option.kind === 'recent') {
             type(option.term);
 
             return;
         }
 
         close();
+
+        if (option.kind === 'all' && option.needsSignIn) {
+            signIn();
+
+            return;
+        }
 
         if (option.kind === 'action') {
             onAction?.(option.action);
@@ -239,16 +277,17 @@ export function SearchDialog({
             <DialogPortal>
                 <DialogOverlay />
                 <DialogPrimitive.Content
+                    onCloseAutoFocus={onCloseAutoFocus}
                     className="fixed top-[12vh] left-1/2 z-50 w-full max-w-[calc(100%-2rem)] -translate-x-1/2 overflow-hidden rounded-lg border bg-popover text-popover-foreground shadow-[0_24px_48px_-16px_rgb(0_0_0/0.4)] duration-200 motion-safe:data-[state=closed]:animate-out motion-safe:data-[state=closed]:fade-out-0 motion-safe:data-[state=closed]:zoom-out-95 motion-safe:data-[state=open]:animate-in motion-safe:data-[state=open]:fade-in-0 motion-safe:data-[state=open]:zoom-in-95 sm:max-w-xl"
                     data-test="search"
                 >
                     <DialogPrimitive.Title className="sr-only">
-                        {isPicking ? 'New remote' : 'Search'}
+                        {isPicking ? pickerTitle : 'Search'}
                     </DialogPrimitive.Title>
                     <DialogPrimitive.Description className="sr-only">
                         {isPicking
                             ? 'Find a developer by name or handle to message.'
-                            : 'Find developers by name or handle, or commits by what they are about.'}
+                            : 'Find developers and organizations by name or handle, or commits by what they are about.'}
                     </DialogPrimitive.Description>
 
                     <div className="flex items-center gap-3 border-b px-4">
@@ -262,7 +301,7 @@ export function SearchDialog({
                             onKeyDown={onKeyDown}
                             placeholder={
                                 isPicking
-                                    ? 'Message a developer'
+                                    ? pickerPlaceholder
                                     : 'Search developers or commits'
                             }
                             role="combobox"
@@ -358,14 +397,19 @@ export function SearchDialog({
                             ))}
                         </ul>
                     ) : (
-                        <div
-                            role="status"
-                            className="px-5 py-8 text-center text-sm text-muted-foreground"
-                        >
-                            {isAwaitingDeveloperName
-                                ? 'Type a name or handle to find a developer'
-                                : 'Searching…'}
-                        </div>
+                        !foundNothing &&
+                        !isThrottled && (
+                            <div
+                                role="status"
+                                className="px-5 py-8 text-center text-sm text-muted-foreground"
+                            >
+                                {isAwaitingDeveloperName
+                                    ? 'Type a name or handle to find a developer'
+                                    : isEmpty
+                                      ? 'Start typing to search'
+                                      : 'Searching…'}
+                            </div>
+                        )
                     )}
 
                     <div className="hidden items-center gap-4 border-t bg-muted/40 px-4 py-2 text-xs text-muted-foreground sm:flex">
@@ -460,18 +504,16 @@ function useDebouncedSearch<T>(
 
 type FoundDeveloper = { user: User; reason?: string | null };
 
-async function searchRemoteCandidates(
-    term: string,
-    signal: AbortSignal,
-): Promise<FoundDeveloper[]> {
-    return searchCandidates(term, { for: 'remote' }, signal);
-}
+type FoundOrganization = { organization: Organization };
 
+/**
+ * Organizations come back with the developers, after them, so both arrive together.
+ */
 function searchDevelopers(
     term: string,
     signal: AbortSignal,
-): Promise<FoundDeveloper[]> {
-    return fetch(UserSearchController.index({ query: { q: term } }).url, {
+): Promise<Array<FoundDeveloper | FoundOrganization>> {
+    return fetch(ProfileSearchController.index({ query: { q: term } }).url, {
         headers: {
             Accept: 'application/json',
             'X-Requested-With': 'XMLHttpRequest',
@@ -489,16 +531,19 @@ function searchDevelopers(
 
             return response.json();
         })
-        .then((data: { users: User[] }) =>
-            data.users.map((user) => ({ user })),
-        );
+        .then((data: { users: User[]; organizations: Organization[] }) => [
+            ...data.users.map((user) => ({ user })),
+            ...data.organizations.map((organization) => ({ organization })),
+        ]);
 }
 
 function optionsFor(
     intent: ReturnType<typeof searchIntent>,
     developers: FoundDeveloper[],
+    organizations: FoundOrganization[],
     commits: Commit[],
     commitTerm: string,
+    needsSignIn: boolean,
     actions: SearchAction[],
 ): Option[] {
     const actionOptions: Option[] = actions.map((action) => ({
@@ -512,13 +557,20 @@ function optionsFor(
         user,
         reason,
     }));
+    const organizationOptions: Option[] = organizations.map(
+        ({ organization }) => ({
+            kind: 'organization',
+            id: `organization-${organization.handle}`,
+            organization,
+        }),
+    );
     const commitOptions: Option[] = commits.map((commit) => ({
         kind: 'commit',
         id: `commit-${commit.id}`,
         commit,
     }));
     const seeAll: Option[] =
-        commitTerm === '' ? [] : [{ kind: 'all', id: 'all' }];
+        commitTerm === '' ? [] : [{ kind: 'all', id: 'all', needsSignIn }];
 
     if (intent === 'topic') {
         return [
@@ -526,15 +578,23 @@ function optionsFor(
             ...commitOptions,
             ...seeAll,
             ...developerOptions,
+            ...organizationOptions,
         ];
     }
 
-    return [...actionOptions, ...developerOptions, ...commitOptions, ...seeAll];
+    return [
+        ...actionOptions,
+        ...developerOptions,
+        ...organizationOptions,
+        ...commitOptions,
+        ...seeAll,
+    ];
 }
 
 const headings: Record<Option['kind'], ReactNode> = {
     action: 'Actions',
     developer: 'Developers',
+    organization: 'Organizations',
     commit: 'Most relevant commits',
     all: null,
     recent: (
@@ -543,10 +603,10 @@ const headings: Record<Option['kind'], ReactNode> = {
             Recent searches
         </span>
     ),
-    suggestion: (
+    topic: (
         <span className="flex items-center gap-1.5">
-            <Sparkles aria-hidden className="size-3.5 text-primary" />
-            Try searching for…
+            <Flame aria-hidden className="size-3.5 text-(--lane-0)" />
+            Hot topics
         </span>
     ),
 };
@@ -562,16 +622,24 @@ function headingBefore(options: Option[], index: number): ReactNode {
 }
 
 function hrefFor(
-    option: Exclude<Option, { kind: 'action' | 'suggestion' | 'recent' }>,
+    option: Exclude<Option, { kind: 'action' | 'recent' }>,
     term: string,
 ) {
+    if (option.kind === 'topic') {
+        return HeadlineController.show(option.id);
+    }
+
     if (option.kind === 'developer') {
         return show(option.user);
     }
 
+    if (option.kind === 'organization') {
+        return show(option.organization);
+    }
+
     if (option.kind === 'commit') {
         return CommitController.show({
-            user: option.commit.user,
+            profile: option.commit.author,
             commit: option.commit,
         });
     }
@@ -600,7 +668,7 @@ function ResultOption({
 }) {
     const className = cn(
         'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left disabled:cursor-not-allowed',
-        { 'bg-accent': isActive },
+        { 'bg-accent': isActive, group: option.kind === 'topic' },
     );
     const content = (
         <>
@@ -633,8 +701,8 @@ function ResultOption({
                 aria-selected={isActive}
             >
                 {option.kind === 'action' ||
-                option.kind === 'suggestion' ||
                 option.kind === 'recent' ||
+                (option.kind === 'all' && option.needsSignIn) ||
                 (option.kind === 'developer' && onPickDeveloper) ? (
                     <button
                         type="button"
@@ -655,6 +723,7 @@ function ResultOption({
                 ) : (
                     <Link
                         href={hrefFor(option, term)}
+                        prefetch={option.kind !== 'topic'}
                         tabIndex={-1}
                         onMouseMove={onHover}
                         onClick={onOpen}
@@ -677,11 +746,19 @@ function OptionContent({ option }: { option: Option }): ReactNode {
         return <DeveloperResult user={option.user} reason={option.reason} />;
     }
 
+    if (option.kind === 'organization') {
+        return <OrganizationResult organization={option.organization} />;
+    }
+
     if (option.kind === 'commit') {
         return <CommitResult commit={option.commit} />;
     }
 
-    if (option.kind === 'suggestion' || option.kind === 'recent') {
+    if (option.kind === 'topic') {
+        return <HotTopicContent name={option.term} summary={option.summary} />;
+    }
+
+    if (option.kind === 'recent') {
         return (
             <span className="flex min-w-0 flex-1 items-center justify-between gap-3 text-sm">
                 <span className="truncate" title={option.term}>
@@ -697,7 +774,9 @@ function OptionContent({ option }: { option: Option }): ReactNode {
 
     return (
         <span className="flex min-w-0 flex-1 items-center gap-2 text-sm text-primary">
-            See all matching commits
+            {option.needsSignIn
+                ? 'Sign in to search commits'
+                : 'See all matching commits'}
             <ArrowRight aria-hidden className="size-4" />
         </span>
     );
@@ -775,18 +854,53 @@ function DeveloperResult({
     );
 }
 
+function OrganizationResult({ organization }: { organization: Organization }) {
+    return (
+        <>
+            <OrganizationAvatar
+                organization={organization}
+                className="size-9 shrink-0"
+            />
+            <span className="min-w-0 flex-1">
+                <span className="flex items-baseline gap-1.5">
+                    <span
+                        className="truncate font-semibold"
+                        title={organization.name}
+                    >
+                        {organization.name}
+                    </span>
+                    <span
+                        className="min-w-0 shrink truncate font-mono text-[13px] text-muted-foreground"
+                        title={`@${organization.handle}`}
+                    >
+                        @{organization.handle}
+                    </span>
+                </span>
+                {organization.bio && (
+                    <span
+                        className="block truncate text-sm text-muted-foreground"
+                        title={organization.bio}
+                    >
+                        {organization.bio}
+                    </span>
+                )}
+            </span>
+        </>
+    );
+}
+
 function CommitResult({ commit }: { commit: Commit }) {
     const now = useNow();
 
     return (
         <>
-            <UserAvatar
-                user={commit.user}
+            <AuthorAvatar
+                author={commit.author}
                 className="size-9 shrink-0 self-start"
             />
             <span className="min-w-0 flex-1">
                 <span className="flex items-baseline gap-1.5 text-sm">
-                    <Handle user={commit.user} />
+                    <Handle user={commit.author} />
                     <span aria-hidden className="text-muted-foreground">
                         ·
                     </span>
@@ -808,13 +922,18 @@ function CommitResult({ commit }: { commit: Commit }) {
     );
 }
 
-function Handle({ user }: { user: User }) {
+function Handle({ user }: { user: User | CommitAuthor }) {
     return (
         <span className="flex min-w-0 shrink items-center gap-1 font-mono text-[13px] text-muted-foreground">
             <span
                 aria-hidden
                 className="size-1.5 shrink-0 rounded-full"
-                style={{ background: laneColor(user.lane) }}
+                style={{
+                    background:
+                        'type' in user
+                            ? authorLaneColor(user)
+                            : laneColor(user.lane),
+                }}
             />
             <span className="truncate">@{user.handle}</span>
         </span>

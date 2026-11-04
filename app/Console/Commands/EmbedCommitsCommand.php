@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
+use App\Contracts\Services\EmbeddingProvider;
 use App\Models\Commit;
-use App\Services\OpenAI;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
@@ -18,12 +18,12 @@ final class EmbedCommitsCommand extends Command
 {
     private const int BATCH_SIZE = 100;
 
-    public function handle(OpenAI $openAI): int
+    public function handle(EmbeddingProvider $embeddings): int
     {
         $embedded = 0;
 
-        $this->commits()->chunkById(self::BATCH_SIZE, function (Collection $commits) use ($openAI, &$embedded): void {
-            $this->embed($openAI, $commits);
+        $this->commits()->chunkById(self::BATCH_SIZE, function (Collection $commits) use ($embeddings, &$embedded): void {
+            $this->embed($embeddings, $commits);
 
             $embedded += $commits->count();
         });
@@ -51,12 +51,12 @@ final class EmbedCommitsCommand extends Command
      *
      * @param  Collection<int, Commit>  $commits
      */
-    private function embed(OpenAI $openAI, Collection $commits): void
+    private function embed(EmbeddingProvider $embeddings, Collection $commits): void
     {
-        $embeddings = $openAI->embedMany(array_values($commits->map(fn (Commit $commit): string => $commit->body)->all()));
+        $vectors = $embeddings->embedMany(array_values($commits->map(fn (Commit $commit): string => $commit->body)->all()));
 
-        $commits->each(function (Commit $commit, int $index) use ($embeddings): void {
-            $commit->update(['embedding' => $embeddings[$index]]);
+        $commits->each(function (Commit $commit, int $index) use ($vectors): void {
+            $commit->update(['embedding' => $vectors[$index]]);
         });
     }
 }

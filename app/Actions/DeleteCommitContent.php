@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Models\Commit;
+use App\Models\Headline;
 use App\Models\LinkPreview;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -34,8 +35,11 @@ final readonly class DeleteCommitContent
             LinkPreview::query()->where('url', 'like', "%/commits/{$commit->id}%")->delete();
 
             DB::table('commit_topics')->where('commit_id', $commit->id)->delete();
+            Headline::query()->whereIn('id', DB::table('commit_headline')->select('headline_id')->where('commit_id', $commit->id))
+                ->update(['summary' => null, 'summary_created_at' => null]);
+            $commit->headlines()->detach();
 
-            $commit->update(['body' => '', 'mentions' => null, 'embedding' => null, 'link_preview_id' => null]);
+            $commit->update(['body' => '', 'mentions' => null, 'embedding' => null, 'link_preview_id' => null, 'headlines_classified_at' => null]);
 
             return $imagePaths;
         });

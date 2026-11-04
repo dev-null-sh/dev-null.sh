@@ -2,28 +2,26 @@
 
 declare(strict_types=1);
 
+use App\Contracts\Services\EmbeddingProvider;
 use App\Jobs\EmbedCommit;
 use App\Models\Commit;
+use GuzzleHttp\Psr7\Response as Psr7Response;
 use Illuminate\Http\Client\RequestException;
-use Illuminate\Support\Facades\Http;
-
-beforeEach(function (): void {
-    config(['ai.providers.openai.key' => 'sk-test']);
-});
+use Illuminate\Http\Client\Response;
 
 it('skips commits that were deleted in the meantime', function (): void {
-    Http::fake();
+    $embeddings = $this->mock(EmbeddingProvider::class);
+    $embeddings->shouldNotReceive('embed');
 
     $commit = Commit::factory()->create();
     $commit->delete();
 
     dispatch_sync(new EmbedCommit($commit));
-
-    Http::assertNothingSent();
 });
 
 it('throws when openai is unavailable, so the job is retried', function (): void {
-    Http::fake(['api.openai.com/v1/embeddings' => Http::response([], 503)]);
+    $embeddings = $this->mock(EmbeddingProvider::class);
+    $embeddings->shouldReceive('embed')->andThrow(new RequestException(new Response(new Psr7Response(503))));
 
     $commit = Commit::factory()->create();
 

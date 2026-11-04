@@ -5,17 +5,16 @@ declare(strict_types=1);
 use App\Actions\CreateCommitTopics;
 use App\Jobs\LinkCommitTopics;
 use App\Models\Commit;
-use App\Models\Profile;
+use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Support\Facades\Queue;
 
-it('links known organizations right away, a user of the same handle first', function (): void {
+it('links known organizations right away, apart from users, whatever the case they are written in', function (): void {
     Queue::fake();
 
     $author = User::factory()->create();
-    $tom = User::factory()->create(['handle' => 'tom']);
-    $laravel = Profile::factory()->organization()->create(['handle' => 'laravel']);
-    Profile::factory()->organization()->create(['handle' => 'Tom']);
+    $tom = User::factory()->create(['handle' => 'Tom']);
+    $laravel = Organization::factory()->create(['handle' => 'laravel']);
 
     $this->actingAs($author)->post('/commits', ['body' => 'Thanks @Laravel and @tom'])->assertRedirect();
 
@@ -69,18 +68,18 @@ it('waits for the approval of a pending commit to ask GitHub', function (): void
 });
 
 it('links mentions to the organization they captured, even after it is renamed', function (): void {
-    $organization = Profile::factory()->organization()->create(['handle' => 'laravel']);
+    $organization = Organization::factory()->create(['handle' => 'laravel']);
 
     $this->get(route('organization-mention.show', $organization))->assertRedirect('/@laravel');
 
-    $organization->update(['handle' => 'laravel-renamed']);
+    $organization->profile->update(['handle' => 'laravel-renamed']);
 
     $this->get(route('organization-mention.show', $organization))->assertRedirect('/@laravel-renamed');
 });
 
 it('previews which mentions are organizations', function (): void {
     $user = User::factory()->create();
-    $organization = Profile::factory()->organization()->create(['handle' => 'laravel']);
+    $organization = Organization::factory()->create(['handle' => 'laravel']);
 
     $this->actingAs($user)->postJson(route('commit-preview.store'), ['body' => 'Thanks @laravel'])
         ->assertOk()
@@ -90,7 +89,7 @@ it('previews which mentions are organizations', function (): void {
 it('tells API clients which mentions are organizations', function (): void {
     $user = User::factory()->create();
     $keyPair = apiKeyPairFor($user);
-    $organization = Profile::factory()->organization()->create(['handle' => 'laravel']);
+    $organization = Organization::factory()->create(['handle' => 'laravel']);
     $commit = Commit::factory()->create(['body' => '@laravel and @tom', 'mentions' => []]);
     resolve(CreateCommitTopics::class)->handle($commit, ['laravel' => $organization->id]);
 

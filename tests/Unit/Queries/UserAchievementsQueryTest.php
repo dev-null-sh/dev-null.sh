@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Actions\CreateTomFriendship;
+use App\Contracts\Services\GitHubProvider;
 use App\Enums\Achievement;
 use App\Enums\CommitStatus;
 use App\Enums\UnixRank;
@@ -10,8 +11,9 @@ use App\Models\Commit;
 use App\Models\SshKey;
 use App\Models\User;
 use App\Queries\UserAchievementsQuery;
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Http;
+use GuzzleHttp\Psr7\Response as Psr7Response;
+use Illuminate\Http\Client\RequestException;
+use Illuminate\Http\Client\Response;
 
 beforeEach(function (): void {
     $this->travelTo(now()->setDate(2026, 10, 22)->setTime(12, 0));
@@ -30,7 +32,7 @@ it('calculates initial rank and zero progress for a new user without activity', 
         ->and($result['ranks'])->toHaveCount(6)
         ->and($result['xp_breakdown']['commits']['xp'])->toBe(0)
         ->and($result['xp_breakdown']['shell_shocked']['xp'])->toBe(0)
-        ->and($result['badges'])->toHaveCount(16);
+        ->and($result['badges'])->toHaveCount(17);
 
     foreach ($result['badges'] as $badge) {
         expect($badge['unlocked'])->toBeFalse()
@@ -322,6 +324,30 @@ it('does not identify Tom by a mutable handle', function (): void {
     expect(collect($result['badges'])->firstWhere('id', 'luddite')['unlocked'])->toBeFalse();
 });
 
+it('unlocks whoopsie only for the listed handles without adding xp', function (string $handle, bool $unlocked, int $progress): void {
+    $user = User::factory()->create(['handle' => $handle]);
+
+    $result = resolve(UserAchievementsQuery::class)->get($user, null);
+
+    expect(collect($result['badges'])->firstWhere('id', 'whoopsie'))->toBe([
+        'id' => 'whoopsie',
+        'name' => 'whoopsie',
+        'description' => 'Nuked production at least once.',
+        'icon' => 'mushroom-cloud',
+        'unlocked' => $unlocked,
+        'progress' => $progress,
+        'target' => 1,
+    ])->and($result['xp'])->toBe(0);
+})->with([
+    'paulinevos' => ['paulinevos', true, 1],
+    'nunomaduro' => ['nunomaduro', true, 1],
+    'brendt' => ['brendt', true, 1],
+    'mnapoli' => ['mnapoli', true, 1],
+    'mixed case' => ['PaulineVos', true, 1],
+    'unlisted' => ['local-dev', false, 0],
+    'partial match' => ['notpaulinevos', false, 0],
+]);
+
 it('adds the shell shocked reward to activity xp and includes the luddite penalty', function (bool $unfollowedTom, int $xp): void {
     $user = User::factory()->create(['created_at' => '2026-10-21 13:59:59']);
     Commit::factory()->for($user)->create();
@@ -366,7 +392,7 @@ it('awards shell shocked and 100 xp only to accounts created before the UTC cuto
 it('unlocks git blame with a commit in the /dev/null repository, matching the GitHub account', function (): void {
     $contributor = User::factory()->create(['github_id' => (string) crc32('xHeaven'), 'handle' => 'renamed']);
     $other = User::factory()->create(['handle' => 'xHeaven']);
-    fakeGitHubContributors([gitHubContributor('xHeaven', 187)]);
+    $this->mock(GitHubProvider::class)->shouldReceive('contributors')->andReturn([gitHubContributor('xHeaven', 187)]);
 
     $query = resolve(UserAchievementsQuery::class);
     $result = $query->get($contributor, null);
@@ -385,8 +411,7 @@ it('unlocks git blame with a commit in the /dev/null repository, matching the Gi
 
 it('keeps git blame locked while GitHub does not answer', function (): void {
     $user = User::factory()->create(['github_id' => (string) crc32('xHeaven')]);
-    Cache::forget(gitHubContributorsCacheKey());
-    Http::fake(['api.github.com/*' => Http::response(status: 500)]);
+    $this->mock(GitHubProvider::class)->shouldReceive('contributors')->andThrow(new RequestException(new Response(new Psr7Response(500))));
 
     $badge = collect(resolve(UserAchievementsQuery::class)->get($user, null)['badges'])->firstWhere('id', 'git_blame');
 

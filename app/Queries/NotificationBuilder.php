@@ -31,15 +31,22 @@ final class NotificationBuilder extends Builder
                     ->whereColumn('follows.followed_id', 'notifications.recipient_id')
                     ->offset(0)))
             ->orWhere(fn (Builder $query): Builder => $query
-                ->whereIn('type', [NotificationType::Replied, NotificationType::Quoted, NotificationType::Mentioned, NotificationType::Starred])
+                ->whereIn('type', [NotificationType::Replied, NotificationType::Quoted, NotificationType::Mentioned, NotificationType::Starred, NotificationType::FirstCommit])
                 ->whereHas('commit', fn (CommitBuilder $commit): CommitBuilder => $commit
                     ->where('status', CommitStatus::Approved)
                     ->offset(0)))
             ->orWhere(fn (Builder $query): Builder => $query
                 ->whereIn('type', [NotificationType::Approved, NotificationType::Rejected])
                 ->whereHas('commit', fn (CommitBuilder $commit): CommitBuilder => $commit
-                    ->whereColumn('commits.user_id', 'notifications.recipient_id')
                     ->whereColumn('commits.status', 'notifications.type')
+                    ->where(fn (CommitBuilder $commit): CommitBuilder => $commit
+                        ->whereColumn('commits.user_id', 'notifications.recipient_id')
+                        // An organization's, while the recipient is still one of its members.
+                        ->orWhereExists(fn (QueryBuilder $members): QueryBuilder => $members
+                            ->from('organization_members')
+                            ->whereColumn('organization_members.organization_id', 'commits.author_id')
+                            ->whereColumn('organization_members.organization_id', 'notifications.organization_id')
+                            ->whereColumn('organization_members.user_id', 'notifications.recipient_id')))
                     ->offset(0)))
             ->orWhere('type', NotificationType::LeveledUp))
             ->withoutSilencedActors();

@@ -1,7 +1,6 @@
 import { Head, Link, router } from '@inertiajs/react';
 import { Undo2 } from 'lucide-react';
 import type { ReactNode } from 'react';
-import { useState } from 'react';
 import BanController from '@/actions/App/Http/Controllers/BanController';
 import { show } from '@/actions/App/Http/Controllers/UserController';
 import UserTimeoutController from '@/actions/App/Http/Controllers/UserTimeoutController';
@@ -36,13 +35,20 @@ export default function People({
     timeouts: Timeout[];
     bans: Ban[];
 }) {
-    const [busy, setBusy] = useState(false);
-    const lift = (route: Parameters<typeof router.visit>[0]) =>
-        router.visit(route, {
-            preserveScroll: true,
-            onStart: () => setBusy(true),
-            onFinish: () => setBusy(false),
-        });
+    const endTimeout = (timeout: Timeout) =>
+        router
+            .optimistic((props: { timeouts: Timeout[] }) => ({
+                timeouts: props.timeouts.filter(({ id }) => id !== timeout.id),
+            }))
+            .visit(UserTimeoutController.destroy(timeout.user), {
+                preserveScroll: true,
+            });
+    const liftBan = (ban: Ban) =>
+        router
+            .optimistic((props: { bans: Ban[] }) => ({
+                bans: props.bans.filter(({ id }) => id !== ban.id),
+            }))
+            .visit(BanController.destroy(ban.id), { preserveScroll: true });
 
     return (
         <>
@@ -79,14 +85,7 @@ export default function People({
                             <Button
                                 variant="outline"
                                 size="sm"
-                                disabled={busy}
-                                onClick={() =>
-                                    lift(
-                                        UserTimeoutController.destroy(
-                                            timeout.user,
-                                        ),
-                                    )
-                                }
+                                onClick={() => endTimeout(timeout)}
                                 data-test="end-timeout-button"
                             >
                                 <Undo2 />
@@ -119,10 +118,7 @@ export default function People({
                             <Button
                                 variant="outline"
                                 size="sm"
-                                disabled={busy}
-                                onClick={() =>
-                                    lift(BanController.destroy(ban.id))
-                                }
+                                onClick={() => liftBan(ban)}
                                 data-test="unban-button"
                             >
                                 <Undo2 />
@@ -183,6 +179,7 @@ function Row({
         <li className="flex items-center gap-3 px-4 py-3">
             {user ? (
                 <Link
+                    prefetch
                     href={show(user)}
                     className="flex min-w-0 flex-1 items-center gap-3"
                 >
