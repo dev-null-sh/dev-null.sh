@@ -7,8 +7,8 @@ namespace App\Enums;
 use App\Dto\ReaderClock;
 use Carbon\CarbonInterface;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Date;
-use IntlDateFormatter;
+use IntlCalendar;
+use IntlGregorianCalendar;
 
 enum EventTheme: string
 {
@@ -27,7 +27,7 @@ enum EventTheme: string
     {
         $choice = $request->cookie('event_theme');
 
-        return self::current(is_string($choice) ? $choice : null, self::readerDate($request));
+        return self::current(is_string($choice) ? $choice : null, self::readerNow($request));
     }
 
     /**
@@ -35,7 +35,7 @@ enum EventTheme: string
      */
     public static function autoForRequest(Request $request): ?self
     {
-        return self::on(self::readerDate($request));
+        return self::on(self::readerNow($request));
     }
 
     /**
@@ -43,9 +43,9 @@ enum EventTheme: string
      */
     public static function greetedYear(Request $request): int
     {
-        $date = self::readerDate($request);
+        $now = self::readerNow($request);
 
-        return $date->month === 12 ? $date->year + 1 : $date->year;
+        return $now->month === 12 ? $now->year + 1 : $now->year;
     }
 
     /**
@@ -66,11 +66,11 @@ enum EventTheme: string
      */
     public static function choiceFrom(?string $cookie): string
     {
-        if ($cookie === self::DEFAULT) {
-            return self::DEFAULT;
+        if ($cookie !== null && ($cookie === self::DEFAULT || self::tryFrom($cookie) instanceof self)) {
+            return $cookie;
         }
 
-        return self::tryFrom((string) $cookie)->value ?? self::AUTO;
+        return self::AUTO;
     }
 
     /**
@@ -88,23 +88,18 @@ enum EventTheme: string
         };
     }
 
-    /**
-     * Read the local calendar with ICU so browser aliases never reach PHP's date parser.
-     */
-    private static function readerDate(Request $request): CarbonInterface
+    private static function readerNow(Request $request): CarbonInterface
     {
         $now = now();
-        $formatter = new IntlDateFormatter(
-            'en_US',
-            IntlDateFormatter::NONE,
-            IntlDateFormatter::NONE,
-            ReaderClock::of($request)->timeZone ?? $now->getTimezone(),
-            IntlDateFormatter::GREGORIAN,
-            'yyyy-MM-dd',
-        );
-        $date = $formatter->format($now);
-        assert(is_string($date));
+        $timeZone = ReaderClock::of($request)->timeZone;
 
-        return Date::parse($date, 'UTC');
+        if ($timeZone === null) {
+            return $now;
+        }
+
+        $calendar = new IntlGregorianCalendar($timeZone);
+        $calendar->setTime($now->getTimestampMs());
+
+        return $now->utcOffset(($calendar->get(IntlCalendar::FIELD_ZONE_OFFSET) + $calendar->get(IntlCalendar::FIELD_DST_OFFSET)) / 60000);
     }
 }

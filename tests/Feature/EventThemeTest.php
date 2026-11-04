@@ -36,6 +36,22 @@ it('reads the date on the reader calendar', function (): void {
         ->assertSee('data-event-theme="halloween"', false);
 });
 
+it('uses browser timezone aliases for the theme and greeting year', function (string $date, string $timeZone, string $theme, int $year): void {
+    Date::setTestNow($date);
+
+    $this->withUnencryptedCookie('time_zone', $timeZone)
+        ->get(route('home'))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('eventTheme', $theme)
+            ->where('eventYear', $year));
+})->with([
+    'an eastern alias ahead of UTC' => ['2026-10-28 20:00:00 UTC', 'Asia/Calcutta', 'halloween', 2026],
+    'a western alias during daylight saving time' => ['2026-10-29 04:30:00 UTC', 'US/Eastern', 'halloween', 2026],
+    'a western alias after daylight saving time' => ['2026-11-02 00:30:00 UTC', 'US/Eastern', 'halloween', 2026],
+    'a western alias still in the previous year' => ['2027-01-01 01:00:00 UTC', 'US/Eastern', 'newyear', 2027],
+]);
+
 it('shows the theme the reader picked, whatever the day', function (string $choice): void {
     Date::setTestNow('2026-06-15 12:00:00');
 
