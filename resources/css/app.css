@@ -418,6 +418,9 @@
     --lane-3: #0c8599;
     --lane-4: #c2255c;
     --lane-5: #b7791f;
+    /* How light lane-coloured text may be, so a custom lane picked near the background stays readable. */
+    --lane-text-min-l: 0;
+    --lane-text-max-l: 0.65;
 
     --sidebar: var(--background);
     --sidebar-foreground: var(--foreground);
@@ -461,6 +464,8 @@
     --lane-3: #3bc9db;
     --lane-4: #f06595;
     --lane-5: #fcc419;
+    --lane-text-min-l: 0.68;
+    --lane-text-max-l: 1;
 }
 
 /* Event themes: a new palette for the days around Halloween, Christmas and New Year, switched on by the data-event-theme

@@ -583,7 +583,7 @@ export function MobileNav({ children }: { children?: ReactNode }) {
                     key={item.title}
                     item={item}
                     className={cn(
-                        'flex min-w-0 flex-1 flex-col items-center gap-1 py-1 text-[11px] font-medium tracking-tight text-muted-foreground',
+                        'flex min-w-0 flex-1 flex-col items-center py-1.5 text-muted-foreground',
                         { 'text-primary': item.isActive },
                     )}
                 >
@@ -603,14 +603,14 @@ export function MobileNav({ children }: { children?: ReactNode }) {
                             <NavIcon item={item} />
                         </span>
                     </span>
-                    <span className="max-w-full truncate">{item.title}</span>
+                    <span className="sr-only">{item.title}</span>
                 </NavLink>
             ))}
             <DropdownMenu>
                 <DropdownMenuTrigger
                     aria-label="More navigation"
                     className={cn(
-                        'flex min-w-0 flex-1 flex-col items-center gap-1 py-1 text-[11px] font-medium tracking-tight text-muted-foreground',
+                        'flex min-w-0 flex-1 flex-col items-center py-1.5 text-muted-foreground',
                         {
                             'text-primary': menuItems.some(
                                 (item) => item.isActive,
@@ -630,7 +630,6 @@ export function MobileNav({ children }: { children?: ReactNode }) {
                     >
                         <MobileMenuIcon className="size-5" />
                     </span>
-                    <span>Menu</span>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
                     className="w-48 md:hidden"
