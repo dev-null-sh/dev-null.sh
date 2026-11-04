@@ -22,10 +22,11 @@ export function setServerTime(serverNow: number): void {
 }
 
 /**
- * Now, on the server's clock, minus the margin: when something just read was read, to ask what changed since.
+ * Now, or the given time on the browser's clock, on the server's clock minus the margin: when something read then was
+ * read, to ask what changed since.
  */
-export function readAt(): number {
-    return Date.now() + serverOffset - margin;
+export function readAt(at = Date.now()): number {
+    return at + serverOffset - margin;
 }
 
 type Waiting = {

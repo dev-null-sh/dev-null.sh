@@ -399,6 +399,8 @@ export function useThread(
         (lifetime.current ??= new AbortController()).signal;
     // When the replies shown were read, on the server's clock, to ask what changed since after missing updates.
     const readSince = useRef(Math.min(serverNow - 5_000, readAt()));
+    // When the thread read the replies shown, by the browser's clock, so listening catches up only on what came after.
+    const repliesReadAt = useRef<number | undefined>(undefined);
     const [isReplying, setIsReplying] = useState(false);
 
     const [previousInitial, setPreviousInitial] = useState(initial);
@@ -406,6 +408,8 @@ export function useThread(
         setPreviousInitial(initial);
         if (initial !== undefined && (replies?.length ?? 0) <= repliesPerPage) {
             ++replyRequest.current;
+            readSince.current = Math.min(serverNow - 5_000, readAt());
+            repliesReadAt.current = undefined;
             setIsLoading(false);
             setThread((current) => ({
                 ...current,
@@ -415,9 +419,15 @@ export function useThread(
         }
     }
 
-    const applyPage = (loaded: ThreadCommit[], cursor: string | null) => {
+    const applyPage = (
+        loaded: ThreadCommit[],
+        cursor: string | null,
+        startedAt?: number,
+    ) => {
         // Read over however many requests, so dated from before the first of them could have started.
-        readSince.current = readAt() - 10_000;
+        readSince.current =
+            startedAt === undefined ? readAt() - 10_000 : readAt(startedAt);
+        repliesReadAt.current = startedAt;
         setThread((current) => ({
             ...current,
             replies: loaded,
@@ -485,6 +495,7 @@ export function useThread(
                   : replies.length + extra;
 
         const request = ++replyRequest.current;
+        const startedAt = Date.now();
         setIsLoading(true);
 
         return fetchRepliesUntil(
@@ -497,7 +508,7 @@ export function useThread(
         )
             .then((page) => {
                 if (!signal.aborted && request === replyRequest.current) {
-                    applyPage(page.data, page.next_cursor);
+                    applyPage(page.data, page.next_cursor, startedAt);
                 }
             })
             .catch(() => undefined)
@@ -550,6 +561,7 @@ export function useThread(
         let isCurrent = true;
         const request = ++replyRequest.current;
         const signal = readsLifetime();
+        const startedAt = Date.now();
         setIsLoading(true);
 
         fetchRepliesUntil(
@@ -562,7 +574,7 @@ export function useThread(
         )
             .then((page) => {
                 if (isCurrent && request === replyRequest.current) {
-                    onRepliesLoaded(page.data, page.next_cursor);
+                    onRepliesLoaded(page.data, page.next_cursor, startedAt);
                 }
             })
             .catch(() => undefined)
@@ -787,6 +799,7 @@ export function useThread(
                         refresh.request();
                     }
                 }),
+            repliesReadAt.current,
         );
 
         // Muting, blocking or unmuting someone, or being blocked, changes which replies the viewer sees, including ones
@@ -819,10 +832,12 @@ export function useThread(
                       userChannel(viewerId),
                       { relationships: recoverWhenFree },
                       isPreview ? undefined : recoverWhenFree,
+                      repliesReadAt.current,
                   );
 
         return () => {
             isListening = false;
+            repliesReadAt.current = undefined;
             stop();
             stopRelationships();
             refresh.cancel();

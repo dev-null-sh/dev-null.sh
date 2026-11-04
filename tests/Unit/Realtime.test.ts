@@ -327,6 +327,33 @@ void test('a listener joining a channel listened to since before the page was re
     assert.equal(busy, 1);
 });
 
+void test('a listener for what was read after the page, since the channel was joined, catches up only on what was heard since', async () => {
+    mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 1_000_000 });
+    const fake = fakeConnection();
+    connectRealtime(fake.connection);
+    pageReadAt(Date.now());
+    mock.timers.tick(1_000);
+    listen(userChannel('a'), { notifications: () => {} });
+    fake.setStatus('connected');
+    fake.joined.get('private-users.a')?.join();
+    mock.timers.tick(1_000);
+    const readAt = Date.now();
+    mock.timers.tick(500);
+    let quiet = 0;
+    let busy = 0;
+    let withThePage = 0;
+
+    listen(userChannel('a'), { relationships: () => {} }, () => quiet++, readAt);
+    fake.joined.get('private-users.a')?.emit('account');
+    listen(userChannel('a'), { account: () => {} }, () => busy++, readAt);
+    listen(userChannel('a'), { relationships: () => {} }, () => withThePage++);
+    await Promise.resolve();
+
+    assert.equal(quiet, 0);
+    assert.equal(busy, 1);
+    assert.equal(withThePage, 1, 'what came with the page was read before the channel was joined');
+});
+
 void test('a page coming back from history makes every listener joining it catch up, however late, and reads live props again', async () => {
     mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 1_000_000 });
     const fake = fakeConnection();
