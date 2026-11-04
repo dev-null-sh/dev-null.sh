@@ -46,6 +46,22 @@ it('shows the theme the reader picked, whatever the day', function (string $choi
         ->assertSee('data-event-theme="'.$choice.'"', false);
 })->with(['halloween', 'christmas', 'newyear']);
 
+it('reads the local event date from browser time zone aliases', function (string $timeZone, string $date): void {
+    $this->travelTo(Date::parse($date));
+
+    $this->withUnencryptedCookie('time_zone', $timeZone)
+        ->get(route('home'))
+        ->assertOk()
+        ->assertSee('data-auto-event-theme="halloween"', false)
+        ->assertSee('data-event-theme="halloween"', false)
+        ->assertInertia(fn ($page) => $page
+            ->where('eventTheme', 'halloween')
+            ->where('clock.timeZone', $timeZone));
+})->with([
+    'a former name browsers still report' => ['Asia/Calcutta', '2026-10-28 20:00:00 UTC'],
+    'a legacy regional alias' => ['US/Eastern', '2026-11-02 02:00:00 UTC'],
+]);
+
 it('keeps the usual colors for readers who picked default', function (): void {
     Date::setTestNow('2026-12-25 12:00:00');
 
@@ -98,8 +114,8 @@ it('shares the year a New Year greeting wishes', function (string $date, int $ye
         ->assertOk()
         ->assertInertia(fn ($page) => $page->where('eventYear', $year));
 })->with([
-    'New Year\'s Eve' => ['2026-12-31 23:59:59', 2027],
-    'New Year\'s Day' => ['2027-01-01 00:00:00', 2027],
+    "New Year's Eve" => ['2026-12-31 23:59:59', 2027],
+    "New Year's Day" => ['2027-01-01 00:00:00', 2027],
     'the day after' => ['2027-01-02 12:00:00', 2027],
 ]);
 
