@@ -46,3 +46,10 @@ await test('does not prefix the next line when selection ends after a newline', 
         '',
     ]);
 });
+
+void test('formats a selected first-line newline without an invalid range', () => {
+    assert.deepEqual(apply('\nsecond', 0, 1, 'bulleted'), [
+        '- \nsecond',
+        '',
+    ]);
+});

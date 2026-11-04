@@ -72,7 +72,7 @@ export function formatMarkdown(
     }
 
     const prefix = PREFIXES[format] ?? (() => '');
-    const from = value.lastIndexOf('\n', start - 1) + 1;
+    const from = start === 0 ? 0 : value.lastIndexOf('\n', start - 1) + 1;
     // A selection ending just after a newline does not include the next line.
     const lastSelected = end > start && value[end - 1] === '\n' ? end - 1 : end;
     const lineEnd = value.indexOf('\n', lastSelected);
