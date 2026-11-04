@@ -101,7 +101,7 @@ export default function Index({
     const { start, stop } = usePoll(
         30_000,
         backgroundPollOptions({ only: ['scheduledCommits'] }),
-        { autoStart: false },
+        { autoStart: false, background: 'pause' },
     );
 
     useEffect(() => {
