@@ -206,7 +206,7 @@ Open search with **⌘/Ctrl+K** or **/**. Developer search finds people by name 
 
 The search results page opens on **Most relevant**. **Latest** shows only matches from the past seven days, newest first, from the same result set. Switching tabs is instant and does not run another search; Latest does not look for additional recent matches outside that set.
 
-Signed-in users see their three most recent distinct searches above the suggested searches, newest first. Repeating a search moves it to the top; adding a fourth discards the oldest from storage, not just from the display. Recent searches stay in this browser, scoped to the signed-in account, and do not sync to other devices or create server-side history. They are cleared on sign-out or account deletion in that browser. Guests do not retain recent searches.
+The search dialog and results page show the current hot topics instead of canned search suggestions. Selecting a topic opens its recap and newest matching commits. Signed-in users see their three most recent distinct searches above the hot topics, newest first. Repeating a search moves it to the top; adding a fourth discards the oldest from storage, not just from the display. Recent searches stay in this browser, scoped to the signed-in account, and do not sync to other devices or create server-side history. They are cleared on sign-out or account deletion in that browser. Guests do not retain recent searches or see hot topics.
 
 The public search searches developers, organizations, and commits, not this knowledge-base file. Feature documentation is available to the internal knowledge-base retriever once indexed; there is no public knowledge-base search endpoint yet.
 

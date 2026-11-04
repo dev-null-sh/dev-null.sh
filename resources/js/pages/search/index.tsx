@@ -1,13 +1,14 @@
 import { Tab, TabGroup, TabList, TabPanel, TabPanels } from '@headlessui/react';
 import { Head, router, usePage } from '@inertiajs/react';
-import { ArrowRight, History, Search, Sparkles, X } from 'lucide-react';
+import { ArrowRight, History, Search, X } from 'lucide-react';
 import type { FormEvent } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import SearchController from '@/actions/App/Http/Controllers/SearchController';
 import { SearchResults } from '@/components/commit-search-results';
+import { HotTopics } from '@/components/hot-topics';
 import { rememberSearch, useRecentSearches } from '@/hooks/use-recent-searches';
 import AppLayout from '@/layouts/app-layout';
-import { searchCommits, suggestedQueries } from '@/lib/commit-search';
+import { searchCommits } from '@/lib/commit-search';
 import { CommitSearchResults } from '@/lib/commit-search-results';
 
 const skeletonDelay = 300;
@@ -128,9 +129,11 @@ export default function Index({ query }: { query: string }) {
                 </TabGroup>
             )}
             {recentSearches.length > 0 && (
-                <Suggestions onPick={pick} recent={recentSearches} />
+                <RecentSearches onPick={pick} recent={recentSearches} />
             )}
-            <Suggestions onPick={pick} exclude={query} />
+            <div className="px-4 py-6 sm:px-6">
+                <HotTopics />
+            </div>
         </>
     );
 }
@@ -180,37 +183,27 @@ function useCommitSearch(query: string) {
     return { results, isWaiting };
 }
 
-function Suggestions({
+function RecentSearches({
     onPick,
-    exclude,
     recent,
 }: {
     onPick: (term: string) => void;
-    exclude?: string;
-    recent?: string[];
+    recent: string[];
 }) {
-    const visible =
-        recent ?? suggestedQueries.filter((term) => term !== exclude);
-    const headingId = recent ? 'recent-searches' : 'search-suggestions';
-
     return (
-        <section aria-labelledby={headingId} className="px-4 py-6 sm:px-6">
+        <section
+            aria-labelledby="recent-searches"
+            className="px-4 py-6 sm:px-6"
+        >
             <h2
-                id={headingId}
+                id="recent-searches"
                 className="mb-3 flex items-center gap-2 font-semibold"
             >
-                {recent ? (
-                    <History
-                        aria-hidden
-                        className="size-4 text-muted-foreground"
-                    />
-                ) : (
-                    <Sparkles aria-hidden className="size-4 text-primary" />
-                )}
-                {recent ? 'Recent searches' : 'Try searching for…'}
+                <History aria-hidden className="size-4 text-muted-foreground" />
+                Recent searches
             </h2>
             <ul className="space-y-2">
-                {visible.map((term) => (
+                {recent.map((term) => (
                     <li key={term}>
                         <button
                             type="button"
