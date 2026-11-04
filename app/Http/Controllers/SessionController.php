@@ -11,6 +11,7 @@ use App\Jobs\ImportGitHubFollowsJob;
 use App\Jobs\LookUpUserOrganizations;
 use App\Jobs\SyncGitHubSshKeysJob;
 use App\Models\User;
+use App\Services\AppSignIn;
 use App\Services\GitHubAccountScreening;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -30,7 +31,7 @@ final readonly class SessionController
         return Socialite::driver('github')->redirect();
     }
 
-    public function store(Request $request, UpdateOrCreateUser $action, CreateTomFriendship $createTomFriendship, GitHubAccountScreening $screening): RedirectResponse
+    public function store(Request $request, UpdateOrCreateUser $action, CreateTomFriendship $createTomFriendship, GitHubAccountScreening $screening, AppSignIn $appSignIn): RedirectResponse
     {
         $hasRetried = (bool) $request->session()->pull(self::RETRIED, false);
 
@@ -64,14 +65,23 @@ final readonly class SessionController
 
         if ($user->wasRecentlyCreated) {
             $createTomFriendship->handle($user);
-
-            // Counted by Fathom in the browser, for the conversion rate of the metrics...
-            Inertia::flash('signedUp', true);
         }
 
         dispatch(new SyncGitHubSshKeysJob($user));
         dispatch(new ImportGitHubFollowsJob($user, notify: $user->wasRecentlyCreated));
         LookUpUserOrganizations::dispatchFor($user);
+
+        // Signed in from the iOS app POC's sheet: the app's web view signs in, not this browser (temporary, see AppSignIn)...
+        $appCallbackUrl = $appSignIn->handOff($request, $user, signedUp: $user->wasRecentlyCreated);
+
+        if ($appCallbackUrl !== null) {
+            return redirect()->away($appCallbackUrl);
+        }
+
+        if ($user->wasRecentlyCreated) {
+            // Counted by Fathom in the browser, for the conversion rate of the metrics...
+            Inertia::flash('signedUp', true);
+        }
 
         Auth::login($user, remember: true);
 

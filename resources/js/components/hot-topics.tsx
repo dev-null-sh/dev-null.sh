@@ -1,5 +1,6 @@
 import { Link, usePage, usePoll } from '@inertiajs/react';
 import { Flame } from 'lucide-react';
+import { useId } from 'react';
 import { show } from '@/actions/App/Http/Controllers/HeadlineController';
 import { backgroundPollOptions } from '@/lib/background-poll';
 
@@ -12,6 +13,7 @@ const ageOut = 5 * 60_000;
 
 export function HotTopics() {
     const { hotTopics = [] } = usePage().props;
+    const headingId = useId();
 
     usePoll(ageOut, backgroundPollOptions({ only: ['hotTopics'] }), {
         background: 'pause',
@@ -22,9 +24,9 @@ export function HotTopics() {
     }
 
     return (
-        <section aria-labelledby="aside-hot-topics">
+        <section aria-labelledby={headingId}>
             <h2
-                id="aside-hot-topics"
+                id={headingId}
                 className="mb-2 flex items-center gap-2 text-sm font-semibold"
             >
                 <Flame
@@ -38,21 +40,39 @@ export function HotTopics() {
                     <li key={topic.id}>
                         <Link
                             href={show(topic.id)}
+                            prefetch={false}
                             className="group -mx-2 flex min-h-8 flex-col justify-center rounded-lg px-2 py-1 text-sm transition-[background-color] hover:bg-accent focus-visible:outline-ring"
                             title={topic.name}
                         >
-                            <span className="w-full truncate font-bold group-hover:underline">
-                                {topic.name}
-                            </span>
-                            {topic.summary !== null && (
-                                <span className="w-full truncate text-xs text-muted-foreground">
-                                    {topic.summary}
-                                </span>
-                            )}
+                            <HotTopicContent
+                                name={topic.name}
+                                summary={topic.summary}
+                            />
                         </Link>
                     </li>
                 ))}
             </ul>
         </section>
+    );
+}
+
+export function HotTopicContent({
+    name,
+    summary,
+}: {
+    name: string;
+    summary: string | null;
+}) {
+    return (
+        <span className="flex min-w-0 flex-1 flex-col text-sm" title={name}>
+            <span className="w-full truncate font-bold group-hover:underline">
+                {name}
+            </span>
+            {summary !== null && (
+                <span className="w-full truncate text-xs text-muted-foreground">
+                    {summary}
+                </span>
+            )}
+        </span>
     );
 }
