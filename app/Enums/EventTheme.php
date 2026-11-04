@@ -7,6 +7,7 @@ namespace App\Enums;
 use App\Dto\ReaderClock;
 use Carbon\CarbonInterface;
 use Illuminate\Http\Request;
+use IntlTimeZone;
 
 enum EventTheme: string
 {
@@ -68,7 +69,7 @@ enum EventTheme: string
             return self::DEFAULT;
         }
 
-        return self::tryFrom($cookie ?? '')->value ?? self::AUTO;
+        return self::tryFrom((string) $cookie)->value ?? self::AUTO;
     }
 
     /**
@@ -88,6 +89,9 @@ enum EventTheme: string
 
     private static function readerNow(Request $request): CarbonInterface
     {
-        return now(ReaderClock::of($request)->timeZone);
+        $timeZone = ReaderClock::of($request)->timeZone;
+
+        // ICU accepts browser aliases that PHP's date database may omit.
+        return now($timeZone === null ? null : (IntlTimeZone::getIanaID($timeZone) ?: null));
     }
 }

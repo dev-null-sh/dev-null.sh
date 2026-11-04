@@ -46,6 +46,22 @@ it('shows the theme the reader picked, whatever the day', function (string $choi
         ->assertSee('data-event-theme="'.$choice.'"', false);
 })->with(['halloween', 'christmas', 'newyear']);
 
+it('reads the local event date from browser time zone aliases', function (string $timeZone, string $date): void {
+    $this->travelTo(Date::parse($date));
+
+    $this->withUnencryptedCookie('time_zone', $timeZone)
+        ->get(route('home'))
+        ->assertOk()
+        ->assertSee('data-auto-event-theme="halloween"', false)
+        ->assertSee('data-event-theme="halloween"', false)
+        ->assertInertia(fn ($page) => $page
+            ->where('eventTheme', 'halloween')
+            ->where('clock.timeZone', $timeZone));
+})->with([
+    'a former name browsers still report' => ['Asia/Calcutta', '2026-10-28 20:00:00 UTC'],
+    'a legacy regional alias' => ['US/Eastern', '2026-11-02 02:00:00 UTC'],
+]);
+
 it('keeps the usual colors for readers who picked default', function (): void {
     Date::setTestNow('2026-12-25 12:00:00');
 
