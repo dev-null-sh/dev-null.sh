@@ -36,7 +36,7 @@ final readonly class LinkController
         return Inertia::render('links/index', [
             'url' => $url,
             'link' => $link,
-            'stats' => $link === null ? ['commits' => 0, 'people' => 0] : $commits->stats($link),
+            'stats' => $link === null ? ['commits' => 0, 'people' => 0] : $commits->stats($link, $user),
             'commits' => $link === null ? null : Inertia::scroll(fn (): CursorPaginator => ShownStreams::page($commits->builder($link, $user)->cursorPaginate(20))),
         ]);
     }

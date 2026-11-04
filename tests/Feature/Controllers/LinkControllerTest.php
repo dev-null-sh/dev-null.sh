@@ -2,8 +2,10 @@
 
 declare(strict_types=1);
 
+use App\Enums\OrganizationRole;
 use App\Models\Commit;
 use App\Models\LinkPreview;
+use App\Models\Organization;
 use App\Models\User;
 
 it('keeps the link page to signed-in users', function (): void {
@@ -66,15 +68,27 @@ it('hides the commits the viewer may not see from the link page', function (): v
     $blocked = User::factory()->create();
     $viewer->blocking()->attach($blocked);
     $link = LinkPreview::factory()->create();
-    $visible = Commit::factory()->create(['link_preview_id' => $link->id]);
-    Commit::factory()->for($blocked)->create(['link_preview_id' => $link->id]);
+    $visibleUser = User::factory()->create();
+    $visible = Commit::factory()->for($visibleUser)->create(['link_preview_id' => $link->id]);
+    $visibleAgain = Commit::factory()->for($visibleUser)->create(['link_preview_id' => $link->id]);
+    $organization = Organization::factory()->create();
+    $organization->members()->attach($viewer->id, ['role' => OrganizationRole::Member]);
+    $organizationPoster = User::factory()->create();
+    $organizationCommit = Commit::factory()->for($organizationPoster)->create([
+        'link_preview_id' => $link->id,
+        'author_id' => $organization->id,
+    ]);
+    Commit::factory()->count(2)->for($blocked)->create(['link_preview_id' => $link->id]);
     Commit::factory()->pending()->create(['link_preview_id' => $link->id]);
     $own = Commit::factory()->pending()->for($viewer)->create(['link_preview_id' => $link->id]);
 
     $this->actingAs($viewer)->get(route('link.index', ['url' => $link->url]))->assertOk()->assertInertia(fn ($page) => $page
-        ->has('commits.data', 2)
+        ->has('commits.data', 4)
+        ->where('stats', ['commits' => 4, 'people' => 3])
         ->where('commits.data.0.id', $visible->id)
-        ->where('commits.data.1.id', $own->id));
+        ->where('commits.data.1.id', $visibleAgain->id)
+        ->where('commits.data.2.id', $organizationCommit->id)
+        ->where('commits.data.3.id', $own->id));
 });
 
 it('finds the link of a bare domain like its card does', function (): void {
