@@ -18,6 +18,7 @@ function unfurl(string $url): array
 {
     $hosts = [
         'example.com' => ['93.184.216.34'],
+        'github.com' => ['140.82.112.3'],
         'www.example.com' => ['93.184.216.35'],
         'v6.example.com' => ['2606:2800:220:1:248:1893:25c8:1946'],
         'internal.example.com' => ['10.0.0.5'],
@@ -124,6 +125,92 @@ it('prefers the secure open graph image', function (): void {
         HTML)]);
 
     expect(unfurl('https://example.com/')['image_url'])->toBe('https://secure.example.com/og.png');
+});
+
+it('uses the repository custom image for a github release while keeping its metadata', function (string $url): void {
+    Http::fake([
+        'https://example.com/release' => Http::response(status: 302, headers: ['Location' => 'https://github.com/owner/repo/releases/tag/v1.0.0']),
+        'https://github.com/owner/repo/releases/tag/*' => htmlResponse(<<<'HTML'
+            <meta property="og:title" content="Release v1.0.0">
+            <meta property="og:description" content="Release notes">
+            <meta property="og:site_name" content="GitHub">
+            <meta property="og:image" content="https://opengraph.githubassets.com/hash/owner/repo/releases/tag/v1.0.0">
+            HTML),
+        'https://github.com/owner/repo' => htmlResponse(<<<'HTML'
+            <meta property="og:title" content="Repository title">
+            <meta property="og:description" content="Repository description">
+            <meta property="og:site_name" content="Repository site">
+            <meta property="og:image" content="https://repository-images.githubusercontent.com/123/custom.png">
+            HTML),
+    ]);
+
+    expect(unfurl($url))->toBe([
+        'title' => 'Release v1.0.0',
+        'description' => 'Release notes',
+        'image_url' => 'https://repository-images.githubusercontent.com/123/custom.png',
+        'site_name' => 'GitHub',
+    ]);
+
+    Http::assertSent(fn (Request $request): bool => $request->url() === 'https://github.com/owner/repo');
+})->with([
+    'release tag' => 'https://github.com/owner/repo/releases/tag/v1.0.0',
+    'tag containing slashes' => 'https://github.com/owner/repo/releases/tag/package/v1.0.0',
+    'redirect to release tag' => 'https://example.com/release',
+]);
+
+it('keeps the release image when the repository has no custom image', function (string $html): void {
+    Http::fake([
+        'https://github.com/owner/repo/releases/tag/v1.0.0' => htmlResponse('<meta property="og:image" content="https://opengraph.githubassets.com/release">'),
+        'https://github.com/owner/repo' => htmlResponse($html),
+    ]);
+
+    expect(unfurl('https://github.com/owner/repo/releases/tag/v1.0.0')['image_url'])
+        ->toBe('https://opengraph.githubassets.com/release');
+
+    Http::assertSentCount(2);
+})->with([
+    'generated image' => '<meta property="og:image" content="https://opengraph.githubassets.com/repository">',
+    'no image' => '<title>Repository</title>',
+    'another image host' => '<meta property="og:image" content="https://example.com/image.png">',
+    'lookalike custom image host' => '<meta property="og:image" content="https://repository-images.githubusercontent.com.example.com/image.png">',
+]);
+
+it('keeps the release image when the repository request fails', function (Closure|PromiseInterface $response): void {
+    Http::fake([
+        'https://github.com/owner/repo/releases/tag/v1.0.0' => htmlResponse('<meta property="og:image" content="https://opengraph.githubassets.com/release">'),
+        'https://github.com/owner/repo' => $response,
+    ]);
+
+    expect(unfurl('https://github.com/owner/repo/releases/tag/v1.0.0')['image_url'])
+        ->toBe('https://opengraph.githubassets.com/release');
+})->with([
+    'server error' => fn (): PromiseInterface => htmlResponse('<title>Server error</title>', 500),
+    'failed connection' => fn (): Closure => Http::failedConnection(),
+]);
+
+it('leaves generated images on other pages unchanged without requesting the repository', function (string $url): void {
+    Http::fake([$url => htmlResponse('<meta property="og:image" content="https://opengraph.githubassets.com/generated">')]);
+
+    expect(unfurl($url)['image_url'])->toBe('https://opengraph.githubassets.com/generated');
+
+    Http::assertSentCount(1);
+    Http::assertNotSent(fn (Request $request): bool => $request->url() === 'https://github.com/owner/repo');
+})->with([
+    'issue' => 'https://github.com/owner/repo/issues/1',
+    'release list' => 'https://github.com/owner/repo/releases',
+    'another host' => 'https://example.com/owner/repo/releases/tag/v1.0.0',
+    'http release' => 'http://github.com/owner/repo/releases/tag/v1.0.0',
+]);
+
+it('leaves a release custom image unchanged without requesting the repository', function (): void {
+    Http::fake([
+        'https://github.com/owner/repo/releases/tag/v1.0.0' => htmlResponse('<meta property="og:image" content="https://repository-images.githubusercontent.com/123/release.png">'),
+    ]);
+
+    expect(unfurl('https://github.com/owner/repo/releases/tag/v1.0.0')['image_url'])
+        ->toBe('https://repository-images.githubusercontent.com/123/release.png');
+
+    Http::assertSentCount(1);
 });
 
 it('falls back to twitter tags', function (): void {
