@@ -2133,11 +2133,12 @@ export async function toggleReaction(
 
         return true;
     } catch (error) {
+        settle();
+
         if (error instanceof StaleRemotesError) {
             return false;
         }
 
-        settle();
         setReactions(key, messageId, isRemoving ? add : remove);
         countReactionUse(emoji, isRemoving ? 1 : -1);
 

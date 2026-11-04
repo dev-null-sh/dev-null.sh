@@ -162,3 +162,28 @@ for (const [name, outcome] of [
         stopAgain();
     });
 }
+
+test('a reaction retired by a same-account remount does not block later server reactions', async () => {
+    answer = () => Response.json({});
+    const stopFirst = chat.watchRemoteUpdates('reactor');
+    const target = { kind: 'direct' as const, partner: { id: 'peer', handle: 'peer' } };
+    chat.seedThread(target as never, {
+        messages: [{ ...message(981), reactions: [] }],
+        has_older: false, reactions_version: 0, reaction_changes: [], read_through_id: 0,
+    } as never);
+    answer = () => null;
+    const first = chat.toggleReaction(target as never, 981, '👍', 'reactor');
+    const retired = held.shift();
+    assert.ok(retired);
+    stopFirst();
+    const stopNext = chat.watchRemoteUpdates('reactor');
+    retired.settle(Response.json({ reactions: [{ user_id: 'reactor', emoji: '👍' }] }));
+    assert.equal(await first, false);
+
+    const next = chat.toggleReaction(target as never, 981, '👍', 'reactor');
+    const server = [{ user_id: 'someone', emoji: '🚀' }];
+    held.shift()?.settle(Response.json({ reactions: server }));
+    assert.equal(await next, true);
+    assert.deepEqual(chat.chatSnapshot().threads.peer.messages[0].reactions, server);
+    stopNext();
+});
