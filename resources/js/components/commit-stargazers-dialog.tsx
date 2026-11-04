@@ -86,7 +86,10 @@ export function CommitStargazersDialog({
                 <ul data-test="stargazers" className="-mx-2">
                     {stargazers.map((stargazer) => (
                         <li key={stargazer.id}>
-                            <UserPreview user={stargazer} className="block">
+                            <UserPreview
+                                user={{ handle: stargazer.handle }}
+                                className="block"
+                            >
                                 <Link
                                     prefetch
                                     href={show(stargazer)}
