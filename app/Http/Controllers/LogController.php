@@ -39,6 +39,12 @@ final readonly class LogController
     {
         if (! $user instanceof User) {
             if ($log === Log::Following) {
+                if (app()->isLocal()) {
+                    Inertia::flash('localSignIn', true);
+
+                    return to_route('home');
+                }
+
                 return Inertia::location(route('login'));
             }
         } elseif ($user->log !== $log) {
