@@ -515,7 +515,9 @@ export function MobileCommitButton({
             aria-label="Write a commit"
             title="Write a commit"
             className={cn(
-                'absolute right-4 bottom-full mb-4 size-14 rounded-lg shadow-lg transition-opacity duration-200 [view-transition-name:mobile-commit-button] md:hidden',
+                'absolute right-4 bottom-full mb-4 size-14 rounded-lg shadow-lg transition-[opacity,translate] duration-200 [view-transition-name:mobile-commit-button] md:hidden',
+                // In the iOS app POC, while reading down a page shrinks its tab bar (temporary, see `@/lib/mobile-app`)
+                '[:root[data-tab-bar-collapsed]_&]:pointer-events-none [:root[data-tab-bar-collapsed]_&]:translate-y-[calc(100%+3rem)] [:root[data-tab-bar-collapsed]_&]:opacity-0',
                 { 'pointer-events-none opacity-0': isHidden },
             )}
             data-test="mobile-commit-button"
@@ -712,35 +714,45 @@ export function MobileNav({ children }: { children?: ReactNode }) {
 }
 
 // The rest of the navigation, Profile and Settings included, is in the account menu of the header.
-const MOBILE_APP_TABS: Record<string, string> = {
-    Log: 'commit',
-    Notifications: 'bell',
-    Remotes: 'bubble.left.and.bubble.right',
+// The rest of the navigation, Profile and Settings included, is in the account menu of the header.
+const MOBILE_APP_TABS: Record<string, { icon: string; paths: RegExp }> = {
+    Log: { icon: 'commit', paths: /^\/(log(\/|$)|$)/ },
+    Notifications: { icon: 'bell', paths: /^\/notifications(\/|$)/ },
+    Remotes: {
+        icon: 'bubble.left.and.bubble.right',
+        paths: /^\/remotes(\/|$)/,
+    },
 };
 
 /**
- * Hands the main items of the navigation to the iOS app's tab bar (temporary, see `@/lib/mobile-app`).
+ * Hands the main items of the navigation to the iOS app's tab bar (temporary, see `@/lib/mobile-app`). The tab bar
+ * only shows in those three sections: elsewhere, a profile, a commit or the settings show over it, as iOS screens
+ * pushed over a tab do, and the edge swipe goes back.
  */
 function MobileAppTabs({
     items,
 }: {
     items: (NavItem & { isActive: boolean })[];
 }) {
+    const { url } = usePage();
     const [appearance, tint] = useDocumentTheme().split(' ');
     const isModalOpen = useIsModalOpen();
+    const path = new URL(url, 'https://dev-null.sh').pathname;
     const tabs = items.filter((item) => item.title in MOBILE_APP_TABS);
+    const selected = tabs.find((item) =>
+        MOBILE_APP_TABS[item.title].paths.test(path),
+    );
     const state: MobileAppTabsState = {
         tabs: tabs.map((item) => ({
             id: item.title.toLowerCase(),
             title: item.title,
-            icon: MOBILE_APP_TABS[item.title],
+            icon: MOBILE_APP_TABS[item.title].icon,
             url: toUrl(item.href),
             badge: item.badge,
             dot: item.hasIndicator,
         })),
-        selected:
-            tabs.find((item) => item.isActive)?.title.toLowerCase() ?? null,
-        visible: !isModalOpen,
+        selected: selected?.title.toLowerCase() ?? null,
+        visible: selected !== undefined && !isModalOpen,
         appearance: appearance === 'light' ? 'light' : 'dark',
         tint: tint || null,
     };

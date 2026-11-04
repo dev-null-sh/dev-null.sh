@@ -36,6 +36,12 @@ export interface MobileAppTabs {
 
 interface TabsPlugin {
     set(tabs: MobileAppTabs): Promise<void>;
+    /** The color under the status bar, as `#rrggbb`. */
+    setTopColor(options: { color: string }): Promise<void>;
+    addListener(
+        event: 'collapse',
+        listener: (event: { collapsed: boolean }) => void,
+    ): Promise<Listener>;
     addListener(
         event: 'select',
         listener: (event: {
@@ -135,6 +141,108 @@ export function startMobileApp(): void {
 
         visit(url);
     });
+
+    // Reading down a page shrinks the tab bar, and the compose button steps aside meanwhile, see `MobileCommitButton`
+    void tabs.addListener('collapse', ({ collapsed }) => {
+        document.documentElement.toggleAttribute(
+            'data-tab-bar-collapsed',
+            collapsed,
+        );
+    });
+
+    followTopColor(tabs);
+}
+
+/**
+ * The app shows the page below the status bar, and paints the band under it with the color at the very top of the
+ * page, so they read as one surface: the header's, or a dialog's dimming over it. The color is measured rather than
+ * known, so any page, menu or dialog matches.
+ */
+function followTopColor(tabs: TabsPlugin): void {
+    let sent: string | null = null;
+    let frame: number | null = null;
+
+    const send = () => {
+        frame = null;
+
+        const color = topColor();
+
+        if (color !== null && color !== sent) {
+            sent = color;
+            void tabs.setTopColor({ color });
+        }
+    };
+    const measure = () => {
+        frame ??= requestAnimationFrame(send);
+    };
+    // Dialogs fade their dimming in and out...
+    const measureAfterTransitions = () => {
+        measure();
+        setTimeout(measure, 250);
+    };
+
+    measure();
+    router.on('navigate', measureAfterTransitions);
+    window.addEventListener('scroll', measure, { passive: true });
+    window.addEventListener('resize', measure);
+    new MutationObserver(measureAfterTransitions).observe(
+        document.documentElement,
+        { attributes: true, attributeFilter: ['class', 'style'] },
+    );
+    new MutationObserver(measureAfterTransitions).observe(document.body, {
+        attributes: true,
+        childList: true,
+    });
+}
+
+/**
+ * The color painted at the top of the page: the backgrounds under that point, from the topmost down to the first
+ * opaque one, blended together.
+ */
+function topColor(): string | null {
+    const layers: number[][] = [];
+
+    for (const element of document.elementsFromPoint(
+        window.innerWidth / 2,
+        0,
+    )) {
+        const layer = cssColorToRgba(getComputedStyle(element).backgroundColor);
+
+        if (layer === null || layer[3] === 0) {
+            continue;
+        }
+
+        layers.push(layer);
+
+        if (layer[3] === 1) {
+            break;
+        }
+    }
+
+    if (layers.at(-1)?.[3] !== 1) {
+        const page = cssColorToRgba(
+            getComputedStyle(document.documentElement).getPropertyValue(
+                '--background',
+            ),
+        );
+
+        if (page === null) {
+            return null;
+        }
+
+        layers.push([page[0], page[1], page[2], 1]);
+    }
+
+    const [red, green, blue] = layers.reduceRight(
+        (below, [r, g, b, alpha]) => [
+            r * alpha + below[0] * (1 - alpha),
+            g * alpha + below[1] * (1 - alpha),
+            b * alpha + below[2] * (1 - alpha),
+        ],
+        [0, 0, 0],
+    );
+
+    return toHex(red, green, blue);
 }
 
 function subscribeToTheme(onChange: () => void): () => void {
@@ -185,8 +293,8 @@ export function useIsModalOpen(): boolean {
 
 let canvasContext: CanvasRenderingContext2D | null | undefined;
 
-/** Any CSS color (`oklch()` included) as `#rrggbb`, which the app reads. */
-function cssColorToHex(color: string): string | null {
+/** Any CSS color (`oklch()` included) as red, green, blue (0-255) and alpha (0-1). */
+function cssColorToRgba(color: string): number[] | null {
     if (color.trim() === '') {
         return null;
     }
@@ -203,7 +311,23 @@ function cssColorToHex(color: string): string | null {
     canvasContext.fillStyle = color.trim();
     canvasContext.fillRect(0, 0, 1, 1);
 
-    const [red, green, blue] = canvasContext.getImageData(0, 0, 1, 1).data;
+    const [red, green, blue, alpha] = canvasContext.getImageData(
+        0,
+        0,
+        1,
+        1,
+    ).data;
 
-    return `#${[red, green, blue].map((value) => value.toString(16).padStart(2, '0')).join('')}`;
+    return [red, green, blue, alpha / 255];
+}
+
+function toHex(red: number, green: number, blue: number): string {
+    return `#${[red, green, blue].map((value) => Math.round(value).toString(16).padStart(2, '0')).join('')}`;
+}
+
+/** Any CSS color (`oklch()` included) as `#rrggbb`, which the app reads. */
+function cssColorToHex(color: string): string | null {
+    const rgba = cssColorToRgba(color);
+
+    return rgba === null ? null : toHex(rgba[0], rgba[1], rgba[2]);
 }
