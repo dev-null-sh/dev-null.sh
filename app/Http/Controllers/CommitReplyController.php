@@ -6,6 +6,7 @@ namespace App\Http\Controllers;
 
 use App\Actions\CreateCommit;
 use App\Actions\DeleteCommit;
+use App\Enums\CommitSource;
 use App\Enums\CommitStatus;
 use App\Http\Requests\CreateCommitReplyRequest;
 use App\Http\Requests\DeleteCommitReplyRequest;
@@ -28,7 +29,7 @@ final readonly class CommitReplyController
     public function store(CreateCommitReplyRequest $request, #[CurrentUser] User $user, Commit $commit, CreateCommit $action, CommitThreadQuery $thread): JsonResponse
     {
         $organization = $request->organization();
-        $reply = $action->handle($user, $request->string('body')->value(), $commit, images: $request->images(), imageDescriptions: $request->imageDescriptions(), linkPreview: $request->linkPreview(), replyRecipients: $request->replyRecipients(), organization: $organization);
+        $reply = $action->handle($user, $request->string('body')->value(), $commit, images: $request->images(), imageDescriptions: $request->imageDescriptions(), linkPreview: $request->linkPreview(), replyRecipients: $request->replyRecipients(), organization: $organization, source: CommitSource::Web);
         $parent = $thread->get($commit, $user);
 
         return response()->json([

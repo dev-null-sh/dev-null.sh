@@ -11,6 +11,7 @@ import LogController from '@/actions/App/Http/Controllers/LogController';
 import ScheduledCommitController from '@/actions/App/Http/Controllers/ScheduledCommitController';
 import ScheduledCommitSubmissionController from '@/actions/App/Http/Controllers/ScheduledCommitSubmissionController';
 import { FoldedCommitBody } from '@/components/commit-body';
+import { CommitSourceBadge } from '@/components/commit-source-badge';
 import { OrganizationAvatar } from '@/components/organization-avatar';
 import { StableLabel } from '@/components/stable-label';
 import { Button } from '@/components/ui/button';
@@ -30,6 +31,7 @@ type ScheduledCommit = {
     id: string;
     // The organization it goes out as, or null when it goes out as you.
     author: OrganizationAuthor | null;
+    source: string | null;
     body: string | null;
     body_segments: BodySegment[];
     preview_segments: BodySegment[] | null;
@@ -211,12 +213,20 @@ export default function Index({
                                                     : 'Scheduled'
                                                 : labels[scheduled.status]}
                                         </p>
-                                        <time
-                                            dateTime={scheduled.scheduled_at}
-                                            className="mt-1 block font-mono text-xs text-muted-foreground"
-                                        >
-                                            {when}
-                                        </time>
+                                        <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                                            <time
+                                                dateTime={
+                                                    scheduled.scheduled_at
+                                                }
+                                                className="font-mono text-xs text-muted-foreground"
+                                            >
+                                                {when}
+                                            </time>
+                                            <CommitSourceBadge
+                                                source={scheduled.source}
+                                                size="small"
+                                            />
+                                        </div>
                                         {scheduled.author && (
                                             <p className="mt-2 flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
                                                 <OrganizationAvatar

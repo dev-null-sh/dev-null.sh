@@ -25,6 +25,7 @@ const commit = {
     ],
     preview_segments: null,
     status: 'approved',
+    source: 'tui',
     created_at: '2026-10-16T11:51:00.000000Z',
     author: { id: 'author', name: 'Matthieu Napoli', handle: 'mnapoli' },
 } as QuotedCommitData;
@@ -83,6 +84,17 @@ test('keeps the quote a single link', async () => {
 
     assert.equal(body.match(/<a\b/g)?.length, 1);
     assert.doesNotMatch(body, /<button\b/);
+});
+
+test('shows its own known source and omits an unknown one', async () => {
+    const source = await render(false);
+    const unknown = await render(false, { ...commit, source: null });
+
+    assert.match(
+        source,
+        /data-test="commit-source"[^>]*><span class="sr-only">Committed via <\/span>tui</,
+    );
+    assert.doesNotMatch(unknown, /data-test="commit-source"/);
 });
 
 test('shows the images, link card and embed of a quoted commit inside the single quote link', async () => {

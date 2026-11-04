@@ -183,13 +183,15 @@ final readonly class CreateExport
     }
 
     /**
+     * Streams every commit the user owns, including deleted ones, with its recorded source and cached translations.
+     *
      * @return Generator<int, array<string, mixed>>
      */
     private function commits(User $user): Generator
     {
         $commits = $user->commits()
             ->withTrashed()
-            ->select(['id', 'parent_id', 'quoted_commit_id', 'body', 'status', 'pasteis_count', 'created_at', 'updated_at', 'deleted_at'])
+            ->select(['id', 'parent_id', 'quoted_commit_id', 'body', 'source', 'status', 'pasteis_count', 'created_at', 'updated_at', 'deleted_at'])
             ->with('images:id,commit_id')
             ->lazyById(500);
 
@@ -204,6 +206,7 @@ final readonly class CreateExport
                     'parent_id' => $commit->parent_id,
                     'quoted_commit_id' => $commit->quoted_commit_id,
                     'body' => $commit->body,
+                    'source' => $commit->source?->value,
                     'cached_translations' => $cached[$translations->key($commit)],
                     'status' => $commit->status->value,
                     'pasteis_count' => $commit->pasteis_count,
@@ -238,6 +241,7 @@ final readonly class CreateExport
                 'parent_id' => $commit->parent_id,
                 'quoted_commit_id' => $commit->quoted_commit_id,
                 'body' => $commit->body,
+                'source' => $commit->source?->value,
                 'status' => $commit->status->value,
                 'images' => $commit->images->map(fn (CommitImage $image): string => $image->url())->all(),
                 'created_at' => $commit->created_at->toIso8601String(),

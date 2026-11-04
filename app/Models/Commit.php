@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Enums\CommitSource;
 use App\Enums\CommitStatus;
 use App\Queries\CommitBuilder;
 use App\Services\CommitBodies;
 use App\Services\Mentions;
 use Carbon\CarbonInterface;
 use Database\Factories\CommitFactory;
+use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Attributes\UseEloquentBuilder;
 use Illuminate\Database\Eloquent\Casts\AsVector;
@@ -31,6 +33,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read string|null $root_id
  * @property-read float $hot_score
  * @property-read string $body
+ * @property-read CommitSource|null $source
  * @property-read array<string, string>|null $mentions
  * @property-read array<string, string>|null $organization_mentions
  * @property-read CommitStatus $status
@@ -69,6 +72,20 @@ use Illuminate\Database\Eloquent\SoftDeletes;
     'ai_categories',
     'embedding',
     'headlines_classified_at',
+])]
+#[Fillable([
+    'user_id',
+    'author_id',
+    'body',
+    'source',
+    'mentions',
+    'parent_id',
+    'root_id',
+    'status',
+    'link_preview_id',
+    'quoted_commit_id',
+    'hot_score',
+    'created_at',
 ])]
 #[UseEloquentBuilder(CommitBuilder::class)]
 final class Commit extends Model
@@ -124,6 +141,7 @@ final class Commit extends Model
             'hot_score' => 'float',
             'pasteis_count' => 'integer',
             'body' => 'string',
+            'source' => CommitSource::class,
             'mentions' => 'array',
             'organization_mentions' => 'array',
             'status' => CommitStatus::class,
