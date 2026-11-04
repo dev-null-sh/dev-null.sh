@@ -6,6 +6,7 @@ use App\Enums\Log;
 use App\Enums\NotificationType;
 use App\Http\Controllers\SessionController;
 use App\Models\User;
+use App\Services\AppSignIn;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Routing\Router;
 use Illuminate\Support\Env;
@@ -121,6 +122,20 @@ it('loads the signed in page in full, as signing in with GitHub does', function 
     $this->post(route('local-login.store'), ['_token' => session()->token(), 'handle' => 'octocat'], ['X-Inertia' => 'true'])
         ->assertConflict()
         ->assertHeader('X-Inertia-Location', route('log.show', Log::Following));
+});
+
+it('hands the iOS app POC its sign-in instead of signing in this browser', function (): void {
+    registerRoutes('local');
+
+    $this->get(route('app-session.create', ['challenge' => AppSignIn::challengeFor('a-verifier-only-the-app-knows')]));
+
+    $location = $this->post(route('local-login.store'), ['_token' => session()->token(), 'handle' => 'octocat'], ['X-Inertia' => 'true'])
+        ->assertConflict()
+        ->headers->get('X-Inertia-Location');
+
+    expect($location)->toStartWith(AppSignIn::CALLBACK.'?code=');
+
+    $this->assertGuest();
 });
 
 it('keeps the sign in redirect secure only behind a configured proxy', function (?string $proxies, string $remoteAddress, string $scheme): void {
