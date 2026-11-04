@@ -28,7 +28,7 @@ final readonly class LiveDeadlinesQuery
             ->whereNotNull('live_platform')
             ->whereNotNull('live_url')
             ->when($viewer, fn (Builder $query, User $viewer): Builder => $query->whereNotIn('users.id', $viewer->idsAcrossBlocks()))
-            ->orderBy('live_ends_at')
+            ->oldest('live_ends_at')
             ->limit(self::LIMIT)
             ->get(['id', 'live_ends_at'])
             ->mapWithKeys(fn (User $user): array => [$user->id => $user->live_ends_at?->toJSON()])
