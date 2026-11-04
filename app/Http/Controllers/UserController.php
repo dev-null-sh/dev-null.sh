@@ -10,6 +10,7 @@ use App\Http\Requests\DeleteUserRequest;
 use App\Http\Requests\ShowUserRequest;
 use App\Models\Commit;
 use App\Models\User;
+use App\Models\UserList;
 use App\Queries\BioProfilesQuery;
 use App\Queries\FollowersYouKnowQuery;
 use App\Queries\GitHubReadmeQuery;
@@ -22,6 +23,7 @@ use App\Queries\UserModerationQuery;
 use App\Queries\UserStreakQuery;
 use App\Services\PageMetadata;
 use Illuminate\Container\Attributes\CurrentUser;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Pagination\CursorPaginator;
 use Illuminate\Support\Facades\Auth;
@@ -64,6 +66,13 @@ final readonly class UserController
             'followersYouKnow' => fn (): ?array => $currentUser instanceof User && $currentUser->isNot($user)
                 ? $followersYouKnow->preview($user, $currentUser)
                 : null,
+            'lists' => Inertia::optional(fn (): array => $currentUser instanceof User ? $currentUser->lists()
+                ->withExists(['members as has_member' => fn (Builder $query): Builder => $query->whereKey($user->id)])
+                ->get()
+                ->sortBy('name', SORT_NATURAL | SORT_FLAG_CASE)
+                ->values()
+                ->map(fn (UserList $list): array => ['id' => $list->id, 'name' => $list->name, 'has_member' => (bool) $list->getAttribute('has_member')])
+                ->all() : []),
             'canPush' => fn (): bool => $currentUser instanceof User
                 && $currentUser->canMessage($user)
                 && ! in_array($pushAccess->get($currentUser, $user), [PushAccess::Restricted, PushAccess::Closed], true),
