@@ -23,6 +23,9 @@ const { CommitStarPolling } =
 const { deletedResources } =
     await import('../../resources/js/lib/deleted-resources');
 const { connectRealtime } = await import('../../resources/js/lib/realtime');
+const { sharedValue } =
+    await import('../../resources/js/hooks/use-shared-state');
+const { commitStateKey } = await import('../../resources/js/lib/commit-state');
 let report: (
     entries: { target: HTMLElement; isIntersecting: boolean }[],
 ) => void;
@@ -246,4 +249,47 @@ test('a failed first batch preserves later batches for the safety retry', async 
         [100, 100, 1],
     );
     assert.equal(new Set(reads.slice(1).flat()).size, 101);
+});
+
+test('a replacement trigger keeps both stars and pasteis current through the shared card read', async () => {
+    let stars = 0;
+    const id = 'replacement-card';
+    vi.stubGlobal('fetch', async () =>
+        Response.json({
+            commits: [
+                {
+                    id,
+                    stars_count: 3,
+                    starred: true,
+                    pasteis_count: 7,
+                    replies_count: 2,
+                },
+            ],
+        }),
+    );
+    const old = element();
+    const stop = context.subscribe({ id, element: old, prepare: () => null });
+    report([{ target: old, isIntersecting: true }]);
+    render();
+    joinAll(fake);
+    await vi.advanceTimersByTimeAsync(300);
+    stop();
+    const replacement = element();
+    context.subscribe({
+        id,
+        element: replacement,
+        prepare: () => (state) => {
+            stars = state.stars_count;
+        },
+    });
+    report([
+        { target: old, isIntersecting: false },
+        { target: replacement, isIntersecting: true },
+    ]);
+    render();
+    fake.joined.get(`commits.${id}`)?.emit('engagement');
+    await vi.advanceTimersByTimeAsync(300);
+
+    assert.equal(stars, 3);
+    assert.equal(sharedValue(commitStateKey('pasteis_count', id)), 7);
 });
