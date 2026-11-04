@@ -32,18 +32,35 @@ export function HotTopics() {
                             className="group -mx-2 flex min-h-8 flex-col justify-center rounded-lg px-2 py-1 text-sm transition-[background-color] hover:bg-accent focus-visible:outline-ring"
                             title={topic.name}
                         >
-                            <span className="w-full truncate font-bold group-hover:underline">
-                                {topic.name}
-                            </span>
-                            {topic.summary !== null && (
-                                <span className="w-full truncate text-xs text-muted-foreground">
-                                    {topic.summary}
-                                </span>
-                            )}
+                            <HotTopicContent
+                                name={topic.name}
+                                summary={topic.summary}
+                            />
                         </Link>
                     </li>
                 ))}
             </ul>
         </section>
+    );
+}
+
+export function HotTopicContent({
+    name,
+    summary,
+}: {
+    name: string;
+    summary: string | null;
+}) {
+    return (
+        <span className="flex min-w-0 flex-1 flex-col text-sm" title={name}>
+            <span className="w-full truncate font-bold group-hover:underline">
+                {name}
+            </span>
+            {summary !== null && (
+                <span className="w-full truncate text-xs text-muted-foreground">
+                    {summary}
+                </span>
+            )}
+        </span>
     );
 }

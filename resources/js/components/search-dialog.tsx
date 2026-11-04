@@ -19,6 +19,7 @@ import HeadlineController from '@/actions/App/Http/Controllers/HeadlineControlle
 import ProfileSearchController from '@/actions/App/Http/Controllers/ProfileSearchController';
 import SearchController from '@/actions/App/Http/Controllers/SearchController';
 import { AuthorAvatar } from '@/components/author-avatar';
+import { HotTopicContent } from '@/components/hot-topics';
 import { OrganizationAvatar } from '@/components/organization-avatar';
 import { DialogOverlay, DialogPortal } from '@/components/ui/dialog';
 import { Spinner } from '@/components/ui/spinner';
@@ -66,7 +67,7 @@ type Option =
     | { kind: 'organization'; id: string; organization: Organization }
     | { kind: 'commit'; id: string; commit: Commit }
     | { kind: 'all'; id: string; needsSignIn: boolean }
-    | { kind: 'topic'; id: string; term: string }
+    | { kind: 'topic'; id: string; term: string; summary: string | null }
     | { kind: 'recent'; id: string; term: string };
 
 /**
@@ -174,6 +175,7 @@ export function SearchDialog({
         kind: 'topic',
         id: topic.id,
         term: topic.name,
+        summary: topic.summary,
     }));
     const options =
         isPicking || !(isEmpty || foundNothing)
@@ -666,7 +668,7 @@ function ResultOption({
 }) {
     const className = cn(
         'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left disabled:cursor-not-allowed',
-        { 'bg-accent': isActive },
+        { 'bg-accent': isActive, group: option.kind === 'topic' },
     );
     const content = (
         <>
@@ -752,7 +754,11 @@ function OptionContent({ option }: { option: Option }): ReactNode {
         return <CommitResult commit={option.commit} />;
     }
 
-    if (option.kind === 'topic' || option.kind === 'recent') {
+    if (option.kind === 'topic') {
+        return <HotTopicContent name={option.term} summary={option.summary} />;
+    }
+
+    if (option.kind === 'recent') {
         return (
             <span className="flex min-w-0 flex-1 items-center justify-between gap-3 text-sm">
                 <span className="truncate" title={option.term}>
