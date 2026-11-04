@@ -96,7 +96,7 @@ export function watchLiveStream(userId: string): () => void {
                         if (
                             typeof payload === 'object' &&
                             payload !== null &&
-                            'live' in payload
+                            ('live' in payload || 'connections' in payload)
                         ) {
                             readLater(userId);
                         }

@@ -124,3 +124,57 @@ test('public stream events cannot override a block-filtered read', async () => {
     assert.equal(reads.length, before + 1);
     stop();
 });
+
+test('a connection change clears an already-heard stream through a fresh authorized read', async () => {
+    const fake = connect();
+    pageReadAt(Date.now() - 1_000);
+    const live = stream('https://www.twitch.tv/relationship');
+    current = { relationship: live };
+    const stop = watchLiveStream('relationship');
+    fake.joined.get('profiles.relationship')?.join();
+    await settle();
+    assert.equal(
+        currentLiveStream('relationship', null, new Date())?.url,
+        live.url,
+    );
+    const before = reads.length;
+    current = { relationship: null };
+    fake.joined
+        .get('profiles.relationship')
+        ?.emit('profile', { connections: true });
+    await settle();
+    assert.equal(reads.length, before + 1);
+    assert.equal(currentLiveStream('relationship', live, new Date()), null);
+    stop();
+});
+
+test('connection changes coalesce authorized reads for all affected shown profiles', async () => {
+    const fake = connect();
+    pageReadAt(Date.now() - 1_000);
+    const ids = ['relationship-a', 'relationship-b'];
+    const stops = ids.map(watchLiveStream);
+    ids.forEach((id) => fake.joined.get(`profiles.${id}`)?.join());
+    await settle();
+    const before = reads.length;
+    current = Object.fromEntries(
+        ids.map((id) => [id, stream(`https://www.twitch.tv/${id}`)]),
+    );
+    ids.forEach((id) => {
+        fake.joined
+            .get(`profiles.${id}`)
+            ?.emit('profile', { connections: true });
+        fake.joined
+            .get(`profiles.${id}`)
+            ?.emit('profile', { connections: true });
+    });
+    await settle();
+    assert.equal(reads.length, before + 1);
+    assert.deepEqual([...reads.at(-1)!].sort(), ids);
+    ids.forEach((id) =>
+        assert.equal(
+            currentLiveStream(id, null, new Date())?.url,
+            current[id]?.url,
+        ),
+    );
+    stops.forEach((stop) => stop());
+});
