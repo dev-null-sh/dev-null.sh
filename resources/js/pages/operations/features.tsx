@@ -23,6 +23,11 @@ const FEATURES: Record<
         description:
             "Members posting and replying as their organization, from the composer's Post as menu and the API. Off until the rest of organization commits ships; commits already posted as an organization stay up either way.",
     },
+    merge_conflicts: {
+        label: 'merge conflicts',
+        description:
+            'Tom spotting two replies that disagree and readers picking a side. Off stops new threads from being read and hides the conflicts already opened.',
+    },
 };
 
 /**

@@ -11,6 +11,7 @@ enum Feature: string
 {
     case Translations = 'translations';
     case OrganizationCommits = 'organization_commits';
+    case MergeConflicts = 'merge_conflicts';
 
     /**
      * Features are on until switched off, except one still being built, which stays off until switched on.
