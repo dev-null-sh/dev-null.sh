@@ -392,7 +392,7 @@ export function ConversationThread({
     );
 
     const jumpTo = useCallback(
-        async (id: number) => {
+        async (id: number): Promise<boolean> => {
             jumpRequest.current?.abort();
             glideCancel.current?.();
             glideCancel.current = null;
@@ -415,7 +415,7 @@ export function ConversationThread({
                 const found = await loadMessage(target, id, request.signal);
 
                 if (request.signal.aborted) {
-                    return;
+                    return false;
                 }
 
                 // Let the store's last page render before locating the original bubble.
@@ -426,7 +426,7 @@ export function ConversationThread({
                 }
 
                 if (request.signal.aborted) {
-                    return;
+                    return false;
                 }
 
                 bubble = scroller.current?.querySelector<HTMLElement>(
@@ -439,7 +439,7 @@ export function ConversationThread({
 
             if (!bubble) {
                 toast.error('Could not load this message. Try again.');
-                return;
+                return false;
             }
 
             anchor.current = null;
@@ -447,6 +447,8 @@ export function ConversationThread({
             bubble.scrollIntoView({ block: 'center', behavior: 'instant' });
             bubble.dataset.flash = '';
             window.setTimeout(() => delete bubble.dataset.flash, 1200);
+
+            return true;
         },
         [target],
     );
@@ -948,7 +950,7 @@ export function ConversationThread({
                                 mentions={thread?.mentions ?? noMessages}
                                 count={thread?.mentions_count ?? 0}
                                 isCompact={isCompact}
-                                onJump={(id) => void jumpTo(id)}
+                                onJump={jumpTo}
                             />
                         )
                     }

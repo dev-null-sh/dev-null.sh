@@ -21,7 +21,7 @@ import type { Message, OrgRef } from '@/types';
 
 /**
  * Sits after Call in an org's composer and lists the messages that mentioned the user until they open or clear them.
- * Opening one jumps to it in the thread.
+ * Opening one jumps to it in the thread, and clears it once it is shown.
  */
 export function MentionsBell({
     org,
@@ -34,7 +34,7 @@ export function MentionsBell({
     mentions: Message[];
     count: number;
     isCompact: boolean;
-    onJump: (messageId: number) => void;
+    onJump: (messageId: number) => Promise<boolean>;
 }) {
     const [isOpen, setIsOpen] = useState(false);
     const headingId = useId();
@@ -121,8 +121,13 @@ export function MentionsBell({
                                     type="button"
                                     onClick={() => {
                                         setIsOpen(false);
-                                        onJump(message.id);
-                                        clear(message.id);
+                                        void onJump(message.id).then(
+                                            (isShown) => {
+                                                if (isShown) {
+                                                    clear(message.id);
+                                                }
+                                            },
+                                        );
                                     }}
                                     className="flex w-full gap-2.5 px-3 py-2.5 text-left transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
                                     data-test="mentions-item"
