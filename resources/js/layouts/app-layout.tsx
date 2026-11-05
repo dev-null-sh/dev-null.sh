@@ -16,6 +16,7 @@ import {
 import { CommitImageViewer } from '@/components/commit-image-viewer';
 import { CommitStarPolling } from '@/components/commit-star-polling';
 import { DeletedPageDialog } from '@/components/deleted-page-dialog';
+import { DevampCredit } from '@/components/devamp-credit';
 import { ExternalLinkGuard } from '@/components/external-link-guard';
 import { endStream, GoLiveDialog } from '@/components/go-live-dialog';
 import { GuestJoinSheet } from '@/components/guest-join-sheet';
@@ -43,6 +44,7 @@ import { useTabSlide } from '@/hooks/use-tab-slide';
 import { signIn } from '@/lib/auth';
 import { backgroundPollOptions } from '@/lib/background-poll';
 import { isPageGone } from '@/lib/deleted-resources';
+import { openDevamp } from '@/lib/devamp';
 import type { IssueKind } from '@/lib/issue-commands';
 import { userChannel } from '@/lib/realtime';
 import type { SearchAction } from '@/lib/search-actions';
@@ -95,6 +97,12 @@ export default function AppLayout({ children }: AppLayoutProps) {
             return;
         }
 
+        if (action === 'devamp') {
+            void openDevamp();
+
+            return;
+        }
+
         setComposingIssue(action === 'commit' ? null : action);
         setIsComposing(true);
     };
@@ -122,6 +130,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
         <>
             {!isMessages && <ProductHuntBanner />}
             <ExternalLinkGuard />
+            <DevampCredit />
             <div
                 data-nav={isLayoutOpen ? 'expanded' : 'collapsed'}
                 className="mx-auto flex min-h-svh w-full max-w-[1264px] justify-center"

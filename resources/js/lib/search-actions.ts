@@ -3,7 +3,12 @@ import type { IssueKind } from '@/lib/issue-commands';
 /**
  * Things search can do instead of find, so "commit", "bug" or "go live" are a few keystrokes from anywhere.
  */
-export type SearchAction = 'commit' | IssueKind | 'go-live' | 'end-stream';
+export type SearchAction =
+    | 'commit'
+    | IssueKind
+    | 'go-live'
+    | 'end-stream'
+    | 'devamp';
 
 /**
  * An action is offered once the search is the start of one of its words. Ending a stream only answers to being asked
@@ -15,6 +20,7 @@ const keywords: Record<SearchAction, string[]> = {
     bug: ['bug', 'report a bug', 'bug report'],
     'go-live': ['go live', 'live', 'stream', 'start stream'],
     'end-stream': ['end stream', 'stop stream', 'end live', 'stop live'],
+    devamp: ['devamp', 'webamp', 'winamp', 'llama'],
 };
 
 /**
@@ -28,7 +34,7 @@ const shortestWord = 3;
  */
 export function searchActions(
     term: string,
-    { isLive }: { isLive: boolean },
+    { isLive, hasDevamp = false }: { isLive: boolean; hasDevamp?: boolean },
 ): SearchAction[] {
     const typed = term.trim().replace(/\s+/gu, ' ').toLowerCase();
 
@@ -47,9 +53,12 @@ export function searchActions(
         'feature',
         'bug',
         isLive ? 'end-stream' : 'go-live',
+        ...(hasDevamp ? (['devamp'] as const) : []),
     ];
 
     return available.filter((action) =>
-        keywords[action].some((keyword) => keyword.startsWith(typed)),
+        keywords[action].some((keyword) =>
+            action === 'devamp' ? keyword === typed : keyword.startsWith(typed),
+        ),
     );
 }
