@@ -3,10 +3,13 @@
 declare(strict_types=1);
 
 use App\Actions\DeleteUser;
+use App\Actions\UpdateDevicePushToken;
 use App\Enums\PushPlatform;
 use App\Models\Device;
 use App\Models\User;
+use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Tests\Support\SshKeyPair;
 
 it('saves the push token for the phone that signed the request, encrypted', function (): void {
@@ -72,6 +75,43 @@ it('moves a token to the device the phone signed in as again', function (): void
     expect(Device::query()->whereNotNull('push_token_hash')->sole()->fingerprint)->toBe($new->publicKey->fingerprint());
 });
 
+it('saves the token even when it left the phone after the request was authenticated', function (): void {
+    $user = User::factory()->create();
+    $keyPair = apiKeyPairFor($user);
+    signedApiRequest($keyPair, 'PUT', route('api-device-push-token.update'), ['token' => 'fcm-token', 'platform' => 'ios'])->assertNoContent();
+
+    $cleared = false;
+    Event::listen('eloquent.retrieved: '.Device::class, function (Device $device) use (&$cleared): void {
+        if (! $cleared) {
+            $cleared = true;
+            Device::query()->whereKey($device->id)->update(['push_token_hash' => null, 'push_token' => null, 'push_platform' => null]);
+        }
+    });
+
+    signedApiRequest($keyPair, 'PUT', route('api-device-push-token.update'), ['token' => 'fcm-token', 'platform' => 'ios'])->assertNoContent();
+
+    expect($user->devices()->sole()->push_token)->toBe('fcm-token');
+});
+
+it('moves the token again when another phone takes it in the middle of the move', function (): void {
+    $other = Device::factory()->create();
+    $user = User::factory()->create();
+    $keyPair = apiKeyPairFor($user);
+
+    $taken = false;
+    DB::listen(function (QueryExecuted $query) use (&$taken, $other): void {
+        if (! $taken && str_starts_with($query->sql, 'update "devices"') && str_contains($query->sql, 'where "push_token_hash" = ?')) {
+            $taken = true;
+            Device::query()->whereKey($other->id)->update(['push_token_hash' => hash('sha256', 'fcm-shared')]);
+        }
+    });
+
+    signedApiRequest($keyPair, 'PUT', route('api-device-push-token.update'), ['token' => 'fcm-shared', 'platform' => 'ios'])->assertNoContent();
+
+    expect($taken)->toBeTrue()
+        ->and(Device::query()->whereNotNull('push_token_hash')->sole()->user_id)->toBe($user->id);
+});
+
 it('refuses a token or platform it can not push to', function (array $data, string $field): void {
     $user = User::factory()->create();
 
@@ -100,6 +140,24 @@ it('stops pushing to the phone that signed the request', function (): void {
     signedApiRequest($keyPair, 'DELETE', route('api-device-push-token.destroy'))->assertNoContent();
 
     expect($user->devices()->whereNotNull('push_token_hash')->pluck('push_token')->all())->toBe(['fcm-other']);
+});
+
+it('stops pushing even when a token arrived after the request was authenticated', function (): void {
+    $user = User::factory()->create();
+    $keyPair = apiKeyPairFor($user);
+
+    $arrived = false;
+    Event::listen('eloquent.retrieved: '.Device::class, function (Device $device) use (&$arrived): void {
+        if (! $arrived) {
+            $arrived = true;
+            resolve(UpdateDevicePushToken::class)->handle(Device::query()->findOrFail($device->id), 'fcm-token', PushPlatform::Ios);
+        }
+    });
+
+    signedApiRequest($keyPair, 'DELETE', route('api-device-push-token.destroy'))->assertNoContent();
+
+    expect($arrived)->toBeTrue()
+        ->and($user->devices()->sole()->push_token_hash)->toBeNull();
 });
 
 it("drops the token with the device when the device is revoked, and leaves someone else's alone", function (): void {
