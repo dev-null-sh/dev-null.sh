@@ -117,3 +117,13 @@ it('limits each address to 60 tries a minute, before checking signatures', funct
         ->assertTooManyRequests()
         ->assertJsonPath('code', 'rate_limited');
 });
+
+it('keeps each address to 60 tries a minute when a device code is slipped in, which only polling gets more for', function (): void {
+    foreach (range(1, 60) as $attempt) {
+        $this->postJson(route('api-device-authorization.store'), ['device_code' => 'any-device-code'])->assertUnauthorized();
+    }
+
+    $this->postJson(route('api-device-authorization.store'), ['device_code' => 'any-device-code'])
+        ->assertTooManyRequests()
+        ->assertJsonPath('code', 'rate_limited');
+});

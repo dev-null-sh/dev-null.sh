@@ -205,6 +205,10 @@ final class AppServiceProvider extends ServiceProvider
             ? Limit::perMinute(300)->by('device-polls:'.$request->ip())->response($rateLimited)
             : Limit::perMinute(60)->by((string) $request->ip())->response($rateLimited));
 
+        // Starting a sign-in from a terminal gets the same ceiling per address, in a bucket of its own: polling's larger
+        // one is chosen from the body before anything is checked, so it must not be reachable from here...
+        RateLimiter::for('device-authorizations', fn (Request $request): Limit => Limit::perMinute(60)->by((string) $request->ip())->response($rateLimited));
+
         // Approving the devnull app on the web hands out a code each time...
         RateLimiter::for('mobile-authorizations', fn (Request $request): Limit => Limit::perMinute(10)->by($this->userId($request)));
 
