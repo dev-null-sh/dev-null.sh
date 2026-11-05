@@ -37,7 +37,11 @@ const reply = (id: string): Commit =>
 async function renderThread(
     count: number,
     repliesPerPage: number,
-    { isOnTrunk = false }: { isOnTrunk?: boolean } = {},
+    {
+        isOnTrunk = false,
+        depth = 0,
+        showToggles = false,
+    }: { isOnTrunk?: boolean; depth?: number; showToggles?: boolean } = {},
 ) {
     const shown = Math.min(count, repliesPerPage);
     const commit = {
@@ -54,10 +58,12 @@ async function renderThread(
         const thread = useThread(commit);
         return (
             <TooltipProvider>
-                <ThreadActions thread={thread} />
+                <ThreadActions
+                    thread={showToggles ? { ...thread, isPreview: false } : thread}
+                />
                 <ThreadReplies
                     thread={thread}
-                    depth={0}
+                    depth={depth}
                     isOnTrunk={isOnTrunk}
                 />
             </TooltipProvider>
@@ -208,4 +214,24 @@ test('branches the replies off a trunk that goes on below them, without a column
     assert.equal(pieces(html, 'thread-elbow').length, 4);
     assert.doesNotMatch(pieces(html, 'more-replies')[0] ?? '', /--spine/);
     assert.doesNotMatch(html, /d="M 0 0 /);
+});
+
+test('stops indenting after two reply levels and names the parent', async () => {
+    const nested = await renderThread(1, 3, { depth: 1 });
+    const flattened = await renderThread(1, 3, { depth: 2 });
+
+    assert.equal(pieces(nested, 'thread-elbow').length, 1);
+    assert.equal(pieces(flattened, 'thread-elbow').length, 0);
+    assert.match(flattened, /\[--indent:0px\]/);
+    assert.match(text(flattened), /replying to @author/);
+});
+
+test('shortens expanded reply controls on small screens without losing their label', async () => {
+    const html = await renderThread(1, 3, { showToggles: true });
+    const [toggle] = pieces(html, 'toggle-replies-button');
+
+    assert.ok(toggle);
+    assert.match(toggle, /aria-label="Hide replies"/);
+    assert.match(html, /class="sm:hidden">Hide<\/span>/);
+    assert.match(html, /class="hidden sm:inline">Hide replies<\/span>/);
 });

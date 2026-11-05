@@ -132,7 +132,8 @@ const afterVisits =
         ? visitsSettled((event, listener) => router.on(event, listener))
         : () => Promise.resolve();
 
-const maxIndentDepth = 3;
+// Keep deeply nested replies in a readable column instead of using up the width of the thread.
+const maxIndentDepth = 2;
 
 const maxRepliesPerRequest = 50;
 
@@ -1003,7 +1004,8 @@ export function ThreadActions({
                                 aria-keyshortcuts={
                                     hasKeyboardShortcuts ? 'o' : undefined
                                 }
-                                className="flex items-center gap-1 rounded-md px-2 py-0.5 font-medium text-primary transition-colors hover:bg-primary-soft"
+                                className="flex items-center gap-1 rounded-md px-1.5 py-0.5 font-medium text-primary transition-colors hover:bg-primary-soft sm:px-2"
+                                aria-label={thread.isOpen ? 'Hide replies' : 'Show replies'}
                                 data-test="toggle-replies-button"
                             >
                                 <ChevronDown
@@ -1014,9 +1016,14 @@ export function ThreadActions({
                                         },
                                     )}
                                 />
-                                {thread.isOpen
-                                    ? 'Hide replies'
-                                    : `${formatCount(thread.count)} ${thread.count === 1 ? 'reply' : 'replies'}`}
+                                {thread.isOpen ? (
+                                    <>
+                                        <span className="sm:hidden">Hide</span>
+                                        <span className="hidden sm:inline">Hide replies</span>
+                                    </>
+                                ) : (
+                                    `${formatCount(thread.count)} ${thread.count === 1 ? 'reply' : 'replies'}`
+                                )}
                             </button>
                         </ActionTooltip>
                     )}
