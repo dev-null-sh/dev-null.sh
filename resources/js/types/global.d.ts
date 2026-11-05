@@ -31,9 +31,15 @@ declare module '@inertiajs/core' {
             /** For guests: how many developers are here, rounded down (12,000). */
             developersCount: number | null;
             hasUnmoderatedCommits: boolean;
+            isMobileApp: boolean;
             sidebarOpen: boolean;
             showsWhoToFollow: boolean;
             dimsLanes: boolean;
+            /** The event theme on the page for this reader, if any. */
+            eventTheme: string | null;
+            /** The year a New Year greeting wishes. */
+            eventYear: number;
+            eventThemeChoice: string;
             repliesPerPage: number;
             clock: SharedClock;
             /** When the server rendered the page, in milliseconds. */

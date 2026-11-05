@@ -698,6 +698,11 @@ export function OrgPeopleDialog({
             if (mode.kind === 'create') {
                 const org = await createOrg(name, handles);
 
+                // Signed out or in as someone else meanwhile: nothing is left to show.
+                if (org === null) {
+                    return;
+                }
+
                 isCreated.current = true;
                 onDone(org);
             } else {

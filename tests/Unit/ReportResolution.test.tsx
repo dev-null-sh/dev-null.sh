@@ -17,6 +17,10 @@ const toasts: string[] = [];
 vi.doMock('react', () => ({
     ...React,
     useState: (initial: unknown) => [initial, () => {}],
+    useEffect: () => {},
+    useRef: (current: unknown) => ({ current }),
+    useEffectEvent: (callback: unknown) => callback,
+    useSyncExternalStore: (_subscribe: unknown, read: () => unknown) => read(),
 }));
 const router = {
     visit: (_url: unknown, options: VisitOptions) => visits.push(options),
@@ -26,7 +30,7 @@ const router = {
 
 vi.doMock('@inertiajs/react', async () => ({
     ...(await vi.importActual('@inertiajs/react')),
-    usePage: () => ({ component: 'moderation/reports', props: {} }),
+    usePage: () => ({ component: 'moderation/reports', props: { auth: { user: null } } }),
     router,
 }));
 vi.doMock('sonner', () => ({
