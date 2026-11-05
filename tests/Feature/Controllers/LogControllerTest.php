@@ -190,6 +190,18 @@ it('remembers the last visited log', function (Log $log): void {
     expect($user->refresh()->log)->toBe($log);
 })->with(Log::cases());
 
+it('does not remember a log that is only prefetched', function (): void {
+    $user = User::factory()->create(['log' => Log::Latest]);
+
+    $this->actingAs($user)->withHeaders([
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request()),
+        'Purpose' => 'prefetch',
+    ])->get(route('log.show', Log::Following))->assertOk();
+
+    expect($user->refresh()->log)->toBe(Log::Latest);
+});
+
 it('does not update the user when the log is unchanged', function (): void {
     $user = User::factory()->create(['log' => Log::Trending]);
     $updatedAt = $user->updated_at;
