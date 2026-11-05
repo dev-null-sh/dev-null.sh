@@ -408,8 +408,6 @@ export function useThread(
         setPreviousInitial(initial);
         if (initial !== undefined && (replies?.length ?? 0) <= repliesPerPage) {
             ++replyRequest.current;
-            readSince.current = Math.min(serverNow - 5_000, readAt());
-            repliesReadAt.current = undefined;
             setIsLoading(false);
             setThread((current) => ({
                 ...current,
@@ -418,6 +416,17 @@ export function useThread(
             }));
         }
     }
+
+    // Replies the page brought were read with it, whatever the thread read before, once they show.
+    const onInitialShown = useEffectEvent(() => {
+        readSince.current = Math.min(serverNow - 5_000, readAt());
+        repliesReadAt.current = undefined;
+    });
+    useEffect(() => {
+        if (initial !== undefined && replies === initial.data) {
+            onInitialShown();
+        }
+    }, [initial, replies]);
 
     const applyPage = (
         loaded: ThreadCommit[],
