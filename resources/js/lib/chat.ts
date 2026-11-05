@@ -2198,6 +2198,7 @@ export async function clearMentions(
     messageId?: number,
 ): Promise<void> {
     const isCurrent = ownership();
+    const owner = remotesOwner;
     const target: ChatTarget = { kind: 'org', org };
     const key = targetKey(target);
     const thread = state.threads[key];
@@ -2259,9 +2260,12 @@ export async function clearMentions(
         });
     } catch (error) {
         if (error instanceof StaleRemotesError) {
-            updateThread(key, (current) => ({
-                clearingMentions: stillClearing(current),
-            }));
+            // Watching the same account again keeps its threads, which must not wait for this clear any more.
+            if (remotesOwner === owner) {
+                updateThread(key, (current) => ({
+                    clearingMentions: stillClearing(current),
+                }));
+            }
 
             return;
         }
