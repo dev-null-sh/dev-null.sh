@@ -231,6 +231,10 @@ const reactionsInFlight = new Map<number, number>();
 const reactionsSettledAt = new Map<number, number>();
 const messagePinsInFlight = new Map<string, number>();
 /**
+ * The last clear of each org's mentions, which the next one waits for, so the server answers them in order.
+ */
+const mentionClears = new Map<string, Promise<unknown>>();
+/**
  * The newest pinned messages a pin request handed back while others in the org were still in flight.
  */
 const newestPinnedMessages = new Map<
@@ -2217,14 +2221,19 @@ export async function clearMentions(
         clearingMentions: [...current.clearingMentions, ...ids],
     }));
 
-    try {
-        const left = await remotesRequest<
-            Pick<OrgThread, 'mentions' | 'mentions_count'>
-        >(
-            OrgMentionController.destroy.url({ org: org.id }),
-            'DELETE',
-            messageId === undefined ? undefined : { message_id: messageId },
+    const clearing = (mentionClears.get(key) ?? Promise.resolve())
+        .catch(() => undefined)
+        .then(() =>
+            remotesRequest<Pick<OrgThread, 'mentions' | 'mentions_count'>>(
+                OrgMentionController.destroy.url({ org: org.id }),
+                'DELETE',
+                messageId === undefined ? undefined : { message_id: messageId },
+            ),
         );
+    mentionClears.set(key, clearing);
+
+    try {
+        const left = await clearing;
 
         updateThread(key, (current) => {
             const clearing = stillClearing(current);

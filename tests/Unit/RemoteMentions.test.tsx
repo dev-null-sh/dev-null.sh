@@ -40,7 +40,8 @@ const shownIds = () => shown().mentions.map(({ id }) => id);
 type Held = { url: string; method: string; settle: (outcome: Response | Error) => void };
 let held: Held[];
 
-const take = (method: string, part: string): Held => {
+const take = async (method: string, part: string): Promise<Held> => {
+    await vi.advanceTimersByTimeAsync(0);
     const index = held.findIndex((request) => request.method === method && request.url.includes(part));
     assert.notEqual(index, -1, `a ${method} request to ${part} was sent`);
 
@@ -88,7 +89,7 @@ test('a cleared mention stays gone from reads sent before clearing finished, and
     chat.seedThread(target, thread([3, 2, 1]) as never);
     const stopThread = chat.watchThread(target);
     await vi.advanceTimersByTimeAsync(0);
-    const before = take('GET', '/messages');
+    const before = await take('GET', '/messages');
 
     const clearing = chat.clearMentions(org, 2);
     assert.deepEqual(shownIds(), [3, 1]);
@@ -98,7 +99,7 @@ test('a cleared mention stays gone from reads sent before clearing finished, and
     await vi.advanceTimersByTimeAsync(0);
     assert.deepEqual(shownIds(), [3, 1]);
 
-    take('DELETE', '/mentions').settle(Response.json({ mentions: [mention(3), mention(1)], mentions_count: 120 }));
+    (await take('DELETE', '/mentions')).settle(Response.json({ mentions: [mention(3), mention(1)], mentions_count: 120 }));
     await clearing;
     assert.deepEqual(shownIds(), [3, 1]);
     assert.equal(shown().mentions_count, 120);
@@ -115,13 +116,13 @@ test('marking all read also drops the mentions the bell had not loaded, even whe
     chat.seedThread(target, thread([1], 2) as never);
     const stopThread = chat.watchThread(target);
     await vi.advanceTimersByTimeAsync(0);
-    const before = take('GET', '/messages');
+    const before = await take('GET', '/messages');
 
     const clearing = chat.clearMentions(org);
     assert.deepEqual(shownIds(), []);
     assert.equal(shown().mentions_count, 0);
 
-    take('DELETE', '/mentions').settle(Response.json({ mentions: [], mentions_count: 0 }));
+    (await take('DELETE', '/mentions')).settle(Response.json({ mentions: [], mentions_count: 0 }));
     await clearing;
     before.settle(Response.json(thread([2, 1])));
     await vi.advanceTimersByTimeAsync(0);
@@ -138,17 +139,17 @@ test('a refused clear brings the mention back, then takes what the thread reads 
     chat.seedThread(target, thread([3, 2]) as never);
     const stopThread = chat.watchThread(target);
     await vi.advanceTimersByTimeAsync(0);
-    take('GET', '/messages').settle(Response.json(thread([3, 2])));
+    (await take('GET', '/messages')).settle(Response.json(thread([3, 2])));
     await vi.advanceTimersByTimeAsync(0);
 
     const clearing = chat.clearMentions(org, 2);
-    take('DELETE', '/mentions').settle(Response.json({}, { status: 500 }));
+    (await take('DELETE', '/mentions')).settle(Response.json({}, { status: 500 }));
     await assert.rejects(clearing);
     assert.deepEqual(shownIds(), [3, 2]);
     assert.equal(shown().mentions_count, 2);
 
     await vi.advanceTimersByTimeAsync(200);
-    take('GET', '/messages').settle(Response.json(thread([3])));
+    (await take('GET', '/messages')).settle(Response.json(thread([3])));
     await vi.advanceTimersByTimeAsync(0);
     assert.deepEqual(shownIds(), [3]);
 
@@ -160,7 +161,7 @@ test('what one account cleared never hides the mentions of the next account', as
     const stopFirst = chat.watchRemoteUpdates('mark');
     chat.seedThread(target, thread([5]) as never);
     const clearing = chat.clearMentions(org, 5);
-    take('DELETE', '/mentions').settle(Response.json({ mentions: [], mentions_count: 0 }));
+    (await take('DELETE', '/mentions')).settle(Response.json({ mentions: [], mentions_count: 0 }));
     await clearing;
     stopFirst();
 
@@ -169,4 +170,28 @@ test('what one account cleared never hides the mentions of the next account', as
 
     assert.deepEqual(shownIds(), [5]);
     stopSecond();
+});
+
+test('clears in one org go out one at a time, so an earlier answer never brings back a later clear', async () => {
+    const stop = chat.watchRemoteUpdates('mark');
+    chat.seedThread(target, thread([3, 2, 1]) as never);
+
+    const first = chat.clearMentions(org, 1);
+    const second = chat.clearMentions(org, 2);
+    assert.deepEqual(shownIds(), [3]);
+    await vi.advanceTimersByTimeAsync(0);
+    assert.equal(held.filter(({ method }) => method === 'DELETE').length, 1);
+
+    (await take('DELETE', '/mentions')).settle(Response.json({ mentions: [mention(3), mention(2)], mentions_count: 2 }));
+    await first;
+    assert.deepEqual(shownIds(), [3]);
+    assert.equal(shown().mentions_count, 1);
+
+    await vi.advanceTimersByTimeAsync(0);
+    (await take('DELETE', '/mentions')).settle(Response.json({ mentions: [mention(3)], mentions_count: 1 }));
+    await second;
+    assert.deepEqual(shownIds(), [3]);
+    assert.equal(shown().mentions_count, 1);
+
+    stop();
 });

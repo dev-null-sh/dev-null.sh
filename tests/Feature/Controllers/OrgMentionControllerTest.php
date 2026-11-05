@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Enums\UserUpdate;
 use App\Events\UsersUpdated;
+use App\Models\ConversationParticipant;
 use App\Models\Message;
 use App\Models\User;
 use Illuminate\Support\Facades\Event;
@@ -73,6 +74,17 @@ it('does not mention the sender, people across a block, or people muting the sen
     foreach ([$nuno, $taylor, $jess] as $member) {
         $this->actingAs($member)->getJson(route('org-message.index', $org))->assertJsonPath('mentions', []);
     }
+});
+
+it('does not mention a member whose history starts after the message', function (): void {
+    $mark = User::factory()->create();
+    [$nuno] = followersOf($mark, 1);
+    $org = createOrg($mark, [$nuno]);
+    ConversationParticipant::query()->where('conversation_id', $org)->where('user_id', $nuno->id)->update(['visible_from_id' => 1_000_000_000]);
+
+    pushToOrg($mark, $org, "@{$nuno->handle} welcome");
+
+    expect($nuno->mentions()->count())->toBe(0);
 });
 
 it('forgets the mentions of a member who leaves', function (): void {
