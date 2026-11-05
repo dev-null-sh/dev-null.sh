@@ -230,9 +230,12 @@ it('shows phones who wrote, never what', function (bool $org, ?OrgEvent $event, 
 
     new SendRemotePush($this->message->id, $this->recipient->id)->handle(resolve(PushNotificationProvider::class), resolve(DevicePushProvider::class));
 
-    expect($sent)->toEqual([[$phone->id, new DevicePush(
-        $title, $body, ['type' => $type, 'conversation_id' => $this->message->conversation_id], $this->message->conversation_id,
-    )]]);
+    $conversationId = $this->message->conversation_id;
+    $data = ['type' => $type, 'conversation_id' => $conversationId, 'kind' => $org ? 'org' : 'direct', ...$org ? [] : ['handle' => $this->message->user->profile->handle]];
+    expect($sent)->toHaveCount(1)
+        ->and($sent[0][0])->toBe($phone->id)
+        ->and($sent[0][1])->title->toBe($title)->body->toBe($body)->group->toBe($conversationId)
+        ->and($sent[0][1]->data)->toBe([...$data, 'url' => 'devnull://push?'.http_build_query($data, encoding_type: PHP_QUERY_RFC3986)]);
 })->with([
     'a direct message' => [false, null, 'Alice', 'Sent you a message', 'message'],
     'a direct ping' => [false, OrgEvent::Ping, 'Alice', 'Pinged you', 'ping'],

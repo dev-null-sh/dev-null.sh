@@ -44,7 +44,7 @@ final readonly class FcmDevicePushProvider implements DevicePushProvider
                 ->post("https://fcm.googleapis.com/v1/projects/{$credentials['project_id']}/messages:send", ['message' => [
                     'token' => $device->push_token,
                     'notification' => ['title' => $push->title, 'body' => $push->body],
-                    'data' => (object) $push->data,
+                    'data' => $push->data,
                     'android' => ['priority' => 'high'],
                     'apns' => ['payload' => ['aps' => ['sound' => 'default', ...$push->group === null ? [] : ['thread-id' => $push->group]]]],
                 ]]);
