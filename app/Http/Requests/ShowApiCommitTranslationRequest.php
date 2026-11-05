@@ -15,6 +15,10 @@ use Illuminate\Validation\Rule;
 
 final class ShowApiCommitTranslationRequest extends FormRequest
 {
+    /**
+     * Allows translation reads for visible published commits, or pending commits for admins, while translations
+     * are enabled and the body is not empty. Everything else is hidden as not found, as on the web.
+     */
     public function authorize(): Response
     {
         $user = $this->user();
