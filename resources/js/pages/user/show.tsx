@@ -32,6 +32,7 @@ import { LocalTime } from '@/components/local-time';
 import { MembersLink } from '@/components/members-link';
 import { PageTabs } from '@/components/page-tabs';
 import { PinCommitButton } from '@/components/pin-commit-button';
+import { ProfileDevampButton } from '@/components/profile-devamp-button';
 import { ProfileLiveButton } from '@/components/profile-live-button';
 import { ProfilePicture } from '@/components/profile-picture';
 import { ProfileReadme } from '@/components/profile-readme';
@@ -53,6 +54,7 @@ import { useProfileCommits } from '@/hooks/use-profile-commits';
 import { refreshSharedState, useSharedState } from '@/hooks/use-shared-state';
 import AppLayout from '@/layouts/app-layout';
 import { commitStateKey } from '@/lib/commit-state';
+import type { PlaylistTrack } from '@/lib/devamp';
 import { exactCountTitle, formatCount } from '@/lib/numbers';
 import { profileAvatarPosition } from '@/lib/profile-avatar';
 import { formatClockMonth, laneColor, laneTint } from '@/lib/utils';
@@ -72,6 +74,8 @@ function pluralize(count: number, singular: string, plural: string) {
 export default function Show({
     user,
     bioProfiles,
+    hasPlaylist,
+    playlist,
     pasteisReceived,
     isFollowing,
     followsYou,
@@ -90,6 +94,8 @@ export default function Show({
 }: {
     user: Profile;
     bioProfiles: Record<string, string>;
+    hasPlaylist: boolean;
+    playlist?: PlaylistTrack[];
     pasteisReceived: number | null;
     isFollowing: boolean;
     followsYou: boolean;
@@ -290,6 +296,12 @@ export default function Show({
                     />
 
                     <div className="flex shrink-0 gap-1.5 sm:gap-2">
+                        {hasPlaylist && (
+                            <ProfileDevampButton
+                                handle={user.handle}
+                                playlist={playlist}
+                            />
+                        )}
                         <ProfileShareButton
                             handle={user.handle}
                             href={show(user).url}
