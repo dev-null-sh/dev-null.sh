@@ -352,7 +352,7 @@ final readonly class CreateExport
      */
     private function mentions(User $user): Generator
     {
-        foreach ($user->mentions()->select(['messages.id', 'messages.conversation_id', 'messages.created_at'])->with('conversation:id,name,kind')->lazyById(500, 'messages.id', 'id') as $message) {
+        foreach ($user->mentions()->with('conversation:id,name,kind')->lazyById(500, 'messages.id', 'id') as $message) {
             yield [
                 'to' => $this->recipient($user, $message->conversation),
                 'created_at' => $message->created_at->toIso8601String(),
