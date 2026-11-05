@@ -45,7 +45,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->trimStrings(except: ['sdp', 'signals.*.sdp']);
         $middleware->append(PreventFraming::class);
 
-        $middleware->encryptCookies(except: ['appearance', 'sidebar_state', 'who_to_follow', 'who_to_follow_round', 'lane_dimming', 'replies_per_page', 'time_zone', 'hour_cycle']);
+        $middleware->encryptCookies(except: ['appearance', 'sidebar_state', 'who_to_follow', 'who_to_follow_round', 'lane_dimming', 'event_theme', 'replies_per_page', 'time_zone', 'hour_cycle']);
 
         // Approving the app is the one page a guest should leave for GitHub, then return to. Every other page
         // they open while signed out stays the log. Locally, sign-in is the modal on that log.

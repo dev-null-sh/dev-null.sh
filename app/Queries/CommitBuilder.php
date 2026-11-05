@@ -409,14 +409,14 @@ final class CommitBuilder extends Builder
             ->keyBy('id');
 
         foreach ($previewed as $commit) {
-            $replies = collect($newest[$commit->id])->map(fn (string $id): ?Commit => $cards->get($id))->filter()->values();
+            $replies = new Collection(array_values(array_filter(array_map(fn (int|string $id): ?Commit => $cards->get($id), $newest->get($commit->id, [])))));
             $oldest = $replies->last();
             $cursor = $oldest instanceof Commit && $commit->replies_count > $replies->count()
                 ? new Cursor(['created_at' => $oldest->getRawOriginal('created_at'), 'id' => $oldest->id])->encode()
                 : null;
 
             $commit->setAttribute('reply_preview', [
-                'data' => $replies->map(fn (Commit $reply): array => $reply->toArray())->all(),
+                'data' => $replies,
                 'next_cursor' => $cursor,
                 'prev_cursor' => null,
             ]);

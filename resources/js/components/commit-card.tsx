@@ -492,6 +492,7 @@ export function CommitCard({
                                             commit.id,
                                         )}
                                         preview={commit.link_preview}
+                                        source={{ commitId: commit.id }}
                                     />
                                 )}
                             {isFocused && (

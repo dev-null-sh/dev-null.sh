@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Contracts\Services\EmbeddingProvider;
+use App\Http\Middleware\HandleInertiaRequests;
 use App\Jobs\UnfurlLink;
 use App\Models\Device;
 use App\Models\Message;
@@ -385,4 +386,27 @@ function apiKeyPairFor(User $user): SshKeyPair
 function pgvectorLacksIterativeScan(): bool
 {
     return version_compare((string) DB::scalar("select extversion from pg_extension where extname = 'vector'"), '0.8.0', '<');
+}
+
+/**
+ * Which of a connections list a page loaded, as the page asks for it.
+ */
+function loadedDigest(string $route, User $user, array $loaded): mixed
+{
+    return test()->get(route($route, ['user' => $user, 'loaded' => $loaded]), [
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) resolve(HandleInertiaRequests::class)->version(request()),
+        'X-Inertia-Partial-Component' => 'user/connections',
+        'X-Inertia-Partial-Data' => 'loadedDigest',
+    ])->assertOk()->assertJsonMissingPath('props.users')->json('props.loadedDigest');
+}
+
+/**
+ * The digest the server names a list by: the SHA-256 of its sorted ids.
+ */
+function digestOf(string ...$ids): string
+{
+    sort($ids, SORT_STRING);
+
+    return hash('sha256', implode(',', $ids));
 }

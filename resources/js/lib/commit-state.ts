@@ -17,6 +17,21 @@ type CommitStateField = (typeof fields)[number];
 export const commitStateKey = (field: CommitStateField, id: string): string =>
     `${field}:${id}`;
 
+const localChanges = new Map<string, number>();
+
+/**
+ * Marks a count this page just changed itself, as a reply or its deletion does, so a read started before that can't
+ * put the old count back.
+ */
+export function changeCountLocally(field: CommitStateField, id: string): void {
+    const key = commitStateKey(field, id);
+    localChanges.set(key, (localChanges.get(key) ?? 0) + 1);
+}
+
+export function localCountVersion(field: CommitStateField, id: string): number {
+    return localChanges.get(commitStateKey(field, id)) ?? 0;
+}
+
 const parse = (data: string): unknown => {
     try {
         return JSON.parse(data);

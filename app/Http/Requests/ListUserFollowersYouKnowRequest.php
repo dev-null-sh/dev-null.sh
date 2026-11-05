@@ -25,10 +25,21 @@ final class ListUserFollowersYouKnowRequest extends FormRequest
     }
 
     /**
-     * @return array{}
+     * @return array<string, list<string>>
      */
     public function rules(): array
     {
-        return [];
+        return [
+            'loaded' => ['sometimes', 'array:users,organizations'],
+            'loaded.*' => ['integer', 'between:0,1000'],
+        ];
+    }
+
+    /**
+     * How many of a list the page loaded, to tell whether those are still the same.
+     */
+    public function loaded(string $list): int
+    {
+        return $this->integer("loaded.{$list}");
     }
 }
