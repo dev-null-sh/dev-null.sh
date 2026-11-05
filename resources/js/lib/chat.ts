@@ -2197,6 +2197,7 @@ export async function clearMentions(
     org: OrgRef,
     messageId?: number,
 ): Promise<void> {
+    const isCurrent = ownership();
     const target: ChatTarget = { kind: 'org', org };
     const key = targetKey(target);
     const thread = state.threads[key];
@@ -2223,13 +2224,19 @@ export async function clearMentions(
 
     const clearing = (mentionClears.get(key) ?? Promise.resolve())
         .catch(() => undefined)
-        .then(() =>
-            remotesRequest<Pick<OrgThread, 'mentions' | 'mentions_count'>>(
+        .then(() => {
+            // Waiting its turn may outlast the account that asked.
+            if (!isCurrent()) {
+                throw new StaleRemotesError();
+            }
+
+            return request<Pick<OrgThread, 'mentions' | 'mentions_count'>>(
                 OrgMentionController.destroy.url({ org: org.id }),
                 'DELETE',
                 messageId === undefined ? undefined : { message_id: messageId },
-            ),
-        );
+                isCurrent,
+            );
+        });
     mentionClears.set(key, clearing);
 
     try {
@@ -2252,6 +2259,10 @@ export async function clearMentions(
         });
     } catch (error) {
         if (error instanceof StaleRemotesError) {
+            updateThread(key, (current) => ({
+                clearingMentions: stillClearing(current),
+            }));
+
             return;
         }
 

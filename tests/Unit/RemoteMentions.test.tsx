@@ -195,3 +195,38 @@ test('clears in one org go out one at a time, so an earlier answer never brings 
 
     stop();
 });
+
+test('a clear still waiting its turn is never sent for the next account', async () => {
+    const stopFirst = chat.watchRemoteUpdates('mark');
+    chat.seedThread(target, thread([2, 1]) as never);
+    const first = chat.clearMentions(org, 1);
+    const all = chat.clearMentions(org).catch(() => undefined);
+    const sent = await take('DELETE', '/mentions');
+    stopFirst();
+
+    const stopSecond = chat.watchRemoteUpdates('taylor');
+    sent.settle(Response.json({ mentions: [mention(2)], mentions_count: 1 }));
+    await first.catch(() => undefined);
+    await all;
+    await vi.advanceTimersByTimeAsync(0);
+
+    assert.equal(held.filter(({ method }) => method === 'DELETE').length, 0);
+    stopSecond();
+});
+
+test('a clear dropped when the remotes stop being watched leaves the bell to the next read', async () => {
+    const stopFirst = chat.watchRemoteUpdates('mark');
+    chat.seedThread(target, thread([2, 1]) as never);
+    const clearing = chat.clearMentions(org, 1);
+    const sent = await take('DELETE', '/mentions');
+    stopFirst();
+
+    const stopAgain = chat.watchRemoteUpdates('mark');
+    sent.settle(Response.json({ mentions: [mention(2)], mentions_count: 1 }));
+    await clearing;
+    chat.seedThread(target, thread([2]) as never);
+
+    assert.deepEqual(shownIds(), [2]);
+    assert.deepEqual(shown().clearingMentions, []);
+    stopAgain();
+});
