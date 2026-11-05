@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Enums\CommitStatus;
+use App\Enums\CommitUpdate;
+use App\Events\CommitsUpdated;
 use App\Models\Commit;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -26,6 +29,10 @@ final readonly class DeleteCommitStar
 
             if ($deleted > 0) {
                 $this->updateCommitHotScores->handle([$commit->id]);
+
+                if ($commit->status === CommitStatus::Approved) {
+                    event(new CommitsUpdated([$commit], CommitUpdate::Engagement));
+                }
             }
         });
     }

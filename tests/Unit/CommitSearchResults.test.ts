@@ -27,6 +27,22 @@ await test('latest keeps the past week newest first without changing relevance o
     );
 });
 
+await test('latest can use the server render time instead of the browser clock', (context) => {
+    context.mock.method(Date, 'now', () => Date.parse('2026-11-20T12:00:00Z'));
+    const results = new CommitSearchResults('an idea', [
+        { id: 'recent', created_at: '2026-11-01T12:00:00Z' },
+        { id: 'old', created_at: '2026-10-25T12:00:00Z' },
+    ] as Commit[]);
+
+    assert.deepEqual(
+        results
+            .latest(Date.parse('2026-11-03T12:00:00Z'))
+            .commits.map((commit) => commit.id),
+        ['recent'],
+    );
+    assert.deepEqual(results.latest().commits, []);
+});
+
 await test('latest is empty when there are no recent matches', (context) => {
     context.mock.method(Date, 'now', () => Date.parse('2026-11-03T12:00:00Z'));
 

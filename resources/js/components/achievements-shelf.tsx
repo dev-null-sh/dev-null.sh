@@ -18,6 +18,7 @@ import {
 import type { CSSProperties } from 'react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { DragonBallIcon } from '@/components/dragon-ball-icon';
+import { MushroomCloudIcon } from '@/components/mushroom-cloud-icon';
 import { PastelDeNataIcon } from '@/components/pastel-de-nata-icon';
 import {
     Popover,
@@ -51,6 +52,7 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
     'bot-off': BotOff,
     bomb: Bomb,
     'dragon-ball': DragonBallIcon,
+    'mushroom-cloud': MushroomCloudIcon,
 };
 
 export function AchievementsShelf({

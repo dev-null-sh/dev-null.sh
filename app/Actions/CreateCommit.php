@@ -7,6 +7,11 @@ namespace App\Actions;
 use App\Dto\NewPoll;
 use App\Dto\ThreadEngagement;
 use App\Enums\CommitStatus;
+use App\Enums\CommitUpdate;
+use App\Enums\UserUpdate;
+use App\Events\CommitsUpdated;
+use App\Events\ProfilesUpdated;
+use App\Events\UsersUpdated;
 use App\Jobs\CheckUserLevel;
 use App\Jobs\EmbedCommit;
 use App\Jobs\LinkCommitTopics;
@@ -18,6 +23,7 @@ use App\Models\Commit;
 use App\Models\LinkPreview;
 use App\Models\Organization;
 use App\Models\User;
+use App\Queries\AdminsQuery;
 use App\Queries\MentionedOrganizationsQuery;
 use App\Queries\MentionedUsersQuery;
 use App\Queries\TomQuery;
@@ -44,6 +50,7 @@ final readonly class CreateCommit
         private MentionedOrganizationsQuery $mentionedOrganizations,
         private CreateCommitTopics $createCommitTopics,
         private TomQuery $tomQuery,
+        private AdminsQuery $admins,
     ) {
         //
     }
@@ -133,6 +140,12 @@ final readonly class CreateCommit
             if ($commit->body !== '') {
                 dispatch(new EmbedCommit($commit))->afterCommit();
             }
+
+            $commit->status === CommitStatus::Approved
+                ? event(new CommitsUpdated([$commit], CommitUpdate::Visibility))
+                : event(new UsersUpdated($this->admins->ids(), UserUpdate::Moderation, ['commits' => [$commit->id]]));
+            event(new UsersUpdated([$user->id], UserUpdate::Commits));
+            event(new ProfilesUpdated([$commit->author_id]));
 
             return $commit;
         });

@@ -6,6 +6,8 @@ namespace App\Actions;
 
 use App\Dto\Call;
 use App\Enums\OrgEvent;
+use App\Enums\UserUpdate;
+use App\Events\UsersUpdated;
 use App\Models\Conversation;
 use App\Models\User;
 use Illuminate\Support\Facades\Cache;
@@ -24,6 +26,8 @@ final readonly class UpdateConversationCall
     public function handle(User $callee, User $caller, Call $call, string $answer): void
     {
         Cache::put(CreateConversationCall::key($callee), Crypt::encryptString(json_encode($call->answered($answer)->toArray(), JSON_THROW_ON_ERROR)), CreateConversationCall::SECONDS);
+
+        event(new UsersUpdated([$caller->id, $callee->id], UserUpdate::Calls));
 
         $this->events->handle($callee, Conversation::betweenOrFail($callee, $caller), OrgEvent::CallAnswered);
     }
