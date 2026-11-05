@@ -37,11 +37,7 @@ const reply = (id: string): Commit =>
 async function renderThread(
     count: number,
     repliesPerPage: number,
-    {
-        isOnTrunk = false,
-        depth = 0,
-        showToggles = false,
-    }: { isOnTrunk?: boolean; depth?: number; showToggles?: boolean } = {},
+    { isOnTrunk = false, depth = 0 }: { isOnTrunk?: boolean; depth?: number } = {},
 ) {
     const shown = Math.min(count, repliesPerPage);
     const commit = {
@@ -58,9 +54,7 @@ async function renderThread(
         const thread = useThread(commit);
         return (
             <TooltipProvider>
-                <ThreadActions
-                    thread={showToggles ? { ...thread, isPreview: false } : thread}
-                />
+                <ThreadActions thread={thread} />
                 <ThreadReplies
                     thread={thread}
                     depth={depth}
@@ -216,22 +210,23 @@ test('branches the replies off a trunk that goes on below them, without a column
     assert.doesNotMatch(html, /d="M 0 0 /);
 });
 
-test('stops indenting after two reply levels and names the parent', async () => {
+test("identifies each deep reply's direct parent without changing graph depth", async () => {
+    const firstLevel = await renderThread(1, 3);
     const nested = await renderThread(1, 3, { depth: 1 });
-    const flattened = await renderThread(1, 3, { depth: 2 });
+    const flattened = await renderThread(1, 3, { depth: 3 });
 
+    assert.equal(pieces(firstLevel, 'reply-parent-context').length, 0);
     assert.equal(pieces(nested, 'thread-elbow').length, 1);
+
+    const [mobileContext] = pieces(nested, 'reply-parent-context');
+    assert.match(mobileContext, /sm:hidden/);
+
+    const [deepContext] = pieces(flattened, 'reply-parent-context');
+    assert.ok(deepContext);
+    assert.doesNotMatch(deepContext, /sm:hidden/);
     assert.equal(pieces(flattened, 'thread-elbow').length, 0);
-    assert.match(flattened, /\[--indent:0px\]/);
-    assert.match(text(flattened), /replying to @author/);
+    assert.match(flattened, /data-test="reply-parent-link"/);
+    assert.ok(flattened.includes('href="/@author/commits/parent"'));
+    assert.match(flattened, /Visible reply parent/);
 });
 
-test('shortens expanded reply controls on small screens without losing their label', async () => {
-    const html = await renderThread(1, 3, { showToggles: true });
-    const [toggle] = pieces(html, 'toggle-replies-button');
-
-    assert.ok(toggle);
-    assert.match(toggle, /aria-label="Hide replies"/);
-    assert.match(html, /class="sm:hidden">Hide<\/span>/);
-    assert.match(html, /class="hidden sm:inline">Hide replies<\/span>/);
-});

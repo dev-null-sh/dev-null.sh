@@ -132,8 +132,7 @@ const afterVisits =
         ? visitsSettled((event, listener) => router.on(event, listener))
         : () => Promise.resolve();
 
-// Keep deeply nested replies in a readable column instead of using up the width of the thread.
-const maxIndentDepth = 2;
+const maxIndentDepth = 3;
 
 const maxRepliesPerRequest = 50;
 
@@ -1004,8 +1003,7 @@ export function ThreadActions({
                                 aria-keyshortcuts={
                                     hasKeyboardShortcuts ? 'o' : undefined
                                 }
-                                className="flex items-center gap-1 rounded-md px-1.5 py-0.5 font-medium text-primary transition-colors hover:bg-primary-soft sm:px-2"
-                                aria-label={thread.isOpen ? 'Hide replies' : 'Show replies'}
+                                className="flex items-center gap-1 rounded-md px-2 py-0.5 font-medium text-primary transition-colors hover:bg-primary-soft"
                                 data-test="toggle-replies-button"
                             >
                                 <ChevronDown
@@ -1016,14 +1014,9 @@ export function ThreadActions({
                                         },
                                     )}
                                 />
-                                {thread.isOpen ? (
-                                    <>
-                                        <span className="sm:hidden">Hide</span>
-                                        <span className="hidden sm:inline">Hide replies</span>
-                                    </>
-                                ) : (
-                                    `${formatCount(thread.count)} ${thread.count === 1 ? 'reply' : 'replies'}`
-                                )}
+                                {thread.isOpen
+                                    ? 'Hide replies'
+                                    : `${formatCount(thread.count)} ${thread.count === 1 ? 'reply' : 'replies'}`}
                             </button>
                         </ActionTooltip>
                     )}
@@ -1424,6 +1417,11 @@ function ReplyItem({
                             <span className="font-mono text-xs">[deleted]</span>
                             This commit was deleted.
                         </p>
+                        <ReplyParentContext
+                            parent={parent}
+                            depth={depth}
+                            isQuote={reply.quoted_commit_id === parent.id}
+                        />
                         <ThreadActions thread={thread} />
                     </div>
                 </div>
@@ -1443,6 +1441,58 @@ function ReplyItem({
             nodeRef={nodeRef}
             onDeleted={onDeleted}
         />
+    );
+}
+
+/**
+ * Deep replies lose their graph edges when the thread flattens. Show the
+ * specific parent message, not just its author, so siblings remain distinct.
+ */
+function ReplyParentContext({
+    parent,
+    depth,
+    isQuote,
+}: {
+    parent: ThreadCommit;
+    depth: number;
+    isQuote: boolean;
+}) {
+    if (depth < 2) {
+        return null;
+    }
+
+    const excerpt = isDeleted(parent)
+        ? null
+        : parent.body.replace(/\s+/g, ' ').trim().slice(0, 80);
+
+    return (
+        <p
+            className={cn(
+                'flex min-w-0 items-center gap-1 font-mono text-xs text-muted-foreground',
+                depth <= maxIndentDepth && 'sm:hidden',
+            )}
+            data-test="reply-parent-context"
+        >
+            <CornerDownRight className="size-3 shrink-0" aria-hidden />
+            <span className="shrink-0">{isQuote ? 'quoting' : 'replying to'}</span>
+            {isDeleted(parent) ? (
+                <span>[deleted]</span>
+            ) : (
+                <Link
+                    prefetch
+                    href={CommitController.show({
+                        profile: parent.author,
+                        commit: parent,
+                    })}
+                    title={excerpt || undefined}
+                    className="min-w-0 truncate hover:text-foreground hover:underline"
+                    data-test="reply-parent-link"
+                >
+                    <span className="font-semibold">@{parent.author.handle}</span>
+                    {excerpt && <span> · {excerpt}</span>}
+                </Link>
+            )}
+        </p>
     );
 }
 
@@ -1486,7 +1536,6 @@ function CommitReply({
     );
 
     const isOwn = useOwnsCommit()(reply);
-    const isFlattened = depth > maxIndentDepth;
     const isQuote = reply.quoted_commit_id === parent.id;
     const permalink = CommitController.show({
         profile: reply.author,
@@ -1641,17 +1690,11 @@ function CommitReply({
                         )}
                     </div>
 
-                    {isFlattened && (
-                        <p className="flex min-w-0 items-center gap-1 font-mono text-xs text-muted-foreground">
-                            <CornerDownRight className="size-3 shrink-0" />
-                            <span className="truncate">
-                                {isQuote ? 'quoting' : 'replying to'}{' '}
-                                {isDeleted(parent)
-                                    ? '[deleted]'
-                                    : `@${parent.author.handle}`}
-                            </span>
-                        </p>
-                    )}
+                    <ReplyParentContext
+                        parent={parent}
+                        depth={depth}
+                        isQuote={isQuote}
+                    />
 
                     <div ref={bodyRef} style={translation.bodyStyle}>
                         <FoldedCommitBody
