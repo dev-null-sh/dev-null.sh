@@ -60,7 +60,7 @@ use Traversable;
  *     notifications: Generator<int, array<string, int|string|null>>,
  *     ssh_keys: array<mixed>,
  *     push_subscriptions: array<int, array{id: string}>,
- *     devices: array<int, array{name: string, app_id: string|null, app_name: string|null, fingerprint: string, approved_at: string, last_used_at: string|null}>,
+ *     devices: array<int, array{name: string, app_id: string|null, app_name: string|null, fingerprint: string, approved_at: string, last_used_at: string|null, push_platform: string|null}>,
  *     timeouts: array<int, array{reason: string, ends_at: string, created_at: string}>,
  *     sessions: Collection<int, stdClass>
  * }
@@ -101,6 +101,11 @@ final readonly class CreateExport
                 'remotes_enabled' => $user->remotes_enabled,
                 'remotes_from' => $user->remotes_from->value,
                 'pull_receipts' => $user->pull_receipts,
+                'push_follows' => $user->push_follows,
+                'push_replies' => $user->push_replies,
+                'push_mentions' => $user->push_mentions,
+                'push_direct_remotes' => $user->push_direct_remotes,
+                'push_org_remotes' => $user->push_org_remotes,
                 'pinned_commit_id' => $user->pinned_commit_id,
                 'live_platform' => $user->live_platform?->value,
                 'live_url' => $user->live_url,
@@ -174,6 +179,7 @@ final readonly class CreateExport
                 'fingerprint' => $device->fingerprint,
                 'approved_at' => $device->approved_at->toIso8601String(),
                 'last_used_at' => $device->last_used_at?->toIso8601String(),
+                'push_platform' => $device->push_platform?->value,
             ])->all(),
             'timeouts' => $user->timeouts()->oldest()->get()->map(fn (UserTimeout $timeout): array => [
                 'reason' => $timeout->reason->value,
