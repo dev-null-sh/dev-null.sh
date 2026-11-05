@@ -252,3 +252,26 @@ test('a clear dropped for one account never undoes the next account clearing the
     await second;
     stopSecond();
 });
+
+test('a clear dropped before the account came back never undoes the clear it started since', async () => {
+    const stopFirst = chat.watchRemoteUpdates('mark');
+    chat.seedThread(target, thread([1]) as never);
+    const first = chat.clearMentions(org, 1);
+    const stale = await take('DELETE', '/mentions');
+    stopFirst();
+    chat.watchRemoteUpdates('taylor')();
+
+    const stopAgain = chat.watchRemoteUpdates('mark');
+    chat.seedThread(target, thread([1]) as never);
+    const again = chat.clearMentions(org, 1);
+    stale.settle(Response.json({ mentions: [], mentions_count: 0 }));
+    await first;
+    chat.seedThread(target, thread([1]) as never);
+
+    assert.deepEqual(shownIds(), []);
+    assert.deepEqual(shown().clearingMentions, [1]);
+
+    (await take('DELETE', '/mentions')).settle(Response.json({ mentions: [], mentions_count: 0 }));
+    await again;
+    stopAgain();
+});

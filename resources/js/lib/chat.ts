@@ -260,6 +260,10 @@ let inboxRevision = 0;
 let remotesUserId: string | null = null;
 let remotesOwner: string | null = null;
 /**
+ * Moves on whenever another account's remotes replace what was shown, so work started before can't touch them.
+ */
+let remotesResets = 0;
+/**
  * Moves on whenever the remotes stop being watched for someone, so a read still on its way for them is dropped.
  */
 let remotesGeneration = 0;
@@ -1436,6 +1440,7 @@ export function watchRemoteUpdates(userId: string): () => void {
     // Another account's remotes, kept from before signing in as someone else, are never shown to this one.
     if (remotesOwner !== null && remotesOwner !== userId) {
         state = emptyChat;
+        remotesResets++;
         invalidatedInboxTabs.clear();
         listeners.forEach((listener) => listener());
     } else {
@@ -2198,7 +2203,7 @@ export async function clearMentions(
     messageId?: number,
 ): Promise<void> {
     const isCurrent = ownership();
-    const owner = remotesOwner;
+    const resets = remotesResets;
     const target: ChatTarget = { kind: 'org', org };
     const key = targetKey(target);
     const thread = state.threads[key];
@@ -2261,7 +2266,7 @@ export async function clearMentions(
     } catch (error) {
         if (error instanceof StaleRemotesError) {
             // Watching the same account again keeps its threads, which must not wait for this clear any more.
-            if (remotesOwner === owner) {
+            if (remotesResets === resets) {
                 updateThread(key, (current) => ({
                     clearingMentions: stillClearing(current),
                 }));
