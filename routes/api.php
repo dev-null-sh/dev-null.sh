@@ -265,6 +265,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             ->name('api-commit-pin.destroy');
 
         // Commit Translation...
+        Route::get('commits/{commit}/translation', [CommitTranslationController::class, 'show'])->name('api-commit-translation.show');
         Route::post('commits/{commit}/translation', [CommitTranslationController::class, 'store'])
             ->middleware('throttle:10,1,translations:')
             ->name('api-commit-translation.store');
