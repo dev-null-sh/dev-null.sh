@@ -2,18 +2,24 @@ import { Radio, RadioOff } from 'lucide-react';
 import { useState } from 'react';
 import { endStream, GoLiveDialog } from '@/components/go-live-dialog';
 import { Button } from '@/components/ui/button';
+import { useLiveStream } from '@/hooks/use-live-stream';
 import type { User } from '@/types';
 
 /**
  * Going live, or ending the stream, from your own profile, where other people's profiles have the mute and block menu.
  */
-export function ProfileLiveButton({ user }: { user: Pick<User, 'live'> }) {
+export function ProfileLiveButton({
+    user,
+}: {
+    user: Pick<User, 'id' | 'live'>;
+}) {
     const [isGoingLive, setIsGoingLive] = useState(false);
+    const stream = useLiveStream(user);
     const [isEnding, setIsEnding] = useState(false);
 
     return (
         <>
-            {user.live ? (
+            {stream ? (
                 <Button
                     type="button"
                     variant="outline"

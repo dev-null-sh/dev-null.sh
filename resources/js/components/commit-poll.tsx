@@ -1,7 +1,8 @@
 import { router, useHttp, usePage } from '@inertiajs/react';
 import { Check } from 'lucide-react';
-import { useId, useState } from 'react';
+import { useEffect, useEffectEvent, useId, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import CommitPollController from '@/actions/App/Http/Controllers/CommitPollController';
 import CommitPollVoteController from '@/actions/App/Http/Controllers/CommitPollVoteController';
 import { BodySegments } from '@/components/commit-body';
 import { StableLabel } from '@/components/stable-label';
@@ -10,7 +11,9 @@ import { useCommitNotFound } from '@/hooks/use-deleted-resources';
 import { useNow } from '@/hooks/use-now';
 import { useOwnsCommit } from '@/hooks/use-owns-commit';
 import { bodySegments } from '@/lib/code';
+import { changesSince, readAt } from '@/lib/commit-changes';
 import { exactCountTitle, formatCount, formatExactCount } from '@/lib/numbers';
+import { coalesce, commitChannel, listen } from '@/lib/realtime';
 import { cn } from '@/lib/utils';
 import type { Commit, Poll } from '@/types';
 
@@ -70,7 +73,7 @@ export function CommitPoll({
     poll: Poll;
     isStatic?: boolean;
 }) {
-    const { auth } = usePage().props;
+    const { auth, now: serverNow } = usePage().props;
     const ownsCommit = useOwnsCommit();
     const commitNotFound = useCommitNotFound();
     const now = useNow();
@@ -80,6 +83,67 @@ export function CommitPoll({
         option: '',
     });
     const choice = request.data.option;
+    // A read started before a vote went out may come back without it, so only the latest of either one counts.
+    const latest = useRef(0);
+    // When the poll shown was read, on the server's clock, to ask whether votes came in since after missing updates.
+    const readSince = useRef(Math.min(serverNow - 5_000, readAt()));
+
+    const read = useEffectEvent(async (signal: AbortSignal) => {
+        if (request.processing) {
+            return;
+        }
+
+        const started = ++latest.current;
+        const startedAt = readAt();
+        const response = await fetch(CommitPollController.show.url(commit), {
+            headers: { Accept: 'application/json' },
+            cache: 'no-store',
+            signal,
+        });
+
+        if (response.ok && started === latest.current && !request.processing) {
+            readSince.current = startedAt;
+            setPoll(((await response.json()) as { poll: Poll }).poll);
+        }
+    });
+    const isApproved = commit.status === 'approved';
+    const closesAt = poll.is_closed ? null : poll.closes_at;
+
+    // Someone else voting changes the results the viewer may see, and closing shows the final ones to everyone, even
+    // when nobody votes again. Choosing an option and not voting yet is kept either way.
+    useEffect(() => {
+        if (!isApproved) {
+            return;
+        }
+
+        const controller = new AbortController();
+        const refresh = coalesce(() => read(controller.signal), 500);
+        const stop = listen(
+            commitChannel(commit.id),
+            { poll: refresh.request },
+            () =>
+                void changesSince(commit.id, readSince.current).then(
+                    (change) =>
+                        (change === null || change.changed) &&
+                        refresh.request(),
+                ),
+        );
+        const closing =
+            closesAt === null
+                ? undefined
+                : window.setTimeout(
+                      refresh.request,
+                      Math.max(new Date(closesAt).getTime() - Date.now(), 0) +
+                          1_000,
+                  );
+
+        return () => {
+            stop();
+            refresh.cancel();
+            window.clearTimeout(closing);
+            controller.abort();
+        };
+    }, [commit.id, isApproved, closesAt]);
 
     const hasExpired =
         poll.is_closed ||
@@ -126,6 +190,7 @@ export function CommitPoll({
                 return;
             }
 
+            latest.current++;
             setPoll(response.poll);
             router.flushAll();
         } catch {

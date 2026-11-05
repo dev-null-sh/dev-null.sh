@@ -9,8 +9,8 @@ export class CommitSearchResults {
         this.commits = commits;
     }
 
-    latest(): CommitSearchResults {
-        const since = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    latest(now = Date.now()): CommitSearchResults {
+        const since = now - 7 * 24 * 60 * 60 * 1000;
 
         return new CommitSearchResults(
             this.term,
