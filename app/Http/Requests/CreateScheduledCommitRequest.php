@@ -41,6 +41,7 @@ final class CreateScheduledCommitRequest extends FormRequest
             'parent_id' => ['prohibited'],
             'link_preview_url' => ['nullable', 'string', Rule::in(is_string($body) ? resolve(Urls::class)->all($body) : [])],
             ...CreateCommitRequest::attachmentRules(),
+            'gif_id' => ['prohibited'],
         ];
     }
 

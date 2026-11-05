@@ -33,7 +33,8 @@ final readonly class ModerationController
                     'parent.author',
                     'linkPreview',
                     'images',
-                    'quotedCommit' => fn (BelongsTo $query): BelongsTo => $query->withTrashed()->with(['author', 'linkPreview', 'images'])->withPollFor($user),
+                    'gif',
+                    'quotedCommit' => fn (BelongsTo $query): BelongsTo => $query->withTrashed()->with(['author', 'linkPreview', 'images', 'gif'])->withPollFor($user),
                 ])
                 ->withStarsFor($user)
                 ->withPollFor($user)

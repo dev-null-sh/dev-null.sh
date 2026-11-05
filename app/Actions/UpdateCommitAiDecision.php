@@ -94,7 +94,7 @@ final readonly class UpdateCommitAiDecision
         $response = Http::timeout(10)->withoutRedirecting()->get($url)->throw();
         $body = $response->body();
 
-        if (mb_strlen($body) > self::GIF_MAX_BYTES) {
+        if (mb_strlen($body, '8bit') > self::GIF_MAX_BYTES) {
             throw new RuntimeException('The GIF is too large to moderate.');
         }
 

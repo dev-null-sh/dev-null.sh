@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace App\Http\Requests;
 
 use App\Actions\CreateCommitImages;
-use App\Dto\Gif;
 use App\Enums\GifProvider;
+use App\Http\Concerns\HasGifInput;
 use App\Models\Commit;
 use App\Models\Organization;
 use App\Models\User;
@@ -26,6 +26,8 @@ use Illuminate\Validation\Validator;
 
 final class CreateCommitReplyRequest extends FormRequest
 {
+    use HasGifInput;
+
     public const int MAX_REPLY_RECIPIENTS = 100;
 
     public function authorize(): Response
@@ -167,24 +169,6 @@ final class CreateCommitReplyRequest extends FormRequest
         $descriptions = $this->array('image_descriptions');
 
         return $descriptions;
-    }
-
-    public function gif(): ?Gif
-    {
-        if (! $this->filled('gif_id')) {
-            return null;
-        }
-
-        return new Gif(
-            GifProvider::from($this->string('gif_provider')->value()),
-            $this->string('gif_id')->value(),
-            $this->string('gif_url')->value(),
-            $this->string('gif_page_url')->value(),
-            $this->filled('gif_title') ? $this->string('gif_title')->value() : null,
-            $this->filled('gif_username') ? $this->string('gif_username')->value() : null,
-            $this->integer('gif_width'),
-            $this->integer('gif_height'),
-        );
     }
 
     /**

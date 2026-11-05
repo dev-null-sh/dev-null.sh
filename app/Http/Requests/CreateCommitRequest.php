@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace App\Http\Requests;
 
 use App\Actions\CreateCommitImages;
-use App\Dto\Gif;
 use App\Dto\NewPoll;
 use App\Enums\GifProvider;
 use App\Enums\PollDuration;
+use App\Http\Concerns\HasGifInput;
 use App\Models\Commit;
 use App\Models\Organization;
 use App\Models\User;
@@ -29,6 +29,8 @@ use Illuminate\Validation\Rules\In;
 
 final class CreateCommitRequest extends FormRequest
 {
+    use HasGifInput;
+
     /**
      * Images make text optional. Bound the raw body before parsing links to limit storage and processing costs.
      *
@@ -196,24 +198,6 @@ final class CreateCommitRequest extends FormRequest
         return $this->filled('quoted_commit_id')
             ? Commit::query()->visibleTo($user)->find($this->string('quoted_commit_id')->value())
             : null;
-    }
-
-    public function gif(): ?Gif
-    {
-        if (! $this->filled('gif_id')) {
-            return null;
-        }
-
-        return new Gif(
-            GifProvider::from($this->string('gif_provider')->value()),
-            $this->string('gif_id')->value(),
-            $this->string('gif_url')->value(),
-            $this->string('gif_page_url')->value(),
-            $this->filled('gif_title') ? $this->string('gif_title')->value() : null,
-            $this->filled('gif_username') ? $this->string('gif_username')->value() : null,
-            $this->integer('gif_width'),
-            $this->integer('gif_height'),
-        );
     }
 
     public function prepareForValidation(): void

@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import { ActionTooltip } from '@/components/action-tooltip';
 import { BodyCounter } from '@/components/body-counter';
-import { GifAttachmentPreview } from '@/components/commit-gif';
+import { CommitGif, GifAttachmentPreview } from '@/components/commit-gif';
 import {
     ImageDropOverlay,
     ImagePickerPreviews,
@@ -46,7 +46,7 @@ import {
     minBodyLength,
 } from '@/lib/commit';
 import { useGifProviderKey } from '@/lib/gif-provider-key';
-import { gifFormFields } from '@/lib/gif-providers';
+import { gifFormFields, toCommitGif } from '@/lib/gif-providers';
 import { hasModKey, useKeyLabels } from '@/lib/keyboard';
 import { characterCount, cn, isRejectedSubmission } from '@/lib/utils';
 import type { Commit } from '@/types';
@@ -313,6 +313,10 @@ function QuoteComposer({
                                 )}
                             </div>
 
+                            {preview.isPreviewing && gif !== null && (
+                                <CommitGif gif={toCommitGif(gif)} />
+                            )}
+
                             <InputError
                                 message={
                                     errors.body ??
@@ -359,10 +363,7 @@ function QuoteComposer({
                                         count={images.length}
                                         disabled={processing}
                                         reading={attachments.reading}
-                                        onPickImages={(files) => {
-                                            updateGif(null);
-                                            return attachments.pick(files);
-                                        }}
+                                        onPickImages={attachments.pick}
                                         onPickGif={(picked) => {
                                             attachments.clear();
                                             updateGif(picked);

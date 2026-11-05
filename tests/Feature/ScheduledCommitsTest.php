@@ -180,6 +180,14 @@ it('rejects invalid times and bodies', function (array $payload, string $field):
     'too many images' => [['images' => array_map(fn (int $i): UploadedFile => UploadedFile::fake()->image($i.'.png'), range(1, 4))], 'images'],
     'link card not in the body' => [['link_preview_url' => 'https://example.com/elsewhere'], 'link_preview_url'],
     'svg image' => [['images' => [UploadedFile::fake()->create('a.svg', 1, 'image/svg+xml')]], 'images.0'],
+    'gif' => [[
+        'gif_provider' => 'giphy',
+        'gif_id' => 'xT9IgzoKnwFNmISR8I',
+        'gif_url' => 'https://media2.giphy.com/media/xT9IgzoKnwFNmISR8I/giphy.gif',
+        'gif_page_url' => 'https://giphy.com/gifs/deal-with-it-xT9IgzoKnwFNmISR8I',
+        'gif_width' => 480,
+        'gif_height' => 270,
+    ], 'gif_id'],
 ]);
 
 it('accepts the scheduling window boundary and unicode body', function (): void {

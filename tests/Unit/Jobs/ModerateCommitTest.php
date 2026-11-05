@@ -344,7 +344,7 @@ it('keeps a commit pending when its gif cannot be moderated', function (string $
     expect(fn () => dispatch_sync(new ModerateCommit($commit)))->toThrow(CommitProcessingFailed::class)
         ->and($commit->refresh())->ai_decision->toBeNull()->status->toBe(CommitStatus::Pending);
 })->with([
-    'too large' => [str_repeat('a', 20 * 1024 * 1024 + 1)],
+    'too large' => [str_repeat('é', 10 * 1024 * 1024 + 1)],
     'not an image' => ['not a gif'],
 ]);
 

@@ -2041,10 +2041,7 @@ function ReplyComposer({
                         count={images.length}
                         disabled={processing}
                         reading={attachments.reading}
-                        onPickImages={(files) => {
-                            updateGif(null);
-                            return attachments.pick(files);
-                        }}
+                        onPickImages={attachments.pick}
                         onPickGif={(picked) => {
                             attachments.clear();
                             updateGif(picked);

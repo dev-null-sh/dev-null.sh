@@ -21,7 +21,7 @@ final readonly class CreateUserFeed
         $commits = $user->commits()
             ->approved()
             ->topLevel()
-            ->with('images')
+            ->with(['images', 'gif'])
             ->latest()
             ->latest('id')
             ->limit(self::LIMIT)

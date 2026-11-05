@@ -492,10 +492,7 @@ function CommitComposerBody({
                                         count={attachments.images.length}
                                         disabled={processing || poll !== null}
                                         reading={attachments.reading}
-                                        onPickImages={(files) => {
-                                            stash.updateGif(null);
-                                            return attachments.pick(files);
-                                        }}
+                                        onPickImages={attachments.pick}
                                         onPickGif={pickGif}
                                         className="-ml-2"
                                     />

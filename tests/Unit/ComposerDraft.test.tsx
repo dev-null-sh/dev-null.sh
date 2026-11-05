@@ -551,7 +551,7 @@ test('picking a gif clears attached images and any poll and submits the gif fiel
     }
 });
 
-test('attaching images while a gif is stashed clears the gif and submits the images instead', () => {
+test('attaching images clears a stashed gif only once they are read', async () => {
     draft.updateGif(gif);
     let view = render();
     const schedule = view.fields.find(
@@ -566,21 +566,27 @@ test('attaching images while a gif is stashed clears the gif and submits the ima
         ),
         true,
     );
-    const picked = (
-        view.fields.find((element) => element.type === ComposerMediaButton)!
-            .props.onPickImages as (files: File[]) => Promise<void>
-    )([image]);
-    picked.catch(() => undefined);
-    assert.equal(draft.gif, null);
+    const picker = view.fields.find(
+        (element) => element.type === ComposerMediaButton,
+    )!;
+    await (picker.props.onPickImages as (files: File[]) => Promise<void>)([]);
+    assert.equal(draft.gif, gif);
+
+    await (picker.props.onPickImages as (files: File[]) => Promise<void>)([
+        image,
+    ]);
+    assert.equal(draft.gif, gif);
 
     // The provider finishes reading the picked file asynchronously.
     cancelImageReads('');
     draft.images = [image];
     draft.descriptions = [''];
     view = render();
+    effects.forEach((effect) => effect());
+    assert.equal(draft.gif, null);
     assert.deepEqual(view.form.props.transform({ body: draft.body }), {
         body: draft.body,
-            commit_rules_accepted: true,
+        commit_rules_accepted: true,
         images: [image],
         image_descriptions: [''],
     });

@@ -51,7 +51,7 @@ final readonly class CommitController
         };
 
         $preview = $currentUser instanceof User || $request->inertia() ? null : $metadata->commit(
-            $commit->loadPublicPreview()->loadCount('stars')->load(['images', 'linkPreview', 'quotedCommit.author']),
+            $commit->loadPublicPreview()->loadCount('stars')->load(['images', 'gif', 'linkPreview', 'quotedCommit.author']),
             $getReplies()->items(),
         );
 

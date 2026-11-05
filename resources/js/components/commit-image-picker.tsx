@@ -421,6 +421,19 @@ export function ComposerMediaButton({
     className?: string;
 }) {
     const inputRef = useRef<HTMLInputElement>(null);
+
+    if (gifKey === null) {
+        return (
+            <ImagePickerButton
+                count={count}
+                disabled={disabled}
+                reading={reading}
+                onPick={onPickImages}
+                className={className}
+            />
+        );
+    }
+
     const canAddImages = !disabled && !reading && count < maxImages;
     const openImages = () => {
         if (canAddImages) {
@@ -447,81 +460,56 @@ export function ComposerMediaButton({
                 }}
                 data-test="commit-image-input"
             />
-            {gifKey === null ? (
-                <ActionTooltip label={`Attach up to ${maxImages} images`}>
-                    <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        disabled={!canAddImages}
-                        onClick={openImages}
-                        aria-label={
-                            reading ? 'Reading images' : 'Attach images'
-                        }
-                        aria-busy={reading}
-                        className={cn('text-muted-foreground', className)}
-                        data-test="attach-images-button"
-                    >
-                        <ImagePlus className="size-5" />
-                    </Button>
+            <DropdownMenu>
+                <ActionTooltip label="Add image or GIF">
+                    <DropdownMenuTrigger asChild>
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            disabled={disabled}
+                            aria-label="Add image or GIF"
+                            className={cn('text-muted-foreground', className)}
+                            data-test="attach-media-button"
+                        >
+                            <ImagePlus className="size-5" />
+                        </Button>
+                    </DropdownMenuTrigger>
                 </ActionTooltip>
-            ) : (
-                <DropdownMenu>
-                    <ActionTooltip label="Add image or GIF">
-                        <DropdownMenuTrigger asChild>
-                            <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                disabled={disabled}
-                                aria-label="Add image or GIF"
-                                className={cn(
-                                    'text-muted-foreground',
-                                    className,
-                                )}
-                                data-test="attach-media-button"
-                            >
-                                <ImagePlus className="size-5" />
-                            </Button>
-                        </DropdownMenuTrigger>
-                    </ActionTooltip>
-                    <DropdownMenuContent
-                        align="start"
-                        collisionPadding={16}
-                        className="min-w-44"
+                <DropdownMenuContent
+                    align="start"
+                    collisionPadding={16}
+                    className="min-w-44"
+                >
+                    <DropdownMenuItem
+                        data-test="attach-images-button"
+                        disabled={!canAddImages}
+                        onSelect={() => {
+                            openImages();
+                        }}
                     >
-                        <DropdownMenuItem
-                            data-test="attach-images-button"
-                            disabled={!canAddImages}
-                            onSelect={() => {
-                                openImages();
-                            }}
-                        >
-                            <ImagePlus />
-                            Upload image
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                            data-test="attach-gif-button"
-                            disabled={disabled || gifDisabled || hasGif}
-                            onSelect={() => {
-                                onGifOpenChange(true);
-                            }}
-                        >
-                            <ImagePlay />
-                            {hasGif ? 'One GIF per commit' : 'Choose a GIF'}
-                        </DropdownMenuItem>
-                    </DropdownMenuContent>
-                </DropdownMenu>
-            )}
-            {gifKey !== null && (
-                <GifPickerDialog
-                    provider={gifProviderFor(gifKey.provider)}
-                    apiKey={gifKey.key}
-                    open={gifOpen}
-                    onOpenChange={onGifOpenChange}
-                    onPick={onPickGif}
-                />
-            )}
+                        <ImagePlus />
+                        Upload image
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                        data-test="attach-gif-button"
+                        disabled={disabled || gifDisabled || hasGif}
+                        onSelect={() => {
+                            onGifOpenChange(true);
+                        }}
+                    >
+                        <ImagePlay />
+                        {hasGif ? 'One GIF per commit' : 'Choose a GIF'}
+                    </DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
+            <GifPickerDialog
+                provider={gifProviderFor(gifKey.provider)}
+                apiKey={gifKey.key}
+                open={gifOpen}
+                onOpenChange={onGifOpenChange}
+                onPick={onPickGif}
+            />
         </>
     );
 }

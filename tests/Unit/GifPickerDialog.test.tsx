@@ -83,7 +83,7 @@ const provider: GifProvider = {
 const { GifPickerDialog } = await import(
     '../../resources/js/components/gif-picker-dialog'
 );
-const { ComposerMediaButton } = await import(
+const { ComposerMediaButton, ImagePickerButton } = await import(
     '../../resources/js/components/commit-image-picker'
 );
 const { gifProviderFor } = await import(
@@ -304,7 +304,10 @@ test('renders no GIF dialog without a provider key and keeps the image picker wo
         fields.some((element) => element.props.apiKey !== undefined),
         false,
     );
-    assert.ok(field(fields, 'attach-images-button'));
+    assert.ok(
+        fields.some((element) => element.type === ImagePickerButton),
+        'the plain image picker is still rendered',
+    );
 });
 
 test('opens the picker with the stored provider and key through one media trigger', () => {

@@ -667,7 +667,13 @@ final class User extends Authenticatable
      */
     public function getAttribute($key): mixed
     {
-        return in_array($key, Profile::USER_ATTRIBUTES, true) ? $this->profile?->getAttribute($key) : parent::getAttribute($key);
+        if (! in_array($key, Profile::USER_ATTRIBUTES, true)) {
+            return parent::getAttribute($key);
+        }
+
+        $profile = $this->getRelationValue('profile');
+
+        return $profile instanceof Profile ? $profile->getAttribute($key) : null;
     }
 
     /**
