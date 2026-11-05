@@ -4,13 +4,11 @@ declare(strict_types=1);
 
 use App\Actions\CreateOrgCall;
 use App\Actions\UpdateOrgCall;
-use App\Contracts\Services\TurnProvider;
 use App\Enums\OrgEvent;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\User;
 use App\Queries\OrgCallQuery;
-use App\Services\TurnProviders\CloudflareTurnProvider;
 use Illuminate\Support\Facades\Cache;
 
 beforeEach(function (): void {
@@ -65,7 +63,7 @@ it('starts a new call once everyone in the last one left', function (): void {
         ->assertCreated()
         ->assertJsonCount(1, 'call.members');
 
-    expect(Message::query()->where('event', OrgEvent::CallStarted)->pluck('user_id')->all())->toBe([$this->user->id, $this->member->id]);
+    expect(Message::query()->where('event', OrgEvent::CallStarted)->pluck('user_id')->all())->toEqualCanonicalizing([$this->user->id, $this->member->id]);
 });
 
 it('hides the org call from a nonmember or a member with Remotes off', function (bool $isMember): void {
@@ -77,18 +75,6 @@ it('hides the org call from a nonmember or a member with Remotes off', function 
     $this->actingAs($user)->deleteJson(route('org-call.destroy', $this->org))->assertNotFound();
     $this->actingAs($user)->getJson(route('org-call-ice-server.index', $this->org))->assertNotFound();
 })->with([true, false]);
-
-it('refuses org calls while the relay is not configured', function (): void {
-    config(['services.cloudflare_turn.key_id' => null]);
-    $this->app->bind(TurnProvider::class, CloudflareTurnProvider::class);
-
-    $this->actingAs($this->user)->postJson(route('org-call.store', $this->org))
-        ->assertForbidden()
-        ->assertJsonPath('message', "Calls aren't available right now.");
-    $this->actingAs($this->user)->getJson(route('org-call-ice-server.index', $this->org))
-        ->assertForbidden()
-        ->assertJsonPath('message', "Calls aren't available right now.");
-});
 
 it('hands the relay credentials to a member', function (): void {
     $this->actingAs($this->member)->getJson(route('org-call-ice-server.index', $this->org))

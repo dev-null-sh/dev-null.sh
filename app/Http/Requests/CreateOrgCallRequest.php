@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Http\Requests;
 
 use App\Actions\CreateOrgCall;
-use App\Contracts\Services\TurnProvider;
 use App\Enums\OrgRole;
 use App\Models\Conversation;
 use App\Models\User;
@@ -18,7 +17,7 @@ final class CreateOrgCallRequest extends FormRequest
     /**
      * Anyone in the org can start its call, or join it while it has room.
      */
-    public function authorize(OrgCallQuery $calls, TurnProvider $turn): Response
+    public function authorize(OrgCallQuery $calls): Response
     {
         $user = $this->user();
         assert($user instanceof User);
@@ -28,10 +27,6 @@ final class CreateOrgCallRequest extends FormRequest
 
         if (! $user->remotes_enabled || ! $org->roleOf($user) instanceof OrgRole) {
             return Response::denyAsNotFound();
-        }
-
-        if (! $turn->isAvailable()) {
-            return Response::deny("Calls aren't available right now.");
         }
 
         if ($calls->isInAnother($user, $org)) {

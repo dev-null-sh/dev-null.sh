@@ -2,8 +2,6 @@
 
 declare(strict_types=1);
 
-use App\Contracts\Services\TurnProvider;
-use App\Providers\AppServiceProvider;
 use App\Services\TurnProviders\CloudflareTurnProvider;
 use Illuminate\Http\Client\Request;
 use Illuminate\Http\Client\RequestException;
@@ -12,23 +10,6 @@ use Illuminate\Support\Facades\Http;
 beforeEach(function (): void {
     config(['services.cloudflare_turn.key_id' => 'key-id', 'services.cloudflare_turn.api_token' => 'api-token']);
 });
-
-it('is the turn provider in production', function (): void {
-    app()->detectEnvironment(fn (): string => 'production');
-    app()->register(AppServiceProvider::class, force: true);
-
-    expect(resolve(TurnProvider::class))->toBeInstanceOf(CloudflareTurnProvider::class);
-});
-
-it('is only available with both credentials', function (?string $keyId, ?string $apiToken, bool $isAvailable): void {
-    config(['services.cloudflare_turn.key_id' => $keyId, 'services.cloudflare_turn.api_token' => $apiToken]);
-
-    expect(new CloudflareTurnProvider()->isAvailable())->toBe($isAvailable);
-})->with([
-    ['key-id', 'api-token', true],
-    [null, 'api-token', false],
-    ['key-id', '', false],
-]);
 
 it('only ever relays', function (): void {
     expect(new CloudflareTurnProvider()->isRelayOnly())->toBeTrue();

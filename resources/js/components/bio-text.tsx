@@ -53,6 +53,7 @@ function Mention({
         return (
             <Link
                 href={show(profile)}
+                prefetch
                 aria-label={`@${handle}`}
                 className={mentionClassName}
                 data-test="bio-mention"

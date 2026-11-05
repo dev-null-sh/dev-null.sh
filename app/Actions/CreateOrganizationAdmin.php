@@ -4,7 +4,11 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
-use App\Models\Profile;
+use App\Enums\OrganizationRole;
+use App\Enums\UserUpdate;
+use App\Events\ProfilesUpdated;
+use App\Events\UsersUpdated;
+use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 
@@ -12,19 +16,23 @@ final readonly class CreateOrganizationAdmin
 {
     /**
      * Makes the user the admin of the organization's page, once GitHub confirmed they belong to it, unless someone
-     * claimed it first. The organization is locked while it's checked, as two members coming back from GitHub at once
-     * can both pass the request's check: the second claim then just doesn't happen.
+     * claimed it first. The organization is locked while it's checked, as two members claiming at once can both pass
+     * the request's check: the second claim then just doesn't happen.
      */
-    public function handle(Profile $organization, User $user): bool
+    public function handle(Organization $organization, User $user): bool
     {
         return DB::transaction(function () use ($organization, $user): bool {
-            Profile::query()->whereKey($organization->id)->lockForUpdate()->first();
+            Organization::query()->whereKey($organization->id)->lockForUpdate()->first();
 
             if ($organization->admins()->exists()) {
                 return false;
             }
 
-            $organization->admins()->attach($user->id);
+            // A member is left without an admin when the last one erased their account...
+            $organization->members()->syncWithoutDetaching([$user->id => ['role' => OrganizationRole::Admin]]);
+
+            event(new UsersUpdated([$user->id, ...$organization->members()->pluck('users.id')], UserUpdate::Account));
+            event(new ProfilesUpdated([$organization->id]));
 
             return true;
         });

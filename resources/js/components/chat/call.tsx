@@ -117,7 +117,7 @@ export function CallButton({
     const isOnCall = useIsBusy();
     const { auth } = usePage().props;
 
-    if (!auth.remotes?.calls) {
+    if (!auth.remotes) {
         return null;
     }
 

@@ -6,6 +6,7 @@ use App\Enums\OrgEvent;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\Conversation;
 use App\Models\Message;
+use App\Models\Profile;
 use App\Models\User;
 use Inertia\Testing\AssertableInertia;
 
@@ -24,6 +25,22 @@ it('creates an org with people who follow the maintainer', function (): void {
         ->assertJsonPath('conversations.0.name', 'dev/null core')
         ->assertJsonCount(3, 'conversations.0.members')
         ->assertJsonPath('conversations.0.members.0.role', 'maintainer');
+});
+
+it('adds people whatever the case of their handles, but each only once', function (): void {
+    $mark = User::factory()->create();
+    [$nuno] = followersOf($mark, 1);
+
+    $this->actingAs($mark)
+        ->postJson(route('org.store'), ['members' => [mb_strtoupper($nuno->handle), $nuno->handle]])
+        ->assertJsonValidationErrors(['members.0', 'members.1']);
+
+    $org = $this->actingAs($mark)
+        ->postJson(route('org.store'), ['members' => [mb_strtoupper($nuno->handle)]])
+        ->assertCreated()
+        ->json('org.id');
+
+    expect(Conversation::query()->findOrFail($org)->roleOf($nuno)?->value)->toBe('contributor');
 });
 
 it('identifies orgs by uuids', function (): void {
@@ -129,6 +146,15 @@ it('lets maintainers rename the org', function (): void {
 
     expect(Conversation::query()->findOrFail($org)->name)->toBe('polling crew')
         ->and(Message::query()->latest('id')->firstOrFail()->event)->toBe(OrgEvent::Renamed);
+});
+
+it('starts an org only with people on /dev/null, not developers looked up from GitHub', function (): void {
+    $mark = User::factory()->create();
+    [$nuno] = followersOf($mark, 1);
+
+    $this->actingAs($mark)->postJson(route('org.store'), ['members' => [$nuno->handle, Profile::factory()->create()->handle]])
+        ->assertUnprocessable()
+        ->assertOnlyJsonValidationErrors('members.1');
 });
 
 it('requires remotes and authentication', function (): void {

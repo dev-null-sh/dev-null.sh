@@ -13,11 +13,6 @@ namespace App\Contracts\Services;
 interface TurnProvider
 {
     /**
-     * Whether the relay is set up, as calls can't happen without it.
-     */
-    public function isAvailable(): bool;
-
-    /**
      * Whether calls may only go through the relay, so neither person ever sees the other's IP address.
      */
     public function isRelayOnly(): bool;

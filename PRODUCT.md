@@ -23,7 +23,7 @@ Developers who left X or Bluesky, or are thinking about it, and want a feed with
 ## Operating Context
 
 - Surfaces: the web app (also installable as a PWA), the mobile app and the Mac app (the whole product as a native workspace, downloadable from /apps) through a signed JSON API, the terminal script and GitHub Action, a public read-only API, Atom feeds, and an activity graph SVG for GitHub READMEs.
-- Guests can read the Latest and Trending logs, profiles, approved commits and their threads, and search. Everything that writes or is personal (Following log, notifications, Saved, Remotes, Settings) needs sign-in.
+- Guests can read the Latest and Trending logs, profiles, approved commits and their threads, and search developers. Who follows whom and commit search (which pays for AI) need sign-in, so bots can't walk the graph or run up the bill, like everything that writes or is personal (Following log, notifications, Saved, Remotes, Settings).
 - Site admins (`ADMINS`) moderate (`/moderation`) and run the site (`/operations`).
 - Exact behavior, limits, and edge cases for every feature live in [KNOWLEDGE_BASE.md](KNOWLEDGE_BASE.md) and in the code; this file only records what must stay true.
 
@@ -35,7 +35,7 @@ What exists, one line each (details in the knowledge base):
 - **Logs:** Following, Latest, and Trending.
 - **Engagement:** follows, stars, saved commits, pins, mentions, and pastéis (an opt-in daily allowance of pastries).
 - **Profiles:** mirrored from GitHub, with an activity graph, streaks, achievements, a Unix rank, and a live marker while you stream on YouTube.
-- **Organization pages:** GitHub organizations get a page mirrored from GitHub once an approved commit mentions them, and `@organization` mentions link to it.
+- **Organization pages:** GitHub organizations get a page mirrored from GitHub once an approved commit mentions them, and `@organization` mentions link to it. Their members post commits as the organization, which readers see from the organization alone.
 - **Remotes:** private one-to-one and group messages (orgs), and calls, one-to-one or in an org.
 - **Notifications:** in-app activity and on-site Remotes alerts by default; off-site browser and PWA notifications require a separate opt-in. Sound is controlled independently and plays while the site is open.
 - **Search:** developers by name, commits by meaning.

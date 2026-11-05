@@ -17,11 +17,6 @@ final readonly class CloudflareTurnProvider implements TurnProvider
      */
     private const int TTL = 14_400;
 
-    public function isAvailable(): bool
-    {
-        return filled(config('services.cloudflare_turn.key_id')) && filled(config('services.cloudflare_turn.api_token'));
-    }
-
     public function isRelayOnly(): bool
     {
         return true;
@@ -35,10 +30,16 @@ final readonly class CloudflareTurnProvider implements TurnProvider
      */
     public function iceServers(): array
     {
+        $keyId = config('services.cloudflare_turn.key_id');
+        assert(is_string($keyId));
+
+        $apiToken = config('services.cloudflare_turn.api_token');
+        assert(is_string($apiToken));
+
         /** @var list<array{urls: list<string>|string, username?: string, credential?: string}> $servers */
-        $servers = Http::withToken(config()->string('services.cloudflare_turn.api_token'))
+        $servers = Http::withToken($apiToken)
             ->timeout(5)
-            ->post('https://rtc.live.cloudflare.com/v1/turn/keys/'.config()->string('services.cloudflare_turn.key_id').'/credentials/generate-ice-servers', ['ttl' => self::TTL])
+            ->post("https://rtc.live.cloudflare.com/v1/turn/keys/{$keyId}/credentials/generate-ice-servers", ['ttl' => self::TTL])
             ->throw()
             ->json('iceServers');
 

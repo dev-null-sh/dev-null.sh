@@ -4,12 +4,10 @@ declare(strict_types=1);
 
 use App\Actions\CreateConversationCall;
 use App\Actions\CreateOrgCall;
-use App\Contracts\Services\TurnProvider;
 use App\Enums\OrgEvent;
 use App\Models\Message;
 use App\Models\User;
 use App\Queries\CallQuery;
-use App\Services\TurnProviders\CloudflareTurnProvider;
 use Illuminate\Support\Facades\Cache;
 
 beforeEach(function (): void {
@@ -61,16 +59,6 @@ it('hides a partner the user cannot message', function (): void {
     $this->partner->blocking()->attach($this->user);
 
     $this->actingAs($this->user)->postJson(route('conversation-call.store', $this->partner), ['sdp' => 'v=0'])->assertNotFound();
-});
-
-it('refuses calls while the relay is not configured', function (): void {
-    sendChatMessage($this->user, $this->partner);
-    config(['services.cloudflare_turn.key_id' => null, 'services.cloudflare_turn.api_token' => null]);
-    $this->app->bind(TurnProvider::class, CloudflareTurnProvider::class);
-
-    $this->actingAs($this->user)->postJson(route('conversation-call.store', $this->partner), ['sdp' => 'v=0'])
-        ->assertForbidden()
-        ->assertJsonPath('message', "Calls aren't available right now.");
 });
 
 it('refuses calling a partner someone else is ringing', function (): void {

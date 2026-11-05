@@ -20,7 +20,11 @@ function Mail() {
 }
 
 function Terms() {
-    return <Link href={TermsController.show()}>terms of service</Link>;
+    return (
+        <Link href={TermsController.show()} prefetch>
+            terms of service
+        </Link>
+    );
 }
 
 export default function Show() {
@@ -34,11 +38,10 @@ export default function Show() {
             >
                 <DocumentSection id="who" title="Who we are">
                     <p>
-                        {COMPANY_NAME}, a company registered in Portugal ("we",
-                        "us"), operates <WordmarkText>/dev/null</WordmarkText>{' '}
-                        and everything we offer under that name or any other,
-                        now or in the future (the "service"), and is the
-                        controller of the personal data processed in it.
+                        <WordmarkText>/dev/null</WordmarkText> ("we", "us") is a
+                        social network for developers at dev-null.sh. This
+                        policy covers it and everything we offer under that name
+                        or any other, now or in the future (the "service").
                         Contact: <Mail />.
                     </p>
                 </DocumentSection>
@@ -56,6 +59,18 @@ export default function Show() {
                             </>,
                             <>
                                 <strong>
+                                    From GitHub, before you sign up:
+                                </strong>{' '}
+                                when a member opens the page of your GitHub
+                                username, your GitHub ID, username, name,
+                                avatar, and bio, to show that page until you
+                                sign in and make it yours, and which members
+                                follow you on GitHub, who then follow you here
+                                once you sign up. Never your location or
+                                website.
+                            </>,
+                            <>
+                                <strong>
                                     From GitHub, when you claim an
                                     organization's page:
                                 </strong>{' '}
@@ -63,6 +78,15 @@ export default function Show() {
                                 once with your permission to read your
                                 organizations. Nothing else about them is kept,
                                 and your claim shows on the organization's page.
+                            </>,
+                            <>
+                                <strong>
+                                    From an organization's admins, when they add
+                                    you:
+                                </strong>{' '}
+                                that you are a member or an admin of that
+                                organization, which its members see. Admins are
+                                also listed on the organization's page.
                             </>,
                             <>
                                 <strong>
@@ -106,7 +130,7 @@ export default function Show() {
                             <>
                                 <strong>From our apps:</strong> when you approve
                                 a device, such as{' '}
-                                <Link href={AppController.index()}>
+                                <Link href={AppController.index()} prefetch>
                                     the Mac app
                                 </Link>
                                 , its key's fingerprint, its name (for a Mac,
@@ -143,8 +167,8 @@ export default function Show() {
                             <>
                                 <strong>Technical data:</strong> IP address,
                                 browser and device information, logs, and how
-                                you use the service, such as the last day you
-                                used it.
+                                you use the service, such as the days you used
+                                it.
                             </>,
                             <>
                                 <strong>From the iOS app:</strong> a key the app
@@ -268,6 +292,11 @@ export default function Show() {
                         stops a banned GitHub account from signing up again, and
                         keeps a timeout from ending early by signing up again.
                     </p>
+                    <p>
+                        When you delete your account, we keep your GitHub ID
+                        until you sign in again, so that your page doesn't come
+                        back before you sign up.
+                    </p>
                 </DocumentSection>
 
                 <DocumentSection id="rights" title="Your rights">
@@ -313,7 +342,11 @@ export default function Show() {
 
                 <DocumentSection id="contact" title="Contact">
                     <p>
-                        {COMPANY_NAME}, <Mail />. See also our <Terms />.
+                        <WordmarkText>/dev/null</WordmarkText> is property of{' '}
+                        {COMPANY_NAME}, a company registered in Portugal, which
+                        is "we" and "us" in this policy and the controller of
+                        the personal data processed in the service. Contact:{' '}
+                        <Mail />. See also our <Terms />.
                     </p>
                 </DocumentSection>
             </DocumentPage>

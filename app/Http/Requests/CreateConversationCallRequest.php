@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Http\Requests;
 
-use App\Contracts\Services\TurnProvider;
 use App\Enums\PushAccess;
 use App\Models\Conversation;
 use App\Models\User;
@@ -20,7 +19,7 @@ final class CreateConversationCallRequest extends FormRequest
      * A call goes where a ping could: into a conversation that has started, to someone who can still be pushed to,
      * and not over another call ringing for them, nor into an org's call either of them is in.
      */
-    public function authorize(PushAccessQuery $access, CallQuery $calls, OrgCallQuery $orgCalls, TurnProvider $turn): Response
+    public function authorize(PushAccessQuery $access, CallQuery $calls, OrgCallQuery $orgCalls): Response
     {
         $user = $this->user();
         assert($user instanceof User);
@@ -30,10 +29,6 @@ final class CreateConversationCallRequest extends FormRequest
 
         if (! $user->canMessage($partner)) {
             return Response::denyAsNotFound();
-        }
-
-        if (! $turn->isAvailable()) {
-            return Response::deny("Calls aren't available right now.");
         }
 
         if ($orgCalls->isInOne($user)) {

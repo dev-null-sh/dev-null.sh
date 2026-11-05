@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 use App\Contracts\Services\TurnProvider;
 use App\Models\User;
-use App\Services\TurnProviders\CloudflareTurnProvider;
-use Illuminate\Support\Facades\Http;
 
 beforeEach(function (): void {
     config(['remotes.requests' => true, 'remotes.everyone' => true]);
@@ -15,11 +13,9 @@ beforeEach(function (): void {
 
 it('hands the relay credentials to someone about to call the partner', function (): void {
     sendChatMessage($this->user, $this->partner);
-    config(['services.cloudflare_turn.key_id' => 'key', 'services.cloudflare_turn.api_token' => 'token']);
-    $this->app->bind(TurnProvider::class, CloudflareTurnProvider::class);
-    Http::fake(['rtc.live.cloudflare.com/*' => Http::response(['iceServers' => [
-        ['urls' => ['turn:turn.cloudflare.com:3478?transport=udp'], 'username' => 'user', 'credential' => 'secret'],
-    ]])]);
+    $turn = $this->mock(TurnProvider::class);
+    $turn->shouldReceive('iceServers')->andReturn([['urls' => ['turn:turn.cloudflare.com:3478?transport=udp'], 'username' => 'user', 'credential' => 'secret']]);
+    $turn->shouldReceive('isRelayOnly')->andReturnTrue();
 
     $this->actingAs($this->user)->getJson(route('conversation-call-ice-server.index', $this->partner))
         ->assertOk()
@@ -45,16 +41,6 @@ it('hides the credentials without a conversation or from someone who cannot mess
 
     $this->actingAs($this->user)->getJson(route('conversation-call-ice-server.index', $this->partner))->assertNotFound();
 })->with([true, false]);
-
-it('refuses the credentials while the relay is not configured', function (): void {
-    sendChatMessage($this->user, $this->partner);
-    config(['services.cloudflare_turn.key_id' => null]);
-    $this->app->bind(TurnProvider::class, CloudflareTurnProvider::class);
-
-    $this->actingAs($this->user)->getJson(route('conversation-call-ice-server.index', $this->partner))
-        ->assertForbidden()
-        ->assertJsonPath('message', "Calls aren't available right now.");
-});
 
 it('requires authentication', function (): void {
     $this->getJson(route('conversation-call-ice-server.index', $this->partner))->assertUnauthorized();

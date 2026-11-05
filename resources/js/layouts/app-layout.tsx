@@ -20,19 +20,30 @@ import { endStream, GoLiveDialog } from '@/components/go-live-dialog';
 import { GuestJoinSheet } from '@/components/guest-join-sheet';
 import { KeyboardShortcutsDialog } from '@/components/keyboard-shortcuts-dialog';
 import { LocalSignInDialog } from '@/components/local-sign-in-dialog';
+import { MobileAppSuggestion } from '@/components/mobile-app-suggestion';
 import { ProductHuntBanner } from '@/components/product-hunt-banner';
 import { SearchDialog } from '@/components/search-dialog';
-import { useChat, useRemoteAlerts, useUnreadMessages } from '@/hooks/use-chat';
+import { TermsDialog } from '@/components/terms-dialog';
+import {
+    useChat,
+    useRemoteAlerts,
+    useRemoteUpdates,
+    useUnreadMessages,
+} from '@/hooks/use-chat';
 import { useIsComposerInView } from '@/hooks/use-composer-visibility';
 import { usePageDeletion } from '@/hooks/use-deleted-resources';
 import { useFaviconDot } from '@/hooks/use-favicon-dot';
 import { useFixedPage } from '@/hooks/use-fixed-page';
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
+import { useLiveStream } from '@/hooks/use-live-stream';
 import { useNavOpen } from '@/hooks/use-nav-open';
+import { useIsListening } from '@/hooks/use-realtime';
 import { useTabSlide } from '@/hooks/use-tab-slide';
 import { signIn } from '@/lib/auth';
 import { backgroundPollOptions } from '@/lib/background-poll';
+import { isPageGone } from '@/lib/deleted-resources';
 import type { IssueKind } from '@/lib/issue-commands';
+import { userChannel } from '@/lib/realtime';
 import type { SearchAction } from '@/lib/search-actions';
 import { cn } from '@/lib/utils';
 import type { AppLayoutProps } from '@/types';
@@ -40,7 +51,7 @@ import type { AppLayoutProps } from '@/types';
 export default function AppLayout({ children }: AppLayoutProps) {
     const {
         component,
-        props: { auth },
+        props: { auth, isMobileApp },
     } = usePage();
     const { isLayoutOpen } = useNavOpen();
     const [isShowingShortcuts, setIsShowingShortcuts] = useState(false);
@@ -99,7 +110,12 @@ export default function AppLayout({ children }: AppLayoutProps) {
     const unreadMessages = useUnreadMessages();
     useFixedPage(isMessages);
     useRemoteAlerts(auth.remotes !== null ? (auth.user?.id ?? null) : null);
+    useRemoteUpdates(auth.remotes !== null ? (auth.user?.id ?? null) : null);
     useFaviconDot(auth.unreadNotificationsCount + unreadMessages > 0);
+    const isOwnStreamLive = useLiveStream(auth.user) !== null;
+    const isHearingCounts = useIsListening(
+        auth.user === null ? null : userChannel(auth.user.id),
+    );
 
     return (
         <>
@@ -110,6 +126,9 @@ export default function AppLayout({ children }: AppLayoutProps) {
             >
                 {deletedPage === null && (
                     <NotificationCountPolling
+                        key={isHearingCounts ? 'heard' : 'polled'}
+                        interval={isHearingCounts ? 300_000 : 30_000}
+                        component={component}
                         isInbox={component === 'notification/index'}
                         onNotFound={markPageDeleted}
                     />
@@ -132,7 +151,8 @@ export default function AppLayout({ children }: AppLayoutProps) {
                     )}
                 >
                     <div data-nav-content>
-                        <MobileHeader onSearch={openSearch} />
+                        {/* Remotes have their own bar, so phones keep the height for the chat. */}
+                        {!isMessages && <MobileHeader onSearch={openSearch} />}
                         <CommitStarPolling>{children}</CommitStarPolling>
                     </div>
                 </main>
@@ -151,6 +171,9 @@ export default function AppLayout({ children }: AppLayoutProps) {
                             onCompose={compose}
                         />
                     )}
+                    {!isMessages &&
+                        component !== 'app/index' &&
+                        !isMobileApp && <MobileAppSuggestion />}
                 </MobileNav>
 
                 {deletedPage === null ? (
@@ -162,7 +185,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
                 {auth.user !== null && auth.remotes !== null && !isMessages && (
                     <ChatDock user={auth.user} />
                 )}
-                {auth.user !== null && auth.remotes?.calls && (
+                {auth.user !== null && auth.remotes !== null && (
                     <>
                         <CallBar user={auth.user} />
                         <CallLeaveWarning />
@@ -173,7 +196,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
                     open={isSearching}
                     onOpenChange={setIsSearching}
                     onAction={isGuest ? undefined : runSearchAction}
-                    isLive={!!auth.user?.live}
+                    isLive={isOwnStreamLive}
                 />
 
                 <CommitComposerDialog
@@ -199,6 +222,8 @@ export default function AppLayout({ children }: AppLayoutProps) {
                 {isGuest && <LocalSignInDialog />}
 
                 {isGuest && <GuestJoinSheet />}
+
+                {auth.user !== null && <TermsDialog user={auth.user} />}
             </div>
             <NotificationTitle />
         </>
@@ -224,17 +249,22 @@ function NotificationTitle() {
 
 /**
  * The counts reload with the page's own URL, so they are also what first finds out that the page's commit is gone: the
- * page then stays as it was, instead of turning into a 404, and the polling stops until another page is visited.
+ * page then stays as it was, instead of turning into a 404, and the polling stops until another page is visited. While
+ * the counts are refreshed live, this only backs them up.
  */
 function NotificationCountPolling({
+    interval,
+    component,
     isInbox,
     onNotFound,
 }: {
+    interval: number;
+    component: string;
     isInbox: boolean;
     onNotFound: () => void;
 }) {
     const { start, stop } = usePoll(
-        30_000,
+        interval,
         backgroundPollOptions({
             only: ['auth.unreadNotificationsCount', 'auth.unreadMessagesCount'],
             onHttpException: (response) => {
@@ -242,7 +272,9 @@ function NotificationCountPolling({
                     return;
                 }
 
-                onNotFound();
+                if (isPageGone(response, component)) {
+                    onNotFound();
+                }
 
                 return false;
             },

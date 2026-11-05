@@ -12,7 +12,6 @@ it('is the turn provider in testing', function (): void {
 it('lets browsers connect directly, with no relay to configure', function (): void {
     $provider = new LocalTurnProvider();
 
-    expect($provider->isAvailable())->toBeTrue()
-        ->and($provider->isRelayOnly())->toBeFalse()
+    expect($provider->isRelayOnly())->toBeFalse()
         ->and($provider->iceServers())->toBe([]);
 });

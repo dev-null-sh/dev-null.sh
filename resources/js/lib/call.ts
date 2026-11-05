@@ -2,8 +2,15 @@ import CallController from '@/actions/App/Http/Controllers/CallController';
 import ConversationCallController from '@/actions/App/Http/Controllers/ConversationCallController';
 import ConversationCallIceServerController from '@/actions/App/Http/Controllers/ConversationCallIceServerController';
 import { ChatRequestError, request } from '@/lib/chat';
-import { declineOrgCall, isInOrgCall, receiveOrgCalls } from '@/lib/org-call';
+import {
+    checkInNow,
+    declineOrgCall,
+    isInOrgCall,
+    ongoingOrgCallsSnapshot,
+    receiveOrgCalls,
+} from '@/lib/org-call';
 import type { OrgCall } from '@/lib/org-call';
+import { isListening, listen, userChannel } from '@/lib/realtime';
 import { remoteAlertsEnabled } from '@/lib/remote-notifications';
 import type { User } from '@/types';
 
@@ -35,6 +42,12 @@ export type CallState =
 
 const answerPoll = 1_500;
 const incomingPoll = 3_000;
+/**
+ * While calls are heard about live, checking only backs that up, and catches what ends without telling anyone: a
+ * call left ringing by a closed tab, or an org call whose last member stopped checking in.
+ */
+const listeningAnswerPoll = 5_000;
+const listeningIncomingPoll = 30_000;
 const ringFor = 45_000;
 const connectFor = 20_000;
 
@@ -55,6 +68,8 @@ let endTimer: number | undefined;
  * The offer the user declined, so it doesn't ring again while it is still in the cache.
  */
 let seenOffer: string | null = null;
+let callerId: string | null = null;
+let checkForAnswer: (() => void) | null = null;
 /**
  * The partners whose conversation shows the call in its composer right now, so the bar on top of the page steps
  * aside for them.
@@ -139,35 +154,69 @@ export async function startCall(partner: User): Promise<void> {
     }
 
     window.clearTimeout(endTimer);
-    update({ status: 'calling', partner, since: Date.now() });
+    const outgoing = { status: 'calling', partner, since: Date.now() } as const;
+    update(outgoing);
+    const isCurrent = () => state === outgoing;
 
     try {
-        const peer = await connect(partner, true);
-        await peer.setLocalDescription(await peer.createOffer());
+        const peer = await connect(partner, true, isCurrent);
+        if (peer === null || !isCurrent()) return;
+        const offer = await peer.createOffer();
+        if (!isCurrent()) return;
+        await peer.setLocalDescription(offer);
+        if (!isCurrent()) return;
+        const sdp = await gathered(peer);
+        if (!isCurrent()) return;
         await request(
             ConversationCallController.store.url(url(partner)),
             'POST',
-            { sdp: await gathered(peer) },
+            { sdp },
         );
     } catch (error) {
-        end(partner, failure(error, `Could not call @${partner.handle}.`));
+        if (isCurrent()) {
+            end(partner, failure(error, `Could not call @${partner.handle}.`));
+        }
 
         return;
     }
 
+    if (!isCurrent()) {
+        return;
+    }
+
+    const peer = connection;
     const ringsUntil = Date.now() + ringFor;
+    let isChecking = false;
+    let isCheckDue = false;
 
     const poll = async () => {
-        if (state.status !== 'calling' || connection === null) {
+        if (!isCurrent() || peer === null || connection !== peer) {
             return;
         }
+
+        window.clearTimeout(timer);
+
+        if (isChecking) {
+            isCheckDue = true;
+
+            return;
+        }
+
+        isChecking = true;
+        isCheckDue = false;
 
         try {
             const { call } = await request<{
                 call: { answer: string | null } | null;
             }>(ConversationCallController.show.url(url(partner)));
 
+            // Unless the call was given up, or replaced by another one, while it checked.
+            if (!isCurrent() || connection !== peer) {
+                return;
+            }
+
             if (call?.answer) {
+                checkForAnswer = null;
                 update({ status: 'connecting', partner });
                 await connection.setRemoteDescription({
                     type: 'answer',
@@ -180,6 +229,7 @@ export async function startCall(partner: User): Promise<void> {
             }
 
             if (call === null || Date.now() > ringsUntil) {
+                checkForAnswer = null;
                 void forget(partner);
                 end(partner, 'No answer.');
 
@@ -187,11 +237,29 @@ export async function startCall(partner: User): Promise<void> {
             }
         } catch {
             // Try again on the next poll.
+        } finally {
+            isChecking = false;
         }
 
-        timer = window.setTimeout(() => void poll(), answerPoll);
+        if (!isCurrent() || connection !== peer) {
+            return;
+        }
+
+        timer = window.setTimeout(
+            () => void poll(),
+            isCheckDue
+                ? 0
+                : Math.min(
+                      callerId !== null && isListening(userChannel(callerId))
+                          ? listeningAnswerPoll
+                          : answerPoll,
+                      Math.max(ringsUntil - Date.now(), 0),
+                  ),
+        );
     };
 
+    // The answer is checked for as soon as the partner's browser says it is there.
+    checkForAnswer = () => void poll();
     timer = window.setTimeout(() => void poll(), answerPoll);
 }
 
@@ -204,30 +272,46 @@ export async function acceptCall(): Promise<void> {
     }
 
     const { partner, sdp } = state;
-    update({ status: 'connecting', partner });
+    const accepting = { status: 'connecting', partner } as const;
+    update(accepting);
+    let peer: RTCPeerConnection | null = null;
+    const isCurrent = () =>
+        state === accepting ||
+        (state.status === 'connected' && connection === peer);
 
     try {
-        const peer = await connect(partner, false);
+        peer = await connect(partner, false, isCurrent);
+        if (peer === null || !isCurrent()) return;
         await peer.setRemoteDescription({ type: 'offer', sdp });
+        if (!isCurrent()) return;
         peer.getTransceivers().forEach((transceiver) => {
             if (transceiver.receiver.track.kind === 'video') {
                 transceiver.direction = 'sendrecv';
             }
         });
-        await peer.setLocalDescription(await peer.createAnswer());
+        const answer = await peer.createAnswer();
+        if (!isCurrent()) return;
+        await peer.setLocalDescription(answer);
+        if (!isCurrent()) return;
+        const description = await gathered(peer);
+        if (!isCurrent()) return;
         await request(
             ConversationCallController.update.url(url(partner)),
             'PUT',
-            { sdp: await gathered(peer) },
+            { sdp: description },
         );
     } catch (error) {
-        void forget(partner, { failed: true });
-        end(partner, failure(error, 'Could not answer the call.'));
+        if (isCurrent()) {
+            void forget(partner, { failed: true });
+            end(partner, failure(error, 'Could not answer the call.'));
+        }
 
         return;
     }
 
-    giveUpConnecting(partner);
+    if (isCurrent()) {
+        giveUpConnecting(partner);
+    }
 }
 
 export function declineCall(): void {
@@ -324,9 +408,22 @@ export function dismissCall(): void {
 export function watchIncomingCalls(userId: string): () => void {
     let pollTimer: number | undefined;
     let isStopped = false;
+    let isPolling = false;
+    let isPollDue = false;
+
+    callerId = userId;
 
     const poll = async () => {
         window.clearTimeout(pollTimer);
+
+        if (isPolling) {
+            isPollDue = true;
+
+            return;
+        }
+
+        isPolling = true;
+        isPollDue = false;
 
         // On a call, nothing else can ring, and there's no other call to join, so there is nothing to check.
         if (!document.hidden && isFree()) {
@@ -340,8 +437,8 @@ export function watchIncomingCalls(userId: string): () => void {
                     org_calls: OrgCall[];
                 }>(CallController.show.url());
 
-                // Unless the user started or joined a call while it checked.
-                if (isFree()) {
+                // Unless the user started or joined a call while it checked, or stopped watching, as on signing out.
+                if (isFree() && !isStopped) {
                     takeIncomingCall(call, userId);
                     receiveOrgCalls(orgCalls, userId);
                 }
@@ -350,16 +447,56 @@ export function watchIncomingCalls(userId: string): () => void {
             }
         }
 
+        isPolling = false;
+
         if (!isStopped) {
-            pollTimer = window.setTimeout(() => void poll(), incomingPoll);
+            // A call shown ringing, or going on in an org, can end without anyone saying so, so it is checked often.
+            const isShowingCall =
+                state.status === 'ringing' ||
+                ongoingOrgCallsSnapshot().length > 0;
+
+            pollTimer = window.setTimeout(
+                () => void poll(),
+                isPollDue
+                    ? 0
+                    : isListening(userChannel(userId)) && !isShowingCall
+                      ? listeningIncomingPoll
+                      : incomingPoll,
+            );
         }
     };
+
+    const stopListening = listen(
+        userChannel(userId),
+        {
+            calls: () => {
+                checkForAnswer?.();
+                void poll();
+            },
+            'calls.signals': (payload) => {
+                if (
+                    typeof payload === 'object' &&
+                    payload !== null &&
+                    'conversation' in payload &&
+                    typeof payload.conversation === 'string'
+                ) {
+                    checkInNow(payload.conversation);
+                }
+            },
+        },
+        () => void poll(),
+    );
 
     void poll();
 
     return () => {
         isStopped = true;
         window.clearTimeout(pollTimer);
+        stopListening();
+
+        if (callerId === userId) {
+            callerId = null;
+        }
     };
 }
 
@@ -397,19 +534,26 @@ function takeIncomingCall(
 async function connect(
     partner: User,
     isCaller: boolean,
-): Promise<RTCPeerConnection> {
+    isCurrent: () => boolean,
+): Promise<RTCPeerConnection | null> {
     const { ice_servers: iceServers, is_relay_only: isRelayOnly } =
         await request<{
             ice_servers: RTCIceServer[];
             is_relay_only: boolean;
         }>(ConversationCallIceServerController.index.url(url(partner)));
+    if (!isCurrent()) return null;
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    // Permission may finish after hangup. Those tracks belong to this setup, never to a replacement call.
+    if (!isCurrent()) {
+        stream.getTracks().forEach((track) => track.stop());
+        return null;
+    }
+    microphone = stream;
     // Only through the relay: a direct route would hand each person the other's IP address.
     const peer = new RTCPeerConnection({
         iceServers,
         iceTransportPolicy: isRelayOnly ? 'relay' : 'all',
     });
-    microphone = stream;
     connection = peer;
     stream.getTracks().forEach((track) => peer.addTrack(track, stream));
 
@@ -576,6 +720,7 @@ function failure(error: unknown, fallback: string): string {
 }
 
 function end(partner: User, reason: string): void {
+    checkForAnswer = null;
     window.clearTimeout(timer);
     connection?.close();
     connection = null;
