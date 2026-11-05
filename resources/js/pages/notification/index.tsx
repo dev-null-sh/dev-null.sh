@@ -1204,8 +1204,14 @@ export function NotificationContent({
     // An open group keeps naming who it led with, but its commit is still the newest one, from `actor_id`.
     const commitAuthor =
         actors.find((member) => member.id === notification.actor_id) ?? actor;
+    // Keyed by the commit, so when a newer commit takes over the group, a quote being written closes and its draft
+    // stays stashed for the commit it was started on.
     const actions = isActorsCommit && (
-        <CommitActions commit={notification.commit} author={commitAuthor} />
+        <CommitActions
+            key={notification.commit.id}
+            commit={notification.commit}
+            author={commitAuthor}
+        />
     );
     const Icon = {
         followed: UserPlus,

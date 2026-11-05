@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Actions\CreateCommitStar;
 use App\Actions\DeleteUserFollow;
+use App\Enums\NotificationType;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\Notification;
@@ -143,6 +144,19 @@ it('says how starred the commit of a notification is and whether the user starre
         ->assertJsonPath('data.0.commit.starred', $starred)
         ->assertJsonPath('data.0.commit.stars_count', $count);
 })->with(['starred' => true, 'not starred' => false]);
+
+it('leaves the stars out of a star notification, even on a commit a reply in the inbox shares', function (): void {
+    $user = User::factory()->create();
+    $replied = Notification::factory()->for($user, 'recipient')->replied()->create(['created_at' => now()->subMinute()]);
+    Notification::factory()->for($user, 'recipient')->create(['type' => NotificationType::Starred, 'commit_id' => $replied->commit_id]);
+
+    $this->actingAs($user)->get(route('notification.index'))
+        ->assertInertia(fn ($page) => $page
+            ->where('notifications.data.0.type', 'starred')
+            ->missing('notifications.data.0.commit.starred')
+            ->where('notifications.data.1.type', 'replied')
+            ->where('notifications.data.1.commit.starred', false));
+});
 
 it('shows the images of a starred commit', function (): void {
     $user = User::factory()->create();
