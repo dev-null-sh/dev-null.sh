@@ -61,7 +61,7 @@ it('sends who did something to the phone, signed with the service account', func
         && json_decode($request->body(), true)['message'] === [
             'token' => 'fcm-phone',
             'notification' => ['title' => 'Alice', 'body' => 'Sent you a message'],
-            'data' => ['type' => 'message', 'conversation_id' => 'c1'],
+            'data' => ['type' => 'message', 'conversation_id' => 'c1', 'url' => 'devnull://push?type=message&conversation_id=c1'],
             'android' => ['priority' => 'high'],
             'apns' => ['payload' => ['aps' => ['sound' => 'default', 'thread-id' => 'c1']]],
         ]);
@@ -72,7 +72,8 @@ it('leaves the thread out of a push that has no group', function (): void {
 
     new FcmDevicePushProvider()->send($this->device, new DevicePush('Alice', 'Followed you', []));
 
-    Http::assertSent(fn (Request $request): bool => str_contains($request->body(), '"data":{},"android":{"priority":"high"},"apns":{"payload":{"aps":{"sound":"default"}}}'));
+    Http::assertSent(fn (Request $request): bool => str_starts_with($request->url(), 'https://fcm.googleapis.com/')
+        && json_decode($request->body(), true)['message']['apns'] === ['payload' => ['aps' => ['sound' => 'default']]]);
 });
 
 it('keeps the access token, encrypted, until shortly before it expires', function (): void {

@@ -87,7 +87,8 @@ it('pushes who did it to every phone of the recipient, and no text they wrote', 
     resolve(SendNotificationPush::class, ['notificationId' => $notification->id])->handle(resolve(DevicePushProvider::class));
 
     expect(collect($sent)->pluck(0)->sort()->values()->all())->toBe(collect([$this->phone->id, $tablet->id])->sort()->values()->all())
-        ->and($sent[0][1])->toEqual(new DevicePush('Alice', 'Followed you', ['type' => 'followed', 'notification_id' => $notification->id, 'handle' => 'alice']));
+        ->and($sent[0][1])->toEqual(new DevicePush('Alice', 'Followed you', ['type' => 'followed', 'notification_id' => $notification->id, 'handle' => 'alice']))
+        ->and($sent[0][1]->data['url'])->toBe("devnull://push?type=followed&notification_id={$notification->id}&handle=alice");
 });
 
 it('says what happened for each kind', function (string $kind, bool $forOrganization, string $body): void {

@@ -11,14 +11,24 @@ namespace App\Dto;
 final readonly class DevicePush
 {
     /**
+     * The app's own scheme. NativePHP opens a tapped push only through its `url`, so the data rides along in its query.
+     */
+    public const string URL = 'devnull://push';
+
+    /**
+     * @var array<string, string>
+     */
+    public array $data;
+
+    /**
      * @param  array<string, string>  $data
      */
     public function __construct(
         public string $title,
         public string $body,
-        public array $data,
+        array $data,
         public ?string $group = null,
     ) {
-        //
+        $this->data = [...$data, 'url' => self::URL.'?'.http_build_query($data, encoding_type: PHP_QUERY_RFC3986)];
     }
 }

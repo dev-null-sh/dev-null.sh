@@ -98,7 +98,12 @@ final class SendRemotePush implements ShouldQueue
                     $conversation->kind === ConversationKind::Org => $name.($pinged ? ' pinged everyone' : ' sent a message'),
                     default => $pinged ? 'Pinged you' : 'Sent you a message',
                 },
-                ['type' => $pinged ? 'ping' : 'message', 'conversation_id' => $conversation->id],
+                [
+                    'type' => $pinged ? 'ping' : 'message',
+                    'conversation_id' => $conversation->id,
+                    'kind' => $conversation->kind->value,
+                    ...$conversation->kind === ConversationKind::Direct ? ['handle' => $sender->handle] : [],
+                ],
                 $conversation->id,
             );
 
