@@ -36,6 +36,7 @@ import { ProfileLiveButton } from '@/components/profile-live-button';
 import { ProfilePicture } from '@/components/profile-picture';
 import { ProfileReadme } from '@/components/profile-readme';
 import { ProfileShareButton } from '@/components/profile-share-button';
+import { ProfileWinampButton } from '@/components/profile-winamp-button';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import type { UserModeration } from '@/components/user-moderation-menu';
@@ -52,6 +53,7 @@ import { commitStateKey } from '@/lib/commit-state';
 import { exactCountTitle, formatCount } from '@/lib/numbers';
 import { profileAvatarPosition } from '@/lib/profile-avatar';
 import { formatClockMonth, laneColor, laneTint } from '@/lib/utils';
+import type { WinampTrack } from '@/lib/winamp';
 import type {
     Achievements,
     Activity,
@@ -68,6 +70,8 @@ function pluralize(count: number, singular: string, plural: string) {
 export default function Show({
     user,
     bioProfiles,
+    hasPlaylist,
+    playlist,
     pasteisReceived,
     isFollowing,
     followsYou,
@@ -85,6 +89,8 @@ export default function Show({
 }: {
     user: Profile;
     bioProfiles: Record<string, string>;
+    hasPlaylist: boolean;
+    playlist?: WinampTrack[];
     pasteisReceived: number | null;
     isFollowing: boolean;
     followsYou: boolean;
@@ -284,6 +290,12 @@ export default function Show({
                     />
 
                     <div className="flex shrink-0 gap-1.5 sm:gap-2">
+                        {hasPlaylist && (
+                            <ProfileWinampButton
+                                handle={user.handle}
+                                playlist={playlist}
+                            />
+                        )}
                         <ProfileShareButton
                             handle={user.handle}
                             href={show(user).url}

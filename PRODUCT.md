@@ -35,6 +35,7 @@ What exists, one line each (details in the knowledge base):
 - **Logs:** Following, Latest, and Trending.
 - **Engagement:** follows, stars, saved commits, pins, mentions, and pastéis (an opt-in daily allowance of pastries).
 - **Profiles:** mirrored from GitHub, with an activity graph, streaks, achievements, a Unix rank, and a live marker while you stream on YouTube.
+- **Winamp:** a Winamp player on computers, opened from search, playing music from Audius; members can share an Audius playlist that visitors play from their profile.
 - **Organization pages:** GitHub organizations get a page mirrored from GitHub once an approved commit mentions them, and `@organization` mentions link to it. Their members post commits as the organization, which readers see from the organization alone.
 - **Remotes:** private one-to-one and group messages (orgs), and calls, one-to-one or in an org.
 - **Notifications:** in-app activity and on-site Remotes alerts by default; off-site browser and PWA notifications require a separate opt-in. Sound is controlled independently and plays while the site is open.

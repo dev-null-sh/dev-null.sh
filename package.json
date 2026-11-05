@@ -42,6 +42,7 @@
         "tailwind-merge": "^3.7.0",
         "tailwindcss": "^4.3.3",
         "typescript": "^7.0.2",
+        "webamp": "2.3.1",
         "yet-another-react-lightbox": "^3.33.0"
     },
     "devDependencies": {

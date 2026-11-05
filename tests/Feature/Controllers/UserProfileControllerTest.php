@@ -57,6 +57,12 @@ it('renders the activity graph links with the timezone preference', function (?s
             ->where('auth.user.timezone', $timezone));
 })->with([null, 'Europe/Budapest']);
 
+it('shows the playlist link the user shares', function (?string $url): void {
+    $this->actingAs(User::factory()->create(['playlist_url' => $url]))
+        ->get(route('user-profile.edit'))
+        ->assertInertia(fn ($page) => $page->where('playlistUrl', $url));
+})->with([null, 'https://audius.co/Byte/playlist/lofi']);
+
 it('redirects settings to profile settings', function (): void {
     $user = User::factory()->create();
 

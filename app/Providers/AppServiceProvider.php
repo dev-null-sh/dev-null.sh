@@ -11,6 +11,7 @@ use App\Contracts\Services\GitHubProvider;
 use App\Contracts\Services\HeadlineProvider;
 use App\Contracts\Services\LinkPreviewProvider;
 use App\Contracts\Services\ModerationProvider;
+use App\Contracts\Services\PlaylistProvider;
 use App\Contracts\Services\PushNotificationProvider;
 use App\Contracts\Services\RelevanceProvider;
 use App\Contracts\Services\ToolDecisionProvider;
@@ -34,6 +35,8 @@ use App\Services\LinkPreviewProviders\HttpLinkPreviewProvider;
 use App\Services\LinkPreviewProviders\NullLinkPreviewProvider;
 use App\Services\ModerationProviders\NullModerationProvider;
 use App\Services\ModerationProviders\OpenAIModerationProvider;
+use App\Services\PlaylistProviders\AudiusPlaylistProvider;
+use App\Services\PlaylistProviders\NullPlaylistProvider;
 use App\Services\PushNotificationProviders\NullPushNotificationProvider;
 use App\Services\PushNotificationProviders\WebPushNotificationProvider;
 use App\Services\RelevanceProviders\NullRelevanceProvider;
@@ -70,6 +73,7 @@ final class AppServiceProvider extends ServiceProvider
         HeadlineProvider::class => OpenAIHeadlineProvider::class,
         LinkPreviewProvider::class => HttpLinkPreviewProvider::class,
         ModerationProvider::class => OpenAIModerationProvider::class,
+        PlaylistProvider::class => AudiusPlaylistProvider::class,
         PushNotificationProvider::class => WebPushNotificationProvider::class,
         RelevanceProvider::class => OpenAIRelevanceProvider::class,
         ToolDecisionProvider::class => OpenAIToolDecisionProvider::class,
@@ -90,6 +94,7 @@ final class AppServiceProvider extends ServiceProvider
         HeadlineProvider::class => NullHeadlineProvider::class,
         LinkPreviewProvider::class => NullLinkPreviewProvider::class,
         ModerationProvider::class => NullModerationProvider::class,
+        PlaylistProvider::class => NullPlaylistProvider::class,
         PushNotificationProvider::class => NullPushNotificationProvider::class,
         RelevanceProvider::class => NullRelevanceProvider::class,
         ToolDecisionProvider::class => NullToolDecisionProvider::class,
@@ -239,6 +244,8 @@ final class AppServiceProvider extends ServiceProvider
         RateLimiter::for('people', fn (Request $request): Limit => Limit::perMinute(120)->by(
             $request->user() instanceof User ? $this->userId($request) : 'ip:'.$request->ip(),
         ));
+
+        RateLimiter::for('playlist-links', fn (Request $request): Limit => Limit::perMinute(10)->by($this->userId($request)));
 
         // Every issue lookup GitHub hasn't answered in the last five minutes costs a request out of the shared hourly budget,
         // which also keeps SSH keys in sync for the CLI, so it gets a budget of its own...

@@ -46,6 +46,7 @@ import type { IssueKind } from '@/lib/issue-commands';
 import { userChannel } from '@/lib/realtime';
 import type { SearchAction } from '@/lib/search-actions';
 import { cn } from '@/lib/utils';
+import { openWinamp } from '@/lib/winamp';
 import type { AppLayoutProps } from '@/types';
 
 export default function AppLayout({ children }: AppLayoutProps) {
@@ -90,6 +91,12 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
         if (action === 'end-stream') {
             endStream();
+
+            return;
+        }
+
+        if (action === 'winamp') {
+            void openWinamp();
 
             return;
         }

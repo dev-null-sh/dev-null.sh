@@ -29,6 +29,7 @@ final readonly class UserProfileController
             'githubSyncedAt' => $user->github_synced_at?->toIso8601String(),
             'activityGraphUrl' => route('user-activity-graph.show', $user),
             'profileUrl' => route('user.show', $user),
+            'playlistUrl' => $user->playlist_url,
         ]);
     }
 

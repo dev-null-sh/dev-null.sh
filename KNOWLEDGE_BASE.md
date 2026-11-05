@@ -159,6 +159,16 @@ Share a stream you are running from the **…** menu on your own profile: **Go l
 
 Sources: [go-live button](resources/js/components/profile-live-button.tsx), [live avatar and card](resources/js/components/live-stream-card.tsx), [validation](app/Http/Requests/UpdateUserLiveRequest.php), [YouTube links](app/Services/LivePlatforms/YouTube.php), [Twitch links](app/Services/LivePlatforms/Twitch.php), [ending streams](app/Jobs/EndLiveStreams.php).
 
+### Winamp
+
+On a computer, signed in, search for **winamp** (or **webamp**, or **llama**) and choose **Open Winamp** to open a Winamp player, built on Webamp, that keeps playing while you move between pages. It starts with a short playlist of lo-fi beats from Audius, and nothing plays until you press play. Closing it with its own close button stops the music; opening it again brings the same player back. Phones and tablets don't offer it.
+
+Share a playlist of your own in profile settings, under **Winamp playlist**: paste a link to a public playlist or album on Audius (`https://audius.co/…/playlist/…` or `https://audius.co/…/album/…`). Your profile then shows a music-note button on computers that loads your playlist into Winamp and starts it, for anyone looking at it, signed in or not. Only the first 200 tracks Winamp can play are loaded. Tracks Audius doesn't let everyone stream, such as ones only for an artist's supporters, are left out. The playlist is read from Audius at most every ten minutes, so changes you make there can take that long to show. **Remove** stops sharing it. Only the link is stored, and it is included in your export.
+
+The music comes from Audius because Winamp needs the audio itself to draw its visualizer and run its equalizer, and Audius lets other sites play its tracks. Spotify, YouTube, and Apple Music only play inside their own players, so their music can't play in Winamp. Once you open Winamp, the audio loads straight from Audius to your browser, under Audius's own privacy policy.
+
+Sources: [player](resources/js/lib/winamp.ts), [profile button](resources/js/components/profile-winamp-button.tsx), [playlist setting](resources/js/components/playlist-setting.tsx), [Audius playlists](app/Services/PlaylistProviders/AudiusPlaylistProvider.php).
+
 ### Achievement badges and XP
 
 Profiles have **16 achievement badges**. Earned badges appear in a single row, with **+N more** when more have been earned than fit. Hover over the row on desktop or tap it on mobile to toggle a popover with every badge, including locked badges and their progress. Profiles with no earned badges show **View achievements** instead. Select a badge in the popover, or the profile's rank or unlocked count, to open the detailed achievements dialog.

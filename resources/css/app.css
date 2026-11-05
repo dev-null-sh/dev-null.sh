@@ -1113,3 +1113,14 @@ html body[data-scroll-locked] {
     box-shadow: inset 3px 0 0
         color-mix(in oklab, var(--primary) 70%, transparent);
 }
+
+[data-winamp] {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    pointer-events: none;
+}
+
+[data-winamp] #webamp {
+    pointer-events: auto;
+}

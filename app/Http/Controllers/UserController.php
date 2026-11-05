@@ -15,6 +15,7 @@ use App\Queries\BioProfilesQuery;
 use App\Queries\FollowersYouKnowQuery;
 use App\Queries\GitHubReadmeQuery;
 use App\Queries\PinnedCommitQuery;
+use App\Queries\PlaylistQuery;
 use App\Queries\PushAccessQuery;
 use App\Queries\UserAchievementsQuery;
 use App\Queries\UserActivityQuery;
@@ -38,7 +39,7 @@ final readonly class UserController
     /**
      * Profiles are public, so guests and crawlers read the same page, with the profile's link preview.
      */
-    public function show(ShowUserRequest $request, #[CurrentUser] ?User $currentUser, User $user, UserActivityQuery $activity, UserStreakQuery $streaks, UserAchievementsQuery $achievements, PushAccessQuery $pushAccess, UserCommitsQuery $commits, PinnedCommitQuery $pinned, UserModerationQuery $moderation, FollowersYouKnowQuery $followersYouKnow, GitHubReadmeQuery $readme, BioProfilesQuery $bioProfiles, PageMetadata $metadata): Response
+    public function show(ShowUserRequest $request, #[CurrentUser] ?User $currentUser, User $user, UserActivityQuery $activity, UserStreakQuery $streaks, UserAchievementsQuery $achievements, PushAccessQuery $pushAccess, UserCommitsQuery $commits, PinnedCommitQuery $pinned, UserModerationQuery $moderation, FollowersYouKnowQuery $followersYouKnow, GitHubReadmeQuery $readme, BioProfilesQuery $bioProfiles, PlaylistQuery $playlist, PageMetadata $metadata): Response
     {
         $blockerId = $currentUser?->blockerIdWith($user);
 
@@ -67,6 +68,8 @@ final readonly class UserController
         return Inertia::render('user/show', [
             'user' => Inertia::live(fn (): ?array => ShownStreams::user($getCountedUser()), 'profile', $profile),
             'bioProfiles' => fn (): array => $bioProfiles->get($user),
+            'hasPlaylist' => Inertia::live(fn (): bool => $user->playlist_url !== null, 'profile', $profile),
+            'playlist' => Inertia::optional(fn (): array => $playlist->get($user)),
             'pasteisReceived' => Inertia::live(fn (): ?int => $currentUser?->pasteis_mode ? $user->pasteis_received : null, 'profile', $profile),
             'isFollowing' => $relationship(fn (): bool => $currentUser?->isFollowing($user) ?? false),
             'followsYou' => $relationship(fn (): bool => $currentUser instanceof User && $user->isFollowing($currentUser)),
