@@ -57,6 +57,7 @@ const surface = (overrides: Record<string, unknown> = {}) => ({
     imageCount: 0,
     isScheduling: false,
     processing: false,
+    reading: false,
     ...overrides,
 });
 

@@ -30,8 +30,6 @@ pest()->extend(TestCase::class)
         Process::preventStrayProcesses();
         Sleep::fake();
 
-        config(['services.github.repository' => 'dev-null-sh/dev-null.sh']);
-
         $this->freezeTime();
     })
     ->in('Feature', 'Unit');

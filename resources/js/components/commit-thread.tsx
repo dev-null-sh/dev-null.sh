@@ -1591,6 +1591,7 @@ function ReplyComposer({
                         imageCount: images.length,
                         isScheduling: false,
                         processing,
+                        reading: attachments.reading,
                     }}
                     onPaste={attachments.onPaste}
                     onFocus={isRestored ? moveCaretToEnd : undefined}

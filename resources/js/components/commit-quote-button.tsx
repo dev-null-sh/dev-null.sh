@@ -175,7 +175,7 @@ function QuoteComposer({
             onEscapeKeyDown={(event) => {
                 if (
                     document.querySelector(
-                        '[data-mention-suggestions], [data-slash-suggestions], [data-emoji-suggestions], [role="dialog"].yarl__root',
+                        '[data-mention-suggestions], [data-slash-suggestions], [role="dialog"].yarl__root',
                     ) ||
                     (typeof Element !== 'undefined' &&
                         event.target instanceof Element &&
@@ -189,7 +189,7 @@ function QuoteComposer({
                     typeof Element !== 'undefined' &&
                     event.target instanceof Element &&
                     event.target.closest(
-                        '[data-mention-suggestions], [data-slash-suggestions], [data-emoji-suggestions], [role="dialog"].yarl__root',
+                        '[data-mention-suggestions], [data-slash-suggestions], [role="dialog"].yarl__root',
                     )
                 ) {
                     event.preventDefault();
@@ -275,6 +275,7 @@ function QuoteComposer({
                                         imageCount: images.length,
                                         isScheduling: false,
                                         processing,
+                                        reading: attachments.reading,
                                     }}
                                     onPaste={attachments.onPaste}
                                     onFocus={

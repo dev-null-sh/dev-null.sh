@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { maxImages as pickerMaxImages } from '../../resources/js/lib/read-picked-images.ts';
 import type { ComposerSurface } from '../../resources/js/lib/slash-commands.ts';
 import {
     availableCommands,
@@ -18,6 +19,7 @@ const surface = (
     imageCount: 0,
     isScheduling: false,
     processing: false,
+    reading: false,
     ...overrides,
 });
 
@@ -77,6 +79,20 @@ void test('image is disabled with a reason by poll and the image limit', () => {
     assert.equal(reason({ imageCount: 3 }), 'Maximum of 3 images');
 });
 
+void test('the slash menu and the picker share one image limit', () => {
+    const image = (count: number) =>
+        availableCommands(surface({ imageCount: count })).find(
+            (option) => option.command.id === 'image',
+        )!;
+
+    assert.equal(image(pickerMaxImages - 1).enabled, true);
+    assert.equal(image(pickerMaxImages).enabled, false);
+    assert.equal(
+        image(pickerMaxImages).reason,
+        `Maximum of ${pickerMaxImages} images`,
+    );
+});
+
 void test('poll is disabled with a reason by images and an existing poll', () => {
     const reason = (overrides: Partial<ComposerSurface>) =>
         availableCommands(surface(overrides)).find(
@@ -91,6 +107,19 @@ void test('scheduling keeps images and polls available', () => {
     const options = availableCommands(surface({ isScheduling: true }));
 
     assert.ok(options.every((option) => option.enabled));
+});
+
+void test('only code is available while images are being read', () => {
+    const options = availableCommands(surface({ reading: true }));
+    const state = (id: string) =>
+        options.find((option) => option.command.id === id)!;
+
+    for (const id of ['image', 'poll', 'bug', 'feature']) {
+        assert.equal(state(id).enabled, false, id);
+        assert.equal(state(id).reason, 'Images are still loading', id);
+    }
+
+    assert.equal(state('code').enabled, true);
 });
 
 void test('every command is disabled without a reason while submitting', () => {

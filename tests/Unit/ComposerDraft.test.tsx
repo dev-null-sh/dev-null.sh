@@ -658,6 +658,7 @@ test('commands are not offered while the draft has images, a poll or a schedule'
         imageCount: 1,
         isScheduling: false,
         processing: false,
+        reading: false,
     });
     draft.body = 'Found a bug';
     assert.equal(
@@ -746,6 +747,7 @@ test('passes slash command context and callbacks to the composer textarea', () =
         imageCount: 0,
         isScheduling: false,
         processing: false,
+        reading: false,
     });
     assert.equal(typeof textarea.props.onImage, 'function');
     assert.equal(typeof textarea.props.onPoll, 'function');

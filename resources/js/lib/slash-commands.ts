@@ -1,7 +1,8 @@
 import type { LucideIcon } from 'lucide-react';
 import { Braces, Bug, ChartBar, ImagePlus, Lightbulb } from 'lucide-react';
 
-// Keep in sync with maxImages in resources/js/lib/read-picked-images.ts.
+// shortcut: mirrors maxImages in read-picked-images.ts because the node test runner cannot resolve the @ alias;
+// SlashCommands.test.ts checks both limits stay equal.
 const maxImages = 3;
 
 export type SlashCommandId = 'image' | 'poll' | 'code' | 'bug' | 'feature';
@@ -20,6 +21,7 @@ export type ComposerSurface = {
     imageCount: number;
     isScheduling: boolean;
     processing: boolean;
+    reading: boolean;
 };
 
 export type SlashOption = {
@@ -77,13 +79,17 @@ function disabledReason(
     command: SlashCommand,
     surface: ComposerSurface,
 ): string | null {
+    if (surface.reading && command.id !== 'code') {
+        return 'Images are still loading';
+    }
+
     if (command.id === 'image') {
         if (surface.hasPoll) {
             return 'Remove the poll first';
         }
 
         if (surface.imageCount >= maxImages) {
-            return 'Maximum of 3 images';
+            return `Maximum of ${maxImages} images`;
         }
 
         return null;

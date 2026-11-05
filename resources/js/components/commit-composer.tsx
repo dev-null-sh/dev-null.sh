@@ -314,6 +314,7 @@ function CommitComposerBody({
                                 imageCount: attachments.images.length,
                                 isScheduling,
                                 processing,
+                                reading: attachments.reading,
                             }}
                             placeholder={
                                 issue.command?.placeholder ??

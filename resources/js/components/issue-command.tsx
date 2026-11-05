@@ -45,9 +45,6 @@ export function useIssueCommand({
     const [kind, setKind] = useState<IssueKind | null>(
         enabled ? initialKind : null,
     );
-    const [selected, setSelected] = useState(0);
-    const [dismissed, setDismissed] = useState(false);
-    const [focused, setFocused] = useState(false);
     const [hintDismissed, setHintDismissed] = useState(isHintDismissed);
     const request = useHttp<
         { command: string; body: string; environment?: IssueEnvironment },

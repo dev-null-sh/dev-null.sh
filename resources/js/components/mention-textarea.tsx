@@ -47,6 +47,7 @@ type Suggestions = MentionResults & { key: string };
 type Position = ReturnType<typeof suggestionPosition>;
 
 const debounce = 120;
+const slashMenuWidth = 384;
 const cache = new Map<string, MentionResults>();
 
 export function clearMentionSuggestionsCache(): void {
@@ -173,7 +174,11 @@ function characterRect(textarea: HTMLTextAreaElement, index: number) {
     return { top, left, bottom: top + lineHeight };
 }
 
-function positionFor(textarea: HTMLTextAreaElement, index: number): Position {
+function positionFor(
+    textarea: HTMLTextAreaElement,
+    index: number,
+    width?: number,
+): Position {
     const character = characterRect(textarea, index);
     const viewport = window.visualViewport;
 
@@ -186,6 +191,7 @@ function positionFor(textarea: HTMLTextAreaElement, index: number): Position {
             height: viewport?.height ?? window.innerHeight,
         },
         window.innerHeight,
+        width,
     );
 }
 
@@ -372,7 +378,13 @@ export function MentionTextarea({
         }
 
         setTrigger(next);
-        setPosition(positionFor(textarea, next.start));
+        setPosition(
+            positionFor(
+                textarea,
+                next.start,
+                next.kind === 'slash' ? slashMenuWidth : undefined,
+            ),
+        );
     };
 
     useEffect(() => {
@@ -440,7 +452,13 @@ export function MentionTextarea({
 
         const reposition = () => {
             if (textareaRef.current) {
-                setPosition(positionFor(textareaRef.current, trigger.start));
+                setPosition(
+                    positionFor(
+                        textareaRef.current,
+                        trigger.start,
+                        trigger.kind === 'slash' ? slashMenuWidth : undefined,
+                    ),
+                );
             }
         };
 
@@ -1184,15 +1202,13 @@ export function MentionTextarea({
                 createPortal(
                     <div
                         className="pointer-events-auto fixed z-50 flex max-w-[calc(100vw-1rem)] flex-col overflow-hidden rounded-lg border bg-popover text-popover-foreground shadow-[0_12px_32px_-12px_rgb(0_0_0/0.35)] motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95"
-                        style={{
-                            ...position,
-                            width: Math.max(position.width ?? 0, 384),
-                        }}
+                        style={position}
                         onMouseDown={(event) => event.preventDefault()}
                         data-slash-suggestions
                         data-test="slash-suggestions"
                     >
                         <ul
+                            ref={listRef}
                             id={`${id}-slash`}
                             role="listbox"
                             aria-label="Slash commands"

@@ -228,6 +228,7 @@ test('passes slash command context to the quote composer textarea', () => {
         imageCount: 1,
         isScheduling: false,
         processing: false,
+        reading: false,
     });
     assert.equal(textarea.props.onPoll, undefined);
     assert.equal(typeof textarea.props.onImage, 'function');
