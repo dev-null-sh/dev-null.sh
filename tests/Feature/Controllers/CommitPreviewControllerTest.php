@@ -35,6 +35,14 @@ it('does not replace the page a guest returns to after signing in', function ():
         ->assertSessionHas('url.intended', $intended);
 });
 
+it('does not set a sign-in destination when a guest loads preview JSON', function (): void {
+    $commit = Commit::factory()->create();
+
+    $this->getJson(route('commit-preview.show', [$commit->author, $commit]))
+        ->assertOk()
+        ->assertSessionMissing('url.intended');
+});
+
 it('does not expose pending or rejected linked commits to other viewers', function (CommitStatus $status, bool $signedIn): void {
     $commit = Commit::factory()->create(['status' => $status]);
 

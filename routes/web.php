@@ -274,6 +274,7 @@ Route::middleware([RememberIntendedUrl::class, RedirectToHandleCase::class])->gr
         ->scopeBindings()
         ->name('commit.show');
     Route::get('@{profile:handle}/commits/{commit}/preview', [CommitPreviewController::class, 'show'])
+        ->withoutMiddleware(RememberIntendedUrl::class)
         ->scopeBindings()
         ->whereUuid('commit')
         ->name('commit-preview.show');

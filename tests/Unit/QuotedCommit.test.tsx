@@ -132,6 +132,25 @@ test('shows the images, link card and embed of a quoted commit inside the single
     }
 });
 
+
+test('shows one linked commit card inside an ordinary quote without nesting links', async () => {
+    const body = await render(false, {
+        ...commit,
+        link_preview: {
+            url: 'https://dev-null.sh/@author/commits/123e4567-e89b-12d3-a456-426614174000',
+            title: null,
+            description: null,
+            image_url: null,
+            site_name: null,
+            is_pending: false,
+            commit_preview_url: '/@author/commits/123e4567-e89b-12d3-a456-426614174000/preview',
+        },
+    });
+
+    assert.match(body, /Loading linked commit/);
+    assert.equal(body.match(/<a\b/g)?.length, 1);
+});
+
 test('cuts a long quoted commit off at its preview', async () => {
     const body = await render(false, {
         ...commit,

@@ -3,7 +3,13 @@ import { QuotedCommit } from '@/components/quoted-commit';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { QuotedCommit as QuotedCommitData } from '@/types';
 
-export function CommitLinkPreview({ url }: { url: string }) {
+export function CommitLinkPreview({
+    url,
+    isStatic = false,
+}: {
+    url: string;
+    isStatic?: boolean;
+}) {
     const [commit, setCommit] = useState<QuotedCommitData | null>();
 
     useEffect(() => {
@@ -50,5 +56,12 @@ export function CommitLinkPreview({ url }: { url: string }) {
         );
     }
 
-    return <QuotedCommit commit={commit} label="Linked commit" />;
+    return (
+        <QuotedCommit
+            commit={commit}
+            label="Linked commit"
+            isPreview={isStatic}
+            suppressLinkedPreview
+        />
+    );
 }

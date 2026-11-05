@@ -189,14 +189,15 @@ type LinkPreviewProps = {
     preview: LinkPreviewData;
     isStatic?: boolean;
     source?: LinkPreviewSource;
+    suppressLinkedPreview?: boolean;
 };
 
 export function LinkPreview(props: LinkPreviewProps) {
     const url = props.preview.commit_preview_url;
 
     if (url) {
-        return props.isStatic ? null : (
-            <CommitLinkPreview key={url} url={url} />
+        return props.suppressLinkedPreview ? null : (
+            <CommitLinkPreview key={url} url={url} isStatic={props.isStatic} />
         );
     }
 

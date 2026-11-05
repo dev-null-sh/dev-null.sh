@@ -49,9 +49,17 @@ test('fetches current commit data once instead of polling cached link metadata',
     const rendered = CommitLinkPreview({ url }) as ReactElement<{
         commit: QuotedCommitData;
         label: string;
+        isPreview: boolean;
+        suppressLinkedPreview: boolean;
     }>;
     assert.deepEqual(rendered.props.commit, commit);
     assert.equal(rendered.props.label, 'Linked commit');
+    assert.equal(rendered.props.isPreview, false);
+    assert.equal(rendered.props.suppressLinkedPreview, true);
+    const staticCard = CommitLinkPreview({ url, isStatic: true }) as ReactElement<{
+        isPreview: boolean;
+    }>;
+    assert.equal(staticCard.props.isPreview, true);
     assert.equal(fetch.mock.calls.length, 1);
     assert.equal(fetch.mock.calls[0][0], url);
     assert.equal(fetch.mock.calls[0][1]?.cache, 'no-store');
@@ -107,5 +115,12 @@ test('uses the actual commit preview and stops at one nesting level', () => {
 
     assert.equal(rendered.type, CommitLinkPreview);
     assert.equal(rendered.props.url, url);
-    assert.equal(LinkPreview({ ...props, isStatic: true }), null);
+
+    // Static quotes keep the first linked card, but must not nest an interactive link.
+    const staticCard = LinkPreview({ ...props, isStatic: true }) as ReactElement<{
+        isStatic: boolean;
+    }>;
+    assert.equal(staticCard.type, CommitLinkPreview);
+    assert.equal(staticCard.props.isStatic, true);
+    assert.equal(LinkPreview({ ...props, suppressLinkedPreview: true }), null);
 });
