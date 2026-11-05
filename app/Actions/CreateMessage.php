@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Enums\RemoteStatus;
+use App\Enums\UserUpdate;
+use App\Events\UsersUpdated;
 use App\Jobs\SendRemotePush;
 use App\Jobs\UnfurlLink;
 use App\Models\Conversation;
@@ -45,6 +47,8 @@ final readonly class CreateMessage
         ConversationParticipant::query()
             ->where('conversation_id', $conversation->id)
             ->update(['last_message_at' => $message->created_at, ...$unstash ? ['archived_at' => null] : []]);
+
+        event(new UsersUpdated(ConversationParticipant::query()->where('conversation_id', $conversation->id)->pluck('user_id'), UserUpdate::Messages, ['conversation' => $conversation->id]));
     }
 
     /**
@@ -90,11 +94,9 @@ final readonly class CreateMessage
 
             self::advance($conversation, $message, unstash: true);
 
-            if (config('services.web_push.public_key') && config('services.web_push.private_key')) {
-                foreach (ConversationParticipant::query()->where('conversation_id', $conversation->id)
-                    ->where('user_id', '!=', $sender->id)->whereHas('user.pushSubscriptions')->get(['user_id']) as $participant) {
-                    dispatch(new SendRemotePush($message->id, $participant->user_id))->delay(now()->addSeconds(10))->afterCommit();
-                }
+            foreach (ConversationParticipant::query()->where('conversation_id', $conversation->id)
+                ->where('user_id', '!=', $sender->id)->whereHas('user.pushSubscriptions')->get(['user_id']) as $participant) {
+                dispatch(new SendRemotePush($message->id, $participant->user_id))->delay(now()->addSeconds(10))->afterCommit();
             }
 
             ConversationParticipant::query()

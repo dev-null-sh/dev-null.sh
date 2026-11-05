@@ -30,6 +30,7 @@ it('creates tom once, with a single welcome commit and no github account', funct
     $commit = $tom->commits()->sole();
 
     expect($commit->body)->toBe('Welcome to dev/null!')
+        ->and($commit->author_id)->toBe($tom->id)
         ->and($commit->status)->toBe(CommitStatus::Approved)
         ->and($tom->hasGitHubAccount())->toBeFalse()
         ->and($tom->following()->count())->toBe(2);

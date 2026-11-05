@@ -48,6 +48,6 @@ final class UnfurlLink implements ShouldQueue
      */
     public function failed(): void
     {
-        $this->linkPreview->update(['fetched_at' => now()]);
+        resolve(UpdateLinkPreview::class)->handle($this->linkPreview, hasFailed: true);
     }
 }

@@ -13,11 +13,11 @@ it('returns a visible commit with the content needed by its quote card', functio
     $commit = Commit::factory()->create(['body' => "Hello\n```php\nreturn true;\n```"]);
     $image = CommitImage::factory()->for($commit)->create();
 
-    $this->getJson(route('commit-preview.show', [$commit->user, $commit]))
+    $this->getJson(route('commit-preview.show', [$commit->author, $commit]))
         ->assertOk()
         ->assertHeader('Cache-Control', 'no-store, private')
         ->assertJsonPath('commit.id', $commit->id)
-        ->assertJsonPath('commit.user.id', $commit->user_id)
+        ->assertJsonPath('commit.author.handle', $commit->author->handle)
         ->assertJsonPath('commit.body', $commit->body)
         ->assertJsonPath('commit.body_segments.1.type', 'block')
         ->assertJsonPath('commit.images.0.id', $image->id)
@@ -30,7 +30,7 @@ it('does not replace the page a guest returns to after signing in', function ():
     $intended = route('user.show', $commit->user);
 
     $this->withSession(['url.intended' => $intended])
-        ->getJson(route('commit-preview.show', [$commit->user, $commit]))
+        ->getJson(route('commit-preview.show', [$commit->author, $commit]))
         ->assertOk()
         ->assertSessionHas('url.intended', $intended);
 });
@@ -42,13 +42,13 @@ it('does not expose pending or rejected linked commits to other viewers', functi
         $this->actingAs(User::factory()->create());
     }
 
-    $this->getJson(route('commit-preview.show', [$commit->user, $commit]))->assertNotFound();
+    $this->getJson(route('commit-preview.show', [$commit->author, $commit]))->assertNotFound();
 })->with([CommitStatus::Pending, CommitStatus::Rejected])->with([false, true]);
 
 it('lets the author preview their own unpublished commit', function (CommitStatus $status): void {
     $commit = Commit::factory()->create(['status' => $status]);
 
-    $this->actingAs($commit->user)->getJson(route('commit-preview.show', [$commit->user, $commit]))
+    $this->actingAs($commit->user)->getJson(route('commit-preview.show', [$commit->author, $commit]))
         ->assertOk()->assertJsonPath('commit.id', $commit->id);
 })->with([CommitStatus::Pending, CommitStatus::Rejected]);
 
@@ -57,21 +57,21 @@ it('hides linked commits across a block in either direction', function (bool $vi
     $commit = Commit::factory()->create();
     $viewerBlocks ? $viewer->blocking()->attach($commit->user) : $commit->user->blocking()->attach($viewer);
 
-    $this->actingAs($viewer)->getJson(route('commit-preview.show', [$commit->user, $commit]))->assertNotFound();
+    $this->actingAs($viewer)->getJson(route('commit-preview.show', [$commit->author, $commit]))->assertNotFound();
 })->with([false, true]);
 
 it('does not resolve deleted commits or a commit under the wrong author', function (): void {
     $commit = Commit::factory()->create();
 
-    $this->getJson(route('commit-preview.show', [User::factory()->create(), $commit]))->assertNotFound();
+    $this->getJson(route('commit-preview.show', [User::factory()->create()->profile, $commit]))->assertNotFound();
     $commit->delete();
-    $this->getJson(route('commit-preview.show', [$commit->user, $commit]))->assertNotFound();
+    $this->getJson(route('commit-preview.show', [$commit->author, $commit]))->assertNotFound();
 });
 
 it('shows linked poll results only when the viewer may see them', function (): void {
     $viewer = User::factory()->create();
     $poll = Poll::factory()->withOptions('Tabs', 'Spaces')->create();
-    $url = route('commit-preview.show', [$poll->commit->user, $poll->commit]);
+    $url = route('commit-preview.show', [$poll->commit->author, $poll->commit]);
 
     $this->getJson($url)->assertOk()->assertJsonPath('commit.poll.total_votes', null);
 

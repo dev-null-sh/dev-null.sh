@@ -21,6 +21,8 @@ declare module '@inertiajs/core' {
             submitted?: string;
             localSignIn?: boolean;
             signedUp?: boolean;
+            claimFailed?: { message: string; githubUrl: string | null };
+            lookupThrottled?: true;
         };
         sharedPageProps: {
             name: string;
@@ -29,15 +31,22 @@ declare module '@inertiajs/core' {
             /** For guests: how many developers are here, rounded down (12,000). */
             developersCount: number | null;
             hasUnmoderatedCommits: boolean;
+            isMobileApp: boolean;
             sidebarOpen: boolean;
             showsWhoToFollow: boolean;
             dimsLanes: boolean;
+            /** The event theme on the page for this reader, if any. */
+            eventTheme: string | null;
+            /** The year a New Year greeting wishes. */
+            eventYear: number;
+            eventThemeChoice: string;
             repliesPerPage: number;
             clock: SharedClock;
             /** When the server rendered the page, in milliseconds. */
             now: number;
             suggestedUsers?: SuggestedUser[];
             liveFollowing?: User[];
+            hotTopics?: { id: string; name: string; summary: string | null }[];
             [key: string]: unknown;
         };
     }

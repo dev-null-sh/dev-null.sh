@@ -4,9 +4,14 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
-use App\Ai\Agents\CommitTranslator;
+use App\Contracts\Services\TranslationProvider;
 use App\Enums\CommitStatus;
+use App\Enums\CommitUpdate;
+use App\Enums\UserUpdate;
+use App\Events\CommitsUpdated;
+use App\Events\UsersUpdated;
 use App\Exceptions\CommitProcessingFailed;
+use App\Exceptions\InvalidTranslation;
 use App\Models\Commit;
 use App\Services\CommitTranslations;
 use Illuminate\Support\Facades\Cache;
@@ -16,7 +21,7 @@ use Throwable;
 
 final readonly class CreateCommitTranslation
 {
-    public function __construct(private CommitTranslations $translations)
+    public function __construct(private CommitTranslations $translations, private TranslationProvider $translator)
     {
         //
     }
@@ -25,7 +30,7 @@ final readonly class CreateCommitTranslation
     {
         $key = $this->translations->key($commit);
 
-        Cache::lock($key.':lock', 90)->block(35, function () use ($commit, $language, $key): void {
+        Cache::lock($key.':lock', 90)->block(5, function () use ($commit, $language, $key): void {
             $cached = $this->translations->cached($commit);
 
             if ($cached !== null && ($language === null || isset($cached['translations'][$language]) || in_array($cached['source_language'], [$language, 'und'], true))) {
@@ -35,15 +40,10 @@ final readonly class CreateCommitTranslation
             $reason = 'provider_request';
 
             try {
-                $response = new CommitTranslator($language)->prompt($commit->body);
-
-                $source = $response['source_language'] ?? null;
-                $body = $response['body'] ?? null;
+                ['source_language' => $source, 'body' => $body] = $this->translator->translate($commit->body, $language);
 
                 $reason = match (true) {
-                    $response->structured === [] => 'empty_or_malformed_response',
-                    ! is_string($source), ! is_string($body) => 'invalid_response_shape',
-                    ! in_array($source, [...$this->translations->languages(), 'und'], true) => 'unsupported_source_language',
+                    preg_match('/^[a-z]{2,3}\z/', $source) !== 1 => 'unsupported_source_language',
                     $language !== null && $source !== 'und' && blank($body) => 'empty_translation',
                     $language !== null && $source !== 'und' && mb_strlen($body) > 16000 => 'translation_too_long',
                     default => null,
@@ -52,6 +52,8 @@ final readonly class CreateCommitTranslation
                 if ($reason !== null) {
                     throw new RuntimeException('Invalid translation response.');
                 }
+            } catch (InvalidTranslation $invalid) {
+                throw new CommitProcessingFailed('Translation', $commit->id, new RuntimeException($invalid->getMessage()), $invalid->reason);
             } catch (Throwable $throwable) {
                 throw new CommitProcessingFailed('Translation', $commit->id, $throwable, $reason);
             }
@@ -71,7 +73,12 @@ final readonly class CreateCommitTranslation
 
                 $expiresAt = $cached['expires_at'] ?? now()->getTimestamp() + CommitTranslations::TTL_SECONDS;
 
-                Cache::memo()->put($key, ['source_language' => $source, 'translations' => $translations, 'expires_at' => $expiresAt], max(1, $expiresAt - now()->getTimestamp()));
+                Cache::memo()->put($key, ['source_language' => $source, 'translations' => $translations, 'expires_at' => $expiresAt, 'translated_at' => now()->getTimestampMs()], max(1, $expiresAt - now()->getTimestamp()));
+
+                // Each reader shows it in their own language, so they read it again.
+                $current->status === CommitStatus::Approved
+                    ? event(new CommitsUpdated([$current], CommitUpdate::Translation))
+                    : event(new UsersUpdated(array_filter([$current->user_id]), UserUpdate::Commits));
             });
         });
     }

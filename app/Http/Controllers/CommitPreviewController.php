@@ -7,6 +7,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\CreateCommitPreviewRequest;
 use App\Http\Requests\ShowCommitPreviewRequest;
 use App\Models\Commit;
+use App\Models\Profile;
 use App\Models\User;
 use App\Queries\CommitPreviewQuery;
 use App\Queries\MentionedOrganizationsQuery;
@@ -18,10 +19,10 @@ use Illuminate\Http\JsonResponse;
 
 final readonly class CommitPreviewController
 {
-    public function show(ShowCommitPreviewRequest $request, #[CurrentUser] ?User $currentUser, User $user, Commit $commit, CommitPreviewQuery $preview): JsonResponse
+    public function show(ShowCommitPreviewRequest $request, #[CurrentUser] ?User $currentUser, Profile $profile, Commit $commit, CommitPreviewQuery $preview): JsonResponse
     {
         return response()->json([
-            'commit' => $preview->get($commit, $user, $currentUser),
+            'commit' => $preview->get($commit, $profile, $currentUser),
         ])->header('Cache-Control', 'private, no-store');
     }
 

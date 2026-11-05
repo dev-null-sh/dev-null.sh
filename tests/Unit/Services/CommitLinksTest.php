@@ -9,7 +9,7 @@ it('uses the commit route parameters for a link on this site', function (string 
     $id = '123e4567-e89b-12d3-a456-426614174000';
 
     expect(resolve(CommitLinks::class)->previewUrl("https://dev-null.sh/@author/commits/{$id}{$suffix}"))
-        ->toBe(route('commit-preview.show', ['user' => 'author', 'commit' => $id], absolute: false));
+        ->toBe(route('commit-preview.show', ['profile' => 'author', 'commit' => $id], absolute: false));
 })->with(['', '?from=log#reply', '/']);
 
 it('does not resolve other sites or routes as commit previews', function (string $url): void {

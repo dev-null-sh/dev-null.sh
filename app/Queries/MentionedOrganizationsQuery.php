@@ -4,10 +4,9 @@ declare(strict_types=1);
 
 namespace App\Queries;
 
-use App\Enums\ProfileType;
-use App\Models\Profile;
+use App\Models\Organization;
 use App\Services\Mentions;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Str;
 
 final readonly class MentionedOrganizationsQuery
@@ -32,11 +31,10 @@ final readonly class MentionedOrganizationsQuery
             return [];
         }
 
-        return Profile::query()
-            ->where('type', ProfileType::Organization)
-            ->whereIn(DB::raw('LOWER(handle)'), $handles)
-            ->get(['id', 'handle'])
-            ->mapWithKeys(fn (Profile $organization): array => [Str::lower($organization->handle) => $organization->id])
+        return Organization::query()
+            ->whereHas('profile', fn (Builder $query): Builder => $query->whereIn('handle', $handles))
+            ->get()
+            ->mapWithKeys(fn (Organization $organization): array => [Str::lower($organization->handle) => $organization->id])
             ->all();
     }
 }

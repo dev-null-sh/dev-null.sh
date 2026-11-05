@@ -40,6 +40,6 @@ final readonly class CommitLinks
             return null;
         }
 
-        return route('commit-preview.show', ['user' => $matches['user'], 'commit' => $matches['commit']], absolute: false);
+        return route('commit-preview.show', ['profile' => $matches['profile'], 'commit' => $matches['commit']], absolute: false);
     }
 }
