@@ -16,7 +16,18 @@ function errorCopy(
     status: Status,
     path: string,
     handle: string | null,
+    eventTheme: string | null,
 ): ErrorCopy {
+    if (status === 404 && eventTheme === 'halloween') {
+        return {
+            title: 'Ghost not found',
+            command: `fatal: ghost '${path}' not found in 'HEAD'`,
+            headline: 'Ghost not found.',
+            description:
+                'Whatever lived here has passed to the other side. The link may be mistyped, or the page may be haunting a different path.',
+        };
+    }
+
     switch (status) {
         case 403:
             return {
@@ -66,7 +77,12 @@ function errorCopy(
 export default function ErrorPage({ status }: { status: Status }) {
     const page = usePage();
     const path = page.url.split('?')[0];
-    const copy = errorCopy(status, path, page.props.auth.user?.handle ?? null);
+    const copy = errorCopy(
+        status,
+        path,
+        page.props.auth.user?.handle ?? null,
+        page.props.eventTheme,
+    );
     const homeAction = useHomeAction();
     const action =
         status === 503 ? { label: 'Try again', href: home() } : homeAction;

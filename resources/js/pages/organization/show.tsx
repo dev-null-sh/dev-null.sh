@@ -1,5 +1,5 @@
 import { Head, Link, usePage } from '@inertiajs/react';
-import { AlertCircleIcon, Link2, MapPin, Settings } from 'lucide-react';
+import { AlertCircleIcon, Flag, Link2, MapPin, Settings } from 'lucide-react';
 import type { CSSProperties } from 'react';
 import { useState } from 'react';
 import { show } from '@/actions/App/Http/Controllers/UserController';
@@ -79,19 +79,6 @@ export default function Show({
                     />
 
                     <div className="flex min-w-0 flex-wrap justify-end gap-1.5 sm:gap-2">
-                        {canClaim && (
-                            <Button variant="outline" asChild>
-                                {/* A form, so no other site can claim for the user. */}
-                                <Link
-                                    href={claimUrl}
-                                    method="post"
-                                    as="button"
-                                    preserveState={false}
-                                >
-                                    Claim
-                                </Link>
-                            </Button>
-                        )}
                         {settingsUrl && (
                             <Button variant="outline" asChild>
                                 <Link href={settingsUrl} prefetch>
@@ -205,6 +192,36 @@ export default function Show({
                                 @{admin.handle}
                             </Link>
                         ))}
+                    </div>
+                )}
+
+                {canClaim && (
+                    <div className="mt-4 flex flex-wrap items-start gap-x-3.5 gap-y-3 rounded-lg border border-primary/25 bg-primary-soft px-4 py-3.5">
+                        <Flag
+                            aria-hidden
+                            className="mt-0.5 size-5 shrink-0 text-primary"
+                        />
+                        <div className="min-w-0 flex-[999_1_16rem]">
+                            <p className="font-semibold">
+                                Nobody has claimed @{organization.handle} yet
+                            </p>
+                            <p className="mt-0.5 text-sm text-pretty">
+                                This page is waiting for its team. A member of{' '}
+                                {organization.name} on GitHub can claim it, then
+                                post as the organization and add teammates.
+                            </p>
+                        </div>
+                        <Button className="ml-8.5 sm:ml-0" asChild>
+                            {/* A form, so no other site can claim for the user. */}
+                            <Link
+                                href={claimUrl}
+                                method="post"
+                                as="button"
+                                preserveState={false}
+                            >
+                                Claim
+                            </Link>
+                        </Button>
                     </div>
                 )}
 

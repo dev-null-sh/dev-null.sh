@@ -3,12 +3,18 @@
 declare(strict_types=1);
 
 use App\Actions\CreateHeadlineSummary;
+use App\Ai\Agents\HeadlineSummaryWriter;
 use App\Contracts\Services\HeadlineProvider;
 use App\Enums\CommitStatus;
 use App\Exceptions\HeadlineSummaryFailed;
 use App\Jobs\GenerateHeadlineSummary;
 use App\Models\Commit;
 use App\Models\Headline;
+use App\Services\HeadlineProviders\OpenAIHeadlineProvider;
+use Laravel\Ai\Classification;
+use Laravel\Ai\Prompts\AgentPrompt;
+use Laravel\Ai\Prompts\ClassificationPrompt;
+use Laravel\Ai\Responses\Data\BooleanAnswer;
 
 it('summarizes only recent public top-level posts with one strongest contribution per author', function (): void {
     $headline = Headline::factory()->create(['name' => 'Vector databases']);
@@ -20,7 +26,6 @@ it('summarizes only recent public top-level posts with one strongest contributio
     Commit::factory()->pending()->hasAttached($headline)->create();
     Commit::factory()->rejected()->hasAttached($headline)->create();
     Commit::factory()->hasAttached($headline)->create(['deleted_at' => now()]);
-    Commit::factory()->for($strongest, 'parent')->hasAttached($headline)->create();
     Commit::factory()->create(['body' => 'An unrelated topic']);
     $this->mock(HeadlineProvider::class)->shouldReceive('summarize')->once()->with('Vector databases', Mockery::on(
         fn (array $bodies): bool => count($bodies) === 2
@@ -35,6 +40,34 @@ it('summarizes only recent public top-level posts with one strongest contributio
         ->and($headline->toArray())->toBe(['name' => 'Vector databases']);
 });
 
+it('gives the recap decision and writer the same public reply context without classifying replies', function (): void {
+    $headline = Headline::factory()->create(['name' => 'Vector index memory usage']);
+    $root = Commit::factory()->hasAttached($headline)->create(['body' => 'Has anyone measured index memory?']);
+    $reply = Commit::factory()->for($root, 'parent')->create(['body' => 'Our index used 2 GB for one million vectors.']);
+    Commit::factory()->for($reply, 'parent')->create(['body' => 'Reducing dimensions halved that in our test.']);
+    Commit::factory()->pending()->for($root, 'parent')->create();
+    Commit::factory()->rejected()->for($root, 'parent')->create();
+    Commit::factory()->for($root, 'parent')->create(['deleted_at' => now()]);
+    Commit::factory()->for($root, 'parent')->create(['body' => '']);
+    Commit::factory()->for($root, 'parent')->create(['created_at' => now()->addSecond()]);
+    Commit::factory()->for(Commit::factory(), 'parent')->create();
+    $input = json_encode(['headline' => $headline->name, 'posts' => [json_encode([
+        'post' => 'Has anyone measured index memory?',
+        'replies' => ['Our index used 2 GB for one million vectors.', 'Reducing dimensions halved that in our test.'],
+    ], JSON_THROW_ON_ERROR)]], JSON_THROW_ON_ERROR);
+    Classification::fake([['decision' => new BooleanAnswer(1)]])->preventStrayClassifications();
+    HeadlineSummaryWriter::fake([['summary' => 'A million-vector index reportedly used 2 GB; reducing dimensions halved memory use in another test.']])->preventStrayPrompts();
+    $this->app->bind(HeadlineProvider::class, OpenAIHeadlineProvider::class);
+
+    new GenerateHeadlineSummary($headline->id)->handle(resolve(CreateHeadlineSummary::class));
+
+    Classification::assertClassified(fn (ClassificationPrompt $prompt): bool => $prompt->state === $input && count($prompt) === 1 && $prompt->asks('decision'));
+    HeadlineSummaryWriter::assertPrompted(fn (AgentPrompt $prompt): bool => $prompt->prompt === $input);
+    expect($headline->refresh()->summary)->toBe('A million-vector index reportedly used 2 GB; reducing dimensions halved memory use in another test.')
+        ->and($reply->refresh()->headlines_classified_at)->toBeNull()
+        ->and($reply->headlines()->exists())->toBeFalse();
+});
+
 it('bounds the recap to the hundred strongest authors', function (): void {
     $headline = Headline::factory()->create();
     Commit::factory()->count(100)->hasAttached($headline)->create(['body' => 'Useful experience', 'hot_score' => 10]);
@@ -44,6 +77,21 @@ it('bounds the recap to the hundred strongest authors', function (): void {
     new GenerateHeadlineSummary($headline->id)->handle(resolve(CreateHeadlineSummary::class));
 
     expect($headline->refresh()->summary)->toBe('A useful recap.');
+});
+
+it('bounds reply context to the newest hundred replies across the selected threads', function (): void {
+    $headline = Headline::factory()->create();
+    $root = Commit::factory()->hasAttached($headline)->create(['body' => 'An index memory regression.']);
+    $older = Commit::factory()->hasAttached($headline)->create(['created_at' => now()->subHours(9)]);
+    Commit::factory()->for($older, 'parent')->create(['body' => 'A reply in an expired thread.']);
+    Commit::factory()->for($root, 'parent')->create(['body' => 'Outside the reply sample.', 'created_at' => now()->subMinute()]);
+    Commit::factory()->count(100)->for($root, 'parent')->create(['body' => 'Recent measurements.']);
+    $input = json_encode(['post' => 'An index memory regression.', 'replies' => array_fill(0, 100, 'Recent measurements.')], JSON_THROW_ON_ERROR);
+    $this->mock(HeadlineProvider::class)->shouldReceive('summarize')->once()->with($headline->name, [$input])->andReturn('A grounded recap.');
+
+    new GenerateHeadlineSummary($headline->id)->handle(resolve(CreateHeadlineSummary::class));
+
+    expect($headline->refresh()->summary)->toBe('A grounded recap.');
 });
 
 it('reuses a recap until exactly two hours and then regenerates it', function (): void {
@@ -112,6 +160,25 @@ it('discards a generated recap if its source becomes unavailable before publicat
 
     expect($headline->fresh()?->summary)->toBeNull();
 })->with(['deleted', 'rejected', 'detached', 'erased', 'headline removed']);
+
+it('discards a recap if a reply is removed during generation', function (string $change): void {
+    $headline = Headline::factory()->create();
+    $root = Commit::factory()->hasAttached($headline)->create();
+    $reply = Commit::factory()->for($root, 'parent')->create();
+    $this->mock(HeadlineProvider::class)->shouldReceive('summarize')->once()->andReturnUsing(function () use ($reply, $change): string {
+        match ($change) {
+            'deleted' => $reply->delete(),
+            'rejected' => $reply->update(['status' => CommitStatus::Rejected]),
+            'erased' => $reply->update(['body' => '']),
+        };
+
+        return 'Must not retain removed reply content.';
+    });
+
+    new GenerateHeadlineSummary($headline->id)->handle(resolve(CreateHeadlineSummary::class));
+
+    expect($headline->refresh()->summary)->toBeNull();
+})->with(['deleted', 'rejected', 'erased']);
 
 it('keeps a fresh recap published while another generator was running', function (): void {
     $headline = Headline::factory()->create();

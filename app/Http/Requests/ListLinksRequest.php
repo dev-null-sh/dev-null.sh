@@ -21,6 +21,7 @@ final class ListLinksRequest extends FormRequest
     {
         return [
             'url' => ['nullable', 'string', 'max:'.Urls::MAX_LENGTH],
+            'lookup' => ['sometimes', 'string', 'regex:/^[A-Za-z0-9]{24}$/'],
         ];
     }
 

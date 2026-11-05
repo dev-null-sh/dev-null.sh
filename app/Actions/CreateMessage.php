@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Enums\RemoteStatus;
+use App\Enums\UserUpdate;
+use App\Events\UsersUpdated;
 use App\Jobs\SendRemotePush;
 use App\Jobs\UnfurlLink;
 use App\Models\Conversation;
@@ -45,6 +47,8 @@ final readonly class CreateMessage
         ConversationParticipant::query()
             ->where('conversation_id', $conversation->id)
             ->update(['last_message_at' => $message->created_at, ...$unstash ? ['archived_at' => null] : []]);
+
+        event(new UsersUpdated(ConversationParticipant::query()->where('conversation_id', $conversation->id)->pluck('user_id'), UserUpdate::Messages, ['conversation' => $conversation->id]));
     }
 
     /**

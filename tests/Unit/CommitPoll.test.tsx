@@ -71,7 +71,7 @@ for (const results of [false, true]) {
         assert.match(markup, /<code[^>]*>rm -rf<\/code>/);
         assert.ok(markup.includes(`href="/mentions/${mentionedId}"`));
         assert.equal(markup.match(/data-test="mention"/g)?.length, 1);
-        assert.ok(markup.includes('or @bob'));
+        assert.match(markup, /or <a[^>]*href="\/@bob"[^>]*>@bob<\/a>/);
     });
 }
 

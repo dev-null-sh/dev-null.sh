@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Contracts\Services\GitHubProvider;
 use App\Models\Organization;
+use App\Models\Profile;
 use App\Models\User;
 
 it('renders a link preview image of a profile for guests', function (): void {
@@ -104,6 +105,21 @@ it('reuses the rendered image of an organization until it changes', function ():
     $organization->profile->update(['bio' => 'Updated on GitHub.']);
 
     $this->get('/@laravel/og.png')->assertOk();
+});
+
+it('renders the link preview image of an unclaimed developer, again once their GitHub profile changes', function (): void {
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('avatar')->once()->andReturn(fakeAvatar());
+
+    $profile = Profile::factory()->create(['handle' => 'octocat']);
+
+    $this->get('/@octocat/og.png')->assertOk()->assertHeader('Content-Type', 'image/png');
+    $this->get('/@octocat/og.png')->assertOk();
+
+    $github->shouldReceive('avatar')->once()->andReturn(fakeAvatar());
+    $profile->update(['bio' => 'Updated on GitHub.']);
+
+    $this->get('/@octocat/og.png')->assertOk();
 });
 
 it('returns not found for unknown handles', function (): void {

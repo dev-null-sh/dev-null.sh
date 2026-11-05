@@ -23,16 +23,20 @@ final class LinkCommitHeadlines implements ShouldQueue
 {
     use Queueable;
 
+    public bool $reclassify = false;
+
     /** @param list<string> $names */
-    public function __construct(public readonly Commit $commit, public readonly array $names, public readonly string $bodyHash)
+    public function __construct(public readonly Commit $commit, public readonly array $names, public readonly string $bodyHash, bool $reclassify = false)
     {
-        //
+        if ($reclassify) {
+            $this->reclassify = true;
+        }
     }
 
     public function handle(UpdateCommitHeadlines $action): ?int
     {
         try {
-            return $action->handle($this->commit, $this->names, $this->bodyHash);
+            return $action->handle($this->commit, $this->names, $this->bodyHash, $this->reclassify);
         } catch (Throwable $throwable) {
             throw new CommitProcessingFailed('Headline assignment', $this->commit->id, $throwable);
         }

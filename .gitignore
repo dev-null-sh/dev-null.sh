@@ -43,6 +43,7 @@ _ide_helper.php
 /.codex
 /.cursor
 /.junie
+/.idecli
 
 **/caddy
 frankenphp

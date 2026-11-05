@@ -93,16 +93,32 @@ it('shows no commits for a link nobody used as their card', function (): void {
         ->where('commits', null));
 });
 
-it('accepts a long link lookup in a POST request body', function (): void {
+it('uses a short session-backed GET URL for oversized link lookups', function (): void {
     $url = 'https://example.com/'.str_repeat('a', 1900);
     $link = LinkPreview::factory()->fetched()->create(['url' => $url]);
     $first = Commit::factory()->create(['link_preview_id' => $link->id]);
 
-    $this->actingAs(User::factory()->create())
-        ->post(route('link.index'), ['url' => $url])
+    $response = $this->actingAs(User::factory()->create())
+        ->post(route('link.lookup'), ['url' => $url])
+        ->assertRedirect();
+
+    $location = $response->headers->get('Location');
+    expect($location)->toBeString()->toContain('lookup=');
+
+    // The GET destination remains valid on refresh and for cursor pagination.
+    $this->get($location)
         ->assertOk()
         ->assertInertia(fn ($page) => $page
             ->component('links/index')
             ->where('url', $url)
             ->where('commits.data.0.id', $first->id));
+
+    $this->get($location)->assertOk()->assertInertia(fn ($page) => $page
+        ->where('url', $url));
+});
+
+it('does not accept an unknown long-link lookup token', function (): void {
+    $this->actingAs(User::factory()->create())
+        ->get(route('link.index', ['lookup' => str_repeat('X', 24)]))
+        ->assertNotFound();
 });

@@ -1,4 +1,4 @@
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
 import { Ban } from 'lucide-react';
 import UserBlockController from '@/actions/App/Http/Controllers/UserBlockController';
 import { EmptyFeed } from '@/components/commit-feed';
@@ -45,7 +45,12 @@ export default function Unavailable({
                                             blockedUser,
                                         )}
                                         as="button"
-                                        onSuccess={clearMentionSuggestionsCache}
+                                        onSuccess={() => {
+                                            clearMentionSuggestionsCache();
+                                            router.reload({
+                                                only: ['hotTopics'],
+                                            });
+                                        }}
                                         data-test="unblock-button"
                                     >
                                         <Ban />

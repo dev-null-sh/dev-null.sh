@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Enums\UserUpdate;
+use App\Events\UsersUpdated;
 use App\Models\User;
 
 final readonly class CreateSuggestionDismissal
@@ -13,6 +15,9 @@ final readonly class CreateSuggestionDismissal
      */
     public function handle(User $user, User $dismissed): void
     {
-        $user->dismissedSuggestions()->syncWithoutDetaching([$dismissed->id]);
+        $changes = $user->dismissedSuggestions()->syncWithoutDetaching([$dismissed->id]);
+        if ($changes['attached'] !== []) {
+            event(new UsersUpdated([$user->id], UserUpdate::Suggestions));
+        }
     }
 }

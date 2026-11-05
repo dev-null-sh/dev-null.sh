@@ -37,6 +37,7 @@ const toasts: string[] = [];
 vi.doMock('react', () => ({
     ...React,
     useEffect: () => {},
+    useEffectEvent: (callback: unknown) => callback,
     useLayoutEffect: () => {},
     useRef: (initial: unknown) => ({ current: initial }),
     useState: (initial: unknown) => [
@@ -100,7 +101,7 @@ vi.doMock('../../resources/js/lib/chat', async () => ({
     blockPartner: async () => true,
 }));
 
-const { FollowButton } =
+const { FollowButton, prepareFollowingUpdate } =
     await import('../../resources/js/components/follow-button');
 const { UserPreview } =
     await import('../../resources/js/components/user-preview');
@@ -195,11 +196,18 @@ function isSuggested(user: SuggestedUser): boolean {
     return row.props.inert !== true;
 }
 
-function blockFromSafetyMenu(user: SuggestedUser): void {
-    const block = find(
+function safetyMenuBlock(user: SuggestedUser): ReactElement<Props> | null {
+    const dialog = find(
         UserSafetyMenu({ user, isMuting: false, isBlocking: false }),
-        (props) => props.children === 'Block',
+        (props) => 'open' in props && props.user === user,
     );
+    assert.ok(dialog);
+
+    return find(render(dialog), (props) => props.children === 'Block');
+}
+
+function blockFromSafetyMenu(user: SuggestedUser): void {
+    const block = safetyMenuBlock(user);
     assert.ok(block);
     (block.props.onClick as () => void)();
     visits.at(-1)?.onSuccess?.();
@@ -260,6 +268,50 @@ function previewFollowersCount(
     )?.props.children;
 }
 
+function previewMenu(
+    user: SuggestedUser,
+    canPush: boolean,
+): ReactElement<Props> {
+    showPreview = true;
+    const preview = UserPreview({ user: user as User, children: user.name });
+    showPreview = false;
+
+    const content = find(preview, (props) => 'onMenuOpenChange' in props);
+    assert.ok(content);
+
+    const menu = find(
+        render({
+            ...content,
+            props: {
+                ...content.props,
+                data: {
+                    isFollowing: false,
+                    followsYou: true,
+                    isMuting: false,
+                    isBlocking: false,
+                    isUnavailable: false,
+                    canPush,
+                    user: { ...user, followers_count: 0 } as unknown as Profile,
+                },
+            },
+        }),
+        (props) => 'isMuting' in props,
+    );
+    assert.ok(menu);
+
+    return menu;
+}
+
+function previewRemote(
+    user: SuggestedUser,
+    canPush: boolean,
+): ReactElement<Props> | null {
+    return find(
+        render(previewMenu(user, canPush)),
+        (props) => props['data-test'] === 'user-remote',
+    );
+}
+
 function followFromProfile(user: SuggestedUser): void {
     const profileButton = find(
         FollowButton({ user, isFollowing: false }),
@@ -271,6 +323,111 @@ function followFromProfile(user: SuggestedUser): void {
     (profileButton.props.onSuccess as () => void)();
     (profileButton.props.onFinish as () => void)();
 }
+
+test('a live follow read cannot undo a follow completed after that read began', () => {
+    const user = suggestion('newer-follow');
+    const apply = prepareFollowingUpdate(user, () => {});
+    followFromProfile(user);
+
+    apply(false);
+
+    assert.equal(suggestionLabel(user), 'Unfollow @newer-follow');
+});
+
+test('a live read begun during a pending follow does not undo it after completion', () => {
+    const user = suggestion('pending-live-follow');
+    const button = find(
+        FollowButton({ user, isFollowing: false }),
+        (props) => props['data-test'] === 'follow-button',
+    );
+    assert.ok(button);
+    (button.props.onStart as () => void)();
+    const apply = prepareFollowingUpdate(user, () => {});
+    (button.props.onFinish as () => void)();
+
+    apply(false);
+
+    assert.equal(suggestionLabel(user), 'Unfollow @pending-live-follow');
+});
+
+test('the profile preview menu offers a remote when they could be pushed to', () => {
+    assert.deepEqual(previewRemote(suggestion('pushable'), true)?.props.href, {
+        url: '/remotes/@pushable',
+        method: 'get',
+    });
+    assert.equal(previewRemote(suggestion('unreachable'), false), null);
+});
+
+test('the safety menu reports a block or unblock once it goes through, but not a mute', () => {
+    const user = suggestion('reported');
+    const changes: string[] = [];
+    const onBlockChange = () => changes.push('changed');
+    const menu = UserSafetyMenu({
+        user,
+        isMuting: false,
+        isBlocking: false,
+        onBlockChange,
+    });
+
+    const mute = find(
+        menu,
+        (props) =>
+            Array.isArray(props.children) &&
+            props.children.includes('Mute @reported'),
+    );
+    assert.ok(mute);
+    (mute.props.onSelect as () => void)();
+    visits.at(-1)?.onSuccess?.();
+    assert.deepEqual(changes, []);
+
+    const dialog = find(menu, (props) => props.onBlockChange !== undefined);
+    assert.ok(dialog);
+    const block = find(render(dialog), (props) => props.children === 'Block');
+    assert.ok(block);
+    (block.props.onClick as () => void)();
+    assert.deepEqual(changes, []);
+    visits.at(-1)?.onSuccess?.();
+    assert.deepEqual(changes, ['changed']);
+
+    const unblock = find(
+        UserSafetyMenu({
+            user,
+            isMuting: false,
+            isBlocking: true,
+            onBlockChange,
+        }),
+        (props) =>
+            Array.isArray(props.children) &&
+            props.children.includes('Unblock @reported'),
+    );
+    assert.ok(unblock);
+    (unblock.props.onSelect as () => void)();
+    assert.deepEqual(changes, ['changed']);
+    visits.at(-1)?.onSuccess?.();
+
+    assert.deepEqual(changes, ['changed', 'changed']);
+});
+
+test('the profile preview reloads itself after a block or unblock from its menu', () => {
+    const fetched: string[] = [];
+    const original = globalThis.fetch;
+    globalThis.fetch = ((url: string) => {
+        fetched.push(url);
+
+        return new Promise(() => {});
+    }) as typeof fetch;
+
+    try {
+        (
+            previewMenu(suggestion('reloaded'), true).props
+                .onBlockChange as () => void
+        )();
+    } finally {
+        globalThis.fetch = original;
+    }
+
+    assert.deepEqual(fetched, ['/@reloaded/preview']);
+});
 
 test('a suggestion who follows you offers to follow back, at a width that fits it', () => {
     const user = { ...suggestion('freek'), follows_you: true };
@@ -338,7 +495,7 @@ for (const type of [
     'mutuals',
 ] as const) {
     for (const followsYou of [true, false]) {
-        test(`${type} shows the follows-you badge only for a viewer's follower on the Followers tab (${followsYou})`, () => {
+        test(`${type} shows the follows-you badge only for a viewer's follower on the Followers or Following tab (${followsYou})`, () => {
             const page = Connections({
                 user: suggestion('someone-else'),
                 type,
@@ -358,9 +515,9 @@ for (const type of [
             assert.equal(
                 find(page, (props) => props.children === 'Follows you') !==
                     null,
-                type === 'followers' && followsYou,
+                (type === 'followers' || type === 'following') && followsYou,
             );
-            if (type === 'followers' && followsYou) {
+            if ((type === 'followers' || type === 'following') && followsYou) {
                 const handleRow = find(
                     page,
                     (props) =>
@@ -381,6 +538,31 @@ for (const type of [
             }
         });
     }
+}
+
+for (const followsYou of [true, false]) {
+    test(`your own Following list shows the follows-you badge only for a viewer's follower (${followsYou})`, () => {
+        const page = Connections({
+            user: suggestion('viewer'),
+            type: 'following',
+            users: {
+                data: [
+                    {
+                        ...suggestion('own-following'),
+                        is_followed: true,
+                        follows_you: followsYou,
+                    },
+                ],
+                next_cursor: null,
+                prev_cursor: null,
+            },
+        });
+
+        assert.equal(
+            find(page, (props) => props.children === 'Follows you') !== null,
+            followsYou,
+        );
+    });
 }
 
 for (const isFollowing of [true, false]) {
@@ -604,10 +786,7 @@ test('a preview unfollow that fails after a block keeps who to follow unfollowed
     const unfollow = visits.at(-1);
     unfollow?.onStart?.();
 
-    const block = find(
-        UserSafetyMenu({ user, isMuting: false, isBlocking: false }),
-        (props) => props.children === 'Block',
-    );
+    const block = safetyMenuBlock(user);
     assert.ok(block);
     (block.props.onClick as () => void)();
     visits.at(-1)?.onSuccess?.();

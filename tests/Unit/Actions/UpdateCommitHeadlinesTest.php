@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Actions\UpdateCommitHeadlines;
 use App\Enums\CommitStatus;
+use App\Events\HeadlinesUpdated;
 use App\Models\Commit;
 use App\Models\Headline;
 use Illuminate\Database\QueryException;
@@ -33,6 +34,26 @@ it('links all matching existing headlines without generating a new one', functio
     expect($commit->headlines()->pluck('name')->all())->toEqualCanonicalizing(['Vector search', 'Postgres extensions'])
         ->and(Headline::query()->count())->toBe(3)
         ->and($headlines[2]->commits()->count())->toBe(0);
+});
+
+it('invalidates recaps only for headlines gaining or losing a commit during reclassification', function (): void {
+    $commit = Commit::factory()->create(['headlines_classified_at' => now()->subDay()]);
+    $headlines = Headline::factory()->count(4)->sequence(
+        ['name' => 'Previous topic'], ['name' => 'Destination topic'], ['name' => 'Retained topic'], ['name' => 'Unrelated topic'],
+    )->create(['summary' => 'Existing recap', 'summary_created_at' => now()]);
+    $commit->headlines()->attach([$headlines[0]->id, $headlines[2]->id]);
+
+    resolve(UpdateCommitHeadlines::class)->handle($commit, ['Destination topic', 'Retained topic'], hash('sha256', $commit->body), reclassify: true);
+
+    expect($commit->headlines()->pluck('name')->all())->toEqualCanonicalizing(['Destination topic', 'Retained topic'])
+        ->and($headlines[0]->refresh()->summary)->toBeNull()
+        ->and($headlines[0]->summary_created_at)->toBeNull()
+        ->and($headlines[1]->refresh()->summary)->toBeNull()
+        ->and($headlines[1]->summary_created_at)->toBeNull()
+        ->and($headlines[2]->refresh()->summary)->toBe('Existing recap')
+        ->and($headlines[2]->summary_created_at?->toDateTimeString())->toBe(now()->toDateTimeString())
+        ->and($headlines[3]->refresh()->summary)->toBe('Existing recap')
+        ->and($headlines[3]->summary_created_at?->toDateTimeString())->toBe(now()->toDateTimeString());
 });
 
 it('creates returned headlines or reuses an identical name', function (bool $exists): void {
@@ -106,4 +127,24 @@ it('keeps quoted context public until its headline link is written', function ()
     expect($blocked)->toBeTrue()
         ->and($original->refresh()->status)->toBe(CommitStatus::Approved)
         ->and($quote->headlines()->sole()->name)->toBe('/dev/null iOS app beta');
+});
+
+it('tells the hot topics their headlines changed when reclassifying takes a commit off every headline it had', function (): void {
+    $commit = Commit::factory()->create(['headlines_classified_at' => now()->subDay()]);
+    $commit->headlines()->attach(Headline::factory()->create(['name' => 'Previous topic']));
+    Event::fake([HeadlinesUpdated::class]);
+
+    resolve(UpdateCommitHeadlines::class)->handle($commit, [], hash('sha256', $commit->body), reclassify: true);
+
+    expect($commit->headlines()->count())->toBe(0);
+    Event::assertDispatchedTimes(HeadlinesUpdated::class, 1);
+});
+
+it('tells the hot topics nothing when reclassifying a commit that had no headline leaves it with none', function (): void {
+    $commit = Commit::factory()->create(['headlines_classified_at' => now()->subDay()]);
+    Event::fake([HeadlinesUpdated::class]);
+
+    resolve(UpdateCommitHeadlines::class)->handle($commit, [], hash('sha256', $commit->body), reclassify: true);
+
+    Event::assertNotDispatched(HeadlinesUpdated::class);
 });

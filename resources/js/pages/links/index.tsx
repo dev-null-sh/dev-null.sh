@@ -49,7 +49,7 @@ function linkVisit(url: string) {
 
     if (destination.length > 1_800) {
         return {
-            href: LinkController.index().url,
+            href: LinkController.lookup().url,
             method: 'post' as const,
             data: { url },
             preserveState: false,
@@ -131,7 +131,7 @@ function TopLinks({ links }: { links: TopLink[] }) {
                     {links.map((link, index) => (
                         <li key={link.url} className="border-b">
                             <Link
-                                prefetch
+                                prefetch={linkVisit(link.url).method === 'get'}
                                 {...linkVisit(link.url)}
                                 className="flex gap-3 px-4 py-3 transition-colors hover:bg-accent focus-visible:bg-accent sm:px-6"
                             >
@@ -193,6 +193,7 @@ function LinkCommits({
                             firstCommit.id,
                         )}
                         preview={link}
+                        source={{ commitId: firstCommit.id }}
                     />
                 ) : null}
 
