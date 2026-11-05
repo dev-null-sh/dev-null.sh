@@ -48,6 +48,7 @@ import { useCurrentUrl } from '@/hooks/use-current-url';
 import { useMediaQuery } from '@/hooks/use-media-query';
 import { useNavOpen } from '@/hooks/use-nav-open';
 import { useKeyLabels } from '@/lib/keyboard';
+import { scrollLogToTop } from '@/lib/log-scroll';
 import type { MobileAppTabs as MobileAppTabsState } from '@/lib/mobile-app';
 import {
     hideMobileAppTabs,
@@ -163,13 +164,25 @@ function NavLink({
     iconsOnly?: boolean;
     children: ReactNode;
 }) {
-    const { auth } = usePage().props;
+    const {
+        component,
+        props: { auth },
+    } = usePage();
+    const onClick =
+        item.title === 'Log' && component === 'log/show'
+            ? scrollLogToTop
+            : undefined;
     const title = iconsOnly ? undefined : item.description;
 
     if (auth.user === null) {
         return (
             <NavTooltip label={iconsOnly ? item.title : null}>
-                <a href={toUrl(item.href)} title={title} className={className}>
+                <a
+                    href={toUrl(item.href)}
+                    onClick={onClick}
+                    title={title}
+                    className={className}
+                >
                     {children}
                 </a>
             </NavTooltip>
@@ -180,7 +193,8 @@ function NavLink({
         <NavTooltip label={iconsOnly ? item.title : null}>
             <Link
                 href={item.href}
-                prefetch
+                onClick={onClick}
+                prefetch={onClick === undefined}
                 cacheFor="10s"
                 viewTransition
                 aria-current={item.isActive ? 'page' : undefined}
