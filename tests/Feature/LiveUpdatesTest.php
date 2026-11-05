@@ -12,6 +12,7 @@ use App\Actions\CreateOrganizationMember;
 use App\Actions\CreateScheduledCommit;
 use App\Actions\CreateUserBlock;
 use App\Actions\CreateUserFollow;
+use App\Actions\CreateUserGitHubStars;
 use App\Actions\CreateUserTimeout;
 use App\Actions\DeleteOrganization;
 use App\Actions\DeleteUser;
@@ -25,6 +26,7 @@ use App\Actions\UpdateScheduledCommitSubmittedAt;
 use App\Actions\UpdateUserLog;
 use App\Actions\UpdateUserTermsAcceptance;
 use App\Actions\UpdateUserTranslationLanguage;
+use App\Contracts\Services\GitHubProvider;
 use App\Contracts\Services\LinkPreviewProvider;
 use App\Dto\AuthorizationCode;
 use App\Enums\CommitStatus;
@@ -472,6 +474,36 @@ it('announces a scheduled commit, a device and a timeout only once they are stor
 
     expect($scheduled())->toBe([1])
         ->and($account())->toBe([[1, 0], [1, 1]]);
+});
+
+it('announces imported GitHub stars once they are stored, and only when they bring someone', function (): void {
+    Event::fake([CommitsUpdated::class, ProfilesUpdated::class]);
+    $user = User::factory()->create();
+    $starless = User::factory()->create();
+    $stars = onUpdate(UserUpdate::GitHubStars, fn (): int => DB::table('starred_github_owners')->count());
+
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($user->github_id)->andReturn($user->handle);
+    $github->shouldReceive('starredOwnerIds')->with($user->handle, 3)->andReturn(['1', '2', '1']);
+    $github->shouldReceive('login')->with($starless->github_id)->andReturn($starless->handle);
+    $github->shouldReceive('starredOwnerIds')->with($starless->handle, 3)->andReturn([]);
+
+    resolve(CreateUserGitHubStars::class)->handle($user);
+    resolve(CreateUserGitHubStars::class)->handle($starless);
+
+    expect($stars())->toBe([2]);
+});
+
+it('picks the onboarding suggestions again when GitHub stars are imported', function (): void {
+    $user = User::factory()->notOnboarded()->create();
+    $headers = ['X-Inertia' => 'true', 'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request())];
+
+    $live = $this->actingAs($user)->get(route('onboarding.show'), $headers)->json('liveProps');
+
+    expect($live['suggestions']['listeners'])->toBe([[
+        'channel' => ['name' => 'users.'.$user->id, 'type' => 'private'],
+        'events' => ['github-stars'],
+    ]]);
 });
 
 it('announces nothing when storing a scheduled commit fails', function (): void {

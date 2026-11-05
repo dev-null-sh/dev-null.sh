@@ -181,6 +181,29 @@ function useSuggestedUserUpdates(dismissElsewhere: (ids: string[]) => void) {
     }, [viewerId, ids, showsWhoToFollow]);
 }
 
+/**
+ * Stars imported after the suggestions were picked can bring someone new, even when there were no suggestions yet, so
+ * the suggestions are picked again, in the same round.
+ */
+function useSuggestionsFromStars() {
+    const { auth, showsWhoToFollow } = usePage().props;
+    const viewerId = auth.user?.id;
+
+    useEffect(() => {
+        if (!viewerId || !showsWhoToFollow) {
+            return;
+        }
+
+        return listen(userChannel(viewerId), {
+            'github-stars': () =>
+                router.reload({
+                    only: ['suggestedUsers'],
+                    reset: ['suggestedUsers'],
+                }),
+        });
+    }, [viewerId, showsWhoToFollow]);
+}
+
 function DismissButton({
     user,
     onDismiss,
@@ -768,6 +791,7 @@ export function WhoToFollow() {
     } = useHideWhoToFollow();
 
     useSuggestedUserUpdates(dismissElsewhere);
+    useSuggestionsFromStars();
 
     if (!isVisible) {
         return null;

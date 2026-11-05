@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 use App\Actions\CreateUserGitHubStars;
 use App\Contracts\Services\GitHubProvider;
+use App\Enums\UserUpdate;
+use App\Events\UsersUpdated;
 use App\Models\User;
 use GuzzleHttp\Psr7\Response as Psr7Response;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 
 function starredGitHubOwnersOf(User $user): array
 {
@@ -45,6 +48,20 @@ it('leaves out the repositories the user starred of their own', function (): voi
     resolve(CreateUserGitHubStars::class)->handle($user);
 
     expect(starredGitHubOwnersOf($user))->toBe([['github_id' => '2', 'repositories_count' => 1]]);
+});
+
+it('tells only the user that their suggestions can change, once the stars are in', function (): void {
+    Event::fake([UsersUpdated::class]);
+    $user = User::factory()->create();
+
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($user->github_id)->andReturn($user->handle);
+    $github->shouldReceive('starredOwnerIds')->with($user->handle, 3)->andReturn(['1']);
+
+    resolve(CreateUserGitHubStars::class)->handle($user);
+
+    Event::assertDispatchedTimes(UsersUpdated::class, 1);
+    Event::assertDispatched(UsersUpdated::class, fn (UsersUpdated $event): bool => $event->update === UserUpdate::GitHubStars && $event->userIds === [$user->id]);
 });
 
 it('follows nobody', function (): void {

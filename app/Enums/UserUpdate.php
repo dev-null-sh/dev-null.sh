@@ -21,6 +21,7 @@ enum UserUpdate: string
     case Account = 'account';
     case Relationships = 'relationships';
     case Suggestions = 'suggestions';
+    case GitHubStars = 'github-stars';
     case Commits = 'commits';
     case Moderation = 'moderation';
     case Live = 'live';

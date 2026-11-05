@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Contracts\Services\GitHubProvider;
+use App\Enums\UserUpdate;
+use App\Events\UsersUpdated;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 
@@ -46,9 +48,14 @@ final readonly class CreateUserGitHubStars
             ->all();
 
         DB::transaction(function () use ($user, $rows): void {
-            DB::table('starred_github_owners')->insertOrIgnore($rows);
+            $saved = DB::table('starred_github_owners')->insertOrIgnore($rows);
 
             $user->update(['github_stars_imported_at' => now()]);
+
+            // The suggestions on screen were picked without them, and are kept across visits, so they're picked again.
+            if ($saved > 0) {
+                event(new UsersUpdated([$user->id], UserUpdate::GitHubStars));
+            }
         });
     }
 }
