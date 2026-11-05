@@ -21,7 +21,9 @@ use Illuminate\Http\Response;
 final readonly class CommitController
 {
     /**
-     * A signed request gets the commit as its page shows it to that user, with the commits it replies to above it.
+     * A signed request gets the commit as its page shows it to that user, with the commits it replies to above it, and
+     * who else a reply to it can go to, as the web's Replying to lists them: everyone it was addressed to, besides its
+     * author and the user.
      */
     public function show(ShowApiCommitRequest $request, #[CurrentUser] ?User $currentUser, Commit $commit, CommitPageQuery $page, CommitAncestorsQuery $ancestors): CommitResource
     {
@@ -30,6 +32,10 @@ final readonly class CommitController
 
             return CommitResource::make($commit)->additional([
                 'ancestors' => CommitResource::collection($ancestors->get($commit, $currentUser)),
+                'reply_participants' => collect($commit->mentions ?? [])
+                    ->reject(fn (string $id): bool => in_array($id, [$currentUser->id, $commit->author_id], true))
+                    ->map(fn (string $id, int|string $handle): array => ['id' => $id, 'handle' => (string) $handle])
+                    ->values(),
             ]);
         }
 
@@ -45,7 +51,7 @@ final readonly class CommitController
      */
     public function store(CreateApiCommitRequest $request, #[CurrentUser] User $user, CreateCommit $action, CommitPageQuery $page): JsonResponse
     {
-        $commit = $action->handle($user, $request->string('body')->value(), $request->parent(), $request->quotedCommit(), $request->images(), $request->imageDescriptions(), poll: $request->poll());
+        $commit = $action->handle($user, $request->string('body')->value(), $request->parent(), $request->quotedCommit(), $request->images(), $request->imageDescriptions(), poll: $request->poll(), replyRecipients: $request->replyRecipients(), organization: $request->organization());
 
         return CommitResource::make($page->get($commit, $user))
             ->response()

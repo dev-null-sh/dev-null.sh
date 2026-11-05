@@ -4,15 +4,19 @@ declare(strict_types=1);
 
 namespace App\Queries;
 
+use App\Contracts\Services\EmbeddingProvider;
 use App\Models\KnowledgeBaseSection;
-use App\Services\OpenAI;
 use Illuminate\Support\Collection;
-use Laravel\Ai\Embeddings;
-use Laravel\Ai\Enums\Lab;
+use Illuminate\Support\Facades\Cache;
 
 final readonly class KnowledgeBaseSearchQuery
 {
     private const int CACHE_SECONDS = 3600;
+
+    public function __construct(private EmbeddingProvider $embeddings)
+    {
+        //
+    }
 
     /**
      * @return Collection<int, KnowledgeBaseSection>
@@ -25,11 +29,8 @@ final readonly class KnowledgeBaseSearchQuery
             return new Collection();
         }
 
-        $embedding = array_values(Embeddings::for([$term])
-            ->dimensions(OpenAI::EMBEDDING_DIMENSIONS)
-            ->cache(self::CACHE_SECONDS)
-            ->generate(provider: Lab::OpenAI, model: OpenAI::EMBEDDING_MODEL)
-            ->first());
+        /** @var list<float> $embedding */
+        $embedding = Cache::remember('search-embedding:'.hash('sha256', $term), self::CACHE_SECONDS, fn (): array => $this->embeddings->embed($term));
 
         return KnowledgeBaseSection::query()
             ->select(['id', 'source', 'position', 'headings', 'content'])

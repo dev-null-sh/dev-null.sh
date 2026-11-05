@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Http\Requests\ListLinksRequest;
+use App\Http\Resources\ShownStreams;
 use App\Models\LinkPreview;
 use App\Models\User;
 use App\Queries\LinkCommitsQuery;
 use App\Queries\TopLinksQuery;
 use Illuminate\Container\Attributes\CurrentUser;
+use Illuminate\Pagination\CursorPaginator;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -35,7 +37,7 @@ final readonly class LinkController
             'url' => $url,
             'link' => $link,
             'stats' => $link === null ? ['commits' => 0, 'people' => 0] : $commits->stats($link),
-            'commits' => $link === null ? null : Inertia::scroll(fn () => $commits->builder($link, $user)->cursorPaginate(20)),
+            'commits' => $link === null ? null : Inertia::scroll(fn (): CursorPaginator => ShownStreams::page($commits->builder($link, $user)->cursorPaginate(20))),
         ]);
     }
 }
