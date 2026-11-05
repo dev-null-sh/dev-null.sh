@@ -50,6 +50,13 @@ dataset('rate limits', [
         120,
         60,
     ],
+    'playlist links' => [
+        fn (): array => [
+            ['PUT', route('user-playlist.update')],
+        ],
+        10,
+        60,
+    ],
     'issue suggestions' => [
         fn (): array => [
             ['GET', route('issue-suggestion.index', ['q' => '722'])],

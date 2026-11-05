@@ -62,6 +62,7 @@ use LogicException;
  * @property-read LivePlatform|null $live_platform
  * @property-read string|null $live_url
  * @property-read CarbonInterface|null $live_ends_at
+ * @property-read string|null $playlist_url
  * @property-read Log $log
  * @property-read CarbonInterface|null $onboarded_at
  * @property-read CarbonInterface|null $github_follows_imported_at
@@ -125,6 +126,7 @@ use LogicException;
     'live_platform',
     'live_url',
     'live_ends_at',
+    'playlist_url',
     'last_seen_at',
     'banned_at',
     'commit_rules_accepted_at',
@@ -179,6 +181,7 @@ final class User extends Authenticatable
         'live_platform' => null,
         'live_url' => null,
         'live_ends_at' => null,
+        'playlist_url' => null,
         'last_seen_at' => null,
         'banned_at' => null,
         'commit_rules_accepted_at' => null,
@@ -232,6 +235,7 @@ final class User extends Authenticatable
             'live_platform' => LivePlatform::class,
             'live_url' => 'string',
             'live_ends_at' => 'datetime',
+            'playlist_url' => 'string',
             'last_seen_at' => 'date',
             'banned_at' => 'datetime',
             'commit_rules_accepted_at' => 'datetime',

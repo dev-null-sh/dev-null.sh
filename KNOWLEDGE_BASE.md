@@ -161,6 +161,16 @@ Share a stream you are running from the **…** menu on your own profile: **Go l
 
 Sources: [go-live button](resources/js/components/profile-live-button.tsx), [live avatar and card](resources/js/components/live-stream-card.tsx), [validation](app/Http/Requests/UpdateUserLiveRequest.php), [YouTube links](app/Services/LivePlatforms/YouTube.php), [Twitch links](app/Services/LivePlatforms/Twitch.php), [ending streams](app/Jobs/EndLiveStreams.php).
 
+### Devamp
+
+On a computer, signed in, search for **devamp** (or **webamp**, **winamp**, or **llama**) and choose **Open Devamp** to open Devamp, a music player built on the open-source Webamp, that keeps playing while you move between pages. It starts with "Chilling @ Work", a playlist from Audius, and nothing plays until you press play. Closing it with its own close button stops the music; opening it again brings the same player back. Phones and tablets don't offer it.
+
+Share a playlist of your own in profile settings, under **Devamp playlist**: paste a link to a public playlist or album on Audius (`https://audius.co/…/playlist/…` or `https://audius.co/…/album/…`). Your profile then shows a music-note button on computers that loads your playlist into Devamp and starts it, for anyone looking at it, signed in or not. Only the first 200 tracks Devamp can play are loaded. Tracks Audius doesn't let everyone stream, such as ones only for an artist's supporters, are left out. The playlist is read from Audius at most every ten minutes, so changes you make there can take that long to show. **Remove** stops sharing it. Only the link is stored, and it is included in your export.
+
+The music comes from Audius because Devamp needs the audio itself to draw its visualizer and run its equalizer, and Audius lets other sites play its tracks. Spotify, YouTube, and Apple Music only play inside their own players, so their music can't play in Devamp. Once you open Devamp, the audio loads straight from Audius to your browser, under Audius's own privacy policy. While a track from Audius is loaded, a line at the bottom of the screen credits it: its title, linking to the track on Audius, its artist, and the Open Music License it's shared under.
+
+Sources: [player](resources/js/lib/devamp.ts), [profile button](resources/js/components/profile-devamp-button.tsx), [credit](resources/js/components/devamp-credit.tsx), [playlist setting](resources/js/components/playlist-setting.tsx), [Audius playlists](app/Services/PlaylistProviders/AudiusPlaylistProvider.php).
+
 ### Achievement badges and XP
 
 Profiles have **17 achievement badges**. Earned badges appear in a single row, with **+N more** when more have been earned than fit. Hover over the row on desktop or tap it on mobile to toggle a popover with every badge, including locked badges and their progress. Profiles with no earned badges show **View achievements** instead. Select a badge in the popover, or the profile's rank or unlocked count, to open the detailed achievements dialog.
