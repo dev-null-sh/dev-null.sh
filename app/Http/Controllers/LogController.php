@@ -41,7 +41,7 @@ final readonly class LogController
             if ($log === Log::Following) {
                 return Inertia::location(route('login'));
             }
-        } elseif ($user->log !== $log) {
+        } elseif ($user->log !== $log && ! $request->prefetch()) {
             $action->handle($user, $log);
         }
 
