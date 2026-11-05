@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 use App\Actions\CreateAuthorizationCode;
 use App\Actions\CreateDevice;
+use App\Actions\UpdateDevicePushToken;
 use App\Dto\AuthorizationCode;
 use App\Dto\MobileAuthorization;
+use App\Enums\PushPlatform;
 use App\Models\Device;
 use App\Models\SshKey;
 use App\Models\User;
@@ -136,14 +138,18 @@ it('redeems a code only once', function (): void {
         ->assertJsonPath('code', 'invalid_grant');
 });
 
-it('approves again a key approved for someone else, for the user who approved it now', function (): void {
+it('approves again a key approved for someone else, for the user who approved it now, without its push token', function (): void {
     $previous = Device::factory()->withPublicKey($this->keyPair->publicKey)->create();
+    resolve(UpdateDevicePushToken::class)->handle($previous, 'fcm-token', PushPlatform::Ios);
 
     signedApiRequest($this->keyPair, 'POST', route('api-device.store'), ['code' => $this->code, 'code_verifier' => $this->verifier])
         ->assertOk()
         ->assertJsonPath('data.id', $this->user->id);
 
-    expect($previous->refresh()->user_id)->toBe($this->user->id);
+    expect($previous->refresh())
+        ->user_id->toBe($this->user->id)
+        ->push_token->toBeNull()
+        ->push_platform->toBeNull();
 });
 
 it('refuses a code that was redeemed by another request in the meantime', function (): void {
