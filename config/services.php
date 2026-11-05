@@ -10,6 +10,10 @@ return [
         'private_key' => env('WEB_PUSH_PRIVATE_KEY'),
     ],
 
+    'fcm' => [
+        'credentials' => env('FCM_CREDENTIALS'),
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Third Party Services

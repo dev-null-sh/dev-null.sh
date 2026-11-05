@@ -8,6 +8,7 @@ use App\Enums\CommitStatus;
 use App\Enums\NotificationType;
 use App\Enums\UserUpdate;
 use App\Events\UsersUpdated;
+use App\Jobs\SendNotificationPush;
 use App\Models\Commit;
 use App\Models\Notification;
 use App\Queries\ProfileRecipientsQuery;
@@ -57,7 +58,7 @@ final readonly class CreateReplyNotifications
             ->toBase()
             ->get(['commits.id', 'commits.author_id', 'commits.parent_id', 'recipients.user_id as recipient_id', 'recipients.organization_id']);
 
-        Notification::query()->insertOrIgnore($replies->map(fn (object $reply): array => [
+        $notifications = $replies->map(fn (object $reply): array => [
             'id' => Str::uuid7()->toString(),
             'recipient_id' => $reply->recipient_id,
             'actor_id' => $reply->author_id,
@@ -68,8 +69,12 @@ final readonly class CreateReplyNotifications
             'key' => 'replied:'.$reply->id,
             'created_at' => now(),
             'updated_at' => now(),
-        ])->all());
+        ])->all();
+
+        Notification::query()->insertOrIgnore($notifications);
 
         event(new UsersUpdated($replies->pluck('recipient_id')->all(), UserUpdate::Notifications));
+
+        SendNotificationPush::dispatchFor(array_column($notifications, 'id'));
     }
 }
