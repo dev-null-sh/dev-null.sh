@@ -55,6 +55,7 @@ use Traversable;
  *     messages: Generator<int, ExportMessage>,
  *     reports: Traversable<int, array<string, mixed>>,
  *     remote_pins: array<int, array{to: string|null, pinned_at: string|null}>,
+ *     remote_mentions: array<int, array{to: string|null, created_at: string}>,
  *     remote_mutes: array<int, array{to: string|null, muted_until_at: string|null}>,
  *     notifications: Generator<int, array<string, int|string|null>>,
  *     ssh_keys: array<mixed>,
@@ -163,6 +164,15 @@ final readonly class CreateExport
                 ->map(fn (Conversation $conversation): array => [
                     'to' => $this->recipient($user, $conversation),
                     'pinned_at' => $conversation->pinned_at?->toIso8601String(),
+                ])
+                ->all(),
+            'remote_mentions' => $user->mentions()
+                ->with('conversation')
+                ->orderBy('messages.id')
+                ->get()
+                ->map(fn (Message $message): array => [
+                    'to' => $this->recipient($user, $message->conversation),
+                    'created_at' => $message->created_at->toIso8601String(),
                 ])
                 ->all(),
             'notifications' => $this->notifications($user),

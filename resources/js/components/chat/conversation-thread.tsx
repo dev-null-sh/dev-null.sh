@@ -22,6 +22,7 @@ import {
     CallConsole,
     OrgCallConsole,
 } from '@/components/chat/call';
+import { MentionsBell } from '@/components/chat/mentions-bell';
 import {
     LiftedMessage,
     MessageImages,
@@ -940,6 +941,16 @@ export function ConversationThread({
                     onReplySettled={settleReplyPreview}
                     isCompact={isCompact}
                     autoFocus={autoFocus}
+                    mentions={
+                        current.kind === 'org' && (
+                            <MentionsBell
+                                org={current.org}
+                                mentions={thread?.mentions ?? noMessages}
+                                isCompact={isCompact}
+                                onJump={(id) => void jumpTo(id)}
+                            />
+                        )
+                    }
                     typing={
                         target.kind === 'org'
                             ? (thread?.typing ?? []).length > 0
@@ -1730,6 +1741,7 @@ function Composer({
     isCompact,
     autoFocus,
     typing,
+    mentions,
     onSend,
     onReplySettled,
 }: {
@@ -1742,6 +1754,10 @@ function Composer({
     isCompact: boolean;
     autoFocus: boolean;
     typing: string | null;
+    /**
+     * The org's mentions bell, after Call.
+     */
+    mentions?: ReactNode;
     /**
      * Called as the user pushes, so the thread follows their own message down.
      */
@@ -2135,6 +2151,7 @@ function Composer({
                                 isCompact={isCompact}
                                 onClick={() => setIsConfirmingCall(true)}
                             />
+                            {mentions}
                         </>
                     )}
                     <Button

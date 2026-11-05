@@ -47,12 +47,18 @@ use Illuminate\Support\Facades\Cache;
  *     pinned_at: string|null,
  *     muted_until_at: string|null,
  *     role: OrgRole|null,
- *     access: PushAccess
+ *     access: PushAccess,
+ *     mentions: Collection<int, Message>
  * }
  */
 final readonly class ConversationThreadQuery
 {
     public const int PAGE = 50;
+
+    /**
+     * The most mentions a thread hands over, one more than the bell counts before it shows 99+.
+     */
+    public const int MENTIONS = 100;
 
     public function __construct(private PinnedMessagesQuery $pinnedMessages)
     {
@@ -128,6 +134,7 @@ final readonly class ConversationThreadQuery
             'reactions_version' => $org->reactions_version,
             'reaction_changes' => $this->reactionChanges($org, $mine->visible_from_id, $reactionsAfter),
             'pinned' => $before === null && ($reactionsAfter === null || $org->reactions_version > $reactionsAfter) ? $this->pinnedMessages->get($org) : null,
+            'mentions' => $user->mentions()->where('conversation_id', $org->id)->with('user')->orderByDesc('messages.id')->limit(self::MENTIONS)->get()->toBase(),
             'read_through_id' => $mine->read_through_id,
             'members' => $participants->map(fn (ConversationParticipant $participant): array => [
                 'user' => $participant->user,

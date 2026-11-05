@@ -151,6 +151,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
         'reports' => [],
         'remote_mutes' => [],
         'remote_pins' => [],
+        'remote_mentions' => [],
         'notifications' => [],
         'ssh_keys' => [],
         'push_subscriptions' => [],
@@ -662,6 +663,21 @@ it('exports your remote pins without the pins of other members', function (): vo
     expect($data['remote_pins'])->toBe([
         ['to' => 'alice', 'pinned_at' => now()->toIso8601String()],
         ['to' => 'org: Release crew', 'pinned_at' => now()->toIso8601String()],
+    ]);
+});
+
+it('exports the org mentions the user has not cleared, without the mentions of others', function (): void {
+    $this->freezeSecond();
+    $user = User::factory()->create();
+    [$nuno] = followersOf($user, 1);
+    $org = createOrg($user, [$nuno], 'Release crew');
+    pushToOrg($nuno, $org, "@{$user->handle} can you review?");
+    pushToOrg($user, $org, "@{$nuno->handle} on it");
+
+    $data = json_decode($this->actingAs($user)->get(route('export'))->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
+
+    expect($data['remote_mentions'])->toBe([
+        ['to' => 'org: Release crew', 'created_at' => now()->toIso8601String()],
     ]);
 });
 

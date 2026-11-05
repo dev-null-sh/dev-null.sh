@@ -16,6 +16,7 @@ import MessageReactionController from '@/actions/App/Http/Controllers/MessageRea
 import OrgArchiveController from '@/actions/App/Http/Controllers/OrgArchiveController';
 import OrgController from '@/actions/App/Http/Controllers/OrgController';
 import OrgMemberController from '@/actions/App/Http/Controllers/OrgMemberController';
+import OrgMentionController from '@/actions/App/Http/Controllers/OrgMentionController';
 import OrgMessageController from '@/actions/App/Http/Controllers/OrgMessageController';
 import OrgMuteController from '@/actions/App/Http/Controllers/OrgMuteController';
 import OrgPinController from '@/actions/App/Http/Controllers/OrgPinController';
@@ -121,6 +122,10 @@ export type ThreadState = {
      * The reactions version the pinned messages are current with, which only moves when a list of them is taken.
      */
     pinnedMessagesVersion: number | null;
+    /**
+     * The org messages that mentioned the user, latest first, until they open or clear them.
+     */
+    mentions: Message[];
     is_archived: boolean;
     pinned_at: string | null;
     muted_until_at: string | null;
@@ -219,6 +224,10 @@ const lastTypingPing = new Map<string, number>();
 const reactionsInFlight = new Map<number, number>();
 const reactionsSettledAt = new Map<number, number>();
 const messagePinsInFlight = new Map<string, number>();
+/**
+ * The mentions the user cleared, kept out of polls that were sent before the server forgot them.
+ */
+const clearedMentions = new Set<number>();
 /**
  * The newest pinned messages a pin request handed back while others in the org were still in flight.
  */
@@ -903,6 +912,7 @@ function emptyThread(target: ChatTarget): ThreadState {
         role: null,
         pinned: [],
         pinnedMessagesVersion: null,
+        mentions: [],
         is_archived: false,
         pinned_at: null,
         muted_until_at: null,
@@ -922,6 +932,9 @@ function fromServer(thread: Thread | OrgThread): Partial<ThreadState> {
         ? {
               members: thread.members,
               typing: thread.typing,
+              mentions: thread.mentions.filter(
+                  (message) => !clearedMentions.has(message.id),
+              ),
               role: thread.role,
               is_archived: thread.is_archived,
               pinned_at: thread.pinned_at,
@@ -2151,6 +2164,53 @@ export async function toggleReaction(
  * server holds them, once no other pin request in the org is in flight. Puts the message back where it was and throws
  * when the server refuses, or answers without the message among the pinned ones.
  */
+/**
+ * Clears the mention the user opened, or every mention in the org, at once, and brings them back if the server
+ * refuses.
+ */
+export async function clearMentions(
+    org: OrgRef,
+    messageId?: number,
+): Promise<void> {
+    const key = targetKey({ kind: 'org', org });
+    const cleared = (state.threads[key]?.mentions ?? []).filter(
+        (message) => messageId === undefined || message.id === messageId,
+    );
+
+    if (cleared.length === 0) {
+        return;
+    }
+
+    cleared.forEach((message) => clearedMentions.add(message.id));
+    updateThread(key, (thread) => ({
+        mentions: thread.mentions.filter(
+            (message) => !clearedMentions.has(message.id),
+        ),
+    }));
+
+    try {
+        await remotesRequest(
+            OrgMentionController.destroy.url({ org: org.id }),
+            'DELETE',
+            messageId === undefined ? undefined : { message_id: messageId },
+        );
+    } catch (error) {
+        cleared.forEach((message) => clearedMentions.delete(message.id));
+
+        if (error instanceof StaleRemotesError) {
+            return;
+        }
+
+        updateThread(key, (thread) => ({
+            mentions: [...thread.mentions, ...cleared].sort(
+                (a, b) => b.id - a.id,
+            ),
+        }));
+
+        throw error;
+    }
+}
+
 export async function setMessagePinned(
     target: ChatTarget,
     message: Message,

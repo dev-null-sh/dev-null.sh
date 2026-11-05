@@ -82,7 +82,7 @@ test.each([['direct', 'on'], ['org', 'on'], ['org', 'off'], ['org', 'muted']] as
         if (url.includes('/messages')) return Response.json({
             messages: [message()], has_older: false, reactions_version: 0, reaction_changes: [],
             read_through_id: 0, partner_read_through_id: 0, partner_read_at: null, partner_typing: false,
-            members: [], typing: [], role: 'contributor', access: 'open', pinned: [],
+            members: [], typing: [], role: 'contributor', access: 'open', pinned: [], mentions: [],
             is_archived: false, pinned_at: null, muted_until_at: mutedUntil,
             ...(kind === 'org' ? { org: { id: 'push-org', name: 'Team' } } : { partner }),
         });
@@ -180,7 +180,7 @@ test.each(['direct', 'org'] as const)('a push response keeps newer %s reactions 
         reaction_changes: [{ id: message.id, reactions }], read_through_id: 0,
         is_archived: false, pinned_at: null, muted_until_at: null, access: 'open' as const,
         ...(kind === 'org'
-            ? { org: { id: 'reaction-race', name: 'Team' }, members: [], typing: [], role: 'contributor' as const, pinned: [{ ...message, reactions }] }
+            ? { org: { id: 'reaction-race', name: 'Team' }, members: [], typing: [], role: 'contributor' as const, pinned: [{ ...message, reactions }], mentions: [] }
             : { partner, partner_read_through_id: 0, partner_read_at: null, partner_typing: false }),
     });
     seedThread(target, { ...payload(0, []), messages: [message] });

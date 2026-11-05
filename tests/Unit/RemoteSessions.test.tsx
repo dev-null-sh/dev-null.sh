@@ -123,6 +123,7 @@ const seed = () =>
         typing: [],
         role: 'contributor',
         pinned: [],
+        mentions: [],
         reactions_version: 0,
         is_archived: false,
         pinned_at: null,

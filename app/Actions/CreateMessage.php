@@ -92,6 +92,15 @@ final readonly class CreateMessage
                 $message->voice()->create($this->createMessageVoiceFile->handle($voice, $voiceWaveform));
             }
 
+            if ($conversation->isOrg()) {
+                $message->mentionedUsers()->attach($conversation->participants()
+                    ->whereIn('user_id', array_values($message->mentions ?? []))
+                    ->where('user_id', '!=', $sender->id)
+                    ->whereNotIn('user_id', $sender->idsAcrossBlocks())
+                    ->whereNotIn('user_id', $sender->mutedBy()->newPivotQuery()->select('muter_id'))
+                    ->pluck('user_id'));
+            }
+
             self::advance($conversation, $message, unstash: true);
 
             foreach (ConversationParticipant::query()->where('conversation_id', $conversation->id)
