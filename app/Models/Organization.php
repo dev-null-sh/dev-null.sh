@@ -178,7 +178,7 @@ final class Organization extends Model
      */
     public function getAttribute($key): mixed
     {
-        return in_array($key, Profile::USER_ATTRIBUTES, true) ? $this->profile->getAttribute($key) : parent::getAttribute($key);
+        return in_array($key, Profile::USER_ATTRIBUTES, true) ? $this->profile?->getAttribute($key) : parent::getAttribute($key);
     }
 
     /**

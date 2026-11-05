@@ -256,3 +256,10 @@ it('reads its github identity from its profile, which alone changes it', functio
         ->and($user->name)->toBe('The Octocat')
         ->and(fn () => $user->update(['handle' => 'elsewhere']))->toThrow(LogicException::class, 'Update the handle of a user on their profile.');
 });
+
+it('reads a missing profile as null instead of failing', function (): void {
+    $user = User::factory()->create()->setRelation('profile', null);
+
+    expect($user->handle)->toBeNull()
+        ->and($user->isAdmin())->toBeFalse();
+});
