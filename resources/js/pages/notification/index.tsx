@@ -1201,8 +1201,11 @@ export function NotificationContent({
         notification.type === 'mentioned' ||
         notification.type === 'first_commit';
     const level = notification.type === 'leveled_up' ? notification : null;
+    // An open group keeps naming who it led with, but its commit is still the newest one, from `actor_id`.
+    const commitAuthor =
+        actors.find((member) => member.id === notification.actor_id) ?? actor;
     const actions = isActorsCommit && (
-        <CommitActions commit={notification.commit} author={actor} />
+        <CommitActions commit={notification.commit} author={commitAuthor} />
     );
     const Icon = {
         followed: UserPlus,
