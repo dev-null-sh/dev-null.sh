@@ -51,7 +51,7 @@ const orgThread = (
     role: 'contributor',
     access: 'open',
     pinned: [],
-    mentions: [],
+    mentions: [], mentions_count: 0,
     is_archived: false,
     pinned_at: null,
     muted_until_at: null,

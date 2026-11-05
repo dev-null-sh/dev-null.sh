@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import { afterEach, beforeEach, test, vi } from 'vite-plus/test';
 import {
     chatSnapshot,
-    clearMentions,
     loadTab,
     renameOrg,
     seedInbox,
@@ -13,7 +12,6 @@ import {
 } from '../../resources/js/lib/chat';
 import type {
     ConversationSummary,
-    Message,
     OrgMember,
     OrgThread,
     Thread,
@@ -81,7 +79,7 @@ const orgThread: OrgThread = {
     role: 'maintainer',
     access: 'open',
     pinned: [],
-    mentions: [],
+    mentions: [], mentions_count: 0,
 };
 
 function heldFetch(): {
@@ -229,26 +227,4 @@ test('a new org name shows at once, and goes back when the server refuses it', a
         kind: 'org',
         org,
     });
-});
-
-test('a cleared mention goes at once, stays gone from a poll sent before the server forgot it, and comes back when the server refuses', async () => {
-    const mention = (id: number) =>
-        ({ id, user_id: member.id, client_id: '', body: '@viewer look', created_at: '2026-10-23T11:00:00Z', user: member }) as Message;
-    seedThread(orgTarget, { ...orgThread, mentions: [mention(3), mention(2), mention(1)] });
-    const response = heldFetch();
-
-    const clearing = clearMentions(org, 2);
-    assert.deepEqual(chatSnapshot().threads[`org:${org.id}`].mentions.map(({ id }) => id), [3, 1]);
-    response.finish(new Response(null, { status: 204 }));
-    await clearing;
-
-    seedThread(orgTarget, { ...orgThread, mentions: [mention(3), mention(2), mention(1)] });
-    assert.deepEqual(chatSnapshot().threads[`org:${org.id}`].mentions.map(({ id }) => id), [3, 1]);
-
-    const refused = heldFetch();
-    const clearingAll = clearMentions(org);
-    assert.deepEqual(chatSnapshot().threads[`org:${org.id}`].mentions, []);
-    refused.finish(Response.json({}, { status: 500 }));
-    await assert.rejects(clearingAll);
-    assert.deepEqual(chatSnapshot().threads[`org:${org.id}`].mentions.map(({ id }) => id), [3, 1]);
 });

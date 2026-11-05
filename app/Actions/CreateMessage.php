@@ -98,6 +98,7 @@ final readonly class CreateMessage
                     ->where('user_id', '!=', $sender->id)
                     ->whereNotIn('user_id', $sender->idsAcrossBlocks())
                     ->whereNotIn('user_id', $sender->mutedBy()->newPivotQuery()->select('muter_id'))
+                    ->sharedLock()
                     ->pluck('user_id'));
             }
 

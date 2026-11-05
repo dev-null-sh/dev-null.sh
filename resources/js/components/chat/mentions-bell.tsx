@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/tooltip';
 import { UserAvatar } from '@/components/user-avatar';
 import { clearMentions } from '@/lib/chat';
+import { formatExactCount } from '@/lib/numbers';
 import { cn, formatClockTime, formatDayLabel } from '@/lib/utils';
 import type { Message, OrgRef } from '@/types';
 
@@ -25,17 +26,18 @@ import type { Message, OrgRef } from '@/types';
 export function MentionsBell({
     org,
     mentions,
+    count,
     isCompact,
     onJump,
 }: {
     org: OrgRef;
     mentions: Message[];
+    count: number;
     isCompact: boolean;
     onJump: (messageId: number) => void;
 }) {
     const [isOpen, setIsOpen] = useState(false);
     const headingId = useId();
-    const count = mentions.length;
     const clear = (messageId?: number) =>
         void clearMentions(org, messageId).catch(() =>
             toast.error('Could not clear mentions. Try again.'),
@@ -53,7 +55,7 @@ export function MentionsBell({
                             aria-label={
                                 count === 0
                                     ? 'Mentions'
-                                    : `Mentions, ${count} unread`
+                                    : `Mentions, ${formatExactCount(count)} unread`
                             }
                             className={cn(
                                 'relative shrink-0 text-muted-foreground data-[state=open]:bg-accent data-[state=open]:text-foreground',
@@ -73,7 +75,11 @@ export function MentionsBell({
                         </Button>
                     </PopoverTrigger>
                 </TooltipTrigger>
-                <TooltipContent>Mentions</TooltipContent>
+                <TooltipContent>
+                    {count > 99
+                        ? `${formatExactCount(count)} mentions`
+                        : 'Mentions'}
+                </TooltipContent>
             </Tooltip>
             <PopoverContent
                 side="top"
@@ -88,9 +94,9 @@ export function MentionsBell({
                         Mentions
                     </h2>
                     <span className="font-mono text-[11px] text-muted-foreground tabular-nums">
-                        {count}
+                        {formatExactCount(count)}
                     </span>
-                    {count > 0 && (
+                    {mentions.length > 0 && (
                         <button
                             type="button"
                             onClick={() => clear()}
@@ -100,7 +106,7 @@ export function MentionsBell({
                         </button>
                     )}
                 </div>
-                {count === 0 ? (
+                {mentions.length === 0 ? (
                     <p className="px-3 py-8 text-center font-mono text-[13px] text-muted-foreground">
                         no new mentions
                     </p>

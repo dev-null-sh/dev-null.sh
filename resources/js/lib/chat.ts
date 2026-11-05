@@ -123,9 +123,15 @@ export type ThreadState = {
      */
     pinnedMessagesVersion: number | null;
     /**
-     * The org messages that mentioned the user, latest first, until they open or clear them.
+     * The org messages that mentioned the user, latest first, until they open or clear them, and how many there are.
      */
     mentions: Message[];
+    mentions_count: number;
+    /**
+     * The mentions being cleared, and when clearing last finished: until then, reads keep the mentions the bell shows.
+     */
+    clearingMentions: number[];
+    mentionsClearedAt: number | null;
     is_archived: boolean;
     pinned_at: string | null;
     muted_until_at: string | null;
@@ -224,10 +230,6 @@ const lastTypingPing = new Map<string, number>();
 const reactionsInFlight = new Map<number, number>();
 const reactionsSettledAt = new Map<number, number>();
 const messagePinsInFlight = new Map<string, number>();
-/**
- * The mentions the user cleared, kept out of polls that were sent before the server forgot them.
- */
-const clearedMentions = new Set<number>();
 /**
  * The newest pinned messages a pin request handed back while others in the org were still in flight.
  */
@@ -913,6 +915,9 @@ function emptyThread(target: ChatTarget): ThreadState {
         pinned: [],
         pinnedMessagesVersion: null,
         mentions: [],
+        mentions_count: 0,
+        clearingMentions: [],
+        mentionsClearedAt: null,
         is_archived: false,
         pinned_at: null,
         muted_until_at: null,
@@ -927,14 +932,27 @@ function emptyThread(target: ChatTarget): ThreadState {
     };
 }
 
+/**
+ * The mentions a read handed over, unless it was sent before the user finished clearing some.
+ */
+function mentionsFrom(
+    current: ThreadState,
+    thread: Thread | OrgThread,
+    sentAt: number,
+): Pick<ThreadState, 'mentions' | 'mentions_count'> {
+    return !('mentions' in thread) ||
+        current.clearingMentions.length > 0 ||
+        (current.mentionsClearedAt !== null &&
+            current.mentionsClearedAt >= sentAt)
+        ? { mentions: current.mentions, mentions_count: current.mentions_count }
+        : { mentions: thread.mentions, mentions_count: thread.mentions_count };
+}
+
 function fromServer(thread: Thread | OrgThread): Partial<ThreadState> {
     return 'members' in thread
         ? {
               members: thread.members,
               typing: thread.typing,
-              mentions: thread.mentions.filter(
-                  (message) => !clearedMentions.has(message.id),
-              ),
               role: thread.role,
               is_archived: thread.is_archived,
               pinned_at: thread.pinned_at,
@@ -970,6 +988,8 @@ export function seedThread(
             [key]: {
                 ...current,
                 ...fromServer(thread),
+                // A page doesn't say when it was read, so once the user cleared mentions, polls bring them instead.
+                ...mentionsFrom(current, thread, -Infinity),
                 target,
                 messages: mergeMessages(current.messages, thread.messages),
                 ...pinnedMessagesFrom(
@@ -1648,6 +1668,7 @@ async function pollThread(target: ChatTarget): Promise<void> {
             [key]: {
                 ...current,
                 ...fromServer(fresh),
+                ...mentionsFrom(current, fresh, polledAt),
                 target:
                     'org' in fresh
                         ? { kind: 'org', org: fresh.org }
@@ -2165,47 +2186,77 @@ export async function toggleReaction(
  * when the server refuses, or answers without the message among the pinned ones.
  */
 /**
- * Clears the mention the user opened, or every mention in the org, at once, and brings them back if the server
- * refuses.
+ * Clears the mention the user opened, or every mention in the org, at once. The server answers with the mentions left,
+ * and when it refuses, the cleared ones come back and the thread is read again.
  */
 export async function clearMentions(
     org: OrgRef,
     messageId?: number,
 ): Promise<void> {
-    const key = targetKey({ kind: 'org', org });
-    const cleared = (state.threads[key]?.mentions ?? []).filter(
+    const target: ChatTarget = { kind: 'org', org };
+    const key = targetKey(target);
+    const thread = state.threads[key];
+    const cleared = (thread?.mentions ?? []).filter(
         (message) => messageId === undefined || message.id === messageId,
     );
+    const clearedCount =
+        messageId === undefined ? (thread?.mentions_count ?? 0) : 1;
+    const ids = cleared.map((message) => message.id);
+    const stillClearing = (current: ThreadState) =>
+        current.clearingMentions.filter((id) => !ids.includes(id));
 
     if (cleared.length === 0) {
         return;
     }
 
-    cleared.forEach((message) => clearedMentions.add(message.id));
-    updateThread(key, (thread) => ({
-        mentions: thread.mentions.filter(
-            (message) => !clearedMentions.has(message.id),
+    updateThread(key, (current) => ({
+        mentions: current.mentions.filter(
+            (message) => !ids.includes(message.id),
         ),
+        mentions_count: Math.max(0, current.mentions_count - clearedCount),
+        clearingMentions: [...current.clearingMentions, ...ids],
     }));
 
     try {
-        await remotesRequest(
+        const left = await remotesRequest<
+            Pick<OrgThread, 'mentions' | 'mentions_count'>
+        >(
             OrgMentionController.destroy.url({ org: org.id }),
             'DELETE',
             messageId === undefined ? undefined : { message_id: messageId },
         );
-    } catch (error) {
-        cleared.forEach((message) => clearedMentions.delete(message.id));
 
+        updateThread(key, (current) => {
+            const clearing = stillClearing(current);
+            const mentions = left.mentions.filter(
+                (message) => !clearing.includes(message.id),
+            );
+
+            return {
+                mentions,
+                mentions_count:
+                    left.mentions_count -
+                    (left.mentions.length - mentions.length),
+                clearingMentions: clearing,
+                mentionsClearedAt: performance.now(),
+            };
+        });
+    } catch (error) {
         if (error instanceof StaleRemotesError) {
             return;
         }
 
-        updateThread(key, (thread) => ({
-            mentions: [...thread.mentions, ...cleared].sort(
-                (a, b) => b.id - a.id,
-            ),
+        updateThread(key, (current) => ({
+            mentions: [
+                ...current.mentions.filter(
+                    (message) => !ids.includes(message.id),
+                ),
+                ...cleared,
+            ].sort((a, b) => b.id - a.id),
+            mentions_count: current.mentions_count + clearedCount,
+            clearingMentions: stillClearing(current),
         }));
+        refreshThread(target);
 
         throw error;
     }

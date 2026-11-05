@@ -946,6 +946,7 @@ export function ConversationThread({
                             <MentionsBell
                                 org={current.org}
                                 mentions={thread?.mentions ?? noMessages}
+                                count={thread?.mentions_count ?? 0}
                                 isCompact={isCompact}
                                 onJump={(id) => void jumpTo(id)}
                             />

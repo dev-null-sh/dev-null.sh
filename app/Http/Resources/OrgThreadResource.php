@@ -25,6 +25,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
  *     reaction_changes: OrgThread['reaction_changes'],
  *     pinned: OrgThread['pinned'],
  *     mentions: OrgThread['mentions'],
+ *     mentions_count: OrgThread['mentions_count'],
  *     read_through_id: OrgThread['read_through_id'],
  *     members: OrgThread['members'],
  *     typing: OrgThread['typing'],
