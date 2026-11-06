@@ -9,6 +9,7 @@ import { CommitImages } from '@/components/commit-images';
 import { CommitPastelButton } from '@/components/commit-pastel-button';
 import { CommitPoll } from '@/components/commit-poll';
 import { CommitQuoteButton } from '@/components/commit-quote-button';
+import { CommitRecommitButton } from '@/components/commit-recommit-button';
 import { CommitSecondaryActions } from '@/components/commit-secondary-actions';
 import { CommitStarButton } from '@/components/commit-star-button';
 import { CommitStatusBadge } from '@/components/commit-status-badge';
@@ -537,6 +538,7 @@ export function CommitCard({
                                             commit={commit}
                                             keyShortcut="q"
                                         />
+                                        <CommitRecommitButton commit={commit} />
                                         {translation.button}
                                     </div>
                                     <CommitSecondaryActions
@@ -564,6 +566,9 @@ export function CommitCard({
                                             <CommitQuoteButton
                                                 commit={commit}
                                                 keyShortcut="q"
+                                            />
+                                            <CommitRecommitButton
+                                                commit={commit}
                                             />
                                             {translation.button}
                                             {threadActions}
