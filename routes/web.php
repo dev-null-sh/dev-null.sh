@@ -6,7 +6,6 @@ use App\Enums\Log;
 use App\Enums\ProfileType;
 use App\Http\Controllers\AboutController;
 use App\Http\Controllers\AppController;
-use App\Http\Controllers\AppSessionController;
 use App\Http\Controllers\BanController;
 use App\Http\Controllers\BannedController;
 use App\Http\Controllers\BrandController;
@@ -202,15 +201,6 @@ Route::middleware('guest')->group(function (): void {
         ->middleware('throttle:join-links')
         ->name('join-link.store');
 });
-
-// Signing in the iOS app POC (temporary, see AppSignIn): the sign-in starts in the system's sheet, signed in to /dev/null or not, and the code it
-// hands back signs in the app's web view, whoever was signed in there...
-Route::get('auth/app', [AppSessionController::class, 'create'])
-    ->middleware('throttle:10,1')
-    ->name('app-session.create');
-Route::get('auth/app/callback', [AppSessionController::class, 'store'])
-    ->middleware('throttle:10,1')
-    ->name('app-session.store');
 
 // Log, where guests read Trending and Latest...
 Route::get('log/everyone', fn () => to_route('log.show', Log::Trending, 301));
