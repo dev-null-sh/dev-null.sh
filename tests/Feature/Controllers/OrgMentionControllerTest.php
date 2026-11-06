@@ -16,16 +16,17 @@ it('hands members the messages that mention them, latest first, until they clear
     $review = pushToOrg($nuno, $org, "@{$mark->handle} can you review the deploy script?");
     pushToOrg($taylor, $org, 'shipping it now');
     $schema = pushToOrg($taylor, $org, "thoughts on the schema @{$mark->handle}?");
+    $cache = pushToOrg($nuno, $org, "@{$mark->handle} the cache is up");
 
     $this->actingAs($mark)->getJson(route('org-message.index', $org))
         ->assertOk()
-        ->assertJsonPath('mentions.*.id', [$schema->id, $review->id])
-        ->assertJsonPath('mentions_count', 2)
-        ->assertJsonPath('mentions.1.body', "@{$mark->handle} can you review the deploy script?")
-        ->assertJsonPath('mentions.1.user.handle', $nuno->handle);
-    $this->getJson(route('org-message.index', [$org, 'after' => $schema->id]))->assertJsonPath('mentions.*.id', [$schema->id, $review->id]);
+        ->assertJsonPath('mentions.*.id', [$cache->id, $schema->id, $review->id])
+        ->assertJsonPath('mentions_count', 3)
+        ->assertJsonPath('mentions.2.body', "@{$mark->handle} can you review the deploy script?")
+        ->assertJsonPath('mentions.2.user.handle', $nuno->handle);
+    $this->getJson(route('org-message.index', [$org, 'after' => $cache->id]))->assertJsonPath('mentions.*.id', [$cache->id, $schema->id, $review->id]);
 
-    $this->deleteJson(route('org-mention.destroy', [$org, 'message_id' => $review->id]))
+    $this->deleteJson(route('org-mention.destroy', $org), ['message_ids' => [$review->id, $cache->id]])
         ->assertOk()
         ->assertJsonPath('mentions.*.id', [$schema->id])
         ->assertJsonPath('mentions_count', 1);
@@ -47,6 +48,29 @@ it('clears every mention in one org at once, leaving the other orgs', function (
 
     $this->getJson(route('org-message.index', $core))->assertJsonPath('mentions', []);
     $this->getJson(route('org-message.index', $infra))->assertJsonPath('mentions.*.id', [$cache->id]);
+});
+
+it('refuses an empty list of mentions to clear instead of clearing them all', function (): void {
+    $mark = User::factory()->create();
+    [$nuno] = followersOf($mark, 1);
+    $org = createOrg($mark, [$nuno]);
+    $message = pushToOrg($nuno, $org, "@{$mark->handle} review?");
+
+    $this->actingAs($mark)->deleteJson(route('org-mention.destroy', $org), ['message_ids' => []])->assertJsonValidationErrors('message_ids');
+
+    $this->getJson(route('org-message.index', $org))->assertJsonPath('mentions.*.id', [$message->id]);
+});
+
+it('refuses the single mention an older page asks to clear, instead of clearing them all', function (): void {
+    $mark = User::factory()->create();
+    [$nuno] = followersOf($mark, 1);
+    $org = createOrg($mark, [$nuno]);
+    $review = pushToOrg($nuno, $org, "@{$mark->handle} review?");
+    $deploy = pushToOrg($nuno, $org, "@{$mark->handle} deploy?");
+
+    $this->actingAs($mark)->deleteJson(route('org-mention.destroy', $org), ['message_id' => $review->id])->assertJsonValidationErrors('message_id');
+
+    $this->getJson(route('org-message.index', $org))->assertJsonPath('mentions.*.id', [$deploy->id, $review->id]);
 });
 
 it('counts every mention, while only the latest 99 come along', function (): void {
@@ -107,7 +131,7 @@ it("tells the user's other devices only when a mention was cleared", function ()
     Event::fake([UsersUpdated::class]);
 
     $this->actingAs($mark)->deleteJson(route('org-mention.destroy', $org))->assertOk();
-    $this->deleteJson(route('org-mention.destroy', [$org, 'message_id' => $message->id]))->assertOk();
+    $this->deleteJson(route('org-mention.destroy', $org), ['message_ids' => [$message->id]])->assertOk();
 
     Event::assertDispatchedTimes(UsersUpdated::class, 1);
     Event::assertDispatched(UsersUpdated::class, fn (UsersUpdated $event): bool => $event->update === UserUpdate::Conversation && $event->userIds === [$mark->id]);

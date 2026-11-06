@@ -89,6 +89,7 @@ import type { ReactionUsage } from '@/lib/reactions';
 import { isRemoteMuted, playPing } from '@/lib/remote-notifications';
 import { restoreScrollAnchor, scrollAnchorOf } from '@/lib/scroll-anchor';
 import type { ScrollAnchor } from '@/lib/scroll-anchor';
+import { watchSeenMentions } from '@/lib/seen-mentions';
 import {
     characterCount,
     cn,
@@ -506,6 +507,35 @@ export function ConversationThread({
     useEffect(() => {
         messagesRef.current = messages;
     }, [messages]);
+
+    const orgId = current.kind === 'org' ? current.org.id : null;
+    const seenMentions = useRef<ReturnType<typeof watchSeenMentions> | null>(
+        null,
+    );
+    const mentionIds = (thread?.mentions ?? noMessages)
+        .map((message) => message.id)
+        .join();
+
+    useEffect(() => {
+        if (current.kind !== 'org' || !isVisible || scroller.current === null) {
+            return;
+        }
+
+        const watcher = watchSeenMentions(scroller.current, current.org);
+        seenMentions.current = watcher;
+
+        return () => {
+            watcher.stop();
+            seenMentions.current = null;
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [orgId, isVisible]);
+
+    useEffect(() => {
+        seenMentions.current?.track(
+            mentionIds === '' ? [] : mentionIds.split(',').map(Number),
+        );
+    }, [orgId, isVisible, mentionIds, messages]);
 
     useLayoutEffect(() => {
         const element = scroller.current;
