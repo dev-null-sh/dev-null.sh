@@ -1,5 +1,5 @@
 import { Link, router, usePage } from '@inertiajs/react';
-import { CornerDownRight, Repeat2 } from 'lucide-react';
+import { CornerDownRight, Quote, Repeat2 } from 'lucide-react';
 import type { MouseEvent, PointerEvent, ReactNode } from 'react';
 import { useCallback, useContext, useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
@@ -156,6 +156,10 @@ export function CommitCard({
         hasRailTail && railNodePosition !== 'bottom' && endsWithDot;
     const graphEndId = `${commit.id}:end`;
     const isOwn = useOwnsCommit()(commit);
+    const isRecommit =
+        commit.quoted_commit_id !== null &&
+        commit.body === '' &&
+        (commit.images?.length ?? 0) === 0;
     const isFresh = isOwn && isWithinSeconds(commit.created_at, 15);
     const isDeletable = isOwn && canDelete;
     const hash = shortHash(commit.id);
@@ -428,13 +432,16 @@ export function CommitCard({
                                 </span>
                             </div>
 
-                            {commit.body === '' &&
-                                commit.quoted_commit_id !== null && (
-                                    <p className="mt-0.5 flex items-center gap-1 font-mono text-xs text-muted-foreground">
+                            {commit.quoted_commit_id !== null && (
+                                <p className="mt-0.5 flex items-center gap-1 font-mono text-xs text-muted-foreground">
+                                    {isRecommit ? (
                                         <Repeat2 className="size-3" />
-                                        Recommitted
-                                    </p>
-                                )}
+                                    ) : (
+                                        <Quote className="size-3" />
+                                    )}
+                                    {isRecommit ? 'Recommitted' : 'Quoted'}
+                                </p>
+                            )}
 
                             {commit.parent && isDeleted(commit.parent) && (
                                 <p className="mt-0.5 flex w-fit items-center gap-1 font-mono text-xs text-muted-foreground">
