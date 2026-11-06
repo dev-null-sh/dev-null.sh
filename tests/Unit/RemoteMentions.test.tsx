@@ -10,6 +10,7 @@ vi.mock('../../resources/js/lib/remote-push', () => ({
 }));
 
 const chat = await import('../../resources/js/lib/chat');
+const { watchSeenMentions } = await import('../../resources/js/lib/seen-mentions');
 const { connectRealtime } = await import('../../resources/js/lib/realtime');
 
 let org = { id: 'mentions-org', name: 'Core' };
@@ -37,8 +38,25 @@ const thread = (mentions: number[], count = mentions.length) => ({
 const shown = () => chat.chatSnapshot().threads[`org:${org.id}`];
 const shownIds = () => shown().mentions.map(({ id }) => id);
 
-type Held = { url: string; method: string; settle: (outcome: Response | Error) => void };
+type Held = { url: string; method: string; body: unknown; settle: (outcome: Response | Error) => void };
 let held: Held[];
+let isFocused: boolean;
+
+type Bubble = { dataset: { messageId: string }; isConnected: boolean; top: number; height: number; getBoundingClientRect: () => { top: number; bottom: number } };
+const bubble = (id: number, top = 1000, height = 100): Bubble => ({ dataset: { messageId: String(id) }, isConnected: true, top, height, getBoundingClientRect() { return { top: this.top, bottom: this.top + this.height }; } });
+let banner: { dataset: { state?: string }; getBoundingClientRect: () => { bottom: number } } | null;
+let bubbles: Bubble[];
+let mutate: () => void;
+const thread$ = () => {
+    const events = new EventTarget();
+
+    return Object.assign(events, {
+        getBoundingClientRect: () => ({ top: 0, bottom: 500 }),
+        querySelectorAll: () => bubbles,
+        parentElement: { querySelector: () => banner },
+    }) as unknown as HTMLElement;
+};
+const sent = (method: string, part: string) => held.some((request) => request.method === method && request.url.includes(part));
 
 const take = async (method: string, part: string): Promise<Held> => {
     await vi.advanceTimersByTimeAsync(0);
@@ -61,9 +79,23 @@ beforeEach(() => {
         clearInterval,
         addEventListener: events.addEventListener.bind(events),
         removeEventListener: events.removeEventListener.bind(events),
+        dispatchEvent: events.dispatchEvent.bind(events),
         localStorage: { getItem: () => null, setItem: () => {} },
     });
-    vi.stubGlobal('document', { hidden: false, cookie: '', hasFocus: () => true, addEventListener: () => {}, removeEventListener: () => {} });
+    isFocused = true;
+    vi.stubGlobal('document', { hidden: false, cookie: '', hasFocus: () => isFocused, addEventListener: () => {}, removeEventListener: () => {} });
+    banner = null;
+    bubbles = [];
+    vi.stubGlobal(
+        'MutationObserver',
+        class {
+            constructor(callback: () => void) {
+                mutate = callback;
+            }
+            observe() {}
+            disconnect() {}
+        },
+    );
     vi.stubGlobal('fetch', (input: string, init?: RequestInit) => {
         const url = String(input);
 
@@ -72,7 +104,7 @@ beforeEach(() => {
         }
 
         return new Promise<Response>((resolve, reject) => {
-            held.push({ url, method: init?.method ?? 'GET', settle: (outcome) => (outcome instanceof Error ? reject(outcome) : resolve(outcome)) });
+            held.push({ url, method: init?.method ?? 'GET', body: init?.body === undefined ? undefined : JSON.parse(init.body as string), settle: (outcome) => (outcome instanceof Error ? reject(outcome) : resolve(outcome)) });
         });
     });
     connectRealtime(fakeConnection().connection);
@@ -91,7 +123,7 @@ test('a cleared mention stays gone from reads sent before clearing finished, and
     await vi.advanceTimersByTimeAsync(0);
     const before = await take('GET', '/messages');
 
-    const clearing = chat.clearMentions(org, 2);
+    const clearing = chat.clearMentions(org, [2]);
     assert.deepEqual(shownIds(), [3, 1]);
     assert.equal(shown().mentions_count, 2);
 
@@ -142,7 +174,7 @@ test('a refused clear brings the mention back, then takes what the thread reads 
     (await take('GET', '/messages')).settle(Response.json(thread([3, 2])));
     await vi.advanceTimersByTimeAsync(0);
 
-    const clearing = chat.clearMentions(org, 2);
+    const clearing = chat.clearMentions(org, [2]);
     (await take('DELETE', '/mentions')).settle(Response.json({}, { status: 500 }));
     await assert.rejects(clearing);
     assert.deepEqual(shownIds(), [3, 2]);
@@ -160,7 +192,7 @@ test('a refused clear brings the mention back, then takes what the thread reads 
 test('what one account cleared never hides the mentions of the next account', async () => {
     const stopFirst = chat.watchRemoteUpdates('mark');
     chat.seedThread(target, thread([5]) as never);
-    const clearing = chat.clearMentions(org, 5);
+    const clearing = chat.clearMentions(org, [5]);
     (await take('DELETE', '/mentions')).settle(Response.json({ mentions: [], mentions_count: 0 }));
     await clearing;
     stopFirst();
@@ -176,8 +208,8 @@ test('clears in one org go out one at a time, so an earlier answer never brings 
     const stop = chat.watchRemoteUpdates('mark');
     chat.seedThread(target, thread([3, 2, 1]) as never);
 
-    const first = chat.clearMentions(org, 1);
-    const second = chat.clearMentions(org, 2);
+    const first = chat.clearMentions(org, [1]);
+    const second = chat.clearMentions(org, [2]);
     assert.deepEqual(shownIds(), [3]);
     await vi.advanceTimersByTimeAsync(0);
     assert.equal(held.filter(({ method }) => method === 'DELETE').length, 1);
@@ -199,7 +231,7 @@ test('clears in one org go out one at a time, so an earlier answer never brings 
 test('a clear still waiting its turn is never sent for the next account', async () => {
     const stopFirst = chat.watchRemoteUpdates('mark');
     chat.seedThread(target, thread([2, 1]) as never);
-    const first = chat.clearMentions(org, 1);
+    const first = chat.clearMentions(org, [1]);
     const all = chat.clearMentions(org).catch(() => undefined);
     const sent = await take('DELETE', '/mentions');
     stopFirst();
@@ -217,7 +249,7 @@ test('a clear still waiting its turn is never sent for the next account', async 
 test('a clear dropped when the remotes stop being watched leaves the bell to the next read', async () => {
     const stopFirst = chat.watchRemoteUpdates('mark');
     chat.seedThread(target, thread([2, 1]) as never);
-    const clearing = chat.clearMentions(org, 1);
+    const clearing = chat.clearMentions(org, [1]);
     const sent = await take('DELETE', '/mentions');
     stopFirst();
 
@@ -234,13 +266,13 @@ test('a clear dropped when the remotes stop being watched leaves the bell to the
 test('a clear dropped for one account never undoes the next account clearing the same mention', async () => {
     const stopFirst = chat.watchRemoteUpdates('mark');
     chat.seedThread(target, thread([1]) as never);
-    const first = chat.clearMentions(org, 1);
+    const first = chat.clearMentions(org, [1]);
     const stale = await take('DELETE', '/mentions');
     stopFirst();
 
     const stopSecond = chat.watchRemoteUpdates('taylor');
     chat.seedThread(target, thread([1]) as never);
-    const second = chat.clearMentions(org, 1);
+    const second = chat.clearMentions(org, [1]);
     stale.settle(Response.json({ mentions: [], mentions_count: 0 }));
     await first;
     chat.seedThread(target, thread([1]) as never);
@@ -256,14 +288,14 @@ test('a clear dropped for one account never undoes the next account clearing the
 test('a clear dropped before the account came back never undoes the clear it started since', async () => {
     const stopFirst = chat.watchRemoteUpdates('mark');
     chat.seedThread(target, thread([1]) as never);
-    const first = chat.clearMentions(org, 1);
+    const first = chat.clearMentions(org, [1]);
     const stale = await take('DELETE', '/mentions');
     stopFirst();
     chat.watchRemoteUpdates('taylor')();
 
     const stopAgain = chat.watchRemoteUpdates('mark');
     chat.seedThread(target, thread([1]) as never);
-    const again = chat.clearMentions(org, 1);
+    const again = chat.clearMentions(org, [1]);
     stale.settle(Response.json({ mentions: [], mentions_count: 0 }));
     await first;
     chat.seedThread(target, thread([1]) as never);
@@ -274,4 +306,159 @@ test('a clear dropped before the account came back never undoes the clear it sta
     (await take('DELETE', '/mentions')).settle(Response.json({ mentions: [], mentions_count: 0 }));
     await again;
     stopAgain();
+});
+
+test('mentions that stay on screen for a second clear together, including a long one filling half the screen', async () => {
+    const stop = chat.watchRemoteUpdates('mark');
+    chat.seedThread(target, thread([4, 3, 2, 1]) as never);
+    const scroller = thread$();
+    bubbles = [bubble(4, 300), bubble(3, -1720, 2000), bubble(2, -1780, 2000), bubble(1, 600)];
+    const seen = watchSeenMentions(scroller, org);
+    seen.track([4, 3, 2, 1]);
+
+    await vi.advanceTimersByTimeAsync(999);
+    assert.equal(sent('DELETE', '/mentions'), false);
+    assert.deepEqual(shownIds(), [4, 3, 2, 1]);
+
+    await vi.advanceTimersByTimeAsync(1);
+    const clearing = await take('DELETE', '/mentions');
+    assert.deepEqual(clearing.body, { message_ids: [4, 3] });
+    assert.deepEqual(shownIds(), [2, 1]);
+
+    seen.stop();
+    stop();
+});
+
+test('a mention scrolled past within a second stays in the bell, and one scrolled to without moving it clears', async () => {
+    const stop = chat.watchRemoteUpdates('mark');
+    chat.seedThread(target, thread([3, 2]) as never);
+    const scroller = thread$();
+    bubbles = [bubble(3, 200), bubble(2, -1780, 2000)];
+    const seen = watchSeenMentions(scroller, org);
+    seen.track([3, 2]);
+
+    await vi.advanceTimersByTimeAsync(600);
+    bubbles[0].top = 700;
+    bubbles[1].top = -1720;
+    scroller.dispatchEvent(new Event('scroll'));
+    await vi.advanceTimersByTimeAsync(999);
+    assert.equal(sent('DELETE', '/mentions'), false);
+
+    await vi.advanceTimersByTimeAsync(1);
+    assert.deepEqual((await take('DELETE', '/mentions')).body, { message_ids: [2] });
+    assert.deepEqual(shownIds(), [3]);
+
+    seen.stop();
+    stop();
+});
+
+test('a mention under the pinned banner, or behind the open pinned panel, is not seen', async () => {
+    const stop = chat.watchRemoteUpdates('mark');
+    chat.seedThread(target, thread([3, 2]) as never);
+    const scroller = thread$();
+    banner = { dataset: {}, getBoundingClientRect: () => ({ bottom: 36 }) };
+    bubbles = [bubble(3, 0, 40), bubble(2, 200)];
+    const seen = watchSeenMentions(scroller, org);
+
+    banner.dataset.state = 'open';
+    seen.track([3, 2]);
+    await vi.advanceTimersByTimeAsync(2000);
+    assert.equal(sent('DELETE', '/mentions'), false);
+
+    banner.dataset.state = 'closed';
+    seen.track([3, 2]);
+    await vi.advanceTimersByTimeAsync(1000);
+    assert.deepEqual((await take('DELETE', '/mentions')).body, { message_ids: [2] });
+
+    seen.stop();
+    stop();
+});
+
+test('opening the pinned panel over a mention starts its second over once the panel closes', async () => {
+    const stop = chat.watchRemoteUpdates('mark');
+    chat.seedThread(target, thread([3]) as never);
+    banner = { dataset: { state: 'closed' }, getBoundingClientRect: () => ({ bottom: 36 }) };
+    bubbles = [bubble(3, 200)];
+    const seen = watchSeenMentions(thread$(), org);
+    seen.track([3]);
+
+    await vi.advanceTimersByTimeAsync(100);
+    banner.dataset.state = 'open';
+    mutate();
+    await vi.advanceTimersByTimeAsync(800);
+    banner.dataset.state = 'closed';
+    mutate();
+    await vi.advanceTimersByTimeAsync(999);
+    assert.equal(sent('DELETE', '/mentions'), false);
+
+    await vi.advanceTimersByTimeAsync(1);
+    assert.deepEqual((await take('DELETE', '/mentions')).body, { message_ids: [3] });
+
+    seen.stop();
+    stop();
+});
+
+test('a mention whose message was drawn again off screen is not cleared for where it used to be', async () => {
+    const stop = chat.watchRemoteUpdates('mark');
+    chat.seedThread(target, thread([3]) as never);
+    const scroller = thread$();
+    bubbles = [bubble(3, 200)];
+    const seen = watchSeenMentions(scroller, org);
+    seen.track([3]);
+
+    await vi.advanceTimersByTimeAsync(500);
+    bubbles[0].isConnected = false;
+    bubbles = [bubble(3, 900)];
+    seen.track([3]);
+    await vi.advanceTimersByTimeAsync(2000);
+
+    assert.equal(sent('DELETE', '/mentions'), false);
+    assert.deepEqual(shownIds(), [3]);
+
+    seen.stop();
+    stop();
+});
+
+test('nothing clears while the window is in the background, and the second starts once it is back', async () => {
+    const stop = chat.watchRemoteUpdates('mark');
+    chat.seedThread(target, thread([3]) as never);
+    isFocused = false;
+    bubbles = [bubble(3, 200)];
+    const seen = watchSeenMentions(thread$(), org);
+    seen.track([3]);
+
+    await vi.advanceTimersByTimeAsync(2000);
+    assert.equal(sent('DELETE', '/mentions'), false);
+
+    isFocused = true;
+    window.dispatchEvent(new Event('focus'));
+    await vi.advanceTimersByTimeAsync(999);
+    assert.equal(sent('DELETE', '/mentions'), false);
+    await vi.advanceTimersByTimeAsync(1);
+    assert.deepEqual((await take('DELETE', '/mentions')).body, { message_ids: [3] });
+
+    seen.stop();
+    stop();
+});
+
+test('a refused clear of mentions on screen is not sent again while they stay there', async () => {
+    const stop = chat.watchRemoteUpdates('mark');
+    chat.seedThread(target, thread([3]) as never);
+    bubbles = [bubble(3, 200)];
+    const scroller = thread$();
+    const seen = watchSeenMentions(scroller, org);
+    seen.track([3]);
+
+    await vi.advanceTimersByTimeAsync(1000);
+    (await take('DELETE', '/mentions')).settle(new Response(null, { status: 500 }));
+    await vi.advanceTimersByTimeAsync(0);
+    assert.deepEqual(shownIds(), [3]);
+
+    seen.track([3]);
+    scroller.dispatchEvent(new Event('scroll'));
+    await vi.advanceTimersByTimeAsync(2000);
+    assert.equal(sent('DELETE', '/mentions'), false);
+
+    seen.stop();
+    stop();
 });
