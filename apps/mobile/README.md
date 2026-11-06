@@ -2,7 +2,7 @@
 
 The iOS app whose web view loads dev-null.sh, in a Capacitor project. A site deploy updates it without an App Store release. Only its native parts need a release: the tab bar, and whatever plugins join it.
 
-The name "lite" is only on the App Store and in the site's code (`isLiteMobileApp`): the home screen and the app itself say `/dev/null`, and the identifiers that are hard to change stay neutral (`sh.devnull.app`, `DevNullWebView/`), so that the store name can change alone. It is not the NativePHP app, which the site calls the mobile app.
+The name "lite" is on the App Store, in the site's code (`isLiteMobileApp`) and in the user agent token (`DevNullLite/`). The home screen and the app itself say `/dev/null`, and the bundle ID stays neutral (`sh.devnull.app`) because it can't change once a build is uploaded. If the app gets renamed, the site can accept both tokens until old installs are gone. It is not the NativePHP app, which the site calls the mobile app.
 
 ## Run it
 
