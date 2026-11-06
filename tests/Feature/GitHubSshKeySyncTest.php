@@ -48,12 +48,18 @@ it('does not queue another sync while one is already queued', function (): void 
     Queue::assertPushed(SyncGitHubSshKeysJob::class, 1);
 });
 
-it('queues the sync again after the short lock expires', function (): void {
+it('queues the sync again after an hour', function (): void {
     Queue::fake();
 
     $this->actingAs($this->user)->get(route('log.show', Log::Following))->assertOk();
 
     $this->travel(61)->seconds();
+
+    $this->actingAs($this->user)->get(route('log.show', Log::Following))->assertOk();
+
+    Queue::assertPushed(SyncGitHubSshKeysJob::class, 1);
+
+    $this->travel(1)->hour();
 
     $this->actingAs($this->user)->get(route('log.show', Log::Following))->assertOk();
 
@@ -106,14 +112,14 @@ it('does not queue a sync for the commit status poll', function (): void {
     Queue::assertNotPushed(SyncGitHubSshKeysJob::class);
 });
 
-it('queues a sync when a signed in user does something without opening a page', function (): void {
+it('does not queue a sync when a signed in user does something without opening a page', function (): void {
     Queue::fake();
 
     $this->actingAs($this->user)
         ->postJson(route('commit-star.store', Commit::factory()->create()))
         ->assertOk();
 
-    Queue::assertPushed(SyncGitHubSshKeysJob::class, 1);
+    Queue::assertNotPushed(SyncGitHubSshKeysJob::class);
 });
 
 it('does not queue a sync for a guest', function (): void {
