@@ -7,6 +7,7 @@ namespace App\Http\Requests;
 use App\Enums\OrgRole;
 use App\Models\Conversation;
 use App\Models\User;
+use App\Queries\OrgMentionsQuery;
 use Illuminate\Auth\Access\Response;
 use Illuminate\Foundation\Http\FormRequest;
 
@@ -29,15 +30,25 @@ final class DeleteOrgMentionsRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'message_id' => ['nullable', 'integer', 'min:1'],
+            'message_ids' => ['sometimes', 'array', 'min:1', 'max:'.OrgMentionsQuery::LIMIT],
+            'message_ids.*' => ['integer', 'min:1'],
         ];
     }
 
     /**
-     * The one mention to clear, or none to clear them all.
+     * The mentions to clear, or none to clear them all.
+     *
+     * @return list<int>|null
      */
-    public function messageId(): ?int
+    public function messageIds(): ?array
     {
-        return $this->filled('message_id') ? $this->integer('message_id') : null;
+        if (! $this->has('message_ids')) {
+            return null;
+        }
+
+        /** @var list<int> $ids */
+        $ids = $this->array('message_ids');
+
+        return $ids;
     }
 }

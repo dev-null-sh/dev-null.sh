@@ -2190,17 +2190,12 @@ export async function toggleReaction(
 }
 
 /**
- * Pins a message for the whole org, or unpins it, straight away, then settles on the org's pinned messages as the
- * server holds them, once no other pin request in the org is in flight. Puts the message back where it was and throws
- * when the server refuses, or answers without the message among the pinned ones.
- */
-/**
- * Clears the mention the user opened, or every mention in the org, at once. The server answers with the mentions left,
- * and when it refuses, the cleared ones come back and the thread is read again.
+ * Clears the mentions the user opened or saw, or every mention in the org, at once. The server answers with the
+ * mentions left, and when it refuses, the cleared ones come back and the thread is read again.
  */
 export async function clearMentions(
     org: OrgRef,
-    messageId?: number,
+    messageIds?: number[],
 ): Promise<void> {
     const isCurrent = ownership();
     const resets = remotesResets;
@@ -2208,10 +2203,13 @@ export async function clearMentions(
     const key = targetKey(target);
     const thread = state.threads[key];
     const cleared = (thread?.mentions ?? []).filter(
-        (message) => messageId === undefined || message.id === messageId,
+        (message) =>
+            messageIds === undefined || messageIds.includes(message.id),
     );
     const clearedCount =
-        messageId === undefined ? (thread?.mentions_count ?? 0) : 1;
+        messageIds === undefined
+            ? (thread?.mentions_count ?? 0)
+            : cleared.length;
     const ids = cleared.map((message) => message.id);
     const stillClearing = (current: ThreadState) =>
         current.clearingMentions.filter((id) => !ids.includes(id));
@@ -2239,7 +2237,7 @@ export async function clearMentions(
             return request<Pick<OrgThread, 'mentions' | 'mentions_count'>>(
                 OrgMentionController.destroy.url({ org: org.id }),
                 'DELETE',
-                messageId === undefined ? undefined : { message_id: messageId },
+                messageIds === undefined ? undefined : { message_ids: ids },
                 isCurrent,
             );
         });
@@ -2291,6 +2289,11 @@ export async function clearMentions(
     }
 }
 
+/**
+ * Pins a message for the whole org, or unpins it, straight away, then settles on the org's pinned messages as the
+ * server holds them, once no other pin request in the org is in flight. Puts the message back where it was and throws
+ * when the server refuses, or answers without the message among the pinned ones.
+ */
 export async function setMessagePinned(
     target: ChatTarget,
     message: Message,

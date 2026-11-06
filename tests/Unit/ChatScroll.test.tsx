@@ -96,6 +96,7 @@ function setup(
     };
     vi.stubGlobal('window', {
         matchMedia: () => ({ matches: reducedMotion }),
+        clearTimeout,
         addEventListener: vi.fn(),
         removeEventListener: vi.fn(),
     });
@@ -112,6 +113,14 @@ function setup(
                 onResize = callback;
             }
             observe() {}
+            disconnect() {}
+        },
+    );
+    vi.stubGlobal(
+        'IntersectionObserver',
+        class {
+            observe() {}
+            unobserve() {}
             disconnect() {}
         },
     );

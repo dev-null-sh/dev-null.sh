@@ -19,7 +19,7 @@ final readonly class OrgMentionController
      */
     public function destroy(DeleteOrgMentionsRequest $request, #[CurrentUser] User $user, Conversation $org, DeleteOrgMentions $action, OrgMentionsQuery $mentions): JsonResponse
     {
-        $action->handle($user, $org, $request->messageId());
+        $action->handle($user, $org, $request->messageIds());
 
         return response()->json($mentions->get($user, $org));
     }
