@@ -30,6 +30,7 @@ final class DeleteOrgMentionsRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'message_id' => ['prohibited'],
             'message_ids' => ['sometimes', 'array', 'min:1', 'max:'.OrgMentionsQuery::LIMIT],
             'message_ids.*' => ['integer', 'min:1'],
         ];

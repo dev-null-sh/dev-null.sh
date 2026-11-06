@@ -61,6 +61,18 @@ it('refuses an empty list of mentions to clear instead of clearing them all', fu
     $this->getJson(route('org-message.index', $org))->assertJsonPath('mentions.*.id', [$message->id]);
 });
 
+it('refuses the single mention an older page asks to clear, instead of clearing them all', function (): void {
+    $mark = User::factory()->create();
+    [$nuno] = followersOf($mark, 1);
+    $org = createOrg($mark, [$nuno]);
+    $review = pushToOrg($nuno, $org, "@{$mark->handle} review?");
+    $deploy = pushToOrg($nuno, $org, "@{$mark->handle} deploy?");
+
+    $this->actingAs($mark)->deleteJson(route('org-mention.destroy', $org), ['message_id' => $review->id])->assertJsonValidationErrors('message_id');
+
+    $this->getJson(route('org-message.index', $org))->assertJsonPath('mentions.*.id', [$deploy->id, $review->id]);
+});
+
 it('counts every mention, while only the latest 99 come along', function (): void {
     $mark = User::factory()->create();
     [$nuno] = followersOf($mark, 1);
