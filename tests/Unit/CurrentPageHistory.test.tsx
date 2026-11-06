@@ -55,9 +55,13 @@ test('refreshes only non-live props after history and bfcache restores', () => {
 
     try {
         const stop = trackCurrentPage();
-        const dispatch = (type: NavigationType, component: string) =>
+        const dispatch = (
+            type: NavigationType,
+            component: string,
+            url = `/${component}`,
+        ) =>
             navigate?.({
-                detail: { type, page: { component, url: `/${component}` } },
+                detail: { type, page: { component, url } },
             });
 
         pageShow?.({ persisted: true });
@@ -98,6 +102,7 @@ test('refreshes only non-live props after history and bfcache restores', () => {
                 ...(options.reset === undefined ? {} : { reset: options.reset }),
                 preserveScroll: options.preserveScroll,
                 method: options.method,
+                async: options.async,
                 preserveState: options.preserveState,
                 replace: options.replace,
                 onHttpException: typeof options.onHttpException,
@@ -106,6 +111,7 @@ test('refreshes only non-live props after history and bfcache restores', () => {
                 url: `/${components[index]}`,
                 ...options,
                 method: 'get',
+                async: true,
                 preserveState: true,
                 replace: true,
                 onHttpException: 'function',
@@ -128,10 +134,23 @@ test('refreshes only non-live props after history and bfcache restores', () => {
         assert.equal(onHttpException?.({ status: 503 } as never), undefined);
         assert.equal(reloadDocument.mock.calls.length, 2);
 
+        // When a photo is open over Starred, this must be an async GET to the
+        // visible photo URL: trackCommitPhotoPage redirects it to the starred
+        // background and preserves the photo URL and overlay.
+        const photoUrl = '/@author/commits/123/photos/1';
+        dispatch('history', 'starred/index', photoUrl);
+        assert.equal(visit.mock.lastCall?.[0], photoUrl);
+        assert.equal(visit.mock.lastCall?.[1].async, true);
+        assert.deepEqual(visit.mock.lastCall?.[1].only, ['commits']);
+        pageShow?.({ persisted: true });
+        assert.equal(visit.mock.lastCall?.[0], photoUrl);
+        assert.equal(visit.mock.lastCall?.[1].async, true);
+
+        const beforeStop = visit.mock.calls.length;
         stop();
         dispatch('history', 'starred/index');
         pageShow?.({ persisted: true });
-        assert.equal(visit.mock.calls.length, expected.length + 1);
+        assert.equal(visit.mock.calls.length, beforeStop);
     } finally {
         vi.unstubAllGlobals();
     }

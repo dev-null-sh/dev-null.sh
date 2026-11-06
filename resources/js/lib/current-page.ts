@@ -30,9 +30,12 @@ function refreshRestoredPage(page: { component: string; url: string }): void {
         return;
     }
 
+    // Photo overlays show their own URL over a background page. Their existing
+    // before-visit handler redirects async GETs to that background without closing the photo.
     router.visit(page.url, {
         ...options,
         method: 'get',
+        async: true,
         preserveState: true,
         replace: true,
         onHttpException: ({ status }) => {
