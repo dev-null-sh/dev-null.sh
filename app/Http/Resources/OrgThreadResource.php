@@ -48,11 +48,7 @@ final class OrgThreadResource extends JsonResource
         $members = $thread['members']->map(fn (array $member): array => [
             'role' => $member['role'],
             'read_through_id' => $member['read_through_id'],
-            'user' => [
-                ...UserResource::make($member['user'])->toArray($request),
-                'timezone' => $member['user']->show_local_time ? $member['user']->timezone : null,
-                'show_local_time' => $member['user']->show_local_time,
-            ],
+            'user' => UserResource::make($member['user']),
         ]);
 
         return [
