@@ -92,6 +92,16 @@ it('keeps the access token, encrypted, until shortly before it expires', functio
     Http::assertSentCount(5);
 });
 
+it('fetches a new access token when the cached one was encrypted under an older app key', function (): void {
+    fakeFcm();
+    Cache::put('fcm-access-token', 'not-decryptable-with-this-key', now()->addHour());
+
+    expect(new FcmDevicePushProvider()->send($this->device, $this->push))->toBeTrue()
+        ->and(Crypt::decryptString(Cache::get('fcm-access-token')))->toBe('access-1');
+
+    Http::assertSentCount(2);
+});
+
 it('forgets a token the phone no longer has', function (int $status, array $body): void {
     fakeFcm($status, $body);
 
