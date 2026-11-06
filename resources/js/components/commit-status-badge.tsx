@@ -8,18 +8,19 @@ import {
 import { Spinner } from '@/components/ui/spinner';
 import { useCommitStatus } from '@/hooks/use-commit-status';
 import { cn } from '@/lib/utils';
-import type { Commit } from '@/types';
+import type { Commit, CommitAuthor } from '@/types';
 
-const explanations = {
-    checking:
-        'Running a quick automated check. This usually takes a few seconds, and only you can see this commit until then.',
-    review: 'A moderator reviews this commit before anyone else can see it. Commits from established accounts with a following go live right away.',
-    rejected: 'This commit was rejected. Only you can see it.',
-    approved: 'Your commit is now live for everyone.',
-} as const;
+// Whoever may see the commit until it is live: the person who posted it, or every member of its organization.
+const explanations = (who: string, whose: string) =>
+    ({
+        checking: `Running a quick automated check. This usually takes a few seconds, and only ${who} can see this commit until then.`,
+        review: 'A moderator reviews this commit before anyone else can see it. Commits from established accounts with a following go live right away.',
+        rejected: `This commit was rejected. Only ${who} can see it.`,
+        approved: `${whose} commit is now live for everyone.`,
+    }) as const;
 
 /**
- * Tells the author of a commit that is not live yet why, and for roughly how long: a pending commit is either still
+ * Tells the author of a commit that is not live yet, or the members of its organization, why, and for roughly how long: a pending commit is either still
  * being checked, which takes seconds, or waiting for a moderator, which can take much longer. Inside a link, where a
  * button cannot go, the explanation is only a title.
  */
@@ -28,7 +29,9 @@ export function CommitStatusBadge({
     size = 'default',
     isStatic = false,
 }: {
-    commit: Pick<Commit, 'id' | 'status' | 'is_checking'>;
+    commit: Pick<Commit, 'id' | 'status' | 'is_checking'> & {
+        author?: CommitAuthor;
+    };
     size?: 'default' | 'small';
     isStatic?: boolean;
 }) {
@@ -41,6 +44,12 @@ export function CommitStatusBadge({
 
     const state =
         status === 'pending' ? (isChecking ? 'checking' : 'review') : status;
+    const organization =
+        commit.author?.type === 'organization' ? commit.author : null;
+    const explanation = explanations(
+        organization ? `@${organization.handle}'s members` : 'you',
+        organization ? `@${organization.handle}'s` : 'Your',
+    )[state];
 
     const className = cn(
         'inline-flex shrink-0 items-center gap-1 self-center rounded-sm font-mono transition-colors',
@@ -71,7 +80,7 @@ export function CommitStatusBadge({
         return (
             <span
                 className={className}
-                title={explanations[state]}
+                title={explanation}
                 data-test="commit-status"
             >
                 {label}
@@ -103,7 +112,7 @@ export function CommitStatusBadge({
                 className="w-64 p-3 text-sm"
                 onOpenAutoFocus={(event) => event.preventDefault()}
             >
-                {explanations[state]}
+                {explanation}
             </PopoverContent>
         </Popover>
     );

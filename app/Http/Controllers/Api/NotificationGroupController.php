@@ -24,10 +24,10 @@ final readonly class NotificationGroupController
     {
         return NotificationResource::collection($query->members($user, $notification, $request->type())
             ->with([
-                'commit.user',
+                'commit.author',
                 'commit.parent' => fn (BelongsTo $query): BelongsTo => $query
                     ->where(fn (CommitBuilder $query): CommitBuilder => $query->visibleTo($user))
-                    ->with('user'),
+                    ->with('author'),
             ])
             ->latest()
             ->latest('id')

@@ -24,10 +24,13 @@ final class UserFactory extends Factory
     {
         return [
             'github_id' => (string) fake()->unique()->numberBetween(1, 999_999_999),
+            // The ID of the user's profile, which the user shares, when the test made the profile first.
+            'id' => fn (array $attributes): string => Profile::query()->firstWhere('github_id', $attributes['github_id'])->id ?? (string) Str::uuid7(),
             // Not a column: the user's profile, made from the GitHub identity given to the factory, like a handle...
             'profile' => fn (array $attributes): Profile => Profile::query()->firstWhere('github_id', $attributes['github_id'])
                 ?? Profile::factory()->create([
                     ...array_intersect_key($attributes, array_flip(Profile::USER_ATTRIBUTES)),
+                    'id' => $attributes['id'],
                     'github_id' => $attributes['github_id'],
                 ]),
             'email' => fake()->unique()->safeEmail(),
@@ -39,6 +42,7 @@ final class UserFactory extends Factory
             'pinned_commit_id' => null,
             'onboarded_at' => now(),
             'github_follows_imported_at' => null,
+            'github_organization_follows_imported_at' => null,
             'commit_rules_accepted_at' => now(),
             'remember_token' => Str::random(10),
         ];
@@ -59,7 +63,7 @@ final class UserFactory extends Factory
      */
     public function configure(): self
     {
-        return $this->afterMaking(fn (User $user): User => $user->setRelation('profile', Profile::query()->where('github_id', $user->github_id)->firstOrFail()));
+        return $this->afterMaking(fn (User $user): User => $user->setRelation('profile', Profile::query()->findOrFail($user->id)));
     }
 
     /**

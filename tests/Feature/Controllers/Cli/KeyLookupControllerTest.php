@@ -2,7 +2,9 @@
 
 declare(strict_types=1);
 
+use App\Contracts\Services\GitHubProvider;
 use App\Models\SshKey;
+use App\Models\User;
 use Illuminate\Support\Facades\Http;
 use Tests\Support\SshKeyPair;
 
@@ -35,9 +37,28 @@ it('fails when none of the keys are on the github account of a user', function (
 
     $response->assertNotFound()
         ->assertHeader('Content-Type', 'text/plain; charset=utf-8')
-        ->assertContent('None of your SSH keys are on the GitHub account of a /dev/null user. Add your key on GitHub (Settings → SSH and GPG keys), open '.url('/')." while you are signed in so the key can sync, then run this again.\n");
+        ->assertSee('None of your SSH keys are on the GitHub account of a /dev/null user.')
+        ->assertSee('then click Sync from GitHub on '.route('user-profile.edit').'.');
 
     Http::assertNothingSent();
+});
+
+it('finds a key added on github after signing in once the user syncs from github', function (): void {
+    $user = User::factory()->create(['github_id' => '42']);
+    $key = SshKeyPair::generate()->publicKey;
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('account')->with('42')->andReturn(['login' => 'taylor']);
+    $github->shouldReceive('login')->with('42')->andReturn('taylor');
+    $github->shouldReceive('sshKeys')->with('taylor')->andReturn([$key->toOpenSsh()]);
+
+    $this->call('POST', route('cli-key-lookup.store'), content: $key->toOpenSsh())->assertNotFound();
+
+    $this->actingAs($user)->put(route('user-profile.update'))
+        ->assertInertiaFlash('toast', ['type' => 'success', 'message' => 'Synced from GitHub.']);
+
+    $this->call('POST', route('cli-key-lookup.store'), content: $key->toOpenSsh())
+        ->assertOk()
+        ->assertContent($key->toOpenSsh()."\n");
 });
 
 it('only considers the first 20 keys', function (): void {

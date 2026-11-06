@@ -31,6 +31,22 @@ composer dev
 
 Run `composer test` before opening a pull request.
 
+### Live updates
+
+Pages hear about changes through any server speaking the Pusher protocol, such as Laravel Cloud's WebSockets or a self-hosted Reverb. By default `BROADCAST_CONNECTION=log` sends nothing anywhere and every page polls as before. To try them locally, run a Pusher-protocol server on your machine, set `BROADCAST_CONNECTION=reverb` with the `REVERB_*` variables pointing at it, set the matching `VITE_REVERB_*` variables, and rebuild the assets: the `VITE_` ones are read at build time. Tests always use the `null` broadcaster.
+
+In production, the server needs `BROADCAST_CONNECTION=reverb` and the `REVERB_APP_ID`, `REVERB_APP_KEY`, `REVERB_APP_SECRET`, `REVERB_HOST`, `REVERB_PORT` and `REVERB_SCHEME` of the WebSocket server, and the build needs `VITE_REVERB_APP_KEY`, `VITE_REVERB_HOST`, `VITE_REVERB_PORT` and `VITE_REVERB_SCHEME`. A queue worker must be running, since updates for more than a hundred people at once go through the queue. Each person's own channel is authorized by `/broadcasting/auth` (signed requests for the apps); the channels for commits, profiles, the log, headlines and features are public and carry ids only.
+
+Commits are attributed to people only: never add Amp, Claude Code, or any other AI tool as a co-author, and keep their names out of commit attribution (author, committer, and trailers).
+
+### Amp orbs
+
+Amp runs `.agents/setup` to prepare a reusable snapshot with PHP 8.5, Composer, Node 26, the Bun version from `package.json`, locked dependencies, generated routes, and built assets. Setup also prepares isolated PostgreSQL 18 development and test databases with `vector` and `pg_trgm`, including extensions inherited by parallel test databases. It is safe to rerun and preserves an existing `.env` and application key.
+
+Run `amp orb services ensure` to start the supervised database and app and print the app's portal URL. The app uses the existing local sign-in flow (any handle, no GitHub credentials required). Frontend assets are prebuilt; rerun `bun run build` after frontend edits. No resume hook is needed: Amp supervises the services, and dependency installation belongs only in setup.
+
+The database is loopback-only and uses trust authentication and relaxed durability for disposable development data. Do not use this configuration for production.
+
 ## License
 
 /dev/null is open-sourced software licensed under the **[MIT license](composer.json)**.

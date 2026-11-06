@@ -22,7 +22,7 @@ afterAll(() => {
 
 const commit = {
     id: 'reported',
-    user_id: 'author',
+    author: { id: 'author' },
     status: 'approved',
     body: 'Reported commit',
 } as Commit;
