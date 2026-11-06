@@ -6,10 +6,12 @@ use App\Actions\CreateCommitReport;
 use App\Actions\CreateCommitTranslation;
 use App\Actions\CreateExport;
 use App\Actions\DeleteUser;
+use App\Actions\UpdateDevicePushToken;
 use App\Contracts\Services\TranslationProvider;
 use App\Enums\ModerationReason;
 use App\Enums\NotificationType;
 use App\Enums\OrganizationRole;
+use App\Enums\PushPlatform;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\CommitReport;
@@ -116,6 +118,11 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
             'remotes_enabled' => true,
             'remotes_from' => 'following',
             'pull_receipts' => true,
+            'push_follows' => true,
+            'push_replies' => true,
+            'push_mentions' => true,
+            'push_direct_remotes' => true,
+            'push_org_remotes' => true,
             'pinned_commit_id' => null,
             'live_platform' => null,
             'live_url' => null,
@@ -144,6 +151,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
         'reports' => [],
         'remote_mutes' => [],
         'remote_pins' => [],
+        'remote_mentions' => [],
         'notifications' => [],
         'ssh_keys' => [],
         'push_subscriptions' => [],
@@ -531,20 +539,22 @@ it('exports the GitHub accounts the user waits to follow', function (): void {
     expect($data['pending_follows'])->toBe(['1', '958072']);
 });
 
-it('exports the devices approved for the app, oldest first', function (): void {
+it('exports the devices approved for the app, oldest first, with what kind of phone a push token is for but not the token', function (): void {
     $user = User::factory()->create();
     $older = Device::factory()->for($user)->create(['name' => 'devnull on iPad', 'approved_at' => now()->subWeek(), 'last_used_at' => now()->subDay()]);
     $newer = Device::factory()->for($user)->create(['name' => 'iPhone', 'app_id' => 'ios:com.nativephp.devnull', 'app_name' => '/dev/null for iOS', 'approved_at' => now()->subDay()]);
+    resolve(UpdateDevicePushToken::class)->handle($newer, 'fcm-token-of-the-iphone', PushPlatform::Ios);
     $other = Device::factory()->create();
 
     $response = $this->actingAs($user)->get(route('export'));
     $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
 
     expect($data['devices'])->toBe([
-        ['name' => 'devnull on iPad', 'app_id' => null, 'app_name' => null, 'fingerprint' => $older->fingerprint, 'approved_at' => now()->subWeek()->toIso8601String(), 'last_used_at' => now()->subDay()->toIso8601String()],
-        ['name' => 'iPhone', 'app_id' => 'ios:com.nativephp.devnull', 'app_name' => '/dev/null for iOS', 'fingerprint' => $newer->fingerprint, 'approved_at' => now()->subDay()->toIso8601String(), 'last_used_at' => null],
+        ['name' => 'devnull on iPad', 'app_id' => null, 'app_name' => null, 'fingerprint' => $older->fingerprint, 'approved_at' => now()->subWeek()->toIso8601String(), 'last_used_at' => now()->subDay()->toIso8601String(), 'push_platform' => null],
+        ['name' => 'iPhone', 'app_id' => 'ios:com.nativephp.devnull', 'app_name' => '/dev/null for iOS', 'fingerprint' => $newer->fingerprint, 'approved_at' => now()->subDay()->toIso8601String(), 'last_used_at' => null, 'push_platform' => 'ios'],
     ])
-        ->and($response->streamedContent())->not->toContain($other->fingerprint);
+        ->and($response->streamedContent())->not->toContain($other->fingerprint)
+        ->not->toContain('fcm-token-of-the-iphone');
 });
 
 it('exports all records across chunk boundaries without omissions or duplicates', function (): void {
@@ -653,6 +663,21 @@ it('exports your remote pins without the pins of other members', function (): vo
     expect($data['remote_pins'])->toBe([
         ['to' => 'alice', 'pinned_at' => now()->toIso8601String()],
         ['to' => 'org: Release crew', 'pinned_at' => now()->toIso8601String()],
+    ]);
+});
+
+it('exports the org mentions the user has not cleared, without the mentions of others', function (): void {
+    $this->freezeSecond();
+    $user = User::factory()->create();
+    [$nuno] = followersOf($user, 1);
+    $org = createOrg($user, [$nuno], 'Release crew');
+    pushToOrg($nuno, $org, "@{$user->handle} can you review?");
+    pushToOrg($user, $org, "@{$nuno->handle} on it");
+
+    $data = json_decode($this->actingAs($user)->get(route('export'))->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
+
+    expect($data['remote_mentions'])->toBe([
+        ['to' => 'org: Release crew', 'created_at' => now()->toIso8601String()],
     ]);
 });
 
