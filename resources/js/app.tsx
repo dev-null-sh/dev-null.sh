@@ -26,6 +26,7 @@ import {
 import { registerServiceWorker } from '@/lib/service-worker';
 import { browserClock, clockOf, setReaderClock } from '@/lib/utils';
 import { trackVisualViewport } from '@/lib/visual-viewport';
+import { startWebViewApp } from '@/lib/webview-app';
 import '../css/app.css';
 
 trackCurrentPage();
@@ -69,6 +70,7 @@ void createInertiaApp({
     setup({ el, App, props }) {
         setServerTime(props.initialPage.props.now);
         trackFollowRequests(props.initialPage);
+        startWebViewApp();
         registerServiceWorker(props.initialPage.version);
 
         const clock = browserClock();

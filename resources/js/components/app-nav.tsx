@@ -15,7 +15,7 @@ import {
     UserRound,
 } from 'lucide-react';
 import type { ReactElement, ReactNode } from 'react';
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import ConversationController from '@/actions/App/Http/Controllers/ConversationController';
 import LogController from '@/actions/App/Http/Controllers/LogController';
 import ModerationController from '@/actions/App/Http/Controllers/ModerationController';
@@ -50,6 +50,14 @@ import { useNavOpen } from '@/hooks/use-nav-open';
 import { useKeyLabels } from '@/lib/keyboard';
 import { scrollLogToTop } from '@/lib/log-scroll';
 import { browserTimeZone, cn, toUrl } from '@/lib/utils';
+import {
+    hideWebViewAppTabs,
+    setWebViewAppTabs,
+    useDocumentTheme,
+    useIsModalOpen,
+} from '@/lib/webview-app';
+import type { WebViewAppTabs as WebViewAppTabsState } from '@/lib/webview-app-tabs';
+import { webViewAppTabs } from '@/lib/webview-app-tabs';
 import { home, login } from '@/routes';
 import { show } from '@/routes/user';
 import { edit } from '@/routes/user-profile';
@@ -522,7 +530,9 @@ export function MobileCommitButton({
             aria-label="Write a commit"
             title="Write a commit"
             className={cn(
-                'absolute right-4 bottom-full mb-4 size-14 rounded-lg shadow-lg transition-opacity duration-200 [view-transition-name:mobile-commit-button] md:hidden',
+                'absolute right-4 bottom-full mb-4 size-14 rounded-lg shadow-lg transition-[opacity,translate] duration-200 [view-transition-name:mobile-commit-button] md:hidden',
+                // In the web view app, while reading down a page shrinks its tab bar
+                '[:root[data-tab-bar-collapsed]_&]:pointer-events-none [:root[data-tab-bar-collapsed]_&]:translate-y-[calc(100%+3rem)] [:root[data-tab-bar-collapsed]_&]:opacity-0',
                 { 'pointer-events-none opacity-0': isHidden },
             )}
             data-test="mobile-commit-button"
@@ -536,7 +546,7 @@ export function MobileCommitButton({
  * Shares its real height, safe area included, as `--mobile-nav-height`, so full-screen pages can end right above it.
  */
 export function MobileNav({ children }: { children?: ReactNode }) {
-    const { auth } = usePage().props;
+    const { auth, isWebViewApp } = usePage().props;
     const timeZone = auth.user?.timezone ?? browserTimeZone();
     const {
         changelog,
@@ -584,6 +594,21 @@ export function MobileNav({ children }: { children?: ReactNode }) {
             root.style.removeProperty('--mobile-nav-height');
         };
     }, []);
+
+    // The web view app draws the tabs itself. The nav keeps the height of its tab bar, which the app adds to the safe
+    // area, so the commit button floats above the bar and full-screen pages end right above it.
+    if (isWebViewApp) {
+        return (
+            <nav
+                ref={nav}
+                aria-label="Main"
+                className="pointer-events-none fixed inset-x-0 bottom-0 z-20 pb-[env(safe-area-inset-bottom)] *:pointer-events-auto md:hidden [:root[data-keyboard-open]_&]:hidden"
+            >
+                {children}
+                <WebViewAppNavTabs items={allItems} />
+            </nav>
+        );
+    }
 
     return (
         <nav
@@ -701,4 +726,40 @@ export function MobileNav({ children }: { children?: ReactNode }) {
             />
         </nav>
     );
+}
+
+/**
+ * Hands the main items of the navigation to the web view app's tab bar.
+ */
+function WebViewAppNavTabs({
+    items,
+}: {
+    items: (NavItem & { isActive: boolean })[];
+}) {
+    const { url } = usePage();
+    const [appearance, tint] = useDocumentTheme().split(' ');
+    const isModalOpen = useIsModalOpen();
+    const key = JSON.stringify(
+        webViewAppTabs(
+            items.map((item) => ({
+                title: item.title,
+                url: toUrl(item.href),
+                badge: item.badge,
+            })),
+            new URL(url, 'https://dev-null.sh').pathname,
+            {
+                appearance: appearance === 'light' ? 'light' : 'dark',
+                tint: tint || null,
+                isModalOpen,
+            },
+        ),
+    );
+
+    useEffect(() => {
+        setWebViewAppTabs(JSON.parse(key) as WebViewAppTabsState);
+    }, [key]);
+
+    useEffect(() => hideWebViewAppTabs, []);
+
+    return null;
 }
