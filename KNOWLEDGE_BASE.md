@@ -649,7 +649,7 @@ Sources: [issue command UI](resources/js/components/issue-command.tsx), [issue v
 Choose **Download JSON** in Settings → Profile to export your account data. The export includes:
 
 - profile details and preferences, including live-stream details, translation language, and when you accepted the commit rules;
-- the days you used /dev/null (dates, not times), oldest first, and the last of them;
+- the days you used /dev/null (dates, not times), oldest first, with which of its apps you used on each (days before apps were tracked say web, whatever you used, and a phone approved before the mobile app started identifying itself says other), and the last of them;
 - your commits and replies (including pending, rejected, and deleted entries still stored), their cached translations, polls, and your votes;
 - stars, followers and people you follow, mutes, blocks, and dismissed **Not interested** suggestions;
 - messages you sent, including links to your voice notes, and notifications;

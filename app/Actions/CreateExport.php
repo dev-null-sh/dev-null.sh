@@ -34,11 +34,12 @@ use Traversable;
  * @phpstan-type ExportPollVote array{commit_id: string, option: string, created_at: string}
  * @phpstan-type ExportMessage array{to: string|null, body: string, voice: string|null, created_at: string}
  * @phpstan-type ExportUser array{handle: string}
+ * @phpstan-type ExportActiveDay array{date: string, web_app: bool, native_mobile_app: bool, mac_app: bool, other_app: bool}
  * @phpstan-type UserExport array{
  *     schema_version: int,
  *     exported_at: string,
  *     profile: array<string, bool|int|string|null>,
- *     active_days: Generator<int, string>,
+ *     active_days: Generator<int, ExportActiveDay>,
  *     commits: Generator<int, array<string, mixed>>,
  *     organization_commits: Generator<int, array<string, mixed>>,
  *     polls: Generator<int, ExportPoll>,
@@ -75,7 +76,7 @@ final readonly class CreateExport
     public function handle(User $user): array
     {
         return [
-            'schema_version' => 6,
+            'schema_version' => 7,
             'exported_at' => now()->toIso8601String(),
             'profile' => [
                 'github_id' => $user->github_id,
@@ -295,17 +296,24 @@ final readonly class CreateExport
 
     /**
      * The days the user was seen, oldest first. They are read while the export streams, after the request asking for it
-     * was recorded, so an export that is the first visit of the day includes that day.
+     * was recorded, so an export that is the first visit of the day includes that day. Each says the apps it was seen
+     * in, as stored: days before apps were tracked say web, whatever was used.
      *
-     * @return Generator<int, string>
+     * @return Generator<int, ExportActiveDay>
      */
     private function activeDays(User $user): Generator
     {
-        /** @var LazyCollection<int, object{seen_at: string}> $days */
+        /** @var LazyCollection<int, object{seen_at: string, web_app: bool, native_mobile_app: bool, mac_app: bool, other_app: bool}> $days */
         $days = DB::table('user_active_days')->where('user_id', $user->id)->oldest('seen_at')->cursor();
 
         foreach ($days as $day) {
-            yield $day->seen_at;
+            yield [
+                'date' => $day->seen_at,
+                'web_app' => $day->web_app,
+                'native_mobile_app' => $day->native_mobile_app,
+                'mac_app' => $day->mac_app,
+                'other_app' => $day->other_app,
+            ];
         }
     }
 
