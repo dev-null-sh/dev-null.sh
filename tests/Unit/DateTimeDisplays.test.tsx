@@ -73,6 +73,8 @@ const { OverviewEvents } =
 const { default: Links } = await import('../../resources/js/pages/links/index');
 const { PinnedBanner } =
     await import('../../resources/js/components/chat/pinned-messages');
+const { MentionsBell } =
+    await import('../../resources/js/components/chat/mentions-bell');
 const { default: ScheduledCommits } =
     await import('../../resources/js/pages/scheduled-commits/index');
 const { default: SiteActivity } =
@@ -202,6 +204,45 @@ test('pinned message dates and times follow viewer preferences without changing 
     assert.match(panel(), /dateTime="2026-10-20T00:35:00Z"/);
     auth.dateTime = { dateFormat: 'month_first', timeFormat: '12h' };
     assert.match(panel(), /Mon, Oct 19 · 2:35\s*PM<\/time>/i);
+});
+
+test('mention dates follow preferences while relative day labels and instants stay unchanged', () => {
+    process.env.TZ = 'Pacific/Honolulu';
+    setReaderClock(browserClock());
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-11-06T12:00:00Z'));
+    const panel = () =>
+        renderToString(
+            <TooltipProvider>
+                <MentionsBell
+                    org={{ id: 'example', name: 'Example' }}
+                    mentions={[
+                        '2026-10-20T00:35:00Z',
+                        '2026-11-06T10:35:00Z',
+                        '2026-11-06T00:35:00Z',
+                    ].map((created_at, id) => ({
+                        id,
+                        user_id: 'author',
+                        client_id: `mention-${id}`,
+                        body: 'A mention',
+                        created_at,
+                    }))}
+                    count={3}
+                    isCompact={false}
+                    onJump={async () => true}
+                />
+            </TooltipProvider>,
+        ).replaceAll('<!-- -->', '');
+
+    auth.dateTime = { dateFormat: 'day_first', timeFormat: '24h' };
+    assert.match(panel(), /Mon, 19 Oct · 14:35<\/time>/);
+    assert.match(panel(), /Today · 00:35<\/time>/);
+    assert.match(panel(), /Yesterday · 14:35<\/time>/);
+    assert.match(panel(), /dateTime="2026-10-20T00:35:00Z"/);
+    auth.dateTime = { dateFormat: 'month_first', timeFormat: '12h' };
+    assert.match(panel(), /Mon, Oct 19 · 2:35\s*PM<\/time>/i);
+    assert.match(panel(), /Today · 12:35\s*AM<\/time>/i);
+    assert.match(panel(), /Yesterday · 2:35\s*PM<\/time>/i);
 });
 
 test('profile clocks use the viewer clock preference in the profile owner timezone', () => {

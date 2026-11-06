@@ -329,6 +329,16 @@ final class User extends Authenticatable
     }
 
     /**
+     * The org messages that mentioned the user, until they open or clear them.
+     *
+     * @return BelongsToMany<Message, $this>
+     */
+    public function mentions(): BelongsToMany
+    {
+        return $this->belongsToMany(Message::class, 'message_mentions');
+    }
+
+    /**
      * Timeouts go by GitHub account, like bans, so they outlive the user and still apply if the same account signs up
      * again.
      *

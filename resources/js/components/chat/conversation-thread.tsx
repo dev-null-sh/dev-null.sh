@@ -22,6 +22,7 @@ import {
     CallConsole,
     OrgCallConsole,
 } from '@/components/chat/call';
+import { MentionsBell } from '@/components/chat/mentions-bell';
 import {
     LiftedMessage,
     MessageImages,
@@ -387,7 +388,7 @@ export function ConversationThread({
     );
 
     const jumpTo = useCallback(
-        async (id: number) => {
+        async (id: number): Promise<boolean> => {
             jumpRequest.current?.abort();
             glideCancel.current?.();
             glideCancel.current = null;
@@ -410,7 +411,7 @@ export function ConversationThread({
                 const found = await loadMessage(target, id, request.signal);
 
                 if (request.signal.aborted) {
-                    return;
+                    return false;
                 }
 
                 // Let the store's last page render before locating the original bubble.
@@ -421,7 +422,7 @@ export function ConversationThread({
                 }
 
                 if (request.signal.aborted) {
-                    return;
+                    return false;
                 }
 
                 bubble = scroller.current?.querySelector<HTMLElement>(
@@ -434,7 +435,7 @@ export function ConversationThread({
 
             if (!bubble) {
                 toast.error('Could not load this message. Try again.');
-                return;
+                return false;
             }
 
             anchor.current = null;
@@ -442,6 +443,8 @@ export function ConversationThread({
             bubble.scrollIntoView({ block: 'center', behavior: 'instant' });
             bubble.dataset.flash = '';
             window.setTimeout(() => delete bubble.dataset.flash, 1200);
+
+            return true;
         },
         [target],
     );
@@ -936,6 +939,17 @@ export function ConversationThread({
                     onReplySettled={settleReplyPreview}
                     isCompact={isCompact}
                     autoFocus={autoFocus}
+                    mentions={
+                        current.kind === 'org' && (
+                            <MentionsBell
+                                org={current.org}
+                                mentions={thread?.mentions ?? noMessages}
+                                count={thread?.mentions_count ?? 0}
+                                isCompact={isCompact}
+                                onJump={jumpTo}
+                            />
+                        )
+                    }
                     typing={
                         target.kind === 'org'
                             ? (thread?.typing ?? []).length > 0
@@ -1729,6 +1743,7 @@ function Composer({
     isCompact,
     autoFocus,
     typing,
+    mentions,
     onSend,
     onReplySettled,
 }: {
@@ -1741,6 +1756,10 @@ function Composer({
     isCompact: boolean;
     autoFocus: boolean;
     typing: string | null;
+    /**
+     * The org's mentions bell, after Call.
+     */
+    mentions?: ReactNode;
     /**
      * Called as the user pushes, so the thread follows their own message down.
      */
@@ -2134,6 +2153,7 @@ function Composer({
                                 isCompact={isCompact}
                                 onClick={() => setIsConfirmingCall(true)}
                             />
+                            {mentions}
                         </>
                     )}
                     <Button

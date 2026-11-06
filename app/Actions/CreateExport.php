@@ -55,6 +55,7 @@ use Traversable;
  *     messages: Generator<int, ExportMessage>,
  *     reports: Traversable<int, array<string, mixed>>,
  *     remote_pins: array<int, array{to: string|null, pinned_at: string|null}>,
+ *     remote_mentions: Generator<int, array{to: string|null, created_at: string}>,
  *     remote_mutes: array<int, array{to: string|null, muted_until_at: string|null}>,
  *     notifications: Generator<int, array<string, int|string|null>>,
  *     ssh_keys: array<mixed>,
@@ -167,6 +168,7 @@ final readonly class CreateExport
                     'pinned_at' => $conversation->pinned_at?->toIso8601String(),
                 ])
                 ->all(),
+            'remote_mentions' => $this->mentions($user),
             'notifications' => $this->notifications($user),
             'ssh_keys' => $user->sshKeys()->pluck('fingerprint')->all(),
             'push_subscriptions' => $user->pushSubscriptions()->get()->map(fn (PushSubscription $subscription): array => [
@@ -340,6 +342,21 @@ final readonly class CreateExport
                 'to' => $recipients->get($message->conversation_id),
                 'body' => $message->body,
                 'voice' => $message->voice?->url(),
+                'created_at' => $message->created_at->toIso8601String(),
+            ];
+        }
+    }
+
+    /**
+     * The org messages that mention the user and they haven't cleared, as where and when, without what others wrote.
+     *
+     * @return Generator<int, array{to: string|null, created_at: string}>
+     */
+    private function mentions(User $user): Generator
+    {
+        foreach ($user->mentions()->with('conversation:id,name,kind')->lazyById(500, 'messages.id', 'id') as $message) {
+            yield [
+                'to' => $this->recipient($user, $message->conversation),
                 'created_at' => $message->created_at->toIso8601String(),
             ];
         }
