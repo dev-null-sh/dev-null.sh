@@ -33,6 +33,17 @@ it('ends the web session of a revoked device', function (): void {
     expect(session(Device::SessionKey))->toBeNull();
 });
 
+it("leaves the remember cookies of the user's other browsers working", function (): void {
+    $user = User::factory()->create(['remember_token' => 'token']);
+
+    $this->actingAs($user)
+        ->withSession([Device::SessionKey => '019a0000-0000-7000-8000-000000000000'])
+        ->get(route('device.index'))
+        ->assertRedirect();
+
+    expect($user->refresh()->remember_token)->toBe('token');
+});
+
 it('ends the web session of a device whose key was approved for someone else', function (): void {
     $user = User::factory()->create();
     $device = Device::factory()->create(['user_id' => User::factory()->create()->id]);

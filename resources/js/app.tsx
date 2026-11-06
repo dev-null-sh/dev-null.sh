@@ -70,7 +70,7 @@ void createInertiaApp({
     setup({ el, App, props }) {
         setServerTime(props.initialPage.props.now);
         trackFollowRequests(props.initialPage);
-        startLiteMobileApp(props.initialPage);
+        startLiteMobileApp();
         registerServiceWorker(props.initialPage.version);
 
         const clock = browserClock();

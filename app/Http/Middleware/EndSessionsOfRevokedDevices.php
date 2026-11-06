@@ -14,7 +14,8 @@ final readonly class EndSessionsOfRevokedDevices
 {
     /**
      * A web session made for a device lasts as long as the device stays this user's: revoking it signs out its web view
-     * too. A key approved for someone else keeps its device's id, hence the check on the user.
+     * too. A key approved for someone else keeps its device's id, hence the check on the user. Only this session ends:
+     * logging out would also end the remember cookie of the browser the device was revoked from.
      *
      * @param  Closure(Request): (Response)  $next
      */
@@ -23,7 +24,7 @@ final readonly class EndSessionsOfRevokedDevices
         $deviceId = $request->session()->get(Device::SessionKey);
 
         if ($deviceId !== null && ! Device::query()->whereKey($deviceId)->where('user_id', $request->user()?->getAuthIdentifier())->exists()) {
-            Auth::guard('web')->logout();
+            Auth::guard('web')->logoutCurrentDevice();
 
             $request->session()->invalidate();
             $request->session()->regenerateToken();

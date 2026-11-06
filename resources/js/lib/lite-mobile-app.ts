@@ -1,7 +1,9 @@
 import type { Page, SharedPageProps } from '@inertiajs/core';
+import { http, HttpResponseError } from '@inertiajs/core';
 import { router } from '@inertiajs/react';
 import { useSyncExternalStore } from 'react';
 import { signIn } from '@/lib/auth';
+import { isRefusedBySession } from '@/lib/lite-mobile-app-session';
 import type { LiteMobileAppTabs } from '@/lib/lite-mobile-app-tabs';
 import { liteMobileAppTabTarget } from '@/lib/lite-mobile-app-tabs';
 import { scrollLogToTop } from '@/lib/log-scroll';
@@ -94,7 +96,7 @@ let isStarted = false;
  * Follows the taps on the app's tabs: a tab is a visit, and tapping the tab already shown scrolls back to its top, as
  * in any iOS app.
  */
-export function startLiteMobileApp(initialPage: Page<SharedPageProps>): void {
+export function startLiteMobileApp(): void {
     const tabs = tabsPlugin();
 
     if (tabs === null || isStarted) {
@@ -151,14 +153,16 @@ export function startLiteMobileApp(initialPage: Page<SharedPageProps>): void {
     });
 
     followTopColor(tabs);
-    renewExpiredSessions(initialPage);
+    renewExpiredSessions();
 }
 
 /**
  * The app makes the web view's sessions, so one that ended is the app's to replace: a page shown signed out, or a
- * request refused for its session or its CSRF token. It reloads the page afterwards.
+ * request refused for its session or its CSRF token. It reloads the page afterwards. `navigate` covers loading a page
+ * and going through history, and `success` the visits that stay on their URL, such as being sent back after an expired
+ * token. Visits and `useHttp` go through Inertia's HTTP client, and everything else through `fetch`.
  */
-function renewExpiredSessions(initialPage: Page<SharedPageProps>): void {
+function renewExpiredSessions(): void {
     const session = window.Capacitor?.Plugins.Session;
 
     if (session === undefined) {
@@ -170,24 +174,26 @@ function renewExpiredSessions(initialPage: Page<SharedPageProps>): void {
             void session.renew();
         }
     };
-    const renewIfRefused = (status: number) => {
-        if (status === 401 || status === 419) {
+    const renewIfRefused = (status: number, url: string) => {
+        if (isRefusedBySession(status, url, window.location.origin)) {
             void session.renew();
         }
     };
     const fetchFromPage = window.fetch.bind(window);
 
-    renewIfSignedOut(initialPage);
     router.on('navigate', (event) =>
         renewIfSignedOut(event.detail.page as Page<SharedPageProps>),
     );
-    router.on('httpException', (event) =>
-        renewIfRefused(event.detail.response.status),
-    );
+    router.on('success', (event) => renewIfSignedOut(event.detail.page));
+    http.onError((error) => {
+        if (error instanceof HttpResponseError) {
+            renewIfRefused(error.response.status, error.url ?? '');
+        }
+    });
     window.fetch = async (...request) => {
         const response = await fetchFromPage(...request);
 
-        renewIfRefused(response.status);
+        renewIfRefused(response.status, response.url);
 
         return response;
     };

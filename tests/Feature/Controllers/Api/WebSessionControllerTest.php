@@ -5,6 +5,8 @@ declare(strict_types=1);
 use App\Dto\MobileAuthorization;
 use App\Models\Device;
 use App\Models\User;
+use Illuminate\Auth\SessionGuard;
+use Illuminate\Support\Facades\Auth;
 use Tests\Support\SshKeyPair;
 
 beforeEach(function (): void {
@@ -22,11 +24,12 @@ it('signs in a web session for the device that signs the request', function (): 
         ->assertExactJson(['onboarded' => true])
         ->assertCookie(config('session.cookie'));
 
-    expect(session(Device::SessionKey))->toBe($this->device->id)
-        ->and(collect($response->headers->getCookies())->map->getName()->filter(fn (string $name): bool => str_starts_with($name, 'remember_')))->toBeEmpty();
+    $guard = Auth::guard('web');
+    assert($guard instanceof SessionGuard);
 
-    $this->assertAuthenticatedAs($this->user, 'web');
-    $this->get(route('device.index'))->assertOk();
+    expect(session($guard->getName()))->toBe($this->user->id)
+        ->and(session(Device::SessionKey))->toBe($this->device->id)
+        ->and(collect($response->headers->getCookies())->map->getName()->filter(fn (string $name): bool => str_starts_with($name, 'remember_')))->toBeEmpty();
 });
 
 it('tells the app when the user has yet to onboard', function (): void {

@@ -337,6 +337,16 @@ it('signs the lite mobile app out along with its web view', function (): void {
     $this->assertModelExists($other);
 });
 
+it("leaves alone a device that has become someone else's when signing out", function (): void {
+    $device = Device::factory()->create();
+
+    $this->actingAs(User::factory()->create())
+        ->withSession([Device::SessionKey => $device->id])
+        ->post(route('logout'));
+
+    $this->assertModelExists($device);
+});
+
 it('leaves devices alone when signing out of any other web session', function (): void {
     $user = User::factory()->create();
     $device = Device::factory()->create(['user_id' => $user->id]);
