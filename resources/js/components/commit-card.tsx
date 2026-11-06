@@ -150,7 +150,8 @@ export function CommitCard({
         'idle' | 'confirming' | 'deleting'
     >('idle');
 
-    const hasVisibleReplies = thread.isOpen && !!thread.replies?.length;
+    const hasVisibleReplies =
+        (thread.isOpen || thread.isFolding) && !!thread.replies?.length;
     const endsOnDot =
         hasRailTail && railNodePosition !== 'bottom' && endsWithDot;
     const graphEndId = `${commit.id}:end`;
@@ -494,6 +495,7 @@ export function CommitCard({
                                             commit.id,
                                         )}
                                         preview={commit.link_preview}
+                                        source={{ commitId: commit.id }}
                                     />
                                 )}
                             {isFocused && (

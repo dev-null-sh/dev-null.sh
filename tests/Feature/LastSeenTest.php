@@ -3,8 +3,10 @@
 declare(strict_types=1);
 
 use App\Actions\UpdateUserLastSeenAt;
+use App\Enums\ActiveDayApp;
 use App\Enums\Log;
 use App\Models\Commit;
+use App\Models\Device;
 use App\Models\User;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
@@ -99,14 +101,48 @@ it('remembers each day a person was seen, once a day', function (): void {
         ->and($days($other))->toBe(['2026-10-20']);
 });
 
+it('records each app used in a day on one row, and counts the person once', function (): void {
+    $keyPair = apiKeyPairFor($this->user);
+    Device::query()->where('user_id', $this->user->id)->update(['app_id' => 'ios:com.nativephp.devnull']);
+
+    $this->actingAs($this->user)->get(route('log.show', Log::Following))->assertOk();
+    signedApiRequest($keyPair, 'GET', route('api-current-user.show'))->assertOk();
+
+    expect(DB::table('user_active_days')->where('user_id', $this->user->id)->get(['seen_at', 'web_app', 'native_mobile_app', 'mac_app', 'other_app'])->map(fn (object $row): array => (array) $row)->all())
+        ->toBe([['seen_at' => '2026-10-19', 'web_app' => true, 'native_mobile_app' => true, 'mac_app' => false, 'other_app' => false]])
+        ->and(DB::table('active_user_counts')->where('seen_at', '2026-10-19')->value('count'))->toBe(1);
+});
+
+it('neither writes nor locks the row of the day once the app is recorded', function (): void {
+    $version = fn (): string => DB::table('user_active_days')->where('user_id', $this->user->id)->selectRaw("xmin::text || ':' || xmax::text as version")->value('version');
+
+    $this->actingAs($this->user)->get(route('log.show', Log::Following))->assertOk();
+    $written = $version();
+    $this->actingAs($this->user)->get(route('log.show', Log::Following))->assertOk();
+
+    expect($version())->toBe($written);
+});
+
+it('records nothing for an account deleted by the request', function (): void {
+    Exceptions::fake();
+    $this->user->update(['last_seen_at' => '2026-10-19']);
+    $keyPair = apiKeyPairFor($this->user);
+
+    signedApiRequest($keyPair, 'DELETE', route('api-current-user.destroy'))->assertSuccessful();
+
+    expect(DB::table('user_active_days')->where('user_id', $this->user->id)->exists())->toBeFalse();
+    Exceptions::assertNothingReported();
+});
+
 it('does not count someone twice when another request saw them first', function (): void {
     $stale = User::query()->find($this->user->id);
     $this->user->update(['last_seen_at' => '2026-10-19']);
 
-    resolve(UpdateUserLastSeenAt::class)->handle($stale);
+    resolve(UpdateUserLastSeenAt::class)->handle($stale, ActiveDayApp::Web);
 
     expect(DB::table('active_user_counts')->count())->toBe(0)
-        ->and($stale->last_seen_at->toDateString())->toBe('2026-10-19');
+        ->and($stale->last_seen_at->toDateString())->toBe('2026-10-19')
+        ->and(DB::table('user_active_days')->where('user_id', $this->user->id)->value('web_app'))->toBeTrue();
 });
 
 it('reports a failure to remember the day without breaking the page', function (): void {

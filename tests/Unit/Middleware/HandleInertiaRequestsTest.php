@@ -52,9 +52,9 @@ it('shares authenticated user data', function (): void {
     $sharedUser = $middleware->share($request)['auth']['user']();
 
     expect($sharedUser)->not->toBeNull()
-        ->and($sharedUser->id)->toBe($user->id)
-        ->and($sharedUser->name)->toBe('Test User')
-        ->and($sharedUser->handle)->toBe('test-user');
+        ->and($sharedUser['id'])->toBe($user->id)
+        ->and($sharedUser['name'])->toBe('Test User')
+        ->and($sharedUser['handle'])->toBe('test-user');
 });
 
 it('shares the authenticated user commit and follow counts', function (): void {
@@ -69,9 +69,9 @@ it('shares the authenticated user commit and follow counts', function (): void {
 
     $sharedUser = $middleware->share($request)['auth']['user']();
 
-    expect($sharedUser->commits_count)->toBe(2)
-        ->and($sharedUser->following_count)->toBe(3)
-        ->and($sharedUser->followers_count)->toBe(1);
+    expect($sharedUser['commits_count'])->toBe(2)
+        ->and($sharedUser['following_count'])->toBe(3)
+        ->and($sharedUser['followers_count'])->toBe(1);
 });
 
 it('defers loading the authenticated user until the prop is resolved', function (): void {
@@ -101,6 +101,16 @@ it('shares how many developers are here with guests only', function (): void {
 
     expect(new HandleInertiaRequests()->share($request)['developersCount']())->toBeNull();
 });
+
+it('tells the lite mobile app from its user agent', function (string $userAgent, bool $isLiteMobileApp): void {
+    $request = Request::create('/', 'GET', server: ['HTTP_USER_AGENT' => $userAgent]);
+
+    expect(new HandleInertiaRequests()->share($request)['isLiteMobileApp'])->toBe($isLiteMobileApp);
+})->with([
+    'the lite mobile app' => ['Mozilla/5.0 (iPhone) AppleWebKit/605.1.15 Mobile/15E148 DevNullLite/1.0', true],
+    'Safari' => ['Mozilla/5.0 (iPhone) AppleWebKit/605.1.15 Version/18.6 Mobile/15E148 Safari/604.1', false],
+    'no user agent' => ['', false],
+]);
 
 it('defaults sidebarOpen to true when no cookie', function (): void {
     $middleware = new HandleInertiaRequests();
@@ -181,11 +191,11 @@ it('shares whether there are unmoderated commits for admins', function (): void 
 
     $shared = $middleware->share($request);
 
-    expect(value($shared['hasUnmoderatedCommits']))->toBeFalse();
+    expect($shared['hasUnmoderatedCommits']())->toBeFalse();
 
     Commit::factory()->pending()->create();
 
-    expect(value($shared['hasUnmoderatedCommits']))->toBeTrue();
+    expect($shared['hasUnmoderatedCommits']())->toBeTrue();
 });
 
 it('does not count deleted pending commits as unmoderated', function (): void {
@@ -199,7 +209,7 @@ it('does not count deleted pending commits as unmoderated', function (): void {
 
     $shared = new HandleInertiaRequests()->share($request);
 
-    expect(value($shared['hasUnmoderatedCommits']))->toBeFalse();
+    expect($shared['hasUnmoderatedCommits']())->toBeFalse();
 });
 
 it('shares hasUnmoderatedCommits as false for non admins', function (): void {
@@ -515,7 +525,7 @@ it('suggests the round of people the user refreshed to', function (string $cooki
 
     $suggested = $middleware->share($request)['suggestedUsers']();
 
-    expect($suggested->pluck('id')->all())
+    expect(array_column($suggested, 'id'))
         ->toBe(resolve(SuggestedUsersQuery::class)->get($user, round: $round, spares: 3)->pluck('id')->all());
 })->with([
     'next round' => ['1', 1],

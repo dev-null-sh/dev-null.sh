@@ -4,6 +4,7 @@ import { ArrowUp } from 'lucide-react';
 import {
     useCallback,
     useEffect,
+    useEffectEvent,
     useLayoutEffect,
     useRef,
     useState,
@@ -22,10 +23,24 @@ import { useComposerVisibility } from '@/hooks/use-composer-visibility';
 import { useLaneSwipe } from '@/hooks/use-lane-swipe';
 import { useLastVisit } from '@/hooks/use-last-visit';
 import { useOwnsCommit } from '@/hooks/use-owns-commit';
+import { idsOf, useIsListening } from '@/hooks/use-realtime';
 import AppLayout from '@/layouts/app-layout';
-import { backgroundPollOptions } from '@/lib/background-poll';
+import {
+    backgroundPollOptions,
+    reloadInBackground,
+} from '@/lib/background-poll';
 import { emojify } from '@/lib/emoji';
+import { batchLogArrivals } from '@/lib/log-arrivals';
+import { animateScrollToTop, scrollLogToTop } from '@/lib/log-scroll';
+import {
+    atMostAtOnce,
+    coalesce,
+    listen,
+    logChannel,
+    userChannel,
+} from '@/lib/realtime';
 import { cn } from '@/lib/utils';
+import { windowDigest } from '@/lib/window-digest';
 import type { Commit, CursorPaginated, Log } from '@/types';
 
 export default function Show({
@@ -52,6 +67,7 @@ export default function Show({
     const loadRequest = useRef<CancelToken | null>(null);
     const loadingNew = useRef(false);
     const freshIds = useRef<Set<string>>(new Set());
+    const arrivalRead = useRef<(() => (ids: string[]) => void) | null>(null);
 
     // Another log has its own commits to announce, so nothing of the last one's pill carries over.
     if (stateLog !== log) {
@@ -62,7 +78,12 @@ export default function Show({
     const commitDialogClosedCount = useCommitDialogClosedCount();
     const viewerId = user?.id ?? 'guest';
     const newestId = isRanked ? undefined : commits.data[0]?.id;
-    const oldestLoadedId = commits.data.at(-1)?.id;
+    // The oldest loaded commits, oldest first: the range holds on the oldest the reader can still see.
+    const throughIds = commits.data
+        .slice(-20)
+        .map((commit) => commit.id)
+        .reverse()
+        .join(',');
     const tabsRef = useRef<HTMLDivElement>(null);
     const [tabsHeight, setTabsHeight] = useState(0);
     const feedRef = useRef<HTMLDivElement>(null);
@@ -87,6 +108,22 @@ export default function Show({
                     nativeAnchoring.current;
                 nativeAnchoring.current = null;
             }
+        };
+    }, [log]);
+
+    useEffect(() => {
+        let cancel: VoidFunction | undefined;
+        const scroll = () => {
+            cancel?.();
+            returningToTop.current = window.scrollY > 0;
+            followAnchor.current = null;
+            cancel = animateScrollToTop();
+        };
+        window.addEventListener('log:scroll-top', scroll);
+
+        return () => {
+            cancel?.();
+            window.removeEventListener('log:scroll-top', scroll);
         };
     }, [log]);
 
@@ -336,20 +373,35 @@ export default function Show({
 
     const firstSeenId = useLastVisit(viewerId, log, commits.data);
 
-    const loadNewest = (count: number) => {
+    const loadNewest = (
+        count: number,
+        signal?: AbortSignal,
+    ): Promise<number | null> => {
+        if (signal?.aborted || document.visibilityState === 'hidden') {
+            return Promise.resolve(null);
+        }
+
         if (isRanked || !count || loadingNew.current) {
-            return;
+            return Promise.resolve(loadingNew.current ? null : 0);
         }
 
         const known = new Set(commits.data.map((commit) => commit.id));
+        const firstKnownIndex = (incoming: Commit[]) => {
+            const index = incoming.findIndex((commit) => known.has(commit.id));
+
+            return index === -1 ? incoming.length : index;
+        };
         loadingNew.current = true;
-        router.reload(
-            backgroundPollOptions({
+        let added: number | null = null;
+        const received = arrivalRead.current?.();
+
+        return reloadInBackground(
+            {
                 only: ['commits', 'newCommitsCount'],
                 reset: ['commits'],
                 data: { since: '' },
                 // Retain the loaded range so inserting new commits preserves the reader's row.
-                headers: { 'X-Log-Through': oldestLoadedId ?? '' },
+                headers: { 'X-Log-Through': throughIds },
                 preserveUrl: true,
                 onCancelToken: (token) => {
                     loadRequest.current = token;
@@ -357,10 +409,19 @@ export default function Show({
                 onSuccess: (page) => {
                     const incoming = page.props
                         .commits as CursorPaginated<Commit>;
-                    const arrivals = incoming.data.filter(
+                    received?.(incoming.data.map((commit) => commit.id));
+                    added = incoming.data.filter(
                         (commit) =>
                             !known.has(commit.id) && !ownsCommit(commit),
-                    );
+                    ).length;
+                    // Only what came in above the commits already shown is news: older ones approved since are
+                    // placed among them without a notice.
+                    const arrivals = incoming.data
+                        .slice(0, firstKnownIndex(incoming.data))
+                        .filter(
+                            (commit) =>
+                                !known.has(commit.id) && !ownsCommit(commit),
+                        );
                     if (
                         arrivals.length === 0 ||
                         (document.visibilityState === 'visible' &&
@@ -387,22 +448,57 @@ export default function Show({
                     loadingNew.current = false;
                     loadRequest.current = null;
                 },
-            })(),
-        );
+            },
+            signal,
+        ).then(() => added);
     };
 
-    const { stop: stopPolling } = usePoll(
-        30_000,
-        backgroundPollOptions(() => ({
-            only: ['newCommitsCount', 'removedCommitIds'],
+    /**
+     * Asks whether the log has new commits, and which of the commits it shows, or heard about, changed: the ones
+     * gone leave, and older ones approved since are placed among the rest. A log that shows nothing yet asks for
+     * everything, so its first commit is found too. Checking the window also counts what the log holds between the
+     * oldest and newest commits loaded: a different count than shown means something was missed, and the loaded
+     * range is read again. A ranked log is never reshaped, only rid of what is gone.
+     */
+    const probeOptions = ({
+        heard = [],
+        checked = [],
+        checksWindow = false,
+        checksArrivals = true,
+        signal,
+    }: {
+        heard?: string[];
+        checked?: string[];
+        checksWindow?: boolean;
+        checksArrivals?: boolean;
+        signal?: AbortSignal;
+    }) => {
+        const arrived = isRanked || !checksArrivals ? [] : heard;
+        let followUp: Promise<number | null> = Promise.resolve(null);
+
+        const options = {
+            only: [
+                ...(checksArrivals ? ['newCommitsCount'] : []),
+                'removedCommitIds',
+                ...(arrived.length > 0 ? ['arrivedCommitIds'] : []),
+                ...(checksWindow && !isRanked ? ['windowDigest'] : []),
+            ],
             data: {
                 since: newestId,
-                pending: notice?.leaving
-                    ? []
-                    : (notice?.commits.map((commit) => commit.id) ?? []),
+                ...(newestId === undefined && !isRanked
+                    ? { everything: 1 }
+                    : {}),
+                pending: [
+                    ...(notice?.leaving
+                        ? []
+                        : (notice?.commits.map((commit) => commit.id) ?? [])),
+                    ...checked,
+                ].slice(0, 100),
+                arrived,
             },
+            headers: { 'X-Log-Through': throughIds },
             preserveUrl: true,
-            onSuccess: (page) => {
+            onSuccess: (page: { props: PageProps }) => {
                 const removed = new Set(
                     page.props.removedCommitIds as string[],
                 );
@@ -431,11 +527,237 @@ export default function Show({
                         },
                     );
                 }
-                loadNewest(page.props.newCommitsCount as number);
+                if (!checksArrivals) {
+                    followUp = Promise.resolve(0);
+                    return;
+                }
+                const expected = page.props.windowDigest as
+                    | string
+                    | null
+                    | undefined;
+                const shown = commits.data
+                    .map((commit) => commit.id)
+                    .filter((id) => !removed.has(id));
+                const newest = Math.max(
+                    page.props.newCommitsCount as number,
+                    (
+                        (page.props.arrivedCommitIds as string[] | undefined) ??
+                        []
+                    ).length,
+                );
+                // The loaded window is read again, as deep as it was, when it no longer holds what it shows, or when it
+                // can't be told, as none of its oldest commits is still the reader's to see.
+                followUp =
+                    typeof expected === 'string' && shown.length > 0
+                        ? windowDigest(shown).then((digest) =>
+                              loadNewest(
+                                  digest === expected
+                                      ? newest
+                                      : commits.data.length + 1,
+                                  signal,
+                              ),
+                          )
+                        : expected === null && shown.length > 0
+                          ? loadNewest(commits.data.length + 1, signal)
+                          : loadNewest(newest, signal);
             },
-        })),
-        { autoStart: newestId !== undefined },
+        };
+
+        return {
+            options,
+            settled: () => followUp,
+        };
+    };
+
+    const isHearingLog = useIsListening(logChannel);
+    const { start: startPolling, stop: stopPolling } = usePoll(
+        isRanked ? 60_000 : 30_000,
+        backgroundPollOptions(
+            () =>
+                probeOptions({
+                    checked: isRanked
+                        ? commits.data.slice(0, 100).map((commit) => commit.id)
+                        : [],
+                    checksWindow: true,
+                }).options,
+        ),
+        { autoStart: false },
     );
+
+    // Polling backs live updates up only while this page is visible and isn't listening.
+    useEffect(() => {
+        const update = () => {
+            if (isHearingLog || document.visibilityState === 'hidden') {
+                stopPolling();
+            } else {
+                startPolling();
+            }
+        };
+        update();
+        document.addEventListener('visibilitychange', update);
+        return () => {
+            document.removeEventListener('visibilitychange', update);
+            stopPolling();
+        };
+    }, [isHearingLog, startPolling, stopPolling]);
+
+    const splitVisibility = useEffectEvent((ids: string[]) => {
+        const loaded = new Set([
+            ...commits.data.map((commit) => commit.id),
+            ...(notice?.commits.map((commit) => commit.id) ?? []),
+        ]);
+        return {
+            checked: ids.filter((id) => loaded.has(id)),
+            arrived: isRanked ? [] : ids.filter((id) => !loaded.has(id)),
+        };
+    });
+
+    const probe = useEffectEvent(
+        async (
+            ids: string[],
+            isCatchingUp: boolean,
+            signal: AbortSignal,
+            checksArrivals: boolean,
+        ): Promise<number | null> => {
+            const { checked, arrived } = splitVisibility(ids);
+            const pending =
+                isCatchingUp && isRanked
+                    ? commits.data.map((commit) => commit.id)
+                    : checked;
+            let added = 0;
+
+            // A wider arrival batch checks the whole loaded window too, so approvals beyond the hundred ids
+            // named in the request are found even when they belong below its newest commit.
+            for (
+                let offset = 0;
+                offset < Math.max(pending.length, 1);
+                offset += 100
+            ) {
+                if (signal.aborted) return null;
+                const { options, settled } = probeOptions({
+                    heard: offset === 0 ? arrived.slice(0, 100) : [],
+                    checked: pending.slice(offset, offset + 100),
+                    checksWindow:
+                        offset === 0 && (isCatchingUp || arrived.length > 100),
+                    checksArrivals: checksArrivals && offset === 0,
+                    signal,
+                });
+                await reloadInBackground(options, signal);
+                const result = await settled();
+                if (result === null) return null;
+                added += result;
+            }
+            return added;
+        },
+    );
+
+    useEffect(() => {
+        const heard = new Set<string>();
+        const controller = new AbortController();
+        const read = atMostAtOnce(1);
+        let isCatchingUp = false;
+        const arrivals = batchLogArrivals((pending) =>
+            read(async () => {
+                if (
+                    controller.signal.aborted ||
+                    document.visibilityState === 'hidden'
+                )
+                    return null;
+                const ids = pending();
+                if (ids.length === 0) return 0;
+                return probe(ids, false, controller.signal, true);
+            }),
+        );
+        const refresh = coalesce(
+            () =>
+                read(async () => {
+                    if (
+                        controller.signal.aborted ||
+                        document.visibilityState === 'hidden'
+                    )
+                        return;
+                    const catchingUp = isCatchingUp;
+                    const caughtUp = catchingUp ? arrivals.read() : null;
+                    const ids = [...heard];
+                    heard.clear();
+                    isCatchingUp = false;
+                    const result = await probe(
+                        ids,
+                        catchingUp,
+                        controller.signal,
+                        catchingUp,
+                    ).catch(() => null);
+                    if (controller.signal.aborted) return;
+                    if (result === null) {
+                        ids.forEach((id) => heard.add(id));
+                        isCatchingUp ||= catchingUp;
+                        refresh.request();
+                    } else {
+                        caughtUp?.();
+                    }
+                    if (!document.hidden) arrivals.resume();
+                }),
+            1_000,
+        );
+
+        const started = () => {
+            const received = arrivals.read();
+            return (ids: string[]) => {
+                if (controller.signal.aborted) return;
+                const newer = received(ids);
+                newer.forEach((id) => heard.add(id));
+                if (newer.length > 0) refresh.request();
+            };
+        };
+        arrivalRead.current = started;
+
+        const recover = () => {
+            isCatchingUp = true;
+            refresh.request();
+        };
+        const onVisible = () => {
+            if (document.visibilityState === 'hidden') {
+                arrivals.pause();
+            } else {
+                recover();
+            }
+        };
+        if (document.visibilityState === 'hidden') arrivals.pause();
+        document.addEventListener('visibilitychange', onVisible);
+
+        const stop = listen(
+            logChannel,
+            {
+                visibility: (payload) => {
+                    const { checked, arrived } = splitVisibility(
+                        idsOf(payload),
+                    );
+                    checked.forEach((id) => heard.add(id));
+                    if (checked.length > 0) refresh.request();
+                    arrivals.request(arrived);
+                },
+            },
+            recover,
+        );
+        const stopRelationships =
+            viewerId === 'guest'
+                ? () => {}
+                : listen(
+                      userChannel(viewerId),
+                      { relationships: recover },
+                      recover,
+                  );
+
+        return () => {
+            stop();
+            stopRelationships();
+            document.removeEventListener('visibilitychange', onVisible);
+            if (arrivalRead.current === started) arrivalRead.current = null;
+            arrivals.cancel();
+            refresh.cancel();
+            controller.abort();
+        };
+    }, [log, viewerId]);
 
     // Showing a log remembers it, so pages prefetched before it still carry the previous log in their shared props.
     useEffect(() => {
@@ -543,11 +865,17 @@ export default function Show({
                             title: 'Following',
                             href: LogController.show('following'),
                             isActive: log === 'following',
+                            onClick:
+                                log === 'following'
+                                    ? scrollLogToTop
+                                    : undefined,
                         },
                         {
                             title: 'Latest',
                             href: LogController.show('latest'),
                             isActive: log === 'latest',
+                            onClick:
+                                log === 'latest' ? scrollLogToTop : undefined,
                         },
                         {
                             title: 'Trending',
@@ -571,11 +899,7 @@ export default function Show({
                 >
                     <button
                         type="button"
-                        onClick={() => {
-                            returningToTop.current = true;
-                            followAnchor.current = null;
-                            window.scrollTo({ top: 0, behavior: 'smooth' });
-                        }}
+                        onClick={() => scrollLogToTop()}
                         aria-label={announcementLabel}
                         title={announcementLabel}
                         className={cn(

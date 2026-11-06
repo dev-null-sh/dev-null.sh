@@ -9,6 +9,7 @@ use App\Enums\Feature;
 use App\Exceptions\CommitProcessingFailed;
 use App\Jobs\DetectCommitLanguage;
 use App\Models\Commit;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Cache;
 use Locale;
@@ -16,7 +17,7 @@ use ResourceBundle;
 use Throwable;
 
 /**
- * @phpstan-type CachedTranslations array{source_language: string, translations: array<string, string>, expires_at: int}
+ * @phpstan-type CachedTranslations array{source_language: string, translations: array<string, string>, expires_at: int, translated_at?: int}
  */
 final readonly class CommitTranslations
 {
@@ -79,6 +80,27 @@ final readonly class CommitTranslations
 
             $commit->setAttribute('translation', $viewer !== null && $commit->user_id === $viewer ? null : $translation);
         }
+    }
+
+    /**
+     * The commits whose text was translated, or had its language found, since the given time: what a page that may
+     * have missed being told reads again.
+     *
+     * @param  Collection<int, Commit>  $commits
+     * @return list<string>
+     */
+    public function translatedSince(Collection $commits, CarbonImmutable $since): array
+    {
+        if (! $this->enabled()) {
+            return [];
+        }
+
+        /** @var array<string, CachedTranslations|null> $cached */
+        $cached = Cache::many($commits->map($this->key(...))->unique()->all());
+
+        return array_values($commits
+            ->filter(fn (Commit $commit): bool => ($cached[$this->key($commit)]['translated_at'] ?? 0) > $since->getTimestampMs())
+            ->modelKeys());
     }
 
     /** @return array<string, mixed>|null */

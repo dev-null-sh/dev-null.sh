@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Enums\ConversationMuteDuration;
+use App\Enums\UserUpdate;
+use App\Events\UsersUpdated;
 use App\Models\Conversation;
 use App\Models\ConversationParticipant;
 use App\Models\User;
@@ -23,6 +25,8 @@ final readonly class UpdateConversationMute
             ->where('user_id', $user->id)
             ->where('conversation_id', $conversation->id)
             ->update(['muted_until_at' => $until]);
+
+        event(new UsersUpdated([$user->id], UserUpdate::Inbox, ['conversation' => $conversation->id]));
 
         return $until;
     }

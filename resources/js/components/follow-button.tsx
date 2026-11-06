@@ -15,6 +15,7 @@ import {
 import {
     peekSharedState,
     refreshSharedState,
+    sharedValue,
     useSharedState,
 } from '@/hooks/use-shared-state';
 import { signIn } from '@/lib/auth';
@@ -89,6 +90,38 @@ export function useIsFollowing(
 
 const isPendingKey = (user: Pick<User, 'id'>): string =>
     `follow_pending:${user.id}`;
+
+const followingVersions = new Map<string, number>();
+const followingRetries = new Map<string, Set<() => void>>();
+
+/** A read already on its way cannot undo a follow clicked while it was out. */
+export function prepareFollowingUpdate(
+    user: Pick<User, 'id'>,
+    retry: () => void,
+): (following: boolean) => void {
+    const version = followingVersions.get(user.id);
+    const wasPending = sharedValue(isPendingKey(user)) === true;
+
+    return (following) => {
+        if (
+            !wasPending &&
+            version === followingVersions.get(user.id) &&
+            sharedValue(isPendingKey(user)) !== true
+        ) {
+            refreshSharedState(new Map([[isFollowingKey(user), following]]));
+
+            return;
+        }
+
+        if (sharedValue(isPendingKey(user)) === true) {
+            const retries = followingRetries.get(user.id) ?? new Set();
+            retries.add(retry);
+            followingRetries.set(user.id, retries);
+        } else {
+            retry();
+        }
+    };
+}
 
 const hasBlockKey = (user: Pick<User, 'id'>): string => `has_block:${user.id}`;
 
@@ -277,6 +310,10 @@ export function useFollow(
         callbacks: {
             onBefore: () => !isPending,
             onStart: () => {
+                followingVersions.set(
+                    user.id,
+                    (followingVersions.get(user.id) ?? 0) + 1,
+                );
                 setIsPending(true);
                 setIsFollowing(!isFollowing);
             },
@@ -287,7 +324,12 @@ export function useFollow(
 
                 return onFollowHttpException(user, response);
             },
-            onFinish: () => setIsPending(false),
+            onFinish: () => {
+                setIsPending(false);
+                const retries = followingRetries.get(user.id);
+                followingRetries.delete(user.id);
+                retries?.forEach((retry) => retry());
+            },
         },
     };
 }
