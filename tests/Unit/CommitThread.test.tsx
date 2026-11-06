@@ -196,6 +196,24 @@ test('hangs every reply off the parent with an elbow of its own, as the graph ca
     assert.equal(pieces(html, 'reply-link').length, 0);
 });
 
+test('labels flattened replies with a link to their direct parent', async () => {
+    const html = await renderThread(1, 3, { depth: 3 });
+
+    assert.equal(pieces(html, 'reply-parent-context').length, 1);
+    assert.match(text(html), /replying to @author/);
+    assert.match(
+        html,
+        /data-test="reply-parent-link"[^>]*href="\/@author\/commits\/parent"/,
+    );
+    assert.equal(pieces(html, 'thread-elbow').length, 0);
+});
+
+test('does not add a parent label before replies reach the flattening depth', async () => {
+    const html = await renderThread(1, 3, { depth: 2 });
+
+    assert.equal(pieces(html, 'reply-parent-context').length, 0);
+});
+
 test("runs the parent's column on from each elbow to the next one, down to the more replies dot", async () => {
     assert.equal(pieces(await renderThread(3, 3), 'thread-column').length, 2);
     assert.equal(pieces(await renderThread(5, 3), 'thread-column').length, 4);
