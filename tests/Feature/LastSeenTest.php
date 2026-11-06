@@ -113,6 +113,21 @@ it('records each app used in a day on one row, and counts the person once', func
         ->and(DB::table('active_user_counts')->where('seen_at', '2026-10-19')->value('count'))->toBe(1);
 });
 
+it('records the lite mobile app for its web view and for its device', function (): void {
+    $seenOnLiteMobileApp = fn (User $user): ?bool => DB::table('user_active_days')->where('user_id', $user->id)->value('lite_mobile_app');
+    $other = User::factory()->create();
+    $keyPair = apiKeyPairFor($other);
+    Device::query()->where('user_id', $other->id)->update(['app_id' => 'ios:sh.devnull.app']);
+
+    $this->actingAs($this->user)->withHeader('User-Agent', 'Mobile/15E148 DevNullLite/1.0.0')->get(route('log.show', Log::Following))->assertOk();
+    signedApiRequest($keyPair, 'GET', route('api-current-user.show'))->assertOk();
+
+    expect($seenOnLiteMobileApp($this->user))->toBeTrue()
+        ->and(DB::table('user_active_days')->where('user_id', $this->user->id)->value('web_app'))->toBeFalse()
+        ->and($seenOnLiteMobileApp($other))->toBeTrue()
+        ->and(DB::table('user_active_days')->where('user_id', $other->id)->value('other_app'))->toBeFalse();
+});
+
 it('neither writes nor locks the row of the day once the app is recorded', function (): void {
     $version = fn (): string => DB::table('user_active_days')->where('user_id', $this->user->id)->selectRaw("xmin::text || ':' || xmax::text as version")->value('version');
 
