@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Dto\AuthorizationCode;
+use App\Enums\UserUpdate;
+use App\Events\UsersUpdated;
 use App\Models\Device;
 use Illuminate\Support\Facades\Cache;
 
@@ -12,7 +14,8 @@ final readonly class CreateDevice
 {
     /**
      * Redeems an authorization code: the key it was handed out for becomes an approved device of the user who approved
-     * it, and the code is used up. A key that was approved before, even for someone else, is approved again for them.
+     * it, and the code is used up. A key that was approved before, even for someone else, is approved again for them,
+     * without the push token it had, until the app sends one.
      *
      * A code is redeemed once, like a signature nonce is used once, so of two requests with the same code only one gets
      * a device. The other gets null.
@@ -25,13 +28,20 @@ final readonly class CreateDevice
 
         Cache::forget($authorizationCode->key);
 
-        return Device::query()->updateOrCreate(['fingerprint' => $authorizationCode->fingerprint], [
+        $device = Device::query()->updateOrCreate(['fingerprint' => $authorizationCode->fingerprint], [
             'user_id' => $authorizationCode->userId,
             'name' => $authorizationCode->deviceName,
             'app_id' => $authorizationCode->appId,
             'app_name' => $authorizationCode->appName,
             'approved_at' => now(),
             'last_used_at' => null,
+            'push_token_hash' => null,
+            'push_token' => null,
+            'push_platform' => null,
         ]);
+
+        event(new UsersUpdated([$authorizationCode->userId], UserUpdate::Account));
+
+        return $device;
     }
 }

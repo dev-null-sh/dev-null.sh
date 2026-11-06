@@ -56,6 +56,7 @@ function renderPage(
                         errors: {},
                         auth: {
                             user: userId === null ? null : { id: userId },
+                            organizations: [],
                             pasteis: null,
                         },
                     },
@@ -91,7 +92,7 @@ for (const results of [false, true]) {
         assert.match(markup, /<code[^>]*>rm -rf<\/code>/);
         assert.ok(markup.includes(`href="/mentions/${mentionedId}"`));
         assert.equal(markup.match(/data-test="mention"/g)?.length, 1);
-        assert.ok(markup.includes('or @bob'));
+        assert.match(markup, /or <a[^>]*href="\/@bob"[^>]*>@bob<\/a>/);
         assert.equal(markup.includes('View results'), false);
     });
 }
@@ -121,6 +122,7 @@ test('offers a focusable view results button before a signed-in reader votes', (
     const button = markup.match(/<button[^>]*>View results<\/button>/);
 
     assert.ok(button);
+    assert.match(markup, /<fieldset[^>]*tabindex="-1"/);
     assert.match(button[0], /type="button"/);
     assert.match(button[0], /data-test="poll-view-results"/);
     assert.match(button[0], /focus-visible:ring-\[3px\]/);
@@ -137,6 +139,7 @@ test('shows counts and keeps voting after results are visible', () => {
     );
 
     assert.equal(markup.includes('View results'), false);
+    assert.match(markup, /<fieldset[^>]*tabindex="-1"/);
     assert.match(markup, /data-test="poll-vote-button"/);
     assert.match(markup, /type="radio"/);
     assert.match(markup, /data-test="poll-summary"/);
@@ -147,7 +150,7 @@ test('shows counts and keeps voting after results are visible', () => {
 test('hides view results from the author and from a closed poll', () => {
     const authorMarkup = renderPage(
         <CommitPoll commit={commit} poll={openResults()} />,
-        commit.user_id,
+        commit.author.id,
     );
 
     assert.equal(authorMarkup.includes('View results'), false);

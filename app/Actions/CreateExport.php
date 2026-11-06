@@ -51,15 +51,16 @@ use Traversable;
  *     dismissed_suggestions: Generator<int, ExportUser>,
  *     organizations: array<int, array{handle: string, role: string, joined_at: string}>,
  *     followed_organizations: array<int, array{handle: string, followed_at: string}>,
- *     pending_organization_follows: list<string>,
+ *     pending_follows: list<string>,
  *     messages: Generator<int, ExportMessage>,
  *     reports: Traversable<int, array<string, mixed>>,
  *     remote_pins: array<int, array{to: string|null, pinned_at: string|null}>,
+ *     remote_mentions: Generator<int, array{to: string|null, created_at: string}>,
  *     remote_mutes: array<int, array{to: string|null, muted_until_at: string|null}>,
  *     notifications: Generator<int, array<string, int|string|null>>,
  *     ssh_keys: array<mixed>,
  *     push_subscriptions: array<int, array{id: string}>,
- *     devices: array<int, array{name: string, app_id: string|null, app_name: string|null, fingerprint: string, approved_at: string, last_used_at: string|null}>,
+ *     devices: array<int, array{name: string, app_id: string|null, app_name: string|null, fingerprint: string, approved_at: string, last_used_at: string|null, push_platform: string|null}>,
  *     timeouts: array<int, array{reason: string, ends_at: string, created_at: string}>,
  *     sessions: Collection<int, stdClass>
  * }
@@ -74,7 +75,7 @@ final readonly class CreateExport
     public function handle(User $user): array
     {
         return [
-            'schema_version' => 5,
+            'schema_version' => 6,
             'exported_at' => now()->toIso8601String(),
             'profile' => [
                 'github_id' => $user->github_id,
@@ -100,6 +101,11 @@ final readonly class CreateExport
                 'remotes_enabled' => $user->remotes_enabled,
                 'remotes_from' => $user->remotes_from->value,
                 'pull_receipts' => $user->pull_receipts,
+                'push_follows' => $user->push_follows,
+                'push_replies' => $user->push_replies,
+                'push_mentions' => $user->push_mentions,
+                'push_direct_remotes' => $user->push_direct_remotes,
+                'push_org_remotes' => $user->push_org_remotes,
                 'pinned_commit_id' => $user->pinned_commit_id,
                 'live_platform' => $user->live_platform?->value,
                 'live_url' => $user->live_url,
@@ -123,7 +129,7 @@ final readonly class CreateExport
             'dismissed_suggestions' => $this->handles($user->dismissedSuggestions()),
             'organizations' => $this->organizations($user),
             'followed_organizations' => $this->followedOrganizations($user),
-            'pending_organization_follows' => $this->pendingOrganizationFollows($user),
+            'pending_follows' => $this->pendingFollows($user),
             'messages' => $this->messages($user),
             'reports' => CommitReport::query()->where('reporter_id', $user->id)->oldest('id')->cursor()->map(fn (CommitReport $report): array => [
                 'commit_id' => $report->commit_id,
@@ -160,6 +166,7 @@ final readonly class CreateExport
                     'pinned_at' => $conversation->pinned_at?->toIso8601String(),
                 ])
                 ->all(),
+            'remote_mentions' => $this->mentions($user),
             'notifications' => $this->notifications($user),
             'ssh_keys' => $user->sshKeys()->pluck('fingerprint')->all(),
             'push_subscriptions' => $user->pushSubscriptions()->get()->map(fn (PushSubscription $subscription): array => [
@@ -172,6 +179,7 @@ final readonly class CreateExport
                 'fingerprint' => $device->fingerprint,
                 'approved_at' => $device->approved_at->toIso8601String(),
                 'last_used_at' => $device->last_used_at?->toIso8601String(),
+                'push_platform' => $device->push_platform?->value,
             ])->all(),
             'timeouts' => $user->timeouts()->oldest()->get()->map(fn (UserTimeout $timeout): array => [
                 'reason' => $timeout->reason->value,
@@ -338,6 +346,21 @@ final readonly class CreateExport
     }
 
     /**
+     * The org messages that mention the user and they haven't cleared, as where and when, without what others wrote.
+     *
+     * @return Generator<int, array{to: string|null, created_at: string}>
+     */
+    private function mentions(User $user): Generator
+    {
+        foreach ($user->mentions()->with('conversation:id,name,kind')->lazyById(500, 'messages.id', 'id') as $message) {
+            yield [
+                'to' => $this->recipient($user, $message->conversation),
+                'created_at' => $message->created_at->toIso8601String(),
+            ];
+        }
+    }
+
+    /**
      * The other person in a conversation, or the org it is.
      */
     private function recipient(User $user, Conversation $conversation): ?string
@@ -397,14 +420,14 @@ final readonly class CreateExport
     }
 
     /**
-     * The GitHub IDs of the organizations the user follows on GitHub, to follow here once they are on /dev/null.
+     * The GitHub IDs of the accounts the user waits to follow until they are on /dev/null: organizations and developers.
      *
      * @return list<string>
      */
-    private function pendingOrganizationFollows(User $user): array
+    private function pendingFollows(User $user): array
     {
         /** @var list<string> */
-        return DB::table('pending_organization_follows')->where('user_id', $user->id)->orderBy('github_id')->pluck('github_id')->all();
+        return DB::table('pending_follows')->where('user_id', $user->id)->orderBy('github_id')->pluck('github_id')->all();
     }
 
     /**

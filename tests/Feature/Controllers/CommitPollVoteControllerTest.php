@@ -172,7 +172,7 @@ it('returns the results without recording a vote', function (): void {
         'total_votes' => null,
     ]);
 
-    $response = $this->actingAs($user)->getJson(route('commit-poll.show', $poll->commit));
+    $response = $this->actingAs($user)->getJson(route('commit-poll-result.show', $poll->commit));
 
     $response->assertOk()
         ->assertHeader('Cache-Control', 'no-store, private')
@@ -187,7 +187,7 @@ it('returns the results without recording a vote', function (): void {
         ->and($response->getContent())->not->toContain('secret-voter')
         ->and(PollVote::query()->count())->toBe(2);
 
-    $this->actingAs($user)->getJson(route('commit-poll.show', $poll->commit))
+    $this->actingAs($user)->getJson(route('commit-poll-result.show', $poll->commit))
         ->assertOk()
         ->assertJsonPath('poll.has_voted', false)
         ->assertJsonPath('poll.total_votes', 2);
@@ -198,7 +198,7 @@ it('returns the results without recording a vote', function (): void {
 it('requires authentication to view poll results', function (): void {
     $poll = Poll::factory()->withOptions('Tabs', 'Spaces')->create();
 
-    $this->get(route('commit-poll.show', $poll->commit))
+    $this->get(route('commit-poll-result.show', $poll->commit))
         ->assertRedirectToRoute('home');
 
     expect(PollVote::query()->count())->toBe(0);
@@ -208,7 +208,7 @@ it('may not view results of a poll that is not visible', function (string $state
     $poll = Poll::factory()->for(Commit::factory()->{$state}())->withOptions('Tabs', 'Spaces')->create();
 
     $this->actingAs(User::factory()->create())
-        ->getJson(route('commit-poll.show', $poll->commit))
+        ->getJson(route('commit-poll-result.show', $poll->commit))
         ->assertForbidden();
 
     expect(PollVote::query()->count())->toBe(0);
@@ -222,7 +222,7 @@ it('may not view results across a block in either direction', function (bool $vi
     $viewerBlocks ? $user->blocking()->attach($author) : $author->blocking()->attach($user);
 
     $this->actingAs($user)
-        ->getJson(route('commit-poll.show', $poll->commit))
+        ->getJson(route('commit-poll-result.show', $poll->commit))
         ->assertForbidden();
 
     expect(PollVote::query()->count())->toBe(0);
@@ -237,7 +237,7 @@ it('may still view results across a mute in either direction', function (bool $v
     $viewerMutes ? $user->muting()->attach($author) : $author->muting()->attach($user);
 
     $this->actingAs($user)
-        ->getJson(route('commit-poll.show', $poll->commit))
+        ->getJson(route('commit-poll-result.show', $poll->commit))
         ->assertOk()
         ->assertJsonPath('poll.has_voted', false)
         ->assertJsonPath('poll.total_votes', 1);
@@ -249,7 +249,7 @@ it('may not view results before the poll opens', function (): void {
     $poll = Poll::factory()->withOptions('Tabs', 'Spaces')->unopened()->create();
 
     $this->actingAs(User::factory()->create())
-        ->getJson(route('commit-poll.show', $poll->commit))
+        ->getJson(route('commit-poll-result.show', $poll->commit))
         ->assertForbidden();
 
     expect(PollVote::query()->count())->toBe(0);
@@ -259,7 +259,7 @@ it('may not view results of a commit without a poll', function (): void {
     $commit = Commit::factory()->create();
 
     $this->actingAs(User::factory()->create())
-        ->getJson(route('commit-poll.show', $commit))
+        ->getJson(route('commit-poll-result.show', $commit))
         ->assertNotFound();
 });
 
@@ -268,7 +268,7 @@ it('may not view results of a deleted commit', function (): void {
     $poll->commit->delete();
 
     $this->actingAs(User::factory()->create())
-        ->getJson(route('commit-poll.show', $poll->commit_id))
+        ->getJson(route('commit-poll-result.show', $poll->commit_id))
         ->assertNotFound();
 });
 
@@ -276,7 +276,7 @@ it('does not reveal a pending poll through the results endpoint', function (): v
     $poll = Poll::factory()->for(Commit::factory()->pending())->withOptions('Tabs', 'Spaces')->unopened()->create();
 
     $this->actingAs($poll->commit->user)
-        ->getJson(route('commit-poll.show', $poll->commit))
+        ->getJson(route('commit-poll-result.show', $poll->commit))
         ->assertForbidden();
 
     expect(PollVote::query()->count())->toBe(0);
@@ -296,7 +296,7 @@ it('still shows the author the results without a vote', function (): void {
     ]);
 
     $this->actingAs($author)
-        ->getJson(route('commit-poll.show', $poll->commit))
+        ->getJson(route('commit-poll-result.show', $poll->commit))
         ->assertOk()
         ->assertJsonPath('poll.has_voted', false)
         ->assertJsonPath('poll.total_votes', 1)
@@ -321,7 +321,7 @@ it('still shows a closed poll to someone who has not voted', function (): void {
     ]);
 
     $this->actingAs($user)
-        ->getJson(route('commit-poll.show', $poll->commit))
+        ->getJson(route('commit-poll-result.show', $poll->commit))
         ->assertOk()
         ->assertJsonPath('poll.is_closed', true)
         ->assertJsonPath('poll.has_voted', false)
@@ -339,7 +339,7 @@ it('records exactly one vote after the results were viewed', function (): void {
     PollVote::factory()->for($poll->options[0], 'option')->create();
 
     $this->actingAs($user)
-        ->getJson(route('commit-poll.show', $poll->commit))
+        ->getJson(route('commit-poll-result.show', $poll->commit))
         ->assertOk()
         ->assertJsonPath('poll.has_voted', false);
 

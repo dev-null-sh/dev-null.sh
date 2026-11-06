@@ -171,7 +171,11 @@ export type RetentionCohorts = {
 export type ActiveUserCount = {
     date: string;
     count: number;
-    returning: number;
+    regular: number;
+    back: number;
+    lost: number | null;
+    lost_complete: boolean;
+    backfilled: boolean;
     activated: number;
     not_activated: number;
     pending: number;

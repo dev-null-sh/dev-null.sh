@@ -43,6 +43,7 @@ export function changelogDays(
     timeZone: string,
 ): ChangelogDay[] {
     const days: ChangelogDay[] = [];
+    let seenAuthors = new Set<string>();
 
     for (const commit of commits) {
         const date = new Date(commit.committed_at).toLocaleDateString('en-CA', {
@@ -53,13 +54,13 @@ export function changelogDays(
         if (day?.date !== date) {
             day = { date, commits: [], authors: [] };
             days.push(day);
+            seenAuthors = new Set();
         }
 
         day.commits.push(commit);
 
-        if (
-            !day.authors.some((author) => author.login === commit.author.login)
-        ) {
+        if (!seenAuthors.has(commit.author.login)) {
+            seenAuthors.add(commit.author.login);
             day.authors.push(commit.author);
         }
     }

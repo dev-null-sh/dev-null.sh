@@ -46,6 +46,11 @@ use LogicException;
  * @property-read bool $remotes_enabled
  * @property-read RemotesFrom $remotes_from
  * @property-read bool $pull_receipts
+ * @property-read bool $push_follows
+ * @property-read bool $push_replies
+ * @property-read bool $push_mentions
+ * @property-read bool $push_direct_remotes
+ * @property-read bool $push_org_remotes
  * @property-read int $pasteis_received
  * @property-read int $pasteis_given_today
  * @property-read CarbonInterface|null $pasteis_given_on
@@ -104,6 +109,11 @@ use LogicException;
     'pushSubscriptions',
     'remotes_from',
     'pull_receipts',
+    'push_follows',
+    'push_replies',
+    'push_mentions',
+    'push_direct_remotes',
+    'push_org_remotes',
     'pasteis_received',
     'pasteis_given_today',
     'pasteis_given_on',
@@ -158,6 +168,11 @@ final class User extends Authenticatable
         'remotes_enabled' => true,
         'remotes_from' => RemotesFrom::Following->value,
         'pull_receipts' => true,
+        'push_follows' => true,
+        'push_replies' => true,
+        'push_mentions' => true,
+        'push_direct_remotes' => true,
+        'push_org_remotes' => true,
         'pasteis_received' => 0,
         'pasteis_given_today' => 0,
         'pasteis_given_on' => null,
@@ -196,6 +211,11 @@ final class User extends Authenticatable
             'remotes_enabled' => 'boolean',
             'remotes_from' => RemotesFrom::class,
             'pull_receipts' => 'boolean',
+            'push_follows' => 'boolean',
+            'push_replies' => 'boolean',
+            'push_mentions' => 'boolean',
+            'push_direct_remotes' => 'boolean',
+            'push_org_remotes' => 'boolean',
             'pasteis_received' => 'integer',
             'pasteis_given_today' => 'integer',
             'pasteis_given_on' => 'date',
@@ -296,6 +316,16 @@ final class User extends Authenticatable
     public function devices(): HasMany
     {
         return $this->hasMany(Device::class);
+    }
+
+    /**
+     * The org messages that mentioned the user, until they open or clear them.
+     *
+     * @return BelongsToMany<Message, $this>
+     */
+    public function mentions(): BelongsToMany
+    {
+        return $this->belongsToMany(Message::class, 'message_mentions');
     }
 
     /**
@@ -451,6 +481,14 @@ final class User extends Authenticatable
     public function isOnboarded(): bool
     {
         return $this->onboarded_at !== null;
+    }
+
+    /**
+     * The user's private channel, where only they hear what changed for them.
+     */
+    public function broadcastChannel(): string
+    {
+        return 'users.'.$this->id;
     }
 
     public function isAdmin(): bool

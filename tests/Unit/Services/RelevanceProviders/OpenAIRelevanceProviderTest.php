@@ -75,8 +75,8 @@ it('keeps every candidate when optional classification is unavailable', function
 it('gives optional classification a short deadline', function (): void {
     Http::fake([
         'api.openai.com/v1/decisions' => function (Request $request, array $options): PromiseInterface {
-            expect($options['timeout'])->toBe(2)
-                ->and($options['connect_timeout'])->toBe(1);
+            expect($options['timeout'])->toBe(4)
+                ->and($options['connect_timeout'])->toBe(2);
 
             return Http::response(['answers' => [
                 ['type' => 'predicate', 'name' => 'post_1', 'probability' => 0.9],
@@ -99,7 +99,7 @@ it('warns about classifier timeouts without logging content or mislabelling othe
         ->toBe([true]);
 
     if ($errno === 28) {
-        Log::shouldHaveReceived('warning')->once()->with('Commit relevance classifier timed out.', ['related' => $related, 'timeout_seconds' => 2]);
+        Log::shouldHaveReceived('warning')->once()->with('Commit relevance classifier timed out.', ['related' => $related, 'timeout_seconds' => 4]);
     } else {
         Log::shouldNotHaveReceived('warning');
     }

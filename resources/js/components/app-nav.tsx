@@ -15,7 +15,7 @@ import {
     UserRound,
 } from 'lucide-react';
 import type { ReactElement, ReactNode } from 'react';
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import ConversationController from '@/actions/App/Http/Controllers/ConversationController';
 import LogController from '@/actions/App/Http/Controllers/LogController';
 import ModerationController from '@/actions/App/Http/Controllers/ModerationController';
@@ -48,6 +48,14 @@ import { useCurrentUrl } from '@/hooks/use-current-url';
 import { useMediaQuery } from '@/hooks/use-media-query';
 import { useNavOpen } from '@/hooks/use-nav-open';
 import { useKeyLabels } from '@/lib/keyboard';
+import { scrollLogToTop } from '@/lib/log-scroll';
+import type { MobileAppTabs as MobileAppTabsState } from '@/lib/mobile-app';
+import {
+    hideMobileAppTabs,
+    setMobileAppTabs,
+    useDocumentTheme,
+    useIsModalOpen,
+} from '@/lib/mobile-app';
 import { browserTimeZone, cn, toUrl } from '@/lib/utils';
 import { home, login } from '@/routes';
 import { show } from '@/routes/user';
@@ -156,13 +164,25 @@ function NavLink({
     iconsOnly?: boolean;
     children: ReactNode;
 }) {
-    const { auth } = usePage().props;
+    const {
+        component,
+        props: { auth },
+    } = usePage();
+    const onClick =
+        item.title === 'Log' && component === 'log/show'
+            ? scrollLogToTop
+            : undefined;
     const title = iconsOnly ? undefined : item.description;
 
     if (auth.user === null) {
         return (
             <NavTooltip label={iconsOnly ? item.title : null}>
-                <a href={toUrl(item.href)} title={title} className={className}>
+                <a
+                    href={toUrl(item.href)}
+                    onClick={onClick}
+                    title={title}
+                    className={className}
+                >
                     {children}
                 </a>
             </NavTooltip>
@@ -173,7 +193,8 @@ function NavLink({
         <NavTooltip label={iconsOnly ? item.title : null}>
             <Link
                 href={item.href}
-                prefetch
+                onClick={onClick}
+                prefetch={onClick === undefined}
                 cacheFor="10s"
                 viewTransition
                 aria-current={item.isActive ? 'page' : undefined}
@@ -508,7 +529,9 @@ export function MobileCommitButton({
             aria-label="Write a commit"
             title="Write a commit"
             className={cn(
-                'absolute right-4 bottom-full mb-4 size-14 rounded-lg shadow-lg transition-opacity duration-200 [view-transition-name:mobile-commit-button] md:hidden',
+                'absolute right-4 bottom-full mb-4 size-14 rounded-lg shadow-lg transition-[opacity,translate] duration-200 [view-transition-name:mobile-commit-button] md:hidden',
+                // In the iOS app POC, while reading down a page shrinks its tab bar (temporary, see `@/lib/mobile-app`)
+                '[:root[data-tab-bar-collapsed]_&]:pointer-events-none [:root[data-tab-bar-collapsed]_&]:translate-y-[calc(100%+3rem)] [:root[data-tab-bar-collapsed]_&]:opacity-0',
                 { 'pointer-events-none opacity-0': isHidden },
             )}
             data-test="mobile-commit-button"
@@ -522,7 +545,7 @@ export function MobileCommitButton({
  * Shares its real height, safe area included, as `--mobile-nav-height`, so full-screen pages can end right above it.
  */
 export function MobileNav({ children }: { children?: ReactNode }) {
-    const { auth } = usePage().props;
+    const { auth, isMobileApp } = usePage().props;
     const timeZone = auth.user?.timezone ?? browserTimeZone();
     const {
         changelog,
@@ -571,6 +594,21 @@ export function MobileNav({ children }: { children?: ReactNode }) {
         };
     }, []);
 
+    // The iOS app POC draws the tabs itself (temporary, see `@/lib/mobile-app`). The nav keeps the height of its tab bar, which the app adds to the safe area, so
+    // the commit button floats above the bar and full-screen pages end right above it.
+    if (isMobileApp) {
+        return (
+            <nav
+                ref={nav}
+                aria-label="Main"
+                className="pointer-events-none fixed inset-x-0 bottom-0 z-20 pb-[env(safe-area-inset-bottom)] *:pointer-events-auto md:hidden"
+            >
+                {children}
+                <MobileAppTabs items={allItems} />
+            </nav>
+        );
+    }
+
     return (
         <nav
             ref={nav}
@@ -583,7 +621,7 @@ export function MobileNav({ children }: { children?: ReactNode }) {
                     key={item.title}
                     item={item}
                     className={cn(
-                        'flex min-w-0 flex-1 flex-col items-center gap-1 py-1 text-[11px] font-medium tracking-tight text-muted-foreground',
+                        'flex min-w-0 flex-1 flex-col items-center py-1.5 text-muted-foreground',
                         { 'text-primary': item.isActive },
                     )}
                 >
@@ -603,14 +641,14 @@ export function MobileNav({ children }: { children?: ReactNode }) {
                             <NavIcon item={item} />
                         </span>
                     </span>
-                    <span className="max-w-full truncate">{item.title}</span>
+                    <span className="sr-only">{item.title}</span>
                 </NavLink>
             ))}
             <DropdownMenu>
                 <DropdownMenuTrigger
                     aria-label="More navigation"
                     className={cn(
-                        'flex min-w-0 flex-1 flex-col items-center gap-1 py-1 text-[11px] font-medium tracking-tight text-muted-foreground',
+                        'flex min-w-0 flex-1 flex-col items-center py-1.5 text-muted-foreground',
                         {
                             'text-primary': menuItems.some(
                                 (item) => item.isActive,
@@ -630,7 +668,6 @@ export function MobileNav({ children }: { children?: ReactNode }) {
                     >
                         <MobileMenuIcon className="size-5" />
                     </span>
-                    <span>Menu</span>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
                     className="w-48 md:hidden"
@@ -688,4 +725,58 @@ export function MobileNav({ children }: { children?: ReactNode }) {
             />
         </nav>
     );
+}
+
+// The rest of the navigation, Profile and Settings included, is in the account menu of the header.
+// The rest of the navigation, Profile and Settings included, is in the account menu of the header.
+const MOBILE_APP_TABS: Record<string, { icon: string; paths: RegExp }> = {
+    Log: { icon: 'commit', paths: /^\/(log(\/|$)|$)/ },
+    Notifications: { icon: 'bell', paths: /^\/notifications(\/|$)/ },
+    Remotes: {
+        icon: 'bubble.left.and.bubble.right',
+        paths: /^\/remotes(\/|$)/,
+    },
+};
+
+/**
+ * Hands the main items of the navigation to the iOS app's tab bar (temporary, see `@/lib/mobile-app`). The tab bar
+ * only shows in those three sections: elsewhere, a profile, a commit or the settings show over it, as iOS screens
+ * pushed over a tab do, and the edge swipe goes back.
+ */
+function MobileAppTabs({
+    items,
+}: {
+    items: (NavItem & { isActive: boolean })[];
+}) {
+    const { url } = usePage();
+    const [appearance, tint] = useDocumentTheme().split(' ');
+    const isModalOpen = useIsModalOpen();
+    const path = new URL(url, 'https://dev-null.sh').pathname;
+    const tabs = items.filter((item) => item.title in MOBILE_APP_TABS);
+    const selected = tabs.find((item) =>
+        MOBILE_APP_TABS[item.title].paths.test(path),
+    );
+    const state: MobileAppTabsState = {
+        tabs: tabs.map((item) => ({
+            id: item.title.toLowerCase(),
+            title: item.title,
+            icon: MOBILE_APP_TABS[item.title].icon,
+            url: toUrl(item.href),
+            badge: item.badge,
+            dot: item.hasIndicator,
+        })),
+        selected: selected?.title.toLowerCase() ?? null,
+        visible: selected !== undefined && !isModalOpen,
+        appearance: appearance === 'light' ? 'light' : 'dark',
+        tint: tint || null,
+    };
+    const key = JSON.stringify(state);
+
+    useEffect(() => {
+        setMobileAppTabs(JSON.parse(key) as MobileAppTabsState);
+    }, [key]);
+
+    useEffect(() => hideMobileAppTabs, []);
+
+    return null;
 }

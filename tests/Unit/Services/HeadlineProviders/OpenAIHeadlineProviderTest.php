@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Ai\Agents\CommitHeadlineWriter;
+use App\Ai\Agents\HeadlineSummaryWriter;
 use App\Contracts\Services\EmbeddingProvider;
 use App\Services\HeadlineProviders\NullHeadlineProvider;
 use App\Services\HeadlineProviders\OpenAIHeadlineProvider;
@@ -105,7 +106,8 @@ it('does not process headlines locally', function (): void {
     expect($provider->candidates(['Trying pgvector.']))->toBe([])
         ->and($provider->matches(['Trying pgvector.'], ['Vector databases']))->toBe([])
         ->and($provider->generate(['Trying pgvector.']))->toBe([])
-        ->and($provider->deduplicate(['Vector databases']))->toBe([]);
+        ->and($provider->deduplicate(['Vector databases']))->toBe([])
+        ->and($provider->summarize('Vector databases', ['Trying pgvector.']))->toBeNull();
 
     Http::assertNothingSent();
 });
@@ -210,7 +212,8 @@ it('makes no requests for empty stages or deduplicating a single headline', func
         ->and($provider->matches([], ['Vector search']))->toBe([])
         ->and($provider->generate([]))->toBe([])
         ->and($provider->deduplicate([]))->toBe([])
-        ->and($provider->deduplicate([4 => 'Vector search']))->toBe([4 => 'Vector search']);
+        ->and($provider->deduplicate([4 => 'Vector search']))->toBe([4 => 'Vector search'])
+        ->and($provider->summarize('Vector search', []))->toBeNull();
     Http::assertNothingSent();
 });
 
@@ -230,3 +233,55 @@ it('gives each decision only its own post rather than sharing other posts as evi
         ->and($provider->matches(['Trying pgvector', 'New Laravel features'], ['Vector databases']))->toBe([]);
     Http::assertSentCount(2);
 });
+
+it('only writes a recap after a positive usefulness decision on the supplied posts', function (float $probability, bool $useful): void {
+    Classification::fake([['decision' => new BooleanAnswer($probability)]])->preventStrayClassifications();
+    HeadlineSummaryWriter::fake([['summary' => 'Developers discuss the indexing tradeoffs.']])->preventStrayPrompts();
+    $bodies = ['Postgres worked well at our scale.', 'A larger dataset needed a separate index.'];
+
+    expect(resolve(OpenAIHeadlineProvider::class)->summarize('Vector databases', $bodies))
+        ->toBe($useful ? 'Developers discuss the indexing tradeoffs.' : null);
+    Classification::assertClassified(fn (ClassificationPrompt $prompt): bool => $prompt->state === json_encode(['headline' => 'Vector databases', 'posts' => $bodies], JSON_THROW_ON_ERROR));
+    HeadlineSummaryWriter::assertPromptedTimes($useful ? 1 : 0);
+})->with([
+    'insufficient evidence' => [0.0, false],
+    'below threshold' => [0.799, false],
+    'useful' => [0.8, true],
+]);
+
+it('accepts the writers explicit decision not to publish a recap', function (): void {
+    Classification::fake([['decision' => new BooleanAnswer(1)]])->preventStrayClassifications();
+    HeadlineSummaryWriter::fake([['summary' => null]])->preventStrayPrompts();
+
+    expect(resolve(OpenAIHeadlineProvider::class)->summarize('Vector databases', ['Postgres indexing details.']))->toBeNull();
+    HeadlineSummaryWriter::assertPromptedTimes(1);
+});
+
+it('requests a short structured recap through the configured writer', function (): void {
+    Classification::fake([['decision' => new BooleanAnswer(1)]])->preventStrayClassifications();
+    Http::fake(['opencode.ai/zen/v1/chat/completions' => Http::response([
+        'choices' => [['finish_reason' => 'stop', 'message' => ['role' => 'assistant', 'content' => '{"summary":"  Developers compare indexing approaches.  "}']]],
+    ])]);
+
+    expect(resolve(OpenAIHeadlineProvider::class)->summarize('Vector databases', ['Postgres indexing details.']))->toBe('Developers compare indexing approaches.');
+    Http::assertSent(fn (Request $request): bool => $request['model'] === 'deepseek-v4.1-flash'
+        && $request['thinking'] === ['type' => 'disabled']
+        && $request['response_format'] === ['type' => 'json_object']);
+});
+
+it('rejects invalid recaps without exposing the response', function (array $response): void {
+    Classification::fake([['decision' => new BooleanAnswer(1)]])->preventStrayClassifications();
+    HeadlineSummaryWriter::fake([$response])->preventStrayPrompts();
+
+    expect(fn (): ?string => resolve(OpenAIHeadlineProvider::class)->summarize('Vector databases', ['Postgres indexing details.']))
+        ->toThrow(RuntimeException::class, 'Invalid headline summary response.');
+})->with([
+    'missing field' => [[]],
+    'wrong type' => [['summary' => 42]],
+    'blank' => [['summary' => '  ']],
+    'too long' => [['summary' => str_repeat('a', 601)]],
+    'URL' => [['summary' => 'Details at https://example.com']],
+    'handle' => [['summary' => 'An experience from @developer']],
+    'HTML' => [['summary' => '<b>Database news</b>']],
+    'control character' => [['summary' => "Database\0news"]],
+]);

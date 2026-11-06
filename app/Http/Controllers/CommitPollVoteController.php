@@ -34,7 +34,7 @@ final readonly class CommitPollVoteController
 
         return response()->json([
             'poll' => $poll->revealingResults(),
-        ])->header('Cache-Control', 'private, no-store');
+        ])->header('Cache-Control', 'no-store, private');
     }
 
     public function store(CreateCommitPollVoteRequest $request, #[CurrentUser] User $user, Commit $commit, CreateCommitPollVote $action): JsonResponse

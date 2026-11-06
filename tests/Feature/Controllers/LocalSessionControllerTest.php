@@ -6,6 +6,7 @@ use App\Enums\Log;
 use App\Enums\NotificationType;
 use App\Http\Controllers\SessionController;
 use App\Models\User;
+use App\Services\AppSignIn;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Routing\Router;
 use Illuminate\Support\Env;
@@ -76,6 +77,32 @@ it('signs in as the existing user of a handle', function (): void {
     expect(User::query()->count())->toBe(1);
 });
 
+it('hands local sign in back to the app without signing in the browser', function (): void {
+    registerRoutes('local');
+
+    $user = User::factory()->create(['handle' => 'octocat']);
+    $verifier = str_repeat('v', 43);
+
+    $this->get(route('app-session.create', ['challenge' => AppSignIn::challengeFor($verifier)]))
+        ->assertRedirectToRoute('home');
+
+    $response = $this->withHeader('X-Inertia', 'true')
+        ->post(route('local-login.store'), ['_token' => session()->token(), 'handle' => 'octocat'])
+        ->assertStatus(409);
+
+    $location = $response->headers->get('X-Inertia-Location');
+    expect($location)->toStartWith(AppSignIn::CALLBACK.'?code=');
+    $this->assertGuest();
+
+    parse_str((string) parse_url((string) $location, PHP_URL_QUERY), $query);
+    $redeemed = resolve(AppSignIn::class)->redeem((string) $query['code'], $verifier);
+
+    assert($redeemed !== null);
+
+    expect($redeemed[0]->is($user))->toBeTrue()
+        ->and($redeemed[1])->toBeFalse();
+});
+
 it('signs in as the seeded local developer', function (): void {
     registerRoutes('local');
 
@@ -105,7 +132,7 @@ it('seeds activity for a local developer who already signed in', function (): vo
 
     $this->assertAuthenticatedAs($localDeveloper);
 
-    expect($localDeveloper->commits()->topLevel()->count())->toBe(3)
+    expect($localDeveloper->commits()->topLevel()->count())->toBe(4)
         ->and($localDeveloper->following()->count())->toBe(3)
         ->and($localDeveloper->notifications()->unread()->count())->toBe(12);
 
@@ -121,6 +148,20 @@ it('loads the signed in page in full, as signing in with GitHub does', function 
     $this->post(route('local-login.store'), ['_token' => session()->token(), 'handle' => 'octocat'], ['X-Inertia' => 'true'])
         ->assertConflict()
         ->assertHeader('X-Inertia-Location', route('log.show', Log::Following));
+});
+
+it('hands the iOS app POC its sign-in instead of signing in this browser', function (): void {
+    registerRoutes('local');
+
+    $this->get(route('app-session.create', ['challenge' => AppSignIn::challengeFor('a-verifier-only-the-app-knows')]));
+
+    $location = $this->post(route('local-login.store'), ['_token' => session()->token(), 'handle' => 'octocat'], ['X-Inertia' => 'true'])
+        ->assertConflict()
+        ->headers->get('X-Inertia-Location');
+
+    expect($location)->toStartWith(AppSignIn::CALLBACK.'?code=');
+
+    $this->assertGuest();
 });
 
 it('keeps the sign in redirect secure only behind a configured proxy', function (?string $proxies, string $remoteAddress, string $scheme): void {

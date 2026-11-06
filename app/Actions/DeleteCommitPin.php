@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Events\ProfilesUpdated;
 use App\Models\Commit;
 use App\Models\User;
 
@@ -14,5 +15,7 @@ final readonly class DeleteCommitPin
         User::withoutTimestamps(fn (): int => User::query()->whereKey($user->id)
             ->where('pinned_commit_id', $commit->id)
             ->update(['pinned_commit_id' => null]));
+
+        event(new ProfilesUpdated([$user->id]));
     }
 }
