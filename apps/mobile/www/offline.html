@@ -265,7 +265,7 @@
         </main>
         <script>
             function retry() {
-                location.replace('https://dev-null.sh/');
+                window.Capacitor.Plugins.Session.renew();
             }
 
             addEventListener('online', retry);

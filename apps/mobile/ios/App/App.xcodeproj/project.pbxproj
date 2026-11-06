@@ -18,6 +18,12 @@
 		9582B6832FE993A70072D4E8 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9582B6822FE993A50072D4E8 /* SceneDelegate.swift */; };
 		A4C108590038867FA08C20B4 /* MainViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2047B674A9A0E164288AD79D /* MainViewController.swift */; };
 		AD0D63F4EE374446BA623907 /* TabsPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A6B66B0BBD53B0DCB77846A /* TabsPlugin.swift */; };
+		F16901302BEC9FFED523E3F5 /* DeviceKey.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECE9388CA066C01D405D808F /* DeviceKey.swift */; };
+		463DDD17C06954E6978F3424 /* SiteAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E49771CF68107501004638F /* SiteAPI.swift */; };
+		5FF4832E111682C7DC2D9D54 /* SessionPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0ED333F98C5EED0B1F4F94B /* SessionPlugin.swift */; };
+		B31D7DBB564D164CD5CDE205 /* BridgeFilters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99F37255584F06A7DA99A414 /* BridgeFilters.swift */; };
+		B029193D584FE6FA1CCD6623 /* AppCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F61394B268138F3507B72A4 /* AppCoordinator.swift */; };
+		63E1CBE18CC408335256BBC4 /* WelcomeViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44DD3AA2F60512B8F1D66821 /* WelcomeViewController.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -34,6 +40,12 @@
 		2047B674A9A0E164288AD79D /* MainViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainViewController.swift; sourceTree = "<group>"; };
 		6A6B66B0BBD53B0DCB77846A /* TabsPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabsPlugin.swift; sourceTree = "<group>"; };
 		958DCC722DB07C7200EA8C5F /* debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = debug.xcconfig; path = ../debug.xcconfig; sourceTree = SOURCE_ROOT; };
+		ECE9388CA066C01D405D808F /* DeviceKey.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceKey.swift; sourceTree = "<group>"; };
+		1E49771CF68107501004638F /* SiteAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SiteAPI.swift; sourceTree = "<group>"; };
+		F0ED333F98C5EED0B1F4F94B /* SessionPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionPlugin.swift; sourceTree = "<group>"; };
+		99F37255584F06A7DA99A414 /* BridgeFilters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BridgeFilters.swift; sourceTree = "<group>"; };
+		1F61394B268138F3507B72A4 /* AppCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCoordinator.swift; sourceTree = "<group>"; };
+		44DD3AA2F60512B8F1D66821 /* WelcomeViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelcomeViewController.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -71,6 +83,12 @@
 				9582B6822FE993A50072D4E8 /* SceneDelegate.swift */,
 				6A6B66B0BBD53B0DCB77846A /* TabsPlugin.swift */,
 				2047B674A9A0E164288AD79D /* MainViewController.swift */,
+				44DD3AA2F60512B8F1D66821 /* WelcomeViewController.swift */,
+				1F61394B268138F3507B72A4 /* AppCoordinator.swift */,
+				99F37255584F06A7DA99A414 /* BridgeFilters.swift */,
+				F0ED333F98C5EED0B1F4F94B /* SessionPlugin.swift */,
+				1E49771CF68107501004638F /* SiteAPI.swift */,
+				ECE9388CA066C01D405D808F /* DeviceKey.swift */,
 				50379B222058CBB4000EE86E /* capacitor.config.json */,
 				504EC3071FED79650016851F /* AppDelegate.swift */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
@@ -168,6 +186,12 @@
 				9582B6832FE993A70072D4E8 /* SceneDelegate.swift in Sources */,
 				AD0D63F4EE374446BA623907 /* TabsPlugin.swift in Sources */,
 				A4C108590038867FA08C20B4 /* MainViewController.swift in Sources */,
+				63E1CBE18CC408335256BBC4 /* WelcomeViewController.swift in Sources */,
+				B029193D584FE6FA1CCD6623 /* AppCoordinator.swift in Sources */,
+				B31D7DBB564D164CD5CDE205 /* BridgeFilters.swift in Sources */,
+				5FF4832E111682C7DC2D9D54 /* SessionPlugin.swift in Sources */,
+				463DDD17C06954E6978F3424 /* SiteAPI.swift in Sources */,
+				F16901302BEC9FFED523E3F5 /* DeviceKey.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -32,6 +32,25 @@ it('signs in a web session for the device that signs the request', function (): 
         ->and(collect($response->headers->getCookies())->map->getName()->filter(fn (string $name): bool => str_starts_with($name, 'remember_')))->toBeEmpty();
 });
 
+it('answers with a cookie that signs in a web request on its own', function (): void {
+    config(['session.driver' => 'database']);
+
+    $cookie = signedApiRequest($this->keyPair, 'POST', route('api-web-session.store'))
+        ->getCookie(config('session.cookie'), decrypt: false);
+
+    Auth::forgetGuards();
+    $this->app['session']->forgetDrivers();
+    $this->app->forgetInstance('session.store');
+
+    $this->get(route('device.index'))->assertRedirect();
+
+    Auth::forgetGuards();
+
+    $this->withUnencryptedCookie(config('session.cookie'), $cookie->getValue())
+        ->get(route('device.index'))
+        ->assertOk();
+});
+
 it('tells the app when the user has yet to onboard', function (): void {
     $this->user->update(['onboarded_at' => null]);
 

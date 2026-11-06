@@ -21,4 +21,16 @@ test("another site's refusal says nothing about the session", () => {
         false,
     );
     assert.equal(isRefusedBySession(401, '//example.com/a', ORIGIN), false);
+    assert.equal(
+        isRefusedBySession(401, 'http://dev-null.sh/remotes', ORIGIN),
+        false,
+    );
+    assert.equal(
+        isRefusedBySession(401, 'https://dev-null.sh:8443/remotes', ORIGIN),
+        false,
+    );
+    assert.equal(
+        isRefusedBySession(401, 'https://sub.dev-null.sh/remotes', ORIGIN),
+        false,
+    );
 });
