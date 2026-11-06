@@ -79,6 +79,7 @@ export const PAGE_PROPS: Record<OperationsPage, string[]> = {
         'responses',
         'newcomerFollows',
         'activeUserCounts',
+        'appUsage',
         'retentionByDay',
         'retentionCohorts',
     ],

@@ -640,6 +640,25 @@ test('metrics dates follow viewer date order without changing UTC buckets or dat
             },
         ],
         activeUsers: { daily: 3, weekly: 5, monthly: 8, weekly_authors: 2 },
+        appUsage: {
+            days: [
+                {
+                    date: '2026-10-18',
+                    web_app: 7,
+                    mac_app: 0,
+                    native_mobile_app: 0,
+                    other_app: 0,
+                },
+                {
+                    date: '2026-10-19',
+                    web_app: 3,
+                    mac_app: 2,
+                    native_mobile_app: 1,
+                    other_app: 0,
+                },
+            ],
+            recorded_since: '2026-10-19',
+        },
         retentionByDay: { day_1: [], day_7: [] },
         retentionRecordedSince: '2026-10-19',
         retentionCohorts: {
@@ -703,6 +722,7 @@ test('metrics dates follow viewer date order without changing UTC buckets or dat
         );
     const dayFirst = page().replaceAll('<!-- -->', '');
     assert.match(dayFirst, /approximate before 19 Oct/);
+    assert.match(dayFirst, /Before 19 Oct, all activity counts as web/);
     assert.match(dayFirst, />12 Oct<\/span>/);
     assert.match(dayFirst, /week of 12 Oct, day 1/);
     assert.match(dayFirst, />18 Oct<\/span>/);
@@ -713,7 +733,7 @@ test('metrics dates follow viewer date order without changing UTC buckets or dat
     );
     assert.equal(
         (dayFirst.match(/<th scope="row">19 Oct<\/th>/g) ?? []).length,
-        3,
+        4,
     );
     assert.match(dayFirst, /value="2026-10-18"/);
     assert.match(dayFirst, /value="2026-10-19"/);
@@ -721,12 +741,13 @@ test('metrics dates follow viewer date order without changing UTC buckets or dat
     auth.dateTime = { dateFormat: 'month_first' };
     const monthFirst = page().replaceAll('<!-- -->', '');
     assert.match(monthFirst, /approximate before Oct 19/);
+    assert.match(monthFirst, /Before Oct 19, all activity counts as web/);
     assert.match(monthFirst, />Oct 12<\/span>/);
     assert.match(monthFirst, /week of Oct 12, day 1/);
     assert.match(monthFirst, />Oct 18<\/span>/);
     assert.match(monthFirst, /5 fewer than the 7 of Oct 18, net/);
     assert.equal(
         (monthFirst.match(/<th scope="row">Oct 19<\/th>/g) ?? []).length,
-        3,
+        4,
     );
 });

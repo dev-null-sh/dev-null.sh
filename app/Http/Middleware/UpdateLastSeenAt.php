@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Middleware;
 
 use App\Actions\UpdateUserLastSeenAt;
+use App\Enums\ActiveDayApp;
 use App\Models\User;
 use Closure;
 use Illuminate\Http\Request;
@@ -37,7 +38,7 @@ final readonly class UpdateLastSeenAt
             && ($request->hasHeader('X-Inertia') || ! $request->expectsJson());
 
         if ($user instanceof User && $response->isSuccessful() && ($request->is('api/*') || ! $request->isMethod('GET') || $isPageVisit)) {
-            rescue(fn () => $this->updateUserLastSeenAt->handle($user));
+            rescue(fn () => $this->updateUserLastSeenAt->handle($user, ActiveDayApp::forRequest($request)));
         }
 
         return $response;
