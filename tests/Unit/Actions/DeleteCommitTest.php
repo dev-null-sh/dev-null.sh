@@ -16,17 +16,18 @@ use App\Services\TheAlgorithm;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 
-it('may delete a commit', function (): void {
-    $commit = Commit::factory()->create();
-    $headline = $commit->headlines()->create(['name' => 'Vector databases', 'summary' => 'A recap of the deleted source.', 'summary_created_at' => now()]);
+it('deletes a commit and only clears recaps directly linked to it', function (bool $isReply): void {
+    $root = Commit::factory()->create();
+    $commit = $isReply ? Commit::factory()->for($root, 'parent')->create() : $root;
+    $headline = $root->headlines()->create(['name' => 'Vector databases', 'summary' => 'A recap of the deleted source.', 'summary_created_at' => now()]);
 
     $action = resolve(DeleteCommit::class);
 
     $action->handle($commit);
 
     $this->assertSoftDeleted($commit);
-    expect($headline->refresh()->summary)->toBeNull()->and($headline->summary_created_at)->toBeNull();
-});
+    expect($headline->refresh()->summary)->toBe($isReply ? 'A recap of the deleted source.' : null);
+})->with(['root' => false, 'reply' => true]);
 
 it('keeps the replies of a deleted commit', function (): void {
     $commit = Commit::factory()->create();

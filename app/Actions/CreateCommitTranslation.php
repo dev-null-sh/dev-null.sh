@@ -6,6 +6,10 @@ namespace App\Actions;
 
 use App\Contracts\Services\TranslationProvider;
 use App\Enums\CommitStatus;
+use App\Enums\CommitUpdate;
+use App\Enums\UserUpdate;
+use App\Events\CommitsUpdated;
+use App\Events\UsersUpdated;
 use App\Exceptions\CommitProcessingFailed;
 use App\Exceptions\InvalidTranslation;
 use App\Models\Commit;
@@ -26,7 +30,7 @@ final readonly class CreateCommitTranslation
     {
         $key = $this->translations->key($commit);
 
-        Cache::lock($key.':lock', 90)->block(35, function () use ($commit, $language, $key): void {
+        Cache::lock($key.':lock', 90)->block(5, function () use ($commit, $language, $key): void {
             $cached = $this->translations->cached($commit);
 
             if ($cached !== null && ($language === null || isset($cached['translations'][$language]) || in_array($cached['source_language'], [$language, 'und'], true))) {
@@ -69,7 +73,12 @@ final readonly class CreateCommitTranslation
 
                 $expiresAt = $cached['expires_at'] ?? now()->getTimestamp() + CommitTranslations::TTL_SECONDS;
 
-                Cache::memo()->put($key, ['source_language' => $source, 'translations' => $translations, 'expires_at' => $expiresAt], max(1, $expiresAt - now()->getTimestamp()));
+                Cache::memo()->put($key, ['source_language' => $source, 'translations' => $translations, 'expires_at' => $expiresAt, 'translated_at' => now()->getTimestampMs()], max(1, $expiresAt - now()->getTimestamp()));
+
+                // Each reader shows it in their own language, so they read it again.
+                $current->status === CommitStatus::Approved
+                    ? event(new CommitsUpdated([$current], CommitUpdate::Translation))
+                    : event(new UsersUpdated(array_filter([$current->user_id]), UserUpdate::Commits));
             });
         });
     }

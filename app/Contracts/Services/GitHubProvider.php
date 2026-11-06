@@ -51,6 +51,13 @@ interface GitHubProvider
     public function isPublicMember(string $organizationGithubId, string $githubId): bool;
 
     /**
+     * Public organization members only. Null when the organization is unavailable or exceeds the bounded scan.
+     *
+     * @return list<string>|null
+     */
+    public function publicOrganizationMemberIds(string $login): ?array;
+
+    /**
      * Whether the user the token is for has a GitHub Sponsors listing. Null when GitHub can't say.
      */
     public function hasSponsorsListing(string $token): ?bool;

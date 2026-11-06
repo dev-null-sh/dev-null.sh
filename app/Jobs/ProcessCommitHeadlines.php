@@ -13,6 +13,7 @@ use App\Models\Headline;
 use Illuminate\Cache\Lock;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Queue\Attributes\Backoff;
 use Illuminate\Queue\Attributes\Timeout;
@@ -31,10 +32,14 @@ final class ProcessCommitHeadlines implements ShouldQueue
 
     public const int BATCH_SIZE = 20;
 
+    public bool $reclassify = false;
+
     /** @param list<string> $commitIds */
-    public function __construct(public readonly array $commitIds)
+    public function __construct(public readonly array $commitIds, bool $reclassify = false)
     {
-        //
+        if ($reclassify) {
+            $this->reclassify = true;
+        }
     }
 
     public static function dispatchFor(Commit ...$commits): void
@@ -50,7 +55,8 @@ final class ProcessCommitHeadlines implements ShouldQueue
     {
         $commits = Commit::query()->whereKey($this->commitIds)->whereNull('parent_id')
             ->where('status', CommitStatus::Approved)->where('body', '!=', '')
-            ->whereNull('headlines_classified_at')->whereDoesntHave('headlines')->with('quotedCommit')->orderBy('id')->get()->toBase();
+            ->unless($this->reclassify, fn (Builder $query) => $query->whereNull('headlines_classified_at')->whereDoesntHave('headlines'))
+            ->with('quotedCommit')->orderBy('id')->get()->toBase();
 
         if ($commits->isEmpty()) {
             return;
@@ -129,7 +135,7 @@ final class ProcessCommitHeadlines implements ShouldQueue
             throw_unless($lock->refresh(), LockTimeoutException::class);
 
             // Finish cheap link jobs before the next stage or backfill batch reads the headline pool.
-            $created = new LinkCommitHeadlines($commit, $headlines[$index], hash('sha256', $commit->headlineBody()))
+            $created = new LinkCommitHeadlines($commit, $headlines[$index], hash('sha256', $commit->headlineBody()), $this->reclassify)
                 ->handle(resolve(UpdateCommitHeadlines::class));
 
             if ($created !== null) {

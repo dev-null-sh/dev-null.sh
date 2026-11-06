@@ -4,7 +4,6 @@ import {
     BotOff,
     Box,
     ChevronRight,
-    Cookie,
     FileCode,
     Flame,
     GitMerge,
@@ -19,6 +18,8 @@ import {
 import type { CSSProperties } from 'react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { DragonBallIcon } from '@/components/dragon-ball-icon';
+import { MushroomCloudIcon } from '@/components/mushroom-cloud-icon';
+import { PastelDeNataIcon } from '@/components/pastel-de-nata-icon';
 import {
     Popover,
     PopoverContent,
@@ -47,10 +48,11 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
     sparkles: Sparkles,
     'git-merge': GitMerge,
     key: Key,
-    cookie: Cookie,
+    'pastel-de-nata': PastelDeNataIcon,
     'bot-off': BotOff,
     bomb: Bomb,
     'dragon-ball': DragonBallIcon,
+    'mushroom-cloud': MushroomCloudIcon,
 };
 
 export function AchievementsShelf({

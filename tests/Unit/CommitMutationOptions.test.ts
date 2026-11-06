@@ -28,9 +28,11 @@ const tombstone: DeletedCommit = {
 void test('refreshes the recap after headline mutations without rerunning search or resetting loaded results', () => {
     const options = commitMutationOptions('headline/show');
     assert.ok(options.only.includes('summary'));
+    assert.ok(options.only.includes('hotTopics'));
     assert.ok(!options.only.includes('commits'));
     assert.deepEqual(options.reset, []);
     assert.ok(!commitMutationOptions('log/show').only.includes('summary'));
+    assert.ok(commitMutationOptions('log/show').only.includes('hotTopics'));
 });
 
 void test('replaces every loaded quote embed with a tombstone without changing row order or unrelated rows', () => {

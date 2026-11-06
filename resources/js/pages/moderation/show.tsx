@@ -1,6 +1,6 @@
-import { Head, router } from '@inertiajs/react';
+import { Head, router, usePage } from '@inertiajs/react';
 import { Bot, Check, X } from 'lucide-react';
-import { useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import CommitApprovalController from '@/actions/App/Http/Controllers/CommitApprovalController';
 import CommitRejectionController from '@/actions/App/Http/Controllers/CommitRejectionController';
@@ -13,7 +13,11 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { useCommitNotFound } from '@/hooks/use-deleted-resources';
 import { focusCommit } from '@/hooks/use-keyboard-shortcuts';
+import { idsOf, useRealtime } from '@/hooks/use-realtime';
 import AppLayout from '@/layouts/app-layout';
+import { reloadInBackground } from '@/lib/background-poll';
+import { readAt } from '@/lib/commit-changes';
+import { coalesce, userChannel } from '@/lib/realtime';
 import { cn } from '@/lib/utils';
 import type { Commit, CursorPaginated } from '@/types';
 
@@ -151,6 +155,12 @@ function ModerationActions({
     );
 }
 
+/**
+ * Commits this queue took off, here or as another moderator decided them, which are never offered back as new: kept
+ * apart from the page, as moderating one reads the queue afresh.
+ */
+const decided = new Set<string>();
+
 function withoutCommits(
     props: { commits: CursorPaginated<Commit> },
     ids: ReadonlySet<string>,
@@ -169,6 +179,145 @@ export default function Show({
     commits: CursorPaginated<Commit>;
 }) {
     const commitNotFound = useCommitNotFound();
+    const { auth, now } = usePage().props;
+    const [hasArrivals, setHasArrivals] = useState(false);
+    const [readSince] = useState(() => Math.min(now - 5_000, readAt()));
+    const queue = useRef<{
+        load: () => void;
+        changedSince: (
+            since: number,
+            loaded: string[],
+        ) => Promise<{ arrived: string[]; decided: string[] }>;
+    } | null>(null);
+    const isEmpty = commits.data.length === 0 && commits.next_cursor === null;
+
+    useEffect(() => {
+        const controller = new AbortController();
+        const loader = coalesce(
+            () =>
+                reloadInBackground(
+                    {
+                        only: ['commits', 'hasUnmoderatedCommits'],
+                        reset: ['commits'],
+                    },
+                    controller.signal,
+                ),
+            300,
+        );
+        queue.current = {
+            load: loader.request,
+            changedSince: async (since, loaded) => {
+                let changes = {
+                    arrived: [] as string[],
+                    decided: [] as string[],
+                };
+
+                await reloadInBackground(
+                    {
+                        only: ['arrivedCommitIds', 'decidedCommitIds'],
+                        data: { since: Math.floor(since), loaded },
+                        preserveUrl: true,
+                        onSuccess: (page) => {
+                            changes = {
+                                arrived:
+                                    (page.props.arrivedCommitIds as
+                                        | string[]
+                                        | undefined) ?? [],
+                                decided:
+                                    (page.props.decidedCommitIds as
+                                        | string[]
+                                        | undefined) ?? [],
+                            };
+                        },
+                    },
+                    controller.signal,
+                );
+
+                return changes;
+            },
+        };
+
+        return () => {
+            loader.cancel();
+            controller.abort();
+            queue.current = null;
+        };
+    }, []);
+
+    const takeOff = (gone: ReadonlySet<string>) => {
+        gone.forEach((id) => decided.add(id));
+
+        if (gone.size > 0) {
+            router.replaceProp('commits', (value: CursorPaginated<Commit>) => ({
+                ...value,
+                data: value.data.filter((commit) => !gone.has(commit.id)),
+            }));
+        }
+    };
+
+    // An empty queue shows what arrives straight away, and one showing commits offers it as a refresh, so nothing a
+    // moderator is reading moves under them.
+    const offerArrivals = () => {
+        if (isEmpty) {
+            queue.current?.load();
+        } else {
+            setHasArrivals(true);
+        }
+    };
+
+    // Another moderator's decision, or the author deleting a commit, takes it off the queue where it is, keeping the
+    // pages loaded. New commits join the end of the queue.
+    useRealtime(
+        auth.user === null ? null : userChannel(auth.user.id),
+        ['moderation'],
+        (_event, payload) => {
+            const ids = idsOf(payload, 'commits');
+            const loaded = new Set(commits.data.map((commit) => commit.id));
+            takeOff(new Set(ids.filter((id) => loaded.has(id))));
+
+            if (ids.some((id) => !loaded.has(id) && !decided.has(id))) {
+                offerArrivals();
+            }
+        },
+        (isFirst) => {
+            if (!isFirst) {
+                offerArrivals();
+
+                return;
+            }
+
+            // Read before listening: those it shows that were decided since leave where they are, and commits
+            // submitted since are offered.
+            const shown = commits.data.map(({ id }) => id);
+
+            void queue.current
+                ?.changedSince(readSince, shown.slice(0, 100))
+                .then(({ arrived, decided: taken }) => {
+                    takeOff(new Set(taken));
+
+                    if (
+                        arrived.some(
+                            (id) => !shown.includes(id) && !decided.has(id),
+                        )
+                    ) {
+                        offerArrivals();
+                    }
+                });
+        },
+    );
+
+    // While the queue is read again its end isn't known, so the end marker steps aside rather than move under the
+    // commits joining it.
+    const [isRefreshing, setIsRefreshing] = useState(false);
+    const refreshQueue = () => {
+        setIsRefreshing(true);
+        router.reload({
+            only: ['commits', 'hasUnmoderatedCommits'],
+            reset: ['commits'],
+            onSuccess: () => setHasArrivals(false),
+            onFinish: () => setIsRefreshing(false),
+        });
+    };
 
     const moderate = (
         commit: Commit,
@@ -177,6 +326,7 @@ export default function Show({
     ) => {
         const index = commits.data.findIndex(({ id }) => id === commit.id);
         const neighbour = commits.data[index + 1] ?? commits.data[index - 1];
+        decided.add(commit.id);
 
         router
             .optimistic((props: { commits: CursorPaginated<Commit> }) =>
@@ -236,7 +386,8 @@ export default function Show({
             new Set(isSelected ? commits.data.map((commit) => commit.id) : []),
         );
 
-    const approveSelected = () =>
+    const approveSelected = () => {
+        selectedIds.forEach((id) => decided.add(id));
         router
             .optimistic((props: { commits: CursorPaginated<Commit> }) =>
                 withoutCommits(props, new Set(selectedIds)),
@@ -248,6 +399,7 @@ export default function Show({
                 reset: ['commits'],
                 onSuccess: () => setSelected(new Set()),
             });
+    };
 
     return (
         <>
@@ -256,9 +408,19 @@ export default function Show({
             <div className="sticky top-0 z-10 bg-card">
                 <div className="flex h-14 items-center border-b px-4">
                     <h1 className="font-semibold">Moderation</h1>
-                    <p className="ml-auto text-sm text-muted-foreground">
-                        Oldest first
-                    </p>
+                    {hasArrivals ? (
+                        <button
+                            type="button"
+                            onClick={refreshQueue}
+                            className="ml-auto text-sm font-medium text-primary hover:underline focus-visible:underline"
+                        >
+                            Refresh the queue
+                        </button>
+                    ) : (
+                        <p className="ml-auto text-sm text-muted-foreground">
+                            Oldest first
+                        </p>
+                    )}
                 </div>
 
                 <ModerationTabs active="pending" />
@@ -305,7 +467,7 @@ export default function Show({
 
             <CommitFeed
                 commits={commits}
-                end="That's every pending commit."
+                end={isRefreshing ? undefined : "That's every pending commit."}
                 isFolded={false}
                 actions={(commit) => (
                     <>

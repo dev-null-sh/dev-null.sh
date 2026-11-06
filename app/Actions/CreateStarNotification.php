@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Enums\NotificationType;
+use App\Enums\UserUpdate;
+use App\Events\UsersUpdated;
 use App\Models\Commit;
 use App\Models\Notification;
 use App\Models\User;
@@ -44,5 +46,7 @@ final readonly class CreateStarNotification
             'created_at' => now(),
             'updated_at' => now(),
         ])->all());
+
+        event(new UsersUpdated($recipients->pluck('user_id')->all(), UserUpdate::Notifications));
     }
 }

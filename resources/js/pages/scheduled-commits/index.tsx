@@ -1,4 +1,4 @@
-import { Head, Link, router, usePoll } from '@inertiajs/react';
+import { Head, Link, router, usePage, usePoll } from '@inertiajs/react';
 import {
     ArrowLeft,
     Clock3,
@@ -20,9 +20,11 @@ import {
     TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { useNow } from '@/hooks/use-now';
+import { useIsListening } from '@/hooks/use-realtime';
 import AppLayout from '@/layouts/app-layout';
 import { backgroundPollOptions } from '@/lib/background-poll';
 import { emojify } from '@/lib/emoji';
+import { userChannel } from '@/lib/realtime';
 import { formatClockDateTime, readerClock } from '@/lib/utils';
 import type { BodySegment, OrganizationAuthor } from '@/types';
 
@@ -91,7 +93,24 @@ export default function Index({
         });
     const isCommitting = (id: string) =>
         busy?.id === id && busy.action === 'commit';
-    usePoll(30_000, backgroundPollOptions({ only: ['scheduledCommits'] }));
+    // The queue is refreshed as its commits are submitted, moderated and deleted, and only polled while that isn't heard.
+    const { auth } = usePage().props;
+    const isHearingQueue = useIsListening(
+        auth.user === null ? null : userChannel(auth.user.id),
+    );
+    const { start, stop } = usePoll(
+        30_000,
+        backgroundPollOptions({ only: ['scheduledCommits'] }),
+        { autoStart: false },
+    );
+
+    useEffect(() => {
+        if (isHearingQueue) {
+            stop();
+        } else {
+            start();
+        }
+    }, [isHearingQueue, start, stop]);
 
     useEffect(() => {
         if (busy !== null || returnFocusTo.current === null) {
