@@ -2,9 +2,11 @@
 
 declare(strict_types=1);
 
+use App\Actions\CreateCommitRecommit;
 use App\Enums\CommitStatus;
 use App\Models\Commit;
 use App\Models\User;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\Queue;
 
 it('recommits an approved commit and lists it on the recommitter profile', function (): void {
@@ -87,4 +89,45 @@ it('does not let users recommit their own commits', function (): void {
     $this->actingAs($user)
         ->post(route('commit-recommit.store', $original))
         ->assertForbidden();
+});
+
+it('rechecks that the original is eligible inside the recommit transaction', function (): void {
+    $user = User::factory()->create();
+    $pending = Commit::factory()->pending()->create();
+
+    expect(fn () => resolve(CreateCommitRecommit::class)->handle($user, $pending))
+        ->toThrow(AuthorizationException::class);
+});
+
+it('allows a new recommit after deleting the earlier one', function (): void {
+    Queue::fake();
+
+    $user = User::factory()->create();
+    $original = Commit::factory()->create();
+
+    $this->actingAs($user)->post(route('commit-recommit.store', $original))->assertSessionHasNoErrors();
+    $first = $user->commits()->where('quoted_commit_id', $original->id)->sole();
+
+    $this->delete(route('commit.destroy', $first))->assertRedirect();
+    $this->post(route('commit-recommit.store', $original))->assertSessionHasNoErrors();
+
+    expect($first->refresh()->trashed())->toBeTrue()
+        ->and($user->commits()->where('quoted_commit_id', $original->id)->where('body', '')->count())->toBe(1);
+});
+
+it('restores a deleted recommit through the normal undo workflow', function (): void {
+    Queue::fake();
+
+    $user = User::factory()->create();
+    $original = Commit::factory()->create();
+
+    $this->actingAs($user)->post(route('commit-recommit.store', $original))->assertSessionHasNoErrors();
+    $recommit = $user->commits()->where('quoted_commit_id', $original->id)->sole();
+
+    $this->delete(route('commit.destroy', $recommit))->assertRedirect();
+    $this->post(route('commit-restoration.store', $recommit))
+        ->assertSessionHasNoErrors()
+        ->assertInertiaFlash('restored.id', $recommit->id);
+
+    $this->assertNotSoftDeleted($recommit);
 });

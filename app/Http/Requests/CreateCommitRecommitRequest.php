@@ -28,13 +28,7 @@ final class CreateCommitRecommitRequest extends FormRequest
             return Response::deny();
         }
 
-        $alreadyRecommitted = Commit::query()
-            ->where('user_id', $user->id)
-            ->where('quoted_commit_id', $commit->id)
-            ->where('body', '')
-            ->exists();
-
-        return $alreadyRecommitted ? Response::deny() : Response::allow();
+        return Response::allow();
     }
 
     /**

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-use App\Actions\CreateCommit;
+use App\Actions\CreateCommitRecommit;
 use App\Enums\CommitStatus;
 use App\Http\Requests\CreateCommitRecommitRequest;
 use App\Models\Commit;
@@ -16,10 +16,10 @@ use Inertia\Inertia;
 
 final readonly class CommitRecommitController
 {
-    public function store(CreateCommitRecommitRequest $request, #[CurrentUser] User $user, Commit $commit, CreateCommit $action, UserAchievementsQuery $achievements): RedirectResponse
+    public function store(CreateCommitRecommitRequest $request, #[CurrentUser] User $user, Commit $commit, CreateCommitRecommit $action, UserAchievementsQuery $achievements): RedirectResponse
     {
         $before = $achievements->unlockedBadgeNames($user);
-        $recommit = $action->handle($user, '', quotedCommit: $commit, linkPreview: false);
+        $recommit = $action->handle($user, $commit);
         $unlocked = $achievements->unlockedBadgeNames($user)->diff($before)->values();
 
         if ($unlocked->isNotEmpty()) {
