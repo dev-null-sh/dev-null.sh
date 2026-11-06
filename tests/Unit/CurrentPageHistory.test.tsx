@@ -30,90 +30,109 @@ const { currentPageComponent, trackCurrentPage } = await import(
     '../../resources/js/lib/current-page'
 );
 
-test('refreshes only stale props when restoring a cached page', () => {
+test('refreshes only non-live props after history and bfcache restores', () => {
     visit.mockClear();
-    const stop = trackCurrentPage();
-    const dispatch = (type: NavigationType, component: string) =>
-        navigate?.({
-            detail: { type, page: { component, url: `/${component}` } },
-        });
-
-    dispatch('initial', 'device/index');
-    dispatch('visit', 'safety/edit');
-    dispatch('history', 'log/show');
-    assert.equal(currentPageComponent(), 'log/show');
-    assert.equal(visit.mock.calls.length, 0);
-
-    const expected = [
-        { only: ['devices'], preserveScroll: true },
-        { only: ['muted', 'blocked'], preserveScroll: true },
-        {
-            only: ['organization', 'role', 'members'],
-            preserveScroll: true,
-        },
-        { only: ['features'], preserveScroll: true },
-        { only: ['recipients'], preserveScroll: true },
-        { only: ['commits'], reset: ['commits'], preserveScroll: false },
-        {
-            only: ['commits', 'hasUnmoderatedCommits'],
-            reset: ['commits'],
-            preserveScroll: false,
-        },
-    ];
-    const components = [
-        'device/index',
-        'safety/edit',
-        'organization-member/index',
-        'operations/features',
-        'operations/emails',
-        'starred/index',
-        'moderation/show',
-    ];
-
-    components.forEach((component) => dispatch('history', component));
-    assert.deepEqual(
-        visit.mock.calls.map(([url, options]) => ({
-            url,
-            only: options.only,
-            ...(options.reset === undefined ? {} : { reset: options.reset }),
-            preserveScroll: options.preserveScroll,
-            method: options.method,
-            preserveState: options.preserveState,
-            replace: options.replace,
-            onHttpException: typeof options.onHttpException,
-        })),
-        expected.map((options, index) => ({
-            url: `/${components[index]}`,
-            ...options,
-            method: 'get',
-            preserveState: true,
-            replace: true,
-            onHttpException: 'function',
-        })),
-    );
-
-    const hadWindow = 'window' in globalThis;
-    const oldWindow = globalThis.window;
     const reloadDocument = vi.fn();
-    Object.defineProperty(globalThis, 'window', {
-        configurable: true,
-        value: { location: { reload: reloadDocument } },
+    let pageShow: ((event: { persisted: boolean }) => void) | undefined;
+    vi.stubGlobal('window', {
+        location: { reload: reloadDocument },
+        addEventListener: (
+            name: string,
+            listener: (event: { persisted: boolean }) => void,
+        ) => {
+            assert.equal(name, 'pageshow');
+            pageShow = listener;
+        },
+        removeEventListener: (
+            name: string,
+            listener: (event: { persisted: boolean }) => void,
+        ) => {
+            assert.equal(name, 'pageshow');
+            assert.equal(pageShow, listener);
+            pageShow = undefined;
+        },
     });
-    const onHttpException = visit.mock.calls[0][1].onHttpException;
-    assert.equal(onHttpException?.({ status: 403 } as never), false);
-    assert.equal(onHttpException?.({ status: 404 } as never), false);
-    assert.equal(onHttpException?.({ status: 503 } as never), undefined);
-    assert.equal(reloadDocument.mock.calls.length, 2);
-    if (hadWindow) {
-        Object.defineProperty(globalThis, 'window', {
-            configurable: true,
-            value: oldWindow,
-        });
-    } else {
-        Reflect.deleteProperty(globalThis, 'window');
-    }
 
-    stop();
-    dispatch('history', 'device/index');
-    assert.equal(visit.mock.calls.length, expected.length);
+    try {
+        const stop = trackCurrentPage();
+        const dispatch = (type: NavigationType, component: string) =>
+            navigate?.({
+                detail: { type, page: { component, url: `/${component}` } },
+            });
+
+        pageShow?.({ persisted: true });
+        dispatch('initial', 'device/index');
+        dispatch('visit', 'safety/edit');
+        dispatch('history', 'log/show');
+        assert.equal(currentPageComponent(), 'log/show');
+        assert.equal(visit.mock.calls.length, 0);
+
+        // #1458 already refreshes live props, and moderation has its own catch-up.
+        [
+            'device/index',
+            'safety/edit',
+            'organization-member/index',
+            'moderation/show',
+        ].forEach((name) => {
+            dispatch('history', name);
+            pageShow?.({ persisted: true });
+        });
+        assert.equal(visit.mock.calls.length, 0);
+
+        const expected = [
+            { only: ['features'], preserveScroll: true },
+            { only: ['recipients'], preserveScroll: true },
+            { only: ['commits'], reset: ['commits'], preserveScroll: false },
+        ];
+        const components = [
+            'operations/features',
+            'operations/emails',
+            'starred/index',
+        ];
+
+        components.forEach((name) => dispatch('history', name));
+        assert.deepEqual(
+            visit.mock.calls.map(([url, options]) => ({
+                url,
+                only: options.only,
+                ...(options.reset === undefined ? {} : { reset: options.reset }),
+                preserveScroll: options.preserveScroll,
+                method: options.method,
+                preserveState: options.preserveState,
+                replace: options.replace,
+                onHttpException: typeof options.onHttpException,
+            })),
+            expected.map((options, index) => ({
+                url: `/${components[index]}`,
+                ...options,
+                method: 'get',
+                preserveState: true,
+                replace: true,
+                onHttpException: 'function',
+            })),
+        );
+
+        pageShow?.({ persisted: false });
+        assert.equal(visit.mock.calls.length, expected.length);
+
+        // A bfcache restore doesn't cause an Inertia history navigation.
+        dispatch('visit', 'starred/index');
+        pageShow?.({ persisted: true });
+        assert.equal(visit.mock.calls.length, expected.length + 1);
+        assert.equal(visit.mock.calls.at(-1)?.[0], '/starred/index');
+        assert.deepEqual(visit.mock.calls.at(-1)?.[1].reset, ['commits']);
+
+        const onHttpException = visit.mock.calls[0][1].onHttpException;
+        assert.equal(onHttpException?.({ status: 403 } as never), false);
+        assert.equal(onHttpException?.({ status: 404 } as never), false);
+        assert.equal(onHttpException?.({ status: 503 } as never), undefined);
+        assert.equal(reloadDocument.mock.calls.length, 2);
+
+        stop();
+        dispatch('history', 'starred/index');
+        pageShow?.({ persisted: true });
+        assert.equal(visit.mock.calls.length, expected.length + 1);
+    } finally {
+        vi.unstubAllGlobals();
+    }
 });

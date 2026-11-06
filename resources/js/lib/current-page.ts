@@ -4,25 +4,16 @@ import { router } from '@inertiajs/react';
 // Toasts render outside the Inertia page context, so they can't call usePage().
 let component = '';
 
+// Live props and moderation already catch up after history restores. Only
+// non-live props need a separate reload, including when returning from bfcache.
 const historyReloads: Record<
     string,
     Pick<VisitOptions, 'only' | 'reset' | 'preserveScroll'>
 > = {
-    'device/index': { only: ['devices'], preserveScroll: true },
-    'safety/edit': { only: ['muted', 'blocked'], preserveScroll: true },
-    'organization-member/index': {
-        only: ['organization', 'role', 'members'],
-        preserveScroll: true,
-    },
     'operations/features': { only: ['features'], preserveScroll: true },
     'operations/emails': { only: ['recipients'], preserveScroll: true },
     'starred/index': {
         only: ['commits'],
-        reset: ['commits'],
-        preserveScroll: false,
-    },
-    'moderation/show': {
-        only: ['commits', 'hasUnmoderatedCommits'],
         reset: ['commits'],
         preserveScroll: false,
     },
@@ -32,29 +23,51 @@ export function currentPageComponent(): string {
     return component;
 }
 
+function refreshRestoredPage(page: { component: string; url: string }): void {
+    const options = historyReloads[page.component];
+
+    if (!options) {
+        return;
+    }
+
+    router.visit(page.url, {
+        ...options,
+        method: 'get',
+        preserveState: true,
+        replace: true,
+        onHttpException: ({ status }) => {
+            if (status === 403 || status === 404) {
+                window.location.reload();
+
+                return false;
+            }
+        },
+    });
+}
+
 export function trackCurrentPage(): VoidFunction {
-    return router.on('navigate', (event) => {
+    let page: { component: string; url: string } | null = null;
+
+    const stop = router.on('navigate', (event) => {
         component = event.detail.page.component;
+        page = { component, url: event.detail.page.url };
 
-        if (event.detail.type !== 'history') {
-            return;
-        }
-
-        const options = historyReloads[component];
-        if (options) {
-            router.visit(event.detail.page.url, {
-                ...options,
-                method: 'get',
-                preserveState: true,
-                replace: true,
-                onHttpException: ({ status }) => {
-                    if (status === 403 || status === 404) {
-                        window.location.reload();
-
-                        return false;
-                    }
-                },
-            });
+        if (event.detail.type === 'history') {
+            refreshRestoredPage(page);
         }
     });
+
+    const browserWindow = typeof window === 'undefined' ? null : window;
+    const onPageShow = (event: PageTransitionEvent) => {
+        if (event.persisted && page !== null) {
+            refreshRestoredPage(page);
+        }
+    };
+
+    browserWindow?.addEventListener('pageshow', onPageShow);
+
+    return () => {
+        stop();
+        browserWindow?.removeEventListener('pageshow', onPageShow);
+    };
 }
