@@ -1,5 +1,5 @@
 import { Link, router, usePage } from '@inertiajs/react';
-import { CornerDownRight } from 'lucide-react';
+import { CornerDownRight, Repeat2 } from 'lucide-react';
 import type { MouseEvent, PointerEvent, ReactNode } from 'react';
 import { useCallback, useContext, useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
@@ -427,6 +427,14 @@ export function CommitCard({
                                     </Link>
                                 </span>
                             </div>
+
+                            {commit.body === '' &&
+                                commit.quoted_commit_id !== null && (
+                                    <p className="mt-0.5 flex items-center gap-1 font-mono text-xs text-muted-foreground">
+                                        <Repeat2 className="size-3" />
+                                        Recommitted
+                                    </p>
+                                )}
 
                             {commit.parent && isDeleted(commit.parent) && (
                                 <p className="mt-0.5 flex w-fit items-center gap-1 font-mono text-xs text-muted-foreground">

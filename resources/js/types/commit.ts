@@ -102,6 +102,7 @@ export type Commit = {
     stars_count: number;
     pasteis_count: number;
     starred: boolean;
+    recommitted?: boolean;
     author: CommitAuthor;
     replies_count?: number;
     reply_preview?: CursorPaginated<ThreadCommit>;

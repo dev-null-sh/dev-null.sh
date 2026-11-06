@@ -24,9 +24,17 @@ final class CreateCommitRecommitRequest extends FormRequest
             return Response::denyAsNotFound();
         }
 
-        return $commit->status === CommitStatus::Approved && ! $commit->isOwnedBy($user)
-            ? Response::allow()
-            : Response::deny();
+        if ($commit->status !== CommitStatus::Approved || $commit->isOwnedBy($user)) {
+            return Response::deny();
+        }
+
+        $alreadyRecommitted = Commit::query()
+            ->where('user_id', $user->id)
+            ->where('quoted_commit_id', $commit->id)
+            ->where('body', '')
+            ->exists();
+
+        return $alreadyRecommitted ? Response::deny() : Response::allow();
     }
 
     /**

@@ -22,12 +22,6 @@ final readonly class CommitRecommitController
         $recommit = $action->handle($user, '', quotedCommit: $commit, linkPreview: false);
         $unlocked = $achievements->unlockedBadgeNames($user)->diff($before)->values();
 
-        Inertia::flash('committed', [
-            'id' => $recommit->id,
-            'body' => $recommit->body,
-            'author' => ['handle' => $user->handle],
-        ]);
-
         if ($unlocked->isNotEmpty()) {
             Inertia::flash('achievementsUnlocked', $unlocked->all());
         }
@@ -35,7 +29,12 @@ final readonly class CommitRecommitController
         if ($recommit->status === CommitStatus::Pending) {
             Inertia::flash('toast', [
                 'type' => 'info',
-                'message' => 'Your commit is pending review. Everyone will see it once it is approved.',
+                'message' => 'Your recommit is pending review. Everyone will see it once it is approved.',
+            ]);
+        } else {
+            Inertia::flash('toast', [
+                'type' => 'success',
+                'message' => 'Recommitted.',
             ]);
         }
 
