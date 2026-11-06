@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Enums;
 
+use App\Dto\MobileAuthorization;
 use App\Models\Device;
 use Illuminate\Http\Request;
 
@@ -36,7 +37,7 @@ enum ActiveDayApp: string
         $device = $request->attributes->get(Device::class);
 
         return match (true) {
-            $device instanceof Device && $device->app_id === 'ios:sh.devnull.app' => self::LiteMobile,
+            $device instanceof Device && $device->app_id === MobileAuthorization::LiteMobileAppId => self::LiteMobile,
             $device instanceof Device && str_ends_with((string) $device->app_id, ':'.self::NativeMobileBundleId) => self::NativeMobile,
             str_starts_with((string) $request->userAgent(), 'DevNull-Mac') => self::Mac,
             default => self::Other,
