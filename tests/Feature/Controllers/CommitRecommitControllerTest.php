@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Enums\CommitStatus;
 use App\Models\Commit;
 use App\Models\User;
 use Illuminate\Support\Facades\Queue;
@@ -44,6 +45,44 @@ it('recommits an approved commit and lists it on the recommitter profile', funct
         ->assertOk()
         ->assertInertia(fn ($page) => $page
             ->where('commit.recommitted', true));
+
+    $this->actingAs($user)
+        ->post(route('commit-recommit.store', $original))
+        ->assertForbidden();
+});
+
+it('recommits an approved commit immediately for an admin', function (): void {
+    Queue::fake();
+    config(['app.admins' => ['admin']]);
+
+    $user = User::factory()->create(['handle' => 'admin']);
+    $original = Commit::factory()->create();
+
+    $this->actingAs($user)
+        ->fromRoute('user.show', $user)
+        ->post(route('commit-recommit.store', $original))
+        ->assertRedirectToRoute('user.show', $user)
+        ->assertInertiaFlash('toast', [
+            'type' => 'success',
+            'message' => 'Recommitted.',
+        ]);
+
+    expect($user->commits()->sole()->status)->toBe(CommitStatus::Approved);
+});
+
+it('hides recommits of commits the user cannot see', function (): void {
+    $author = User::factory()->create();
+    $user = User::factory()->create();
+    $pending = Commit::factory()->pending()->create(['user_id' => $author->id]);
+
+    $this->actingAs($user)
+        ->post(route('commit-recommit.store', $pending))
+        ->assertNotFound();
+});
+
+it('does not let users recommit their own commits', function (): void {
+    $user = User::factory()->create();
+    $original = Commit::factory()->create(['user_id' => $user->id]);
 
     $this->actingAs($user)
         ->post(route('commit-recommit.store', $original))
