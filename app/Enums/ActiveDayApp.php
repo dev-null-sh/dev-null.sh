@@ -21,8 +21,6 @@ enum ActiveDayApp: string
 
     private const string NativeMobileBundleId = 'com.nativephp.devnull';
 
-    private const string LiteMobileAppId = 'ios:sh.devnull.app';
-
     /**
      * Browsers come through the web routes, and everything else through the API. The lite mobile app is both: its web
      * view says so in its user agent, and its own requests in the app id of its device. The NativePHP app also says so in
@@ -38,7 +36,7 @@ enum ActiveDayApp: string
         $device = $request->attributes->get(Device::class);
 
         return match (true) {
-            $device instanceof Device && $device->app_id === self::LiteMobileAppId => self::LiteMobile,
+            $device instanceof Device && $device->app_id === 'ios:sh.devnull.app' => self::LiteMobile,
             $device instanceof Device && str_ends_with((string) $device->app_id, ':'.self::NativeMobileBundleId) => self::NativeMobile,
             str_starts_with((string) $request->userAgent(), 'DevNull-Mac') => self::Mac,
             default => self::Other,
