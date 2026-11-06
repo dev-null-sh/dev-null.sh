@@ -164,15 +164,18 @@ export function Sparkline({
     );
 }
 
+const ONE_DAY = 86_400_000;
 const END_LABEL_WIDTH = 48;
 const END_LABEL_GAP = 13;
 
 /**
- * Several daily lines on one scale, each named at its end, and hovering a day lists them all. The day still counting is
- * dashed. Other series than the first only start at `markDate`, marked by a rule: before it, only the first has data,
- * and it is faded, as it stands for all of them. Without a `markDate` yet, the first is faded all along.
+ * Several daily lines on one scale, each named at its end, and hovering a day lists them all. Each day sits at its date
+ * within the range, so a day without data leaves a gap rather than reading as zero. The day still counting is dashed.
+ * Other series than the first only start at `markDate`, marked by a rule: before it, only the first has data, and it is
+ * faded, as it stands for all of them. Without a `markDate` yet, the first is faded all along.
  */
 export function MultiLineChart<Key extends string>({
+    range,
     days,
     series,
     markDate,
@@ -181,6 +184,7 @@ export function MultiLineChart<Key extends string>({
     label,
     unit,
 }: {
+    range: { from: string; to: string };
     days: ({ date: string } & Record<Key, number>)[];
     series: readonly { key: Key; label: string; color: string }[];
     markDate: string | null;
@@ -200,11 +204,14 @@ export function MultiLineChart<Key extends string>({
     const top = ticks.at(-1) ?? 1;
     const plotWidth = Math.max(0, width - AXIS_WIDTH - END_LABEL_WIDTH);
     const plotHeight = height - X_AXIS_HEIGHT - TOP_PADDING;
-    const x = (index: number) =>
+    const start = Date.parse(range.from);
+    const span = Date.parse(range.to) - start;
+    const dateX = (date: string) =>
         AXIS_WIDTH +
-        (days.length > 1
-            ? (index / (days.length - 1)) * plotWidth
+        (span > 0
+            ? ((Date.parse(date) - start) / span) * plotWidth
             : plotWidth / 2);
+    const x = (index: number) => dateX(days[index]?.date ?? range.from);
     const y = (value: number) =>
         TOP_PADDING + plotHeight - (value / top) * plotHeight;
     const last = days.length - 1;
@@ -219,10 +226,15 @@ export function MultiLineChart<Key extends string>({
         to > from
             ? days
                   .slice(from, to + 1)
-                  .map(
-                      (day, at) =>
-                          `${at === 0 ? 'M' : 'L'}${x(from + at).toFixed(1)},${y(day[key]).toFixed(1)}`,
-                  )
+                  .map((day, at, slice) => {
+                      const follows =
+                          at > 0 &&
+                          Date.parse(day.date) -
+                              Date.parse(slice[at - 1]?.date ?? '') ===
+                              ONE_DAY;
+
+                      return `${follows ? 'L' : 'M'}${x(from + at).toFixed(1)},${y(day[key]).toFixed(1)}`;
+                  })
                   .join(' ')
             : '';
     const endLabels = series
@@ -243,18 +255,35 @@ export function MultiLineChart<Key extends string>({
             ],
             [],
         );
-    const labelEvery = Math.max(
-        1,
-        Math.ceil(days.length / Math.max(2, Math.floor(plotWidth / 72))),
+    const totalDays = Math.round(span / ONE_DAY);
+    const labelEvery = Math.ceil(
+        (totalDays + 1) / Math.max(2, Math.floor(plotWidth / 72)),
     );
+    const labelDates = Array.from({ length: totalDays + 1 }, (_, day) => day)
+        .filter(
+            (day) =>
+                day === totalDays ||
+                (day % labelEvery === 0 && totalDays - day >= labelEvery / 2),
+        )
+        .map((day) =>
+            new Date(start + day * ONE_DAY).toISOString().slice(0, 10),
+        );
     const active = hovered === null ? null : days[hovered];
 
     const onPointerMove = (event: PointerEvent<SVGSVGElement>) => {
         const box = event.currentTarget.getBoundingClientRect();
-        const offset = event.clientX - box.left - AXIS_WIDTH;
-        const index = Math.round((offset / Math.max(1, plotWidth)) * last);
+        const pointer = event.clientX - box.left;
 
-        setHovered(Math.min(last, Math.max(0, index)));
+        setHovered(
+            days.reduce(
+                (closest, _, index) =>
+                    Math.abs(x(index) - pointer) <
+                    Math.abs(x(closest) - pointer)
+                        ? index
+                        : closest,
+                0,
+            ),
+        );
     };
 
     return (
@@ -289,22 +318,17 @@ export function MultiLineChart<Key extends string>({
                             </text>
                         </g>
                     ))}
-                    {days.map(
-                        (day, index) =>
-                            (index === last ||
-                                (index % labelEvery === 0 &&
-                                    last - index >= labelEvery / 2)) && (
-                                <text
-                                    key={day.date}
-                                    x={x(index)}
-                                    y={height - 4}
-                                    textAnchor="middle"
-                                    className="fill-muted-foreground font-mono text-[11px]"
-                                >
-                                    {shortDate(day.date)}
-                                </text>
-                            ),
-                    )}
+                    {labelDates.map((date) => (
+                        <text
+                            key={date}
+                            x={dateX(date)}
+                            y={height - 4}
+                            textAnchor="middle"
+                            className="fill-muted-foreground font-mono text-[11px]"
+                        >
+                            {shortDate(date)}
+                        </text>
+                    ))}
                     {firstTracked > 0 &&
                         firstTracked < days.length &&
                         markDate !== null && (

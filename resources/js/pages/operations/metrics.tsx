@@ -1004,7 +1004,13 @@ const APP_SERIES = [
  * Lines rather than stacked bars, as someone using two apps in a day counts in both, so the apps of a day can add up to
  * more than its active users. Past days count as web whatever was used, so the other apps only start at the mark.
  */
-function AppUsageChart({ usage }: { usage: AppUsageData }) {
+function AppUsageChart({
+    range,
+    usage,
+}: {
+    range: TrafficRange;
+    usage: AppUsageData;
+}) {
     const { days, recorded_since: recordedSince } = usage;
 
     return (
@@ -1029,6 +1035,7 @@ function AppUsageChart({ usage }: { usage: AppUsageData }) {
                 before the mobile app sent its id count as other.
             </p>
             <MultiLineChart
+                range={range}
                 days={days}
                 series={APP_SERIES}
                 markDate={recordedSince}
@@ -1515,7 +1522,7 @@ export default function Show({
                     title="People by app"
                     meta="utc"
                 >
-                    <AppUsageChart usage={appUsage} />
+                    <AppUsageChart range={range} usage={appUsage} />
                 </Panel>
 
                 <Panel
