@@ -43,6 +43,7 @@ it('summarizes only recent public top-level posts with one strongest contributio
 it('gives the recap decision and writer the same public reply context without classifying replies', function (): void {
     $headline = Headline::factory()->create(['name' => 'Vector index memory usage']);
     $root = Commit::factory()->hasAttached($headline)->create(['body' => 'Has anyone measured index memory?']);
+    Commit::factory()->for($root->user)->hasAttached($headline)->create(['hot_score' => -1]);
     $reply = Commit::factory()->for($root, 'parent')->create(['body' => 'Our index used 2 GB for one million vectors.']);
     Commit::factory()->for($reply, 'parent')->create(['body' => 'Reducing dimensions halved that in our test.']);
     Commit::factory()->pending()->for($root, 'parent')->create();
@@ -82,6 +83,7 @@ it('bounds the recap to the hundred strongest authors', function (): void {
 it('bounds reply context to the newest hundred replies across the selected threads', function (): void {
     $headline = Headline::factory()->create();
     $root = Commit::factory()->hasAttached($headline)->create(['body' => 'An index memory regression.']);
+    Commit::factory()->for($root->user)->hasAttached($headline)->create(['hot_score' => -1]);
     $older = Commit::factory()->hasAttached($headline)->create(['created_at' => now()->subHours(9)]);
     Commit::factory()->for($older, 'parent')->create(['body' => 'A reply in an expired thread.']);
     Commit::factory()->for($root, 'parent')->create(['body' => 'Outside the reply sample.', 'created_at' => now()->subMinute()]);
@@ -96,7 +98,7 @@ it('bounds reply context to the newest hundred replies across the selected threa
 
 it('reuses a recap until exactly two hours and then regenerates it', function (): void {
     $headline = Headline::factory()->create();
-    Commit::factory()->hasAttached($headline)->create();
+    Commit::factory()->count(2)->hasAttached($headline)->create();
     $this->mock(HeadlineProvider::class)->shouldReceive('summarize')->twice()->andReturn('First snapshot.', 'Second snapshot.');
     $job = new GenerateHeadlineSummary($headline->id);
     $action = resolve(CreateHeadlineSummary::class);
@@ -114,7 +116,7 @@ it('reuses a recap until exactly two hours and then regenerates it', function ()
 
 it('leaves no recap when the posts are insufficient and can reconsider new information', function (): void {
     $headline = Headline::factory()->create();
-    Commit::factory()->hasAttached($headline)->create(['body' => 'Interesting!']);
+    Commit::factory()->count(2)->hasAttached($headline)->create(['body' => 'Interesting!']);
     $this->mock(HeadlineProvider::class)->shouldReceive('summarize')->twice()->andReturn(null, 'A grounded recap.');
     $job = new GenerateHeadlineSummary($headline->id);
     $action = resolve(CreateHeadlineSummary::class);
@@ -132,18 +134,20 @@ it('does not call a provider for missing, cold or empty topics', function (strin
     match ($state) {
         'missing' => $headline->delete(),
         'cold' => Commit::factory()->hasAttached($headline)->create(['created_at' => now()->subHours(9)]),
-        'empty' => Commit::factory()->hasAttached($headline)->create(['body' => '']),
+        'empty' => Commit::factory()->count(2)->hasAttached($headline)->create(['body' => '']),
+        'single' => Commit::factory()->hasAttached($headline)->create(),
     };
     $this->mock(HeadlineProvider::class)->shouldNotReceive('summarize');
 
     new GenerateHeadlineSummary($headline->id)->handle(resolve(CreateHeadlineSummary::class));
 
     expect($headline->fresh()?->summary)->toBeNull();
-})->with(['missing', 'cold', 'empty']);
+})->with(['missing', 'cold', 'empty', 'single']);
 
 it('discards a generated recap if its source becomes unavailable before publication', function (string $change): void {
     $headline = Headline::factory()->create();
     $commit = Commit::factory()->hasAttached($headline)->create();
+    Commit::factory()->hasAttached($headline)->create();
     $this->mock(HeadlineProvider::class)->shouldReceive('summarize')->once()->andReturnUsing(function () use ($commit, $headline, $change): string {
         match ($change) {
             'deleted' => $commit->delete(),
@@ -164,6 +168,7 @@ it('discards a generated recap if its source becomes unavailable before publicat
 it('discards a recap if a reply is removed during generation', function (string $change): void {
     $headline = Headline::factory()->create();
     $root = Commit::factory()->hasAttached($headline)->create();
+    Commit::factory()->hasAttached($headline)->create();
     $reply = Commit::factory()->for($root, 'parent')->create();
     $this->mock(HeadlineProvider::class)->shouldReceive('summarize')->once()->andReturnUsing(function () use ($reply, $change): string {
         match ($change) {
@@ -182,7 +187,7 @@ it('discards a recap if a reply is removed during generation', function (string 
 
 it('keeps a fresh recap published while another generator was running', function (): void {
     $headline = Headline::factory()->create();
-    Commit::factory()->hasAttached($headline)->create();
+    Commit::factory()->count(2)->hasAttached($headline)->create();
     $this->mock(HeadlineProvider::class)->shouldReceive('summarize')->once()->andReturnUsing(function () use ($headline): string {
         $headline->update(['summary' => 'Already published.', 'summary_created_at' => now()]);
 
@@ -196,7 +201,7 @@ it('keeps a fresh recap published while another generator was running', function
 
 it('coalesces overlapping generators before calling the provider', function (): void {
     $headline = Headline::factory()->create();
-    Commit::factory()->hasAttached($headline)->create();
+    Commit::factory()->count(2)->hasAttached($headline)->create();
     $this->mock(HeadlineProvider::class)->shouldReceive('summarize')->once()->andReturnUsing(function (): string {
         Fiber::suspend();
 
@@ -214,7 +219,7 @@ it('coalesces overlapping generators before calling the provider', function (): 
 
 it('does not copy provider content into queue failures', function (): void {
     $headline = Headline::factory()->create();
-    Commit::factory()->hasAttached($headline)->create();
+    Commit::factory()->count(2)->hasAttached($headline)->create();
     $this->mock(HeadlineProvider::class)->shouldReceive('summarize')->once()->andThrow(new RuntimeException('Sensitive provider response'));
 
     expect(fn () => new GenerateHeadlineSummary($headline->id)->handle(resolve(CreateHeadlineSummary::class)))
