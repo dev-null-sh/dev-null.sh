@@ -23,6 +23,7 @@ it('embeds videos', function (string $url, string $src, string $aspectRatio): vo
     'live' => ['https://www.youtube.com/live/nfmVdXZfzUE', 'https://www.youtube-nocookie.com/embed/nfmVdXZfzUE?autoplay=1', '16 / 9'],
     'shorts' => ['https://www.youtube.com/shorts/aqz-KE-bpKQ/', 'https://www.youtube-nocookie.com/embed/aqz-KE-bpKQ?autoplay=1', '9 / 16'],
     'playlist' => ['https://www.youtube.com/playlist?list=PLx0sYbCqOb8TBPRdmBHs5Iftvv9TPboYG', 'https://www.youtube-nocookie.com/embed/videoseries?list=PLx0sYbCqOb8TBPRdmBHs5Iftvv9TPboYG&autoplay=1', '16 / 9'],
+    'embedded playlist' => ['https://www.youtube.com/embed/videoseries?si=abc&list=PLx0sYbCqOb8TBPRdmBHs5Iftvv9TPboYG', 'https://www.youtube-nocookie.com/embed/videoseries?list=PLx0sYbCqOb8TBPRdmBHs5Iftvv9TPboYG&autoplay=1', '16 / 9'],
 ]);
 
 it('shows the video thumbnail as the poster', function (string $url, ?string $poster): void {
@@ -55,6 +56,8 @@ it('does not embed other pages', function (string $url): void {
     'malformed video id' => 'https://www.youtube.com/watch?v=short',
     'video id as an array' => 'https://www.youtube.com/watch?v[]=dQw4w9WgXcQ',
     'malformed playlist' => 'https://www.youtube.com/playlist?list=%3Cscript%3E',
+    'embedded playlist without a list' => 'https://www.youtube.com/embed/videoseries',
+    'embedded channel live stream' => 'https://www.youtube.com/embed/live_stream?channel=UCxBcwypKK-W3GHd_RZ9FZrQ',
     'short link to nothing' => 'https://youtu.be/',
     'other host' => 'https://notyoutube.com/watch?v=dQw4w9WgXcQ',
 ]);
