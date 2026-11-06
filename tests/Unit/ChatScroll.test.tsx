@@ -116,6 +116,13 @@ function setup(
             disconnect() {}
         },
     );
+    vi.stubGlobal(
+        'MutationObserver',
+        class {
+            observe() {}
+            disconnect() {}
+        },
+    );
     vi.stubGlobal('CSS', { escape: (value: string) => value });
     let scrollTop = initialScrollTop;
     let rowTop = 100;

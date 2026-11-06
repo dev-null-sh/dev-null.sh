@@ -86,6 +86,17 @@ export function watchSeenMentions(
         seen = [];
     };
 
+    // Opening the pinned panel hides the thread, and the banner comes and goes with the pins, without any scrolling.
+    const covers = new MutationObserver(update);
+
+    if (scroller.parentElement !== null) {
+        covers.observe(scroller.parentElement, {
+            childList: true,
+            subtree: true,
+            attributeFilter: ['data-state'],
+        });
+    }
+
     scroller.addEventListener('scroll', update, { passive: true });
     window.addEventListener('resize', update);
     window.addEventListener('focus', update);
@@ -101,6 +112,7 @@ export function watchSeenMentions(
         },
         stop() {
             pause();
+            covers.disconnect();
             scroller.removeEventListener('scroll', update);
             window.removeEventListener('resize', update);
             window.removeEventListener('focus', update);

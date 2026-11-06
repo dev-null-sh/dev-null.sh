@@ -46,6 +46,7 @@ type Bubble = { dataset: { messageId: string }; isConnected: boolean; top: numbe
 const bubble = (id: number, top = 1000, height = 100): Bubble => ({ dataset: { messageId: String(id) }, isConnected: true, top, height, getBoundingClientRect() { return { top: this.top, bottom: this.top + this.height }; } });
 let banner: { dataset: { state?: string }; getBoundingClientRect: () => { bottom: number } } | null;
 let bubbles: Bubble[];
+let mutate: () => void;
 const thread$ = () => {
     const events = new EventTarget();
 
@@ -85,6 +86,16 @@ beforeEach(() => {
     vi.stubGlobal('document', { hidden: false, cookie: '', hasFocus: () => isFocused, addEventListener: () => {}, removeEventListener: () => {} });
     banner = null;
     bubbles = [];
+    vi.stubGlobal(
+        'MutationObserver',
+        class {
+            constructor(callback: () => void) {
+                mutate = callback;
+            }
+            observe() {}
+            disconnect() {}
+        },
+    );
     vi.stubGlobal('fetch', (input: string, init?: RequestInit) => {
         const url = String(input);
 
@@ -358,6 +369,30 @@ test('a mention under the pinned banner, or behind the open pinned panel, is not
     seen.track([3, 2]);
     await vi.advanceTimersByTimeAsync(1000);
     assert.deepEqual((await take('DELETE', '/mentions')).body, { message_ids: [2] });
+
+    seen.stop();
+    stop();
+});
+
+test('opening the pinned panel over a mention starts its second over once the panel closes', async () => {
+    const stop = chat.watchRemoteUpdates('mark');
+    chat.seedThread(target, thread([3]) as never);
+    banner = { dataset: { state: 'closed' }, getBoundingClientRect: () => ({ bottom: 36 }) };
+    bubbles = [bubble(3, 200)];
+    const seen = watchSeenMentions(thread$(), org);
+    seen.track([3]);
+
+    await vi.advanceTimersByTimeAsync(100);
+    banner.dataset.state = 'open';
+    mutate();
+    await vi.advanceTimersByTimeAsync(800);
+    banner.dataset.state = 'closed';
+    mutate();
+    await vi.advanceTimersByTimeAsync(999);
+    assert.equal(sent('DELETE', '/mentions'), false);
+
+    await vi.advanceTimersByTimeAsync(1);
+    assert.deepEqual((await take('DELETE', '/mentions')).body, { message_ids: [3] });
 
     seen.stop();
     stop();
