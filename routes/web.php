@@ -99,6 +99,7 @@ use App\Http\Controllers\OrgCallController;
 use App\Http\Controllers\OrgCallIceServerController;
 use App\Http\Controllers\OrgController;
 use App\Http\Controllers\OrgMemberController;
+use App\Http\Controllers\OrgMentionController;
 use App\Http\Controllers\OrgMessageController;
 use App\Http\Controllers\OrgMuteController;
 use App\Http\Controllers\OrgPinController;
@@ -535,6 +536,7 @@ Route::middleware('auth')->group(function (): void {
         Route::delete('remotes/orgs/{org}/call', [OrgCallController::class, 'destroy'])->whereUuid('org')->name('org-call.destroy');
         Route::get('remotes/orgs/{org}/messages', [OrgMessageController::class, 'index'])->whereUuid('org')->name('org-message.index');
         Route::put('remotes/orgs/{org}/read', [OrgReadController::class, 'update'])->whereUuid('org')->name('org-read.update');
+        Route::delete('remotes/orgs/{org}/mentions', [OrgMentionController::class, 'destroy'])->whereUuid('org')->name('org-mention.destroy');
         Route::put('remotes/orgs/{org}/typing', [OrgTypingController::class, 'update'])->whereUuid('org')->name('org-typing.update');
         Route::post('remotes/orgs/{org}/archive', [OrgArchiveController::class, 'store'])->whereUuid('org')->name('org-archive.store');
         Route::delete('remotes/orgs/{org}/archive', [OrgArchiveController::class, 'destroy'])->whereUuid('org')->name('org-archive.destroy');
