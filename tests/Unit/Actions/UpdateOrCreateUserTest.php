@@ -4,8 +4,15 @@ declare(strict_types=1);
 
 use App\Actions\UpdateOrCreateUser;
 use App\Contracts\Services\GitHubProvider;
+use App\Enums\NotificationType;
+use App\Enums\UserUpdate;
+use App\Events\ProfilesUpdated;
+use App\Events\UsersUpdated;
+use App\Models\Notification;
 use App\Models\Profile;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Laravel\Socialite\Two\User as GitHubUser;
 
 it('creates a user from github', function (): void {
@@ -269,3 +276,75 @@ it('moves an existing bot to its reserved handle when the github owner signs in'
     'tom' => ['tom', 'tom', 'devnull-tom'],
     'mixed-case tom' => ['tom', 'ToM', 'devnull-tom'],
 ]);
+
+it('makes the unclaimed profile of the account theirs, and forgets they once deleted their account', function (): void {
+    $this->mock(GitHubProvider::class)->shouldReceive('hasSponsorsListing')->andReturnFalse();
+    $unclaimed = Profile::factory()->create(['github_id' => '583231', 'handle' => 'octocat', 'location' => null]);
+    DB::table('deleted_github_accounts')->insert(['github_id' => '583231']);
+
+    $user = resolve(UpdateOrCreateUser::class)->handle(GitHubUser::fake([
+        'id' => 583231,
+        'nickname' => 'octocat',
+        'name' => 'The Octocat',
+        'location' => 'San Francisco',
+    ]));
+
+    expect($user->id)->toBe($unclaimed->id)
+        ->and($user->location)->toBe('San Francisco')
+        ->and(Profile::query()->count())->toBe(1);
+    $this->assertDatabaseEmpty('deleted_github_accounts');
+});
+
+it('makes the members who waited for a new user follow them, each heard from once', function (): void {
+    $this->mock(GitHubProvider::class)->shouldReceive('hasSponsorsListing')->andReturnFalse();
+    $unclaimed = Profile::factory()->create(['github_id' => '583231', 'handle' => 'octocat']);
+    [$first, $second] = User::factory()->count(2)->create();
+    DB::table('pending_follows')->insert([
+        ['user_id' => $first->id, 'github_id' => '583231', 'created_at' => now()],
+        ['user_id' => $second->id, 'github_id' => '583231', 'created_at' => now()],
+        ['user_id' => $first->id, 'github_id' => '958072', 'created_at' => now()],
+    ]);
+
+    $user = resolve(UpdateOrCreateUser::class)->handle(GitHubUser::fake(['id' => 583231, 'nickname' => 'octocat']));
+
+    expect($user->followers()->pluck('users.id')->sort()->values()->all())->toBe(collect([$first->id, $second->id])->sort()->values()->all())
+        ->and(Notification::query()->where('recipient_id', $user->id)->where('type', NotificationType::Followed)->count())->toBe(2)
+        ->and(DB::table('pending_follows')->pluck('github_id')->all())->toBe(['958072']);
+
+    resolve(UpdateOrCreateUser::class)->handle(GitHubUser::fake(['id' => 583231, 'nickname' => 'octocat']));
+
+    expect(Notification::query()->where('recipient_id', $user->id)->count())->toBe(2);
+});
+
+it('tells the members who waited, and the new user, that their follows changed, as following one by one would', function (): void {
+    Event::fake([UsersUpdated::class, ProfilesUpdated::class]);
+    $this->mock(GitHubProvider::class)->shouldReceive('hasSponsorsListing')->andReturnFalse();
+    Profile::factory()->create(['github_id' => '583231', 'handle' => 'octocat']);
+    [$first, $second] = User::factory()->count(2)->create();
+    DB::table('pending_follows')->insert([
+        ['user_id' => $first->id, 'github_id' => '583231', 'created_at' => now()],
+        ['user_id' => $second->id, 'github_id' => '583231', 'created_at' => now()],
+    ]);
+
+    $user = resolve(UpdateOrCreateUser::class)->handle(GitHubUser::fake(['id' => 583231, 'nickname' => 'octocat']));
+
+    $told = fn (UserUpdate $update): array => Event::dispatched(UsersUpdated::class, fn (UsersUpdated $event): bool => $event->update === $update)
+        ->flatMap(fn (array $event): array => $event[0]->userIds)->unique()->sort()->values()->all();
+    $sorted = fn (string ...$ids): array => collect($ids)->sort()->values()->all();
+
+    expect($told(UserUpdate::Account))->toBe($sorted($first->id, $second->id, $user->id))
+        ->and($told(UserUpdate::Relationships))->toBe($sorted($first->id, $second->id))
+        ->and($told(UserUpdate::Live))->toBe($sorted($first->id, $second->id))
+        ->and(Event::dispatched(ProfilesUpdated::class, fn (ProfilesUpdated $event): bool => $event->changesConnections)
+            ->flatMap(fn (array $event): array => $event[0]->profileIds)->unique()->sort()->values()->all())->toBe($sorted($first->id, $second->id, $user->id));
+});
+
+it('tells nobody about follows when nobody waited for the new user', function (): void {
+    Event::fake([UsersUpdated::class, ProfilesUpdated::class]);
+    $this->mock(GitHubProvider::class)->shouldReceive('hasSponsorsListing')->andReturnFalse();
+
+    resolve(UpdateOrCreateUser::class)->handle(GitHubUser::fake(['id' => 583231, 'nickname' => 'octocat']));
+
+    Event::assertNotDispatched(ProfilesUpdated::class);
+    Event::assertNotDispatched(UsersUpdated::class, fn (UsersUpdated $event): bool => in_array($event->update, [UserUpdate::Account, UserUpdate::Relationships, UserUpdate::Live], true));
+});

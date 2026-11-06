@@ -64,6 +64,7 @@ final class DatabaseSeeder extends Seeder
             )->create();
 
             $this->seedOrganizations($localDeveloper, $users);
+            $this->call(HeadlineSeeder::class);
 
             $commits = Commit::query()->topLevel()->get();
 

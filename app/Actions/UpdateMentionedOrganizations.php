@@ -8,6 +8,7 @@ use App\Contracts\Services\GitHubProvider;
 use App\Enums\ProfileType;
 use App\Models\Organization;
 use App\Models\Profile;
+use App\Queries\GitHubLookupPauseQuery;
 use Carbon\CarbonImmutable;
 use Closure;
 use Illuminate\Http\Client\RequestException;
@@ -22,15 +23,11 @@ final readonly class UpdateMentionedOrganizations
      */
     private const int MaxLookups = 5;
 
-    /**
-     * Below this many requests left, lookups wait for the rate limit to reset, leaving the rest to SSH key syncs.
-     */
-    private const int RateLimitFloor = 1000;
-
     private const int NotFoundDays = 1;
 
     public function __construct(
         private GitHubProvider $github,
+        private GitHubLookupPauseQuery $pause,
         private UpdateOrCreateOrganization $updateOrCreateOrganization,
         private DeleteOrganization $deleteOrganization,
     ) {
@@ -75,19 +72,10 @@ final readonly class UpdateMentionedOrganizations
             return null;
         }
 
-        $pausedUntil = Cache::integer('github-organizations:paused', 0);
+        $pausedUntil = $this->pause->get();
 
-        if ($pausedUntil === 0) {
-            $rateLimit = $this->github->rateLimit();
-
-            if ($rateLimit !== null && $rateLimit['remaining'] < self::RateLimitFloor) {
-                $pausedUntil = $rateLimit['resets_at']->getTimestamp();
-                Cache::put('github-organizations:paused', $pausedUntil, $rateLimit['resets_at']);
-            }
-        }
-
-        if ($pausedUntil > 0) {
-            return CarbonImmutable::createFromTimestamp($pausedUntil);
+        if ($pausedUntil instanceof CarbonImmutable) {
+            return $pausedUntil;
         }
 
         foreach ($lookups as [$lookUp, $notFound]) {

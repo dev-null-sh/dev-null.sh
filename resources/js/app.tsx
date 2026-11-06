@@ -1,4 +1,4 @@
-import { createInertiaApp } from '@inertiajs/react';
+import { createInertiaApp, router } from '@inertiajs/react';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import type { ComponentType } from 'react';
 import { StrictMode } from 'react';
@@ -9,12 +9,21 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { initializeTheme, setCookie } from '@/hooks/use-appearance';
 import { setRenderedAt } from '@/hooks/use-now';
 import { trackAnalyticsEvents } from '@/lib/analytics';
+import { setServerTime } from '@/lib/commit-changes';
 import { trackCommitPhotoPage } from '@/lib/commit-photo';
 import { initializeCommitState } from '@/lib/commit-state';
 import { trackCurrentPage } from '@/lib/current-page';
+import { createEcho } from '@/lib/echo';
 import { trackFollowRequests } from '@/lib/follow-requests';
+import { startLiteMobileApp } from '@/lib/lite-mobile-app';
 import { pageTitle } from '@/lib/page-title';
 import { trackPrefetchedPages } from '@/lib/prefetched-pages';
+import {
+    catchUpAfterRestore,
+    connectRealtime,
+    liveTransport,
+    pageReadAt,
+} from '@/lib/realtime';
 import { registerServiceWorker } from '@/lib/service-worker';
 import { browserClock, clockOf, setReaderClock } from '@/lib/utils';
 import { trackVisualViewport } from '@/lib/visual-viewport';
@@ -25,16 +34,43 @@ trackCommitPhotoPage();
 trackVisualViewport();
 trackAnalyticsEvents();
 trackPrefetchedPages();
+connectRealtime(createEcho());
+// What a page shows was read once the visit bringing all of it started, and the first one once the browser asked for
+// it. A page brought back from history or a prefetch shows what was read back then, and catches up.
+pageReadAt(Date.now() - performance.now());
+let visitStartedAt: number | null = null;
+router.on('start', (event) => {
+    const { only, except } = event.detail.visit;
+    visitStartedAt =
+        only.length === 0 && except.length === 0 ? Date.now() : null;
+});
+router.on('navigate', (event) => {
+    if (event.detail.type === 'history' || event.detail.cached === true) {
+        catchUpAfterRestore();
+    } else if (visitStartedAt !== null) {
+        pageReadAt(visitStartedAt);
+    }
+
+    visitStartedAt = null;
+});
+window.addEventListener('pageshow', (event) => {
+    if (event.persisted) {
+        catchUpAfterRestore();
+    }
+});
 
 void createInertiaApp({
     title: pageTitle,
+    live: liveTransport,
     resolve: (name) =>
         resolvePageComponent<ComponentType>(
             `./pages/${name}.tsx`,
             import.meta.glob<ComponentType>('./pages/**/*.tsx'),
         ),
     setup({ el, App, props }) {
+        setServerTime(props.initialPage.props.now);
         trackFollowRequests(props.initialPage);
+        startLiteMobileApp();
         registerServiceWorker(props.initialPage.version);
 
         const clock = browserClock();

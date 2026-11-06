@@ -6,9 +6,10 @@ namespace App\Http\Controllers;
 
 use App\Actions\DeleteUser;
 use App\Enums\PushAccess;
+use App\Enums\UserUpdate;
 use App\Http\Requests\DeleteUserRequest;
 use App\Http\Requests\ShowUserRequest;
-use App\Models\Commit;
+use App\Http\Resources\ShownStreams;
 use App\Models\User;
 use App\Queries\BioProfilesQuery;
 use App\Queries\FollowersYouKnowQuery;
@@ -21,11 +22,15 @@ use App\Queries\UserCommitsQuery;
 use App\Queries\UserModerationQuery;
 use App\Queries\UserStreakQuery;
 use App\Services\PageMetadata;
+use Closure;
+use Illuminate\Broadcasting\Channel;
+use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Pagination\CursorPaginator;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
+use Inertia\LiveProp;
 use Inertia\Response;
 
 final readonly class UserController
@@ -54,32 +59,37 @@ final readonly class UserController
             return $countedUser ??= $currentUser instanceof User ? $user->loadCounts($currentUser) : $user->loadPublicCounts();
         };
 
+        // What the profile shows about the user changes for everyone on its public channel, and what it shows about the
+        // viewer's relationship to them on the viewer's own.
+        $profile = new Channel('profiles.'.$user->id);
+        $relationship = fn (Closure $value): Closure|LiveProp => $currentUser instanceof User ? Inertia::live($value, UserUpdate::Account->value, new PrivateChannel($currentUser)) : $value;
+
         return Inertia::render('user/show', [
-            'user' => $getCountedUser,
+            'user' => Inertia::live(fn (): ?array => ShownStreams::user($getCountedUser()), 'profile', $profile),
             'bioProfiles' => fn (): array => $bioProfiles->get($user),
-            'pasteisReceived' => $currentUser?->pasteis_mode ? $user->pasteis_received : null,
-            'isFollowing' => fn (): bool => $currentUser?->isFollowing($user) ?? false,
-            'followsYou' => fn (): bool => $currentUser instanceof User && $user->isFollowing($currentUser),
-            'isMuting' => fn (): bool => $currentUser?->isMuting($user) ?? false,
+            'pasteisReceived' => Inertia::live(fn (): ?int => $currentUser?->pasteis_mode ? $user->pasteis_received : null, 'profile', $profile),
+            'isFollowing' => $relationship(fn (): bool => $currentUser?->isFollowing($user) ?? false),
+            'followsYou' => $relationship(fn (): bool => $currentUser instanceof User && $user->isFollowing($currentUser)),
+            'isMuting' => $relationship(fn (): bool => $currentUser?->isMuting($user) ?? false),
             'followersYouKnow' => fn (): ?array => $currentUser instanceof User && $currentUser->isNot($user)
                 ? $followersYouKnow->preview($user, $currentUser)
                 : null,
-            'canPush' => fn (): bool => $currentUser instanceof User
+            'canPush' => $relationship(fn (): bool => $currentUser instanceof User
                 && $currentUser->canMessage($user)
-                && ! in_array($pushAccess->get($currentUser, $user), [PushAccess::Restricted, PushAccess::Closed], true),
+                && ! in_array($pushAccess->get($currentUser, $user), [PushAccess::Restricted, PushAccess::Closed], true)),
             'activity' => fn (): array => $activity->get($user, $currentUser),
             'streaks' => $getStreaks,
             'achievements' => fn (): array => $achievements->get($user, $currentUser, $getStreaks()),
             'moderation' => fn (): ?array => $currentUser?->isAdmin() === true && ! $user->isAdmin() ? $moderation->get([$user])[$user->id] : null,
             'tab' => $request->tab(...),
-            'pinnedCommit' => fn (): ?Commit => $request->tab() === 'commits' ? $pinned->get($user, $currentUser) : null,
+            'pinnedCommit' => Inertia::live(fn (): ?array => ShownStreams::commit($request->tab() === 'commits' ? $pinned->get($user, $currentUser) : null), 'profile', $profile),
             'readme' => fn (): string|false|null => $request->tab() === 'readme' ? $readme->get($user) : null,
             // The README tab shows no commits, so it doesn't look for any.
-            'commits' => Inertia::scroll(fn () => $request->tab() === 'readme'
+            'commits' => Inertia::scroll(fn (): CursorPaginator => ShownStreams::page($request->tab() === 'readme'
                 ? new CursorPaginator([], 20)
                 : $commits->builder($user, $currentUser, $request->tab() === 'replies')
                     ->cursorPaginate(20)
-                    ->appends(['tab' => $request->tab()])),
+                    ->appends(['tab' => $request->tab()]))),
         ])->withViewData(['preview' => $currentUser instanceof User || $request->inertia() ? null : $metadata->user($getCountedUser())]);
     }
 

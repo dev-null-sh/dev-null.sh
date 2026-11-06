@@ -14,11 +14,19 @@ use Laravel\Socialite\Two\User as GitHubUser;
 
 final readonly class UpdateOrCreateUser
 {
-    public function __construct(private GitHubProvider $github, private UpdateStaleHandles $updateStaleHandles)
-    {
+    public function __construct(
+        private GitHubProvider $github,
+        private UpdateStaleHandles $updateStaleHandles,
+        private CreateFollowsFromPendingFollows $createFollowsFromPendingFollows,
+    ) {
         //
     }
 
+    /**
+     * Signing in makes the GitHub account's profile a user's: an unclaimed one, looked up from GitHub before, becomes
+     * theirs with its ID, and the members waiting for them follow them. Someone who deleted their account and comes back
+     * is no longer remembered as gone.
+     */
     public function handle(GitHubUser $githubUser): User
     {
         $githubId = (string) $githubUser->getId();
@@ -40,7 +48,9 @@ final readonly class UpdateOrCreateUser
                 'github_synced_at' => now(),
             ])->id;
 
-            return User::query()->updateOrCreate([
+            DB::table('deleted_github_accounts')->where('github_id', $githubId)->delete();
+
+            $user = User::query()->updateOrCreate([
                 'id' => $id,
                 'github_id' => $githubId,
             ], [
@@ -48,6 +58,12 @@ final readonly class UpdateOrCreateUser
                 'email' => $email === '' ? null : $email,
                 ...($hasSponsorsListing === null ? [] : ['has_sponsors_listing' => $hasSponsorsListing]),
             ]);
+
+            if ($user->wasRecentlyCreated) {
+                $this->createFollowsFromPendingFollows->handle($user);
+            }
+
+            return $user;
         });
     }
 }

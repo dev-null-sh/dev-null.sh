@@ -1,15 +1,6 @@
 import CommitSearchController from '@/actions/App/Http/Controllers/CommitSearchController';
 import type { Commit } from '@/types';
 
-export const suggestedQueries = [
-    'shipping a side project',
-    'debugging in production',
-    'testing strategies that actually work',
-    'learning a new programming language',
-    'speeding up a slow app',
-    'working with AI coding tools',
-];
-
 /**
  * Thrown when the server asks the client to slow down, so it can say so instead of claiming nothing matched.
  */

@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Enums\TopicType;
+use App\Enums\UserUpdate;
+use App\Events\ProfilesUpdated;
+use App\Events\UsersUpdated;
 use App\Models\Commit;
 use App\Models\Notification;
 use App\Models\Organization;
@@ -50,6 +53,12 @@ final readonly class DeleteOrganization
                 ->delete();
 
             Notification::query()->where('organization_id', $organization->id)->delete();
+
+            // Its members lose it from what they can post as, and its followers from their Following log.
+            event(new UsersUpdated($organization->members()->pluck('users.id'), UserUpdate::Account));
+            event(new UsersUpdated($organization->followers()->pluck('users.id'), UserUpdate::Relationships));
+            event(new ProfilesUpdated([$organization->id]));
+
             $organization->members()->detach();
             $organization->followers()->detach();
             $organization->delete();

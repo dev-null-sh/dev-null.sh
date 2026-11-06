@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Enums\UserUpdate;
+use App\Events\ProfilesUpdated;
+use App\Events\UsersUpdated;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 
@@ -28,6 +31,11 @@ final readonly class CreateUserFollow
             ]);
 
             $this->createFollowNotification->handle($follower, $followed);
+
+            event(new UsersUpdated([$follower->id, $followed->id], UserUpdate::Account));
+            event(new UsersUpdated([$follower->id], UserUpdate::Relationships));
+            event(new UsersUpdated([$follower->id], UserUpdate::Live));
+            event(new ProfilesUpdated([$follower->id, $followed->id], changesConnections: true));
         });
     }
 }

@@ -3,7 +3,6 @@
 declare(strict_types=1);
 
 use App\Actions\DeleteStoredFiles;
-use App\Jobs\EmbedKnowledgeBase;
 use App\Jobs\EndLiveStreams;
 use App\Jobs\GenerateHotHeadlineSummaries;
 use App\Models\Headline;
@@ -12,7 +11,6 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schedule;
 
 Schedule::command('commits:submit-scheduled')->everyMinute()->withoutOverlapping(5);
-Schedule::job(new EmbedKnowledgeBase())->hourly();
 Schedule::job(new EndLiveStreams())->everyFiveMinutes();
 Schedule::job(new GenerateHotHeadlineSummaries())->everyFifteenMinutes();
 Schedule::command('model:prune', ['--model' => [Headline::class]])->hourly()->withoutOverlapping();
