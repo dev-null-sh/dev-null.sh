@@ -42,8 +42,8 @@ type Held = { url: string; method: string; body: unknown; settle: (outcome: Resp
 let held: Held[];
 let isFocused: boolean;
 
-type Bubble = { dataset: { messageId: string }; isConnected: boolean; top: number; height: number; getBoundingClientRect: () => { top: number; bottom: number } };
-const bubble = (id: number, top = 1000, height = 100): Bubble => ({ dataset: { messageId: String(id) }, isConnected: true, top, height, getBoundingClientRect() { return { top: this.top, bottom: this.top + this.height }; } });
+type Bubble = { dataset: { messageId: string }; isConnected: boolean; top: number; height: number; left: number; getBoundingClientRect: () => { top: number; bottom: number; left: number; right: number } };
+const bubble = (id: number, top = 1000, height = 100, left = 0): Bubble => ({ dataset: { messageId: String(id) }, isConnected: true, top, height, left, getBoundingClientRect() { return { top: this.top, bottom: this.top + this.height, left: this.left, right: this.left + 300 }; } });
 let banner: { dataset: { state?: string }; getBoundingClientRect: () => { bottom: number } } | null;
 let bubbles: Bubble[];
 let mutate: () => void;
@@ -51,7 +51,7 @@ const thread$ = () => {
     const events = new EventTarget();
 
     return Object.assign(events, {
-        getBoundingClientRect: () => ({ top: 0, bottom: 500 }),
+        getBoundingClientRect: () => ({ top: 0, bottom: 500, left: 0, right: 400 }),
         querySelectorAll: () => bubbles,
         parentElement: { querySelector: () => banner },
     }) as unknown as HTMLElement;
@@ -393,6 +393,27 @@ test('opening the pinned panel over a mention starts its second over once the pa
 
     await vi.advanceTimersByTimeAsync(1);
     assert.deepEqual((await take('DELETE', '/mentions')).body, { message_ids: [3] });
+
+    seen.stop();
+    stop();
+});
+
+test('a mention zoomed out of view is not seen until the zoomed view pans to it', async () => {
+    const stop = chat.watchRemoteUpdates('mark');
+    chat.seedThread(target, thread([3, 2]) as never);
+    const viewport = Object.assign(new EventTarget(), { offsetLeft: 0, offsetTop: 0, width: 200, height: 250 });
+    Object.assign(window, { visualViewport: viewport });
+    bubbles = [bubble(3, 100, 100, 250), bubble(2, 300)];
+    const seen = watchSeenMentions(thread$(), org);
+    seen.track([3, 2]);
+
+    await vi.advanceTimersByTimeAsync(2000);
+    assert.equal(sent('DELETE', '/mentions'), false);
+
+    Object.assign(viewport, { offsetLeft: 200, offsetTop: 200 });
+    viewport.dispatchEvent(new Event('scroll'));
+    await vi.advanceTimersByTimeAsync(1000);
+    assert.deepEqual((await take('DELETE', '/mentions')).body, { message_ids: [2] });
 
     seen.stop();
     stop();
