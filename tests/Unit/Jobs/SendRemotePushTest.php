@@ -17,6 +17,7 @@ use App\Models\PushSubscription;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 
@@ -312,4 +313,18 @@ it('retries only the phones and browsers that failed', function (): void {
     new SendRemotePush($this->message->id, $this->recipient->id)->handle(resolve(PushNotificationProvider::class), resolve(DevicePushProvider::class));
 
     Queue::assertPushed(SendRemotePush::class, fn (SendRemotePush $retry): bool => $retry->subscriptionIds === [] && $retry->deviceIds === [$phone->id] && $retry->tries === 2);
+});
+
+it('still pushes browsers when the phone push service throws, and reports it once without retrying', function (): void {
+    Device::factory()->for($this->recipient)->withPushToken()->count(2)->create();
+    Exceptions::fake();
+    Queue::fake();
+    $this->mock(DevicePushProvider::class)->shouldReceive('send')->once()->andThrow(new RuntimeException('Firebase refused the service account'));
+    $this->mock(PushNotificationProvider::class)->shouldReceive('send')->once()->andReturnTrue();
+
+    new SendRemotePush($this->message->id, $this->recipient->id)->handle(resolve(PushNotificationProvider::class), resolve(DevicePushProvider::class));
+
+    Exceptions::assertReportedCount(1);
+    Exceptions::assertReported(fn (RuntimeException $e): bool => $e->getMessage() === 'Firebase refused the service account');
+    Queue::assertNothingPushed();
 });

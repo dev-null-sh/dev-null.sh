@@ -21,6 +21,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Queue\Attributes\Timeout;
 use Illuminate\Support\Facades\Date;
+use Throwable;
 
 #[Timeout(210)]
 final class SendRemotePush implements ShouldQueue
@@ -84,7 +85,6 @@ final class SendRemotePush implements ShouldQueue
             return;
         }
 
-        // Phones first: a push service that throws then retries before any browser has been pushed to.
         $failedDevices = [];
         $conversation = $message->conversation;
 
@@ -107,12 +107,18 @@ final class SendRemotePush implements ShouldQueue
                 $conversation->id,
             );
 
-            foreach (Device::query()->where('user_id', $user->id)->whereNotNull('push_token_hash')
-                ->when($this->deviceIds !== null, fn (Builder $query): Builder => $query->whereKey($this->deviceIds))
-                ->orderBy('id')->get() as $device) {
-                if (! $devicePush->send($device, $devicePushMessage)) {
-                    $failedDevices[] = $device->id;
+            try {
+                foreach (Device::query()->where('user_id', $user->id)->whereNotNull('push_token_hash')
+                    ->when($this->deviceIds !== null, fn (Builder $query): Builder => $query->whereKey($this->deviceIds))
+                    ->orderBy('id')->get() as $device) {
+                    if (! $devicePush->send($device, $devicePushMessage)) {
+                        $failedDevices[] = $device->id;
+                    }
                 }
+            } catch (Throwable $throwable) {
+                // A push service that throws is misconfigured, and retrying won't help, so report it once and
+                // leave the remaining phones. Browsers still get their push.
+                report($throwable);
             }
         }
 

@@ -8,6 +8,7 @@ use App\Contracts\Services\DevicePushProvider;
 use App\Dto\DevicePush;
 use App\Models\Device;
 use Firebase\JWT\JWT;
+use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Crypt;
@@ -75,7 +76,12 @@ final readonly class FcmDevicePushProvider implements DevicePushProvider
         $cached = Cache::get(self::AccessTokenKey);
 
         if (is_string($cached)) {
-            return Crypt::decryptString($cached);
+            try {
+                return Crypt::decryptString($cached);
+            } catch (DecryptException) {
+                // Cached under an app key that has since been rotated.
+                Cache::forget(self::AccessTokenKey);
+            }
         }
 
         $assertion = JWT::encode([
