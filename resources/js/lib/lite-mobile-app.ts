@@ -1,6 +1,9 @@
+import type { Page, SharedPageProps } from '@inertiajs/core';
+import { http, HttpResponseError } from '@inertiajs/core';
 import { router } from '@inertiajs/react';
 import { useSyncExternalStore } from 'react';
 import { signIn } from '@/lib/auth';
+import { isRefusedBySession } from '@/lib/lite-mobile-app-session';
 import type { LiteMobileAppTabs } from '@/lib/lite-mobile-app-tabs';
 import { liteMobileAppTabTarget } from '@/lib/lite-mobile-app-tabs';
 import { scrollLogToTop } from '@/lib/log-scroll';
@@ -34,9 +37,14 @@ interface TabsPlugin {
     ): Promise<Listener>;
 }
 
+interface SessionPlugin {
+    /** Asks for a new web session. The app decides what happens, and the page never sees the answer. */
+    renew(): Promise<void>;
+}
+
 interface Capacitor {
     isNativePlatform(): boolean;
-    Plugins: { Tabs?: TabsPlugin };
+    Plugins: { Tabs?: TabsPlugin; Session?: SessionPlugin };
 }
 
 declare global {
@@ -145,6 +153,50 @@ export function startLiteMobileApp(): void {
     });
 
     followTopColor(tabs);
+    renewExpiredSessions();
+}
+
+/**
+ * The app makes the web view's sessions, so one that ended is the app's to replace: a page shown signed out, or a
+ * request refused for its session or its CSRF token. It reloads the page afterwards. `navigate` covers loading a page
+ * and going through history, and `success` the visits that stay on their URL, such as being sent back after an expired
+ * token. Visits and `useHttp` go through Inertia's HTTP client, and everything else through `fetch`.
+ */
+function renewExpiredSessions(): void {
+    const session = window.Capacitor?.Plugins.Session;
+
+    if (session === undefined) {
+        return;
+    }
+
+    const renewIfSignedOut = (page: Page<SharedPageProps>) => {
+        if (page.props.auth.user === null) {
+            void session.renew();
+        }
+    };
+    const renewIfRefused = (status: number, url: string) => {
+        if (isRefusedBySession(status, url, window.location.origin)) {
+            void session.renew();
+        }
+    };
+    const fetchFromPage = window.fetch.bind(window);
+
+    router.on('navigate', (event) =>
+        renewIfSignedOut(event.detail.page as Page<SharedPageProps>),
+    );
+    router.on('success', (event) => renewIfSignedOut(event.detail.page));
+    http.onError((error) => {
+        if (error instanceof HttpResponseError) {
+            renewIfRefused(error.response.status, error.url ?? '');
+        }
+    });
+    window.fetch = async (...request) => {
+        const response = await fetchFromPage(...request);
+
+        renewIfRefused(response.status, response.url);
+
+        return response;
+    };
 }
 
 /**
