@@ -1481,6 +1481,8 @@ function CommitReply({
     const isOwn = useOwnsCommit()(reply);
     const isFlattened = depth > maxIndentDepth;
     const isQuote = reply.quoted_commit_id === parent.id;
+    const isRecommit =
+        isQuote && reply.body === '' && (reply.images?.length ?? 0) === 0;
     const permalink = CommitController.show({
         profile: reply.author,
         commit: reply,
@@ -1590,9 +1592,13 @@ function CommitReply({
                                 prefetch
                                 href={permalink}
                                 className="shrink-0 font-mono text-xs text-primary hover:underline"
-                                data-test="quote-reply-label"
+                                data-test={
+                                    isRecommit
+                                        ? 'recommit-reply-label'
+                                        : 'quote-reply-label'
+                                }
                             >
-                                quoted
+                                {isRecommit ? 'recommitted' : 'quoted'}
                             </Link>
                         )}
                         <span aria-hidden className="text-muted-foreground">
