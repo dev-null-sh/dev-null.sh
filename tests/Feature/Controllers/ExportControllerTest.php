@@ -147,6 +147,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
         'organizations' => [],
         'followed_organizations' => [],
         'pending_follows' => [],
+        'starred_github_owners' => [],
         'messages' => [],
         'reports' => [],
         'remote_mutes' => [],
@@ -537,6 +538,23 @@ it('exports the GitHub accounts the user waits to follow', function (): void {
     $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
 
     expect($data['pending_follows'])->toBe(['1', '958072']);
+});
+
+it('exports whose github repositories the user starred', function (): void {
+    $user = User::factory()->create();
+    DB::table('starred_github_owners')->insert([
+        ['user_id' => $user->id, 'github_id' => '583231', 'repositories_count' => 2, 'created_at' => now()],
+        ['user_id' => $user->id, 'github_id' => '1', 'repositories_count' => 1, 'created_at' => now()],
+        ['user_id' => User::factory()->create()->id, 'github_id' => '2', 'repositories_count' => 1, 'created_at' => now()],
+    ]);
+
+    $response = $this->actingAs($user)->get(route('export'));
+    $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
+
+    expect($data['starred_github_owners'])->toBe([
+        ['github_id' => '1', 'repositories_count' => 1],
+        ['github_id' => '583231', 'repositories_count' => 2],
+    ]);
 });
 
 it('exports the devices approved for the app, oldest first, with what kind of phone a push token is for but not the token', function (): void {

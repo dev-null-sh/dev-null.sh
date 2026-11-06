@@ -6,6 +6,7 @@ use App\Models\Commit;
 use App\Models\Profile;
 use App\Models\User;
 use App\Queries\SuggestedUsersQuery;
+use Illuminate\Support\Facades\DB;
 
 beforeEach(function (): void {
     $this->user = User::factory()->create();
@@ -42,9 +43,27 @@ it('suggests popular people nobody the user follows follows, with their follower
         ->assertOk()
         ->assertJsonPath('data.0.id', $popular->id)
         ->assertJsonPath('data.0.followed_by_following_count', 0)
+        ->assertJsonPath('data.0.starred_repositories_count', 0)
         ->assertJsonPath('data.0.followers_count', 2)
         ->assertJsonPath('data.0.follows_you', false)
         ->assertJsonPath('data.0.is_followed', false);
+});
+
+it('suggests people whose github repositories the user starred, with how many', function (): void {
+    $starred = User::factory()->has(Commit::factory())->create();
+
+    DB::table('starred_github_owners')->insert([
+        'user_id' => $this->user->id,
+        'github_id' => $starred->github_id,
+        'repositories_count' => 2,
+        'created_at' => now(),
+    ]);
+
+    signedApiRequest($this->keyPair, 'GET', route('api-suggested-user.index'))
+        ->assertOk()
+        ->assertJsonPath('data.0.id', $starred->id)
+        ->assertJsonPath('data.0.starred_repositories_count', 2)
+        ->assertJsonPath('data.0.followed_by_following_count', 0);
 });
 
 it('sends three suggestions and three spares, as the web does', function (): void {

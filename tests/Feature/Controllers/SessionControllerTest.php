@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Contracts\Services\GitHubProvider;
 use App\Enums\Log;
 use App\Jobs\ImportGitHubFollowsJob;
+use App\Jobs\ImportGitHubStarsJob;
 use App\Jobs\LookUpUserOrganizations;
 use App\Jobs\SyncGitHubSshKeysJob;
 use App\Models\User;
@@ -224,6 +225,38 @@ it('queues an import of the github follows of the user on login, notifying only 
     'new user' => [false, true],
     'existing user' => [true, false],
 ]);
+
+it('queues an import of the github stars of the user on login', function (): void {
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('hasSponsorsListing')->andReturnFalse();
+
+    Socialite::fake('github', GitHubUser::fake([
+        'id' => '583231',
+        'nickname' => 'octocat',
+    ]));
+
+    $this->get(route('login.store'));
+
+    $user = User::query()->where('github_id', '583231')->sole();
+
+    Queue::assertPushed(ImportGitHubStarsJob::class, fn (ImportGitHubStarsJob $job): bool => $job->user->is($user));
+});
+
+it('does not queue an import of the github stars once they are imported', function (): void {
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('hasSponsorsListing')->andReturnFalse();
+
+    User::factory()->create(['github_id' => '583231', 'github_stars_imported_at' => now()]);
+
+    Socialite::fake('github', GitHubUser::fake([
+        'id' => '583231',
+        'nickname' => 'octocat',
+    ]));
+
+    $this->get(route('login.store'));
+
+    Queue::assertNotPushed(ImportGitHubStarsJob::class);
+});
 
 it('redirects to the intended url after login', function (): void {
     $github = $this->mock(GitHubProvider::class);

@@ -6,6 +6,7 @@ use App\Models\Commit;
 use App\Models\User;
 use App\Queries\SuggestedUsersQuery;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\DB;
 
 /**
  * @return Collection<int, User>
@@ -493,3 +494,98 @@ it('does not prioritize hidden, unapproved, deleted, muted, or blocked thread pa
     expect($suggestions)->toHaveCount(3)
         ->and(array_diff($suggestions, $visible->modelKeys()))->toBeEmpty();
 });
+
+it('suggests the people whose repositories the user starred on github, the most starred first', function (): void {
+    $user = User::factory()->create();
+    $starredOnce = User::factory()->has(Commit::factory())->create();
+    $starredTwice = User::factory()->has(Commit::factory())->create();
+
+    starGitHubRepositoriesOf($user, [$starredOnce, 1], [$starredTwice, 2]);
+
+    $suggestions = resolve(SuggestedUsersQuery::class)->get($user, limit: 1);
+
+    expect($suggestions->pluck('id')->all())->toBe([$starredTwice->id])
+        ->and($suggestions->first()->starred_repositories_count)->toBe(2);
+});
+
+it('keeps the people whose repositories the user starred among the first suggestions, however large their network', function (): void {
+    $user = User::factory()->create();
+    vouchedFor($user, 30);
+    popularUsers(5);
+    $starred = User::factory()->has(Commit::factory())->create();
+
+    starGitHubRepositoriesOf($user, [$starred, 1]);
+
+    $this->travelTo(today());
+
+    foreach (range(1, 7) as $day) {
+        expect(resolve(SuggestedUsersQuery::class)->get($user)->pluck('id')->all())->toContain($starred->id);
+
+        $this->travel(1)->day();
+    }
+});
+
+it('keeps someone the user starred among the first suggestions when their network has them far down', function (): void {
+    $user = User::factory()->create();
+    $vouched = vouchedFor($user, 30);
+    $friend = User::factory()->create();
+    $user->following()->attach($friend);
+    $friend->following()->attach($vouched);
+    popularUsers(5);
+    $starred = User::factory()->has(Commit::factory())->create();
+    $friend->following()->attach($starred);
+
+    starGitHubRepositoriesOf($user, [$starred, 1]);
+
+    $this->travelTo(today());
+
+    foreach (range(1, 7) as $day) {
+        $suggestions = resolve(SuggestedUsersQuery::class)->get($user)->where('id', $starred->id);
+
+        expect($suggestions)->toHaveCount(1)
+            ->and($suggestions->first()->followed_by_following_count)->toBe(1)
+            ->and($suggestions->first()->starred_repositories_count)->toBe(1);
+
+        $this->travel(1)->day();
+    }
+});
+
+it('says how many repositories the user starred of the people suggested for other reasons', function (): void {
+    $user = User::factory()->create();
+    [$vouched] = vouchedFor($user, 1);
+    [$popular] = popularUsers(1);
+
+    starGitHubRepositoriesOf($user, [$vouched, 3]);
+
+    $suggestions = resolve(SuggestedUsersQuery::class)->get($user)->keyBy('id');
+
+    expect($suggestions)->toHaveCount(2)
+        ->and($suggestions[$vouched->id]->starred_repositories_count)->toBe(3)
+        ->and($suggestions[$vouched->id]->followed_by_following_count)->toBe(1)
+        ->and($suggestions[$popular->id]->starred_repositories_count)->toBe(0);
+});
+
+it('does not suggest the people whose repositories the user starred once they follow, mute, or dismissed them', function (): void {
+    $user = User::factory()->create();
+    [$followed, $muted, $dismissed] = User::factory()->count(3)->has(Commit::factory())->create();
+
+    $user->following()->attach($followed);
+    $user->muting()->attach($muted);
+    $user->dismissedSuggestions()->attach($dismissed);
+    starGitHubRepositoriesOf($user, [$followed, 1], [$muted, 1], [$dismissed, 1]);
+
+    expect(resolve(SuggestedUsersQuery::class)->get($user))->toBeEmpty();
+});
+
+/**
+ * @param  array{User, int}  ...$owners
+ */
+function starGitHubRepositoriesOf(User $user, array ...$owners): void
+{
+    DB::table('starred_github_owners')->insert(array_map(fn (array $owner): array => [
+        'user_id' => $user->id,
+        'github_id' => $owner[0]->github_id,
+        'repositories_count' => $owner[1],
+        'created_at' => now(),
+    ], $owners));
+}

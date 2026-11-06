@@ -194,6 +194,32 @@ it('tells the organizations the user follows apart from the people', function ()
     expect(new HttpGitHubProvider()->followingIds('octocat', 10))->toBe(['users' => ['1', '2'], 'organizations' => ['958072']]);
 });
 
+it('reads who owns the repositories the user starred, once per repository, leaving organizations out', function (): void {
+    Http::fake([
+        'api.github.com/users/octocat/starred?per_page=100&page=1' => Http::response([
+            ['id' => 10, 'full_name' => 'mona/dotfiles', 'owner' => ['id' => 1, 'login' => 'mona', 'type' => 'User']],
+            ['id' => 11, 'full_name' => 'laravel/framework', 'owner' => ['id' => 958072, 'login' => 'laravel', 'type' => 'Organization']],
+            ['id' => 12, 'full_name' => 'hubot/hubot', 'owner' => ['id' => 2, 'login' => 'hubot', 'type' => 'User']],
+            ['id' => 13, 'full_name' => 'mona/hello-world', 'owner' => ['id' => 1, 'login' => 'mona', 'type' => 'User']],
+        ]),
+    ]);
+
+    expect(new HttpGitHubProvider()->starredOwnerIds('octocat', 3))->toBe(['1', '2', '1']);
+});
+
+it('reads the starred repositories a page at a time, up to the given number of pages', function (): void {
+    $page = fn (int $from): array => array_map(fn (int $id): array => ['id' => $id, 'owner' => ['id' => $id, 'type' => 'User']], range($from, $from + 99));
+
+    Http::fake([
+        'api.github.com/users/octocat/starred?per_page=100&page=1' => Http::response($page(1)),
+        'api.github.com/users/octocat/starred?per_page=100&page=2' => Http::response($page(101)),
+    ]);
+
+    expect(new HttpGitHubProvider()->starredOwnerIds('octocat', 2))->toBe(array_map(strval(...), range(1, 200)));
+
+    Http::assertSentCount(2);
+});
+
 it('reads the authentication and signing keys of the account', function (): void {
     Http::fake([
         'api.github.com/users/octocat/keys*' => Http::response([['id' => 1, 'key' => 'ssh-ed25519 AAAA1']]),

@@ -49,6 +49,7 @@ final class UserResource extends JsonResource
             'is_followed' => $this->whenHas('is_followed'),
             'follows_you' => $this->whenHas('follows_you'),
             'followed_by_following_count' => $this->whenHas('followed_by_following_count'),
+            'starred_repositories_count' => $this->whenHas('starred_repositories_count'),
         ];
     }
 

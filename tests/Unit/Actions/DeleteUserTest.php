@@ -288,6 +288,19 @@ it('erases the accounts a deleted user waited to follow', function (): void {
     expect(DB::table('pending_follows')->pluck('user_id')->all())->toBe([$other->id]);
 });
 
+it('erases whose github repositories a deleted user starred', function (): void {
+    $user = User::factory()->create();
+    $other = User::factory()->create();
+    DB::table('starred_github_owners')->insert([
+        ['user_id' => $user->id, 'github_id' => '583231', 'repositories_count' => 1, 'created_at' => now()],
+        ['user_id' => $other->id, 'github_id' => '583231', 'repositories_count' => 1, 'created_at' => now()],
+    ]);
+
+    resolve(DeleteUser::class)->handle($user);
+
+    expect(DB::table('starred_github_owners')->pluck('user_id')->all())->toBe([$other->id]);
+});
+
 it('erases the devices of a deleted user', function (): void {
     $user = User::factory()->create();
     Device::factory()->for($user)->create();

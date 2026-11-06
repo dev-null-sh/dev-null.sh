@@ -1,5 +1,6 @@
 /// <reference types="node" />
 import assert from 'node:assert/strict';
+import { Star } from 'lucide-react';
 import * as React from 'react';
 import type { ReactElement, ReactNode } from 'react';
 import { afterAll, afterEach, test, vi } from 'vite-plus/test';
@@ -105,7 +106,7 @@ const { FollowButton, prepareFollowingUpdate } =
     await import('../../resources/js/components/follow-button');
 const { UserPreview } =
     await import('../../resources/js/components/user-preview');
-const { SuggestedUserRow, WhoToFollow, WhoToFollowInLog } =
+const { SuggestedUserRow, WhoToFollow, WhoToFollowInLog, reasonFor } =
     await import('../../resources/js/components/who-to-follow');
 const { refreshSharedState } =
     await import('../../resources/js/hooks/use-shared-state');
@@ -173,6 +174,7 @@ function suggestion(handle: string): SuggestedUser {
         timezone: null,
         show_local_time: false,
         followed_by_following_count: 0,
+        starred_repositories_count: 0,
         followers_count: 0,
         follows_you: false,
     } as unknown as SuggestedUser;
@@ -439,6 +441,44 @@ test('a suggestion who follows you offers to follow back, at a width that fits i
     assert.equal(suggestionLabel(user), 'Follow back @freek');
     assert.match(String(button?.props.className), /\bmin-w-26\b/);
     assert.equal(suggestionLabel(suggestion('jess')), 'Follow @jess');
+});
+
+test('a suggestion whose repositories you starred says so before anything else', () => {
+    const starredOnce = {
+        ...suggestion('taylor'),
+        starred_repositories_count: 1,
+        followed_by_following_count: 4,
+    };
+
+    assert.equal(reasonFor(starredOnce), 'You starred their repo');
+    assert.equal(
+        reasonFor({ ...starredOnce, starred_repositories_count: 3 }),
+        'You starred 3 of their repos',
+    );
+    assert.equal(
+        reasonFor({ ...starredOnce, starred_repositories_count: 0 }),
+        'Followed by 4 you follow',
+    );
+    assert.equal(reasonFor(suggestion('jess')), null);
+});
+
+test('a suggestion whose repositories you starred has a star by the reason', () => {
+    const starOf = (user: SuggestedUser): ReactElement<Props> | null => {
+        const reason = find(
+            SuggestedUserRow({ user }),
+            (props) => 'reason' in props,
+        );
+        assert.ok(reason);
+
+        return find(render(reason), (props) => props['aria-hidden'] === true);
+    };
+
+    assert.equal(
+        starOf({ ...suggestion('taylor'), starred_repositories_count: 2 })
+            ?.type,
+        Star,
+    );
+    assert.equal(starOf({ ...suggestion('jess'), followers_count: 3 }), null);
 });
 
 test('a preview offers to follow back when they already follow you', () => {

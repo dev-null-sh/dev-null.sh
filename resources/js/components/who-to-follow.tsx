@@ -1,5 +1,5 @@
 import { Deferred, Link, router, usePage } from '@inertiajs/react';
-import { Ellipsis, EyeOff, RefreshCw, X } from 'lucide-react';
+import { Ellipsis, EyeOff, RefreshCw, Star, X } from 'lucide-react';
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { index as suggestionStates } from '@/actions/App/Http/Controllers/SuggestedUserStateController';
 import SuggestionDismissalController from '@/actions/App/Http/Controllers/SuggestionDismissalController';
@@ -34,7 +34,16 @@ import { edit } from '@/routes/appearance';
 import { show } from '@/routes/user';
 import type { SuggestedUser } from '@/types';
 
-function reasonFor(user: SuggestedUser, format = formatCount): string | null {
+export function reasonFor(
+    user: SuggestedUser,
+    format = formatCount,
+): string | null {
+    if (user.starred_repositories_count > 0) {
+        return user.starred_repositories_count === 1
+            ? 'You starred their repo'
+            : `You starred ${format(user.starred_repositories_count)} of their repos`;
+    }
+
     if (user.followed_by_following_count > 0) {
         return `Followed by ${format(user.followed_by_following_count)} you follow`;
     }
@@ -62,13 +71,22 @@ function BioComment({ bio }: { bio: string }) {
     );
 }
 
-function Reason({ reason, title }: { reason: string; title: string }) {
+function Reason({
+    reason,
+    title,
+    isStarred,
+}: {
+    reason: string;
+    title: string;
+    isStarred: boolean;
+}) {
     return (
         <span
-            className="block truncate text-xs text-muted-foreground"
+            className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground"
             title={title}
         >
-            {reason}
+            {isStarred && <Star aria-hidden className="size-3 shrink-0" />}
+            <span className="truncate">{reason}</span>
         </span>
     );
 }
@@ -163,6 +181,29 @@ function useSuggestedUserUpdates(dismissElsewhere: (ids: string[]) => void) {
     }, [viewerId, ids, showsWhoToFollow]);
 }
 
+/**
+ * Stars imported after the suggestions were picked can bring someone new, even when there were no suggestions yet, so
+ * the suggestions are picked again, in the same round.
+ */
+function useSuggestionsFromStars() {
+    const { auth, showsWhoToFollow } = usePage().props;
+    const viewerId = auth.user?.id;
+
+    useEffect(() => {
+        if (!viewerId || !showsWhoToFollow) {
+            return;
+        }
+
+        return listen(userChannel(viewerId), {
+            'github-stars': () =>
+                router.reload({
+                    only: ['suggestedUsers'],
+                    reset: ['suggestedUsers'],
+                }),
+        });
+    }, [viewerId, showsWhoToFollow]);
+}
+
 function DismissButton({
     user,
     onDismiss,
@@ -221,7 +262,13 @@ export function SuggestedUserRow({
     const details = (bio || reason) && (
         <>
             {bio && <BioComment bio={bio} />}
-            {reason && <Reason reason={reason} title={exactReason ?? reason} />}
+            {reason && (
+                <Reason
+                    reason={reason}
+                    title={exactReason ?? reason}
+                    isStarred={user.starred_repositories_count > 0}
+                />
+            )}
         </>
     );
     const avatarRef = useRef<HTMLSpanElement>(null);
@@ -744,6 +791,7 @@ export function WhoToFollow() {
     } = useHideWhoToFollow();
 
     useSuggestedUserUpdates(dismissElsewhere);
+    useSuggestionsFromStars();
 
     if (!isVisible) {
         return null;
