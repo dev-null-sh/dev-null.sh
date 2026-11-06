@@ -116,14 +116,6 @@ function setup(
             disconnect() {}
         },
     );
-    vi.stubGlobal(
-        'IntersectionObserver',
-        class {
-            observe() {}
-            unobserve() {}
-            disconnect() {}
-        },
-    );
     vi.stubGlobal('CSS', { escape: (value: string) => value });
     let scrollTop = initialScrollTop;
     let rowTop = 100;

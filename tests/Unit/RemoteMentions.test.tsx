@@ -41,13 +41,20 @@ const shownIds = () => shown().mentions.map(({ id }) => id);
 type Held = { url: string; method: string; body: unknown; settle: (outcome: Response | Error) => void };
 let held: Held[];
 let isFocused: boolean;
-let report: (entries: { target: Bubble; isIntersecting: boolean; intersectionRatio: number; intersectionRect: { height: number }; rootBounds: { height: number } }[]) => void;
 
-type Bubble = { dataset: { messageId: string }; isConnected: boolean };
-const bubbles = new Map<number, Bubble>();
-const bubble = (id: number) => bubbles.get(id) ?? bubbles.set(id, { dataset: { messageId: String(id) }, isConnected: true }).get(id)!;
-const scroller = (ids: number[]) => ({ querySelectorAll: () => ids.map(bubble) }) as unknown as HTMLElement;
-const onScreen = (id: number, ratio = 1, height = 100 * ratio) => ({ target: bubble(id), isIntersecting: ratio > 0, intersectionRatio: ratio, intersectionRect: { height }, rootBounds: { height: 500 } });
+type Bubble = { dataset: { messageId: string }; isConnected: boolean; top: number; height: number; getBoundingClientRect: () => { top: number; bottom: number } };
+const bubble = (id: number, top = 1000, height = 100): Bubble => ({ dataset: { messageId: String(id) }, isConnected: true, top, height, getBoundingClientRect() { return { top: this.top, bottom: this.top + this.height }; } });
+let banner: { dataset: { state?: string }; getBoundingClientRect: () => { bottom: number } } | null;
+let bubbles: Bubble[];
+const thread$ = () => {
+    const events = new EventTarget();
+
+    return Object.assign(events, {
+        getBoundingClientRect: () => ({ top: 0, bottom: 500 }),
+        querySelectorAll: () => bubbles,
+        parentElement: { querySelector: () => banner },
+    }) as unknown as HTMLElement;
+};
 const sent = (method: string, part: string) => held.some((request) => request.method === method && request.url.includes(part));
 
 const take = async (method: string, part: string): Promise<Held> => {
@@ -76,17 +83,8 @@ beforeEach(() => {
     });
     isFocused = true;
     vi.stubGlobal('document', { hidden: false, cookie: '', hasFocus: () => isFocused, addEventListener: () => {}, removeEventListener: () => {} });
-    vi.stubGlobal(
-        'IntersectionObserver',
-        class {
-            constructor(callback: typeof report) {
-                report = callback;
-            }
-            observe() {}
-            unobserve() {}
-            disconnect() {}
-        },
-    );
+    banner = null;
+    bubbles = [];
     vi.stubGlobal('fetch', (input: string, init?: RequestInit) => {
         const url = String(input);
 
@@ -299,36 +297,84 @@ test('a clear dropped before the account came back never undoes the clear it sta
     stopAgain();
 });
 
-test('mentions that stay on screen for a second clear together, including a long one filling most of the screen', async () => {
+test('mentions that stay on screen for a second clear together, including a long one filling half the screen', async () => {
     const stop = chat.watchRemoteUpdates('mark');
-    chat.seedThread(target, thread([3, 2, 1]) as never);
-    const seen = watchSeenMentions(scroller([10, 3, 2, 1]), org);
-    seen.track([3, 2, 1]);
+    chat.seedThread(target, thread([4, 3, 2, 1]) as never);
+    const scroller = thread$();
+    bubbles = [bubble(4, 300), bubble(3, -1720, 2000), bubble(2, -1780, 2000), bubble(1, 600)];
+    const seen = watchSeenMentions(scroller, org);
+    seen.track([4, 3, 2, 1]);
 
-    report([onScreen(3), onScreen(2, 0.2, 400), onScreen(1, 0.3)]);
     await vi.advanceTimersByTimeAsync(999);
     assert.equal(sent('DELETE', '/mentions'), false);
-    assert.deepEqual(shownIds(), [3, 2, 1]);
+    assert.deepEqual(shownIds(), [4, 3, 2, 1]);
 
     await vi.advanceTimersByTimeAsync(1);
     const clearing = await take('DELETE', '/mentions');
-    assert.deepEqual(clearing.body, { message_ids: [3, 2] });
-    assert.deepEqual(shownIds(), [1]);
-    assert.equal(sent('DELETE', '/mentions'), false);
+    assert.deepEqual(clearing.body, { message_ids: [4, 3] });
+    assert.deepEqual(shownIds(), [2, 1]);
 
     seen.stop();
     stop();
 });
 
-test('a mention scrolled past within a second stays in the bell', async () => {
+test('a mention scrolled past within a second stays in the bell, and one scrolled to without moving it clears', async () => {
+    const stop = chat.watchRemoteUpdates('mark');
+    chat.seedThread(target, thread([3, 2]) as never);
+    const scroller = thread$();
+    bubbles = [bubble(3, 200), bubble(2, -1780, 2000)];
+    const seen = watchSeenMentions(scroller, org);
+    seen.track([3, 2]);
+
+    await vi.advanceTimersByTimeAsync(600);
+    bubbles[0].top = 700;
+    bubbles[1].top = -1720;
+    scroller.dispatchEvent(new Event('scroll'));
+    await vi.advanceTimersByTimeAsync(999);
+    assert.equal(sent('DELETE', '/mentions'), false);
+
+    await vi.advanceTimersByTimeAsync(1);
+    assert.deepEqual((await take('DELETE', '/mentions')).body, { message_ids: [2] });
+    assert.deepEqual(shownIds(), [3]);
+
+    seen.stop();
+    stop();
+});
+
+test('a mention under the pinned banner, or behind the open pinned panel, is not seen', async () => {
+    const stop = chat.watchRemoteUpdates('mark');
+    chat.seedThread(target, thread([3, 2]) as never);
+    const scroller = thread$();
+    banner = { dataset: {}, getBoundingClientRect: () => ({ bottom: 36 }) };
+    bubbles = [bubble(3, 0, 40), bubble(2, 200)];
+    const seen = watchSeenMentions(scroller, org);
+
+    banner.dataset.state = 'open';
+    seen.track([3, 2]);
+    await vi.advanceTimersByTimeAsync(2000);
+    assert.equal(sent('DELETE', '/mentions'), false);
+
+    banner.dataset.state = 'closed';
+    seen.track([3, 2]);
+    await vi.advanceTimersByTimeAsync(1000);
+    assert.deepEqual((await take('DELETE', '/mentions')).body, { message_ids: [2] });
+
+    seen.stop();
+    stop();
+});
+
+test('a mention whose message was drawn again off screen is not cleared for where it used to be', async () => {
     const stop = chat.watchRemoteUpdates('mark');
     chat.seedThread(target, thread([3]) as never);
-    const seen = watchSeenMentions(scroller([3]), org);
+    const scroller = thread$();
+    bubbles = [bubble(3, 200)];
+    const seen = watchSeenMentions(scroller, org);
     seen.track([3]);
 
-    report([onScreen(3)]);
-    await vi.advanceTimersByTimeAsync(600);
-    report([onScreen(3, 0)]);
+    await vi.advanceTimersByTimeAsync(500);
+    bubbles[0].isConnected = false;
+    bubbles = [bubble(3, 900)];
+    seen.track([3]);
     await vi.advanceTimersByTimeAsync(2000);
 
     assert.equal(sent('DELETE', '/mentions'), false);
@@ -342,10 +388,10 @@ test('nothing clears while the window is in the background, and the second start
     const stop = chat.watchRemoteUpdates('mark');
     chat.seedThread(target, thread([3]) as never);
     isFocused = false;
-    const seen = watchSeenMentions(scroller([3]), org);
+    bubbles = [bubble(3, 200)];
+    const seen = watchSeenMentions(thread$(), org);
     seen.track([3]);
 
-    report([onScreen(3)]);
     await vi.advanceTimersByTimeAsync(2000);
     assert.equal(sent('DELETE', '/mentions'), false);
 
@@ -363,17 +409,18 @@ test('nothing clears while the window is in the background, and the second start
 test('a refused clear of mentions on screen is not sent again while they stay there', async () => {
     const stop = chat.watchRemoteUpdates('mark');
     chat.seedThread(target, thread([3]) as never);
-    const seen = watchSeenMentions(scroller([3]), org);
+    bubbles = [bubble(3, 200)];
+    const scroller = thread$();
+    const seen = watchSeenMentions(scroller, org);
     seen.track([3]);
 
-    report([onScreen(3)]);
     await vi.advanceTimersByTimeAsync(1000);
     (await take('DELETE', '/mentions')).settle(new Response(null, { status: 500 }));
     await vi.advanceTimersByTimeAsync(0);
     assert.deepEqual(shownIds(), [3]);
 
     seen.track([3]);
-    report([onScreen(3)]);
+    scroller.dispatchEvent(new Event('scroll'));
     await vi.advanceTimersByTimeAsync(2000);
     assert.equal(sent('DELETE', '/mentions'), false);
 
