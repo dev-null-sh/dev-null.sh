@@ -220,6 +220,8 @@ export function MultiLineChart<Key extends string>({
         (day) => markDate !== null && day.date >= markDate,
     );
     const firstTracked = found === -1 ? days.length : found;
+    const markInRightHalf =
+        markDate !== null && dateX(markDate) > AXIS_WIDTH + plotWidth / 2;
     const visible = (at: number, index: number) =>
         at === 0 || index >= firstTracked;
     const path = (key: Key, from: number, to: number) =>
@@ -233,7 +235,8 @@ export function MultiLineChart<Key extends string>({
                               Date.parse(slice[at - 1]?.date ?? '') ===
                               ONE_DAY;
 
-                      return `${follows ? 'L' : 'M'}${x(from + at).toFixed(1)},${y(day[key]).toFixed(1)}`;
+                      // A day with no neighbour draws nothing without a segment, so each stretch starts with an empty one...
+                      return `${follows ? 'L' : 'M'}${x(from + at).toFixed(1)},${y(day[key]).toFixed(1)}${follows ? '' : ' h0'}`;
                   })
                   .join(' ')
             : '';
@@ -334,21 +337,19 @@ export function MultiLineChart<Key extends string>({
                         markDate !== null && (
                             <g>
                                 <line
-                                    x1={x(firstTracked)}
-                                    x2={x(firstTracked)}
+                                    x1={dateX(markDate)}
+                                    x2={dateX(markDate)}
                                     y1={TOP_PADDING}
                                     y2={TOP_PADDING + plotHeight}
                                     className="stroke-muted-foreground"
                                     strokeDasharray="2 3"
                                 />
                                 <text
-                                    x={x(firstTracked)}
+                                    x={dateX(markDate)}
                                     y={TOP_PADDING + plotHeight - 6}
-                                    dx={firstTracked > last / 2 ? -6 : 6}
+                                    dx={markInRightHalf ? -6 : 6}
                                     textAnchor={
-                                        firstTracked > last / 2
-                                            ? 'end'
-                                            : 'start'
+                                        markInRightHalf ? 'end' : 'start'
                                     }
                                     className="fill-muted-foreground stroke-card font-mono text-[11px] [paint-order:stroke]"
                                     strokeWidth={3}
