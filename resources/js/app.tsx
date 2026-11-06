@@ -14,7 +14,6 @@ import { initializeCommitState } from '@/lib/commit-state';
 import { trackCurrentPage } from '@/lib/current-page';
 import { createEcho } from '@/lib/echo';
 import { trackFollowRequests } from '@/lib/follow-requests';
-import { startMobileApp } from '@/lib/mobile-app';
 import { pageTitle } from '@/lib/page-title';
 import { trackPrefetchedPages } from '@/lib/prefetched-pages';
 import {
@@ -69,7 +68,6 @@ void createInertiaApp({
     setup({ el, App, props }) {
         setServerTime(props.initialPage.props.now);
         trackFollowRequests(props.initialPage);
-        startMobileApp();
         registerServiceWorker(props.initialPage.version);
 
         const clock = browserClock();
