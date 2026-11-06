@@ -87,7 +87,7 @@ final readonly class UserAchievementsQuery
 
         $longestStreak = ($streaks ?? $this->streaks->get($user, $viewer))['longest'];
         $hasSshKey = $user->sshKeys()->exists();
-        $hasUnfollowedTom = $user->followers()->where('github_id', CreateTomFriendship::GITHUB_ID)->exists()
+        $hasUnfollowedTom = $user->befriended_by_tom_at !== null
             && ! $user->following()->where('github_id', CreateTomFriendship::GITHUB_ID)->exists();
         $isShellShocked = $user->created_at->lt('2026-10-21 14:00:00 UTC');
 
