@@ -66,6 +66,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
     const isGuest = auth.user === null;
     const isMessages = component.startsWith('conversation/');
     const hasComposer = component === 'log/show' && !isGuest;
+    const isCommitPage = component === 'commit/show';
     const isComposerInView = useIsComposerInView();
     const { deletedPage, markPageDeleted } = usePageDeletion();
     const compose = useCallback(() => {
@@ -80,6 +81,24 @@ export default function AppLayout({ children }: AppLayoutProps) {
             setIsComposing(true);
         }
     }, [isGuest]);
+    // Replies to the commit this page shows; once its reply is open, the textarea is focused instead.
+    const reply = useCallback(() => {
+        const card = document.querySelector('[data-commit][data-focused]');
+        const button = card?.querySelector<HTMLButtonElement>(
+            'button[data-test="reply-button"]',
+        );
+        const open = card?.querySelector<HTMLTextAreaElement>(
+            'textarea[id^="reply-"]',
+        );
+
+        if (button && button.getAttribute('aria-expanded') !== 'true') {
+            button.click();
+        } else if (open) {
+            open.focus();
+        } else {
+            compose();
+        }
+    }, [compose]);
 
     const runSearchAction = (action: SearchAction) => {
         if (action === 'go-live') {
@@ -168,7 +187,8 @@ export default function AppLayout({ children }: AppLayoutProps) {
                     {!isMessages && (
                         <MobileCommitButton
                             isHidden={hasComposer && isComposerInView}
-                            onCompose={compose}
+                            isReply={isCommitPage}
+                            onCompose={isCommitPage ? reply : compose}
                         />
                     )}
                     {!isMessages &&
