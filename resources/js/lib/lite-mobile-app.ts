@@ -1,3 +1,4 @@
+import type { Page, SharedPageProps } from '@inertiajs/core';
 import { router } from '@inertiajs/react';
 import { useSyncExternalStore } from 'react';
 import { signIn } from '@/lib/auth';
@@ -34,9 +35,14 @@ interface TabsPlugin {
     ): Promise<Listener>;
 }
 
+interface SessionPlugin {
+    /** Asks for a new web session. The app decides what happens, and the page never sees the answer. */
+    renew(): Promise<void>;
+}
+
 interface Capacitor {
     isNativePlatform(): boolean;
-    Plugins: { Tabs?: TabsPlugin };
+    Plugins: { Tabs?: TabsPlugin; Session?: SessionPlugin };
 }
 
 declare global {
@@ -88,7 +94,7 @@ let isStarted = false;
  * Follows the taps on the app's tabs: a tab is a visit, and tapping the tab already shown scrolls back to its top, as
  * in any iOS app.
  */
-export function startLiteMobileApp(): void {
+export function startLiteMobileApp(initialPage: Page<SharedPageProps>): void {
     const tabs = tabsPlugin();
 
     if (tabs === null || isStarted) {
@@ -145,6 +151,46 @@ export function startLiteMobileApp(): void {
     });
 
     followTopColor(tabs);
+    renewExpiredSessions(initialPage);
+}
+
+/**
+ * The app makes the web view's sessions, so one that ended is the app's to replace: a page shown signed out, or a
+ * request refused for its session or its CSRF token. It reloads the page afterwards.
+ */
+function renewExpiredSessions(initialPage: Page<SharedPageProps>): void {
+    const session = window.Capacitor?.Plugins.Session;
+
+    if (session === undefined) {
+        return;
+    }
+
+    const renewIfSignedOut = (page: Page<SharedPageProps>) => {
+        if (page.props.auth.user === null) {
+            void session.renew();
+        }
+    };
+    const renewIfRefused = (status: number) => {
+        if (status === 401 || status === 419) {
+            void session.renew();
+        }
+    };
+    const fetchFromPage = window.fetch.bind(window);
+
+    renewIfSignedOut(initialPage);
+    router.on('navigate', (event) =>
+        renewIfSignedOut(event.detail.page as Page<SharedPageProps>),
+    );
+    router.on('httpException', (event) =>
+        renewIfRefused(event.detail.response.status),
+    );
+    window.fetch = async (...request) => {
+        const response = await fetchFromPage(...request);
+
+        renewIfRefused(response.status);
+
+        return response;
+    };
 }
 
 /**
