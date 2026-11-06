@@ -224,22 +224,26 @@ export function MultiLineChart<Key extends string>({
         markDate !== null && dateX(markDate) > AXIS_WIDTH + plotWidth / 2;
     const visible = (at: number, index: number) =>
         at === 0 || index >= firstTracked;
+    const followsDayBefore = (index: number) =>
+        Date.parse(days[index]?.date ?? '') -
+            Date.parse(days[index - 1]?.date ?? '') ===
+        ONE_DAY;
     const path = (key: Key, from: number, to: number) =>
         to > from
             ? days
                   .slice(from, to + 1)
-                  .map((day, at, slice) => {
-                      const follows =
-                          at > 0 &&
-                          Date.parse(day.date) -
-                              Date.parse(slice[at - 1]?.date ?? '') ===
-                              ONE_DAY;
-
-                      // A day with no neighbour draws nothing without a segment, so each stretch starts with an empty one...
-                      return `${follows ? 'L' : 'M'}${x(from + at).toFixed(1)},${y(day[key]).toFixed(1)}${follows ? '' : ' h0'}`;
-                  })
+                  .map(
+                      (day, at) =>
+                          `${at > 0 && followsDayBefore(from + at) ? 'L' : 'M'}${x(from + at).toFixed(1)},${y(day[key]).toFixed(1)}`,
+                  )
                   .join(' ')
             : '';
+    // A line draws nothing for a day with no neighbour, so it gets a point. The last day has its own...
+    const isIsolated = (at: number, index: number) =>
+        visible(at, index) &&
+        index !== last &&
+        !(followsDayBefore(index) && visible(at, index - 1)) &&
+        !followsDayBefore(index + 1);
     const endLabels = series
         .filter((_, at) => visible(at, last))
         .map((line) => ({ ...line, y: y(days[last]?.[line.key] ?? 0) }))
@@ -385,6 +389,22 @@ export function MultiLineChart<Key extends string>({
                                     d={path(line.key, lastComplete, last)}
                                     strokeDasharray="4 4"
                                 />
+                            )}
+                            {days.map(
+                                (day, index) =>
+                                    isIsolated(at, index) && (
+                                        <circle
+                                            key={day.date}
+                                            cx={x(index)}
+                                            cy={y(day[line.key])}
+                                            r={3}
+                                            stroke="none"
+                                            opacity={
+                                                index < firstTracked ? 0.45 : 1
+                                            }
+                                            style={{ fill: line.color }}
+                                        />
+                                    ),
                             )}
                         </g>
                     ))}
