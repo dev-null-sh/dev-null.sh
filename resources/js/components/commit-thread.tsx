@@ -1418,7 +1418,7 @@ function ReplyItem({
                         <ReplyParentLabel
                             parent={parent}
                             depth={depth}
-                            isQuote={false}
+                            isQuote={reply.parent_id !== parent.id}
                         />
                         <ThreadActions thread={thread} />
                     </div>
