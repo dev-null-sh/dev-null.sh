@@ -21,7 +21,7 @@ const APPS: [RegExp, string][] = [
  * add `wv` on Android. Apps that open links in Safari's own view look like Safari and aren't told apart.
  */
 export function inAppBrowser(userAgent: string): InAppBrowser | null {
-    // Our own web view app has no other browser to send people to
+    // Our own lite mobile app has no other browser to send people to
     if (/DevNullWebView\//.test(userAgent)) {
         return null;
     }

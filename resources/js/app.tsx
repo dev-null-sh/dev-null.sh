@@ -15,6 +15,7 @@ import { initializeCommitState } from '@/lib/commit-state';
 import { trackCurrentPage } from '@/lib/current-page';
 import { createEcho } from '@/lib/echo';
 import { trackFollowRequests } from '@/lib/follow-requests';
+import { startLiteMobileApp } from '@/lib/lite-mobile-app';
 import { pageTitle } from '@/lib/page-title';
 import { trackPrefetchedPages } from '@/lib/prefetched-pages';
 import {
@@ -26,7 +27,6 @@ import {
 import { registerServiceWorker } from '@/lib/service-worker';
 import { browserClock, clockOf, setReaderClock } from '@/lib/utils';
 import { trackVisualViewport } from '@/lib/visual-viewport';
-import { startWebViewApp } from '@/lib/webview-app';
 import '../css/app.css';
 
 trackCurrentPage();
@@ -70,7 +70,7 @@ void createInertiaApp({
     setup({ el, App, props }) {
         setServerTime(props.initialPage.props.now);
         trackFollowRequests(props.initialPage);
-        startWebViewApp();
+        startLiteMobileApp();
         registerServiceWorker(props.initialPage.version);
 
         const clock = browserClock();

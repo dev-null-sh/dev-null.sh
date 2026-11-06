@@ -1,4 +1,4 @@
-export interface WebViewAppTab {
+export interface LiteMobileAppTab {
     id: string;
     title: string;
     /** An SF Symbol, or `commit` for the Log's icon. */
@@ -7,8 +7,8 @@ export interface WebViewAppTab {
     badge?: number;
 }
 
-export interface WebViewAppTabs {
-    tabs: WebViewAppTab[];
+export interface LiteMobileAppTabs {
+    tabs: LiteMobileAppTab[];
     selected: string | null;
     visible: boolean;
     appearance: 'light' | 'dark';
@@ -27,11 +27,11 @@ const TABS: Record<string, { icon: string; paths: RegExp }> = {
 };
 
 /**
- * What the web view app's tab bar shows on a page. It only shows in the sections of its tabs: elsewhere, a profile, a
+ * What the lite mobile app's tab bar shows on a page. It only shows in the sections of its tabs: elsewhere, a profile, a
  * commit or the settings show over it, as iOS screens pushed over a tab do, and the edge swipe goes back. It also hides
  * under a modal dialog, as an iOS sheet covers the tab bar, or it would hide the dialog's last buttons.
  */
-export function webViewAppTabs(
+export function liteMobileAppTabs(
     items: {
         title: string;
         url: string;
@@ -43,7 +43,7 @@ export function webViewAppTabs(
         tint: string | null;
         isModalOpen: boolean;
     },
-): WebViewAppTabs {
+): LiteMobileAppTabs {
     const tabs = items.filter((item) => Object.hasOwn(TABS, item.title));
     const selected = tabs.find((item) => TABS[item.title].paths.test(path));
 
@@ -66,7 +66,7 @@ export function webViewAppTabs(
  * The page of the site a tab leads to, or null if it leaves the site. The app checks too, but it parses URLs differently
  * and the site is the one visiting them: `/.//example.com` is a path to the app and another site to the browser.
  */
-export function webViewAppTabTarget(url: string, page: string): URL | null {
+export function liteMobileAppTabTarget(url: string, page: string): URL | null {
     let target: URL;
 
     try {

@@ -1,15 +1,15 @@
 import { router } from '@inertiajs/react';
 import { useSyncExternalStore } from 'react';
 import { signIn } from '@/lib/auth';
+import type { LiteMobileAppTabs } from '@/lib/lite-mobile-app-tabs';
+import { liteMobileAppTabTarget } from '@/lib/lite-mobile-app-tabs';
 import { scrollLogToTop } from '@/lib/log-scroll';
-import type { WebViewAppTabs } from '@/lib/webview-app-tabs';
-import { webViewAppTabTarget } from '@/lib/webview-app-tabs';
 import { login } from '@/routes';
 
 /**
- * The bridge to the web view app in apps/mobile: a Capacitor shell whose web view loads the site, with an iOS tab bar.
+ * The bridge to the lite mobile app in apps/mobile: a Capacitor shell whose web view loads the site, with an iOS tab bar.
  * The app injects its plugins into the page, so the site bundles none of them, only the types of what it calls. The
- * server tells the app's web view apart by its user agent (`isWebViewApp`). Not the NativePHP app, see `mobile-apps.ts`.
+ * server tells the app's web view apart by its user agent (`isLiteMobileApp`). Not the NativePHP app, see `mobile-apps.ts`.
  */
 
 interface Listener {
@@ -17,7 +17,7 @@ interface Listener {
 }
 
 interface TabsPlugin {
-    set(tabs: WebViewAppTabs): Promise<void>;
+    set(tabs: LiteMobileAppTabs): Promise<void>;
     /** The color under the status bar, as `#rrggbb`. */
     setTopColor(options: { color: string }): Promise<void>;
     addListener(
@@ -51,10 +51,10 @@ function tabsPlugin(): TabsPlugin | null {
         : null;
 }
 
-let shownTabs: WebViewAppTabs | null = null;
+let shownTabs: LiteMobileAppTabs | null = null;
 let pendingHide: number | null = null;
 
-export function setWebViewAppTabs(tabs: WebViewAppTabs): void {
+export function setLiteMobileAppTabs(tabs: LiteMobileAppTabs): void {
     if (pendingHide !== null) {
         cancelAnimationFrame(pendingHide);
         pendingHide = null;
@@ -68,7 +68,7 @@ export function setWebViewAppTabs(tabs: WebViewAppTabs): void {
  * Pages without the nav, such as the onboarding, hide the tab bar: the same tabs are sent, hidden, so the app keeps
  * them for the next page. A frame later, so a page that mounts the nav again doesn't make the bar blink.
  */
-export function hideWebViewAppTabs(): void {
+export function hideLiteMobileAppTabs(): void {
     if (shownTabs === null || pendingHide !== null) {
         return;
     }
@@ -77,7 +77,7 @@ export function hideWebViewAppTabs(): void {
         pendingHide = null;
 
         if (shownTabs !== null) {
-            setWebViewAppTabs({ ...shownTabs, visible: false });
+            setLiteMobileAppTabs({ ...shownTabs, visible: false });
         }
     });
 }
@@ -88,7 +88,7 @@ let isStarted = false;
  * Follows the taps on the app's tabs: a tab is a visit, and tapping the tab already shown scrolls back to its top, as
  * in any iOS app.
  */
-export function startWebViewApp(): void {
+export function startLiteMobileApp(): void {
     const tabs = tabsPlugin();
 
     if (tabs === null || isStarted) {
@@ -105,7 +105,7 @@ export function startWebViewApp(): void {
     };
 
     void tabs.addListener('select', ({ id, url, reselected }) => {
-        const target = webViewAppTabTarget(url, window.location.href);
+        const target = liteMobileAppTabTarget(url, window.location.href);
 
         if (target === null) {
             showCurrentTab();

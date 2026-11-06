@@ -18,7 +18,7 @@ await test('tells the app whose browser shows the page, when it names itself', (
     assert.deepEqual(inAppBrowser(`${SAFARI} LinkedInApp/9.30`), { app: 'LinkedIn', platform: 'ios' });
 });
 
-await test('does not send people away from our own web view app', () => {
+await test('does not send people away from our own lite mobile app', () => {
     assert.equal(inAppBrowser(`${IOS_WEB_VIEW} DevNullWebView/1.0`), null);
 });
 

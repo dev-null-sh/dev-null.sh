@@ -48,16 +48,16 @@ import { useCurrentUrl } from '@/hooks/use-current-url';
 import { useMediaQuery } from '@/hooks/use-media-query';
 import { useNavOpen } from '@/hooks/use-nav-open';
 import { useKeyLabels } from '@/lib/keyboard';
-import { scrollLogToTop } from '@/lib/log-scroll';
-import { browserTimeZone, cn, toUrl } from '@/lib/utils';
 import {
-    hideWebViewAppTabs,
-    setWebViewAppTabs,
+    hideLiteMobileAppTabs,
+    setLiteMobileAppTabs,
     useDocumentTheme,
     useIsModalOpen,
-} from '@/lib/webview-app';
-import type { WebViewAppTabs as WebViewAppTabsState } from '@/lib/webview-app-tabs';
-import { webViewAppTabs } from '@/lib/webview-app-tabs';
+} from '@/lib/lite-mobile-app';
+import type { LiteMobileAppTabs as LiteMobileAppTabsState } from '@/lib/lite-mobile-app-tabs';
+import { liteMobileAppTabs } from '@/lib/lite-mobile-app-tabs';
+import { scrollLogToTop } from '@/lib/log-scroll';
+import { browserTimeZone, cn, toUrl } from '@/lib/utils';
 import { home, login } from '@/routes';
 import { show } from '@/routes/user';
 import { edit } from '@/routes/user-profile';
@@ -531,7 +531,7 @@ export function MobileCommitButton({
             title="Write a commit"
             className={cn(
                 'absolute right-4 bottom-full mb-4 size-14 rounded-lg shadow-lg transition-[opacity,translate] duration-200 [view-transition-name:mobile-commit-button] md:hidden',
-                // In the web view app, while reading down a page shrinks its tab bar
+                // In the lite mobile app, while reading down a page shrinks its tab bar
                 '[:root[data-tab-bar-collapsed]_&]:pointer-events-none [:root[data-tab-bar-collapsed]_&]:translate-y-[calc(100%+3rem)] [:root[data-tab-bar-collapsed]_&]:opacity-0',
                 { 'pointer-events-none opacity-0': isHidden },
             )}
@@ -546,7 +546,7 @@ export function MobileCommitButton({
  * Shares its real height, safe area included, as `--mobile-nav-height`, so full-screen pages can end right above it.
  */
 export function MobileNav({ children }: { children?: ReactNode }) {
-    const { auth, isWebViewApp } = usePage().props;
+    const { auth, isLiteMobileApp } = usePage().props;
     const timeZone = auth.user?.timezone ?? browserTimeZone();
     const {
         changelog,
@@ -595,9 +595,9 @@ export function MobileNav({ children }: { children?: ReactNode }) {
         };
     }, []);
 
-    // The web view app draws the tabs itself. The nav keeps the height of its tab bar, which the app adds to the safe
+    // The lite mobile app draws the tabs itself. The nav keeps the height of its tab bar, which the app adds to the safe
     // area, so the commit button floats above the bar and full-screen pages end right above it.
-    if (isWebViewApp) {
+    if (isLiteMobileApp) {
         return (
             <nav
                 ref={nav}
@@ -605,7 +605,7 @@ export function MobileNav({ children }: { children?: ReactNode }) {
                 className="pointer-events-none fixed inset-x-0 bottom-0 z-20 pb-[env(safe-area-inset-bottom)] *:pointer-events-auto md:hidden [:root[data-keyboard-open]_&]:hidden"
             >
                 {children}
-                <WebViewAppNavTabs items={allItems} />
+                <LiteMobileAppNavTabs items={allItems} />
             </nav>
         );
     }
@@ -729,9 +729,9 @@ export function MobileNav({ children }: { children?: ReactNode }) {
 }
 
 /**
- * Hands the main items of the navigation to the web view app's tab bar.
+ * Hands the main items of the navigation to the lite mobile app's tab bar.
  */
-function WebViewAppNavTabs({
+function LiteMobileAppNavTabs({
     items,
 }: {
     items: (NavItem & { isActive: boolean })[];
@@ -740,7 +740,7 @@ function WebViewAppNavTabs({
     const [appearance, tint] = useDocumentTheme().split(' ');
     const isModalOpen = useIsModalOpen();
     const key = JSON.stringify(
-        webViewAppTabs(
+        liteMobileAppTabs(
             items.map((item) => ({
                 title: item.title,
                 url: toUrl(item.href),
@@ -756,10 +756,10 @@ function WebViewAppNavTabs({
     );
 
     useEffect(() => {
-        setWebViewAppTabs(JSON.parse(key) as WebViewAppTabsState);
+        setLiteMobileAppTabs(JSON.parse(key) as LiteMobileAppTabsState);
     }, [key]);
 
-    useEffect(() => hideWebViewAppTabs, []);
+    useEffect(() => hideLiteMobileAppTabs, []);
 
     return null;
 }
