@@ -358,7 +358,7 @@ Route::get('search/commits', [CommitSearchController::class, 'index'])
 
 Route::get('headlines/{headline}', [HeadlineController::class, 'show'])
     ->whereUuid('headline')
-    ->middleware(['auth', 'throttle:search'])
+    ->middleware('auth')
     ->name('headline.show');
 
 Route::middleware('auth')->group(function (): void {
