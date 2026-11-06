@@ -2,7 +2,7 @@
 
 The iOS app whose web view loads dev-null.sh, in a Capacitor project. A site deploy updates it without an App Store release. Only its native parts need a release: the tab bar, and whatever plugins join it.
 
-The name "lite" only exists on the App Store: the home screen and the app itself say `/dev/null`, and the code says "web view" (`sh.devnull.app`, `DevNullWebView/`), so that the store name can change alone. It is not the NativePHP app, which the site calls the mobile app.
+The name "lite" is only on the App Store and in the site's code (`isLiteMobileApp`): the home screen and the app itself say `/dev/null`, and the identifiers that are hard to change stay neutral (`sh.devnull.app`, `DevNullWebView/`), so that the store name can change alone. It is not the NativePHP app, which the site calls the mobile app.
 
 ## Run it
 
@@ -20,7 +20,7 @@ Run the `App` scheme on a simulator from Xcode. Without `CAP_SERVER_URL`, the ap
 
 - `capacitor.config.ts`: the site's URL, and the user agent token that tells the site it's in the app. The token is for the UI only: anything can send it.
 - `ios/App/App/MainViewController.swift`: a native tab bar around the one web view, which moves to the selected tab.
-- `ios/App/App/TabsPlugin.swift`: the bridge the site drives the tab bar with, from `resources/js/lib/webview-app.ts`. Everything crossing it is untrusted, because a script injected in the site reaches it too.
+- `ios/App/App/TabsPlugin.swift`: the bridge the site drives the tab bar with, from `resources/js/lib/lite-mobile-app.ts`. Everything crossing it is untrusted, because a script injected in the site reaches it too.
 - `www/offline.html`: shown when the site can't load. A copy of the site's `public/offline.html` with absolute links, to keep in sync by hand.
 - `assets/`: icon and splash sources, for `bun run assets`.
 

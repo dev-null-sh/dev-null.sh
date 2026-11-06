@@ -2,7 +2,7 @@ import UIKit
 import Capacitor
 
 /// What the site asks the tab bar to show, see `Tabs.set()` in
-/// resources/js/lib/webview-app.ts on the site.
+/// resources/js/lib/lite-mobile-app.ts on the site.
 struct TabsState {
     struct Tab: Equatable {
         let id: String
