@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Dto\MobileAuthorization;
 use App\Enums\ActiveDayApp;
 use App\Models\Device;
 use Illuminate\Http\Request;
@@ -34,7 +35,7 @@ it('tells the app of an api request', function (Request $request, ActiveDayApp $
 })->with([
     'iOS app' => fn (): array => [apiRequest('ios:com.nativephp.devnull'), ActiveDayApp::NativeMobile],
     'Android app' => fn (): array => [apiRequest('android:com.nativephp.devnull'), ActiveDayApp::NativeMobile],
-    'lite mobile app' => fn (): array => [apiRequest('ios:sh.devnull.app'), ActiveDayApp::LiteMobile],
+    'lite mobile app' => fn (): array => [apiRequest(MobileAuthorization::LiteMobileAppId), ActiveDayApp::LiteMobile],
     'another client saying it is the lite mobile app, as only web views say it' => fn (): array => [apiRequest(userAgent: 'DevNullLite/1.0.0'), ActiveDayApp::Other],
     'Mac app' => fn (): array => [apiRequest(userAgent: 'DevNull-Mac/1.0'), ActiveDayApp::Mac],
     'Mac app with its id' => fn (): array => [apiRequest('macos:sh.dev-null.mac', 'DevNull-Mac/1.0'), ActiveDayApp::Mac],

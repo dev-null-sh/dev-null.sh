@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Actions\UpdateUserLastSeenAt;
+use App\Dto\MobileAuthorization;
 use App\Enums\ActiveDayApp;
 use App\Enums\Log;
 use App\Models\Commit;
@@ -117,7 +118,7 @@ it('records the lite mobile app for its web view and for its device', function (
     $seenOnLiteMobileApp = fn (User $user): ?bool => DB::table('user_active_days')->where('user_id', $user->id)->value('lite_mobile_app');
     $other = User::factory()->create();
     $keyPair = apiKeyPairFor($other);
-    Device::query()->where('user_id', $other->id)->update(['app_id' => 'ios:sh.devnull.app']);
+    Device::query()->where('user_id', $other->id)->update(['app_id' => MobileAuthorization::LiteMobileAppId]);
 
     $this->actingAs($this->user)->withHeader('User-Agent', 'Mobile/15E148 DevNullLite/1.0.0')->get(route('log.show', Log::Following))->assertOk();
     signedApiRequest($keyPair, 'GET', route('api-current-user.show'))->assertOk();

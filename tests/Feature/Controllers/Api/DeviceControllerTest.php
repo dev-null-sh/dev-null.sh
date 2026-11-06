@@ -67,7 +67,7 @@ it('records the app that signs in, told by the id it was approved with', functio
 
     expect(array_keys(array_filter($day)))->toBe([$column]);
 })->with([
-    'lite mobile app' => ['ios:sh.devnull.app', 'lite_mobile_app'],
+    'lite mobile app' => [MobileAuthorization::LiteMobileAppId, 'lite_mobile_app'],
     'NativePHP app' => ['ios:com.nativephp.devnull', 'native_mobile_app'],
     'app without an id' => [null, 'other_app'],
 ]);
