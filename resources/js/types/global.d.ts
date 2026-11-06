@@ -31,6 +31,7 @@ declare module '@inertiajs/core' {
             /** For guests: how many developers are here, rounded down (12,000). */
             developersCount: number | null;
             hasUnmoderatedCommits: boolean;
+            isLiteMobileApp: boolean;
             sidebarOpen: boolean;
             showsWhoToFollow: boolean;
             dimsLanes: boolean;

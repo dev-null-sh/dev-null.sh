@@ -102,6 +102,16 @@ it('shares how many developers are here with guests only', function (): void {
     expect(new HandleInertiaRequests()->share($request)['developersCount']())->toBeNull();
 });
 
+it('tells the lite mobile app from its user agent', function (string $userAgent, bool $isLiteMobileApp): void {
+    $request = Request::create('/', 'GET', server: ['HTTP_USER_AGENT' => $userAgent]);
+
+    expect(new HandleInertiaRequests()->share($request)['isLiteMobileApp'])->toBe($isLiteMobileApp);
+})->with([
+    'the lite mobile app' => ['Mozilla/5.0 (iPhone) AppleWebKit/605.1.15 Mobile/15E148 DevNullLite/1.0', true],
+    'Safari' => ['Mozilla/5.0 (iPhone) AppleWebKit/605.1.15 Version/18.6 Mobile/15E148 Safari/604.1', false],
+    'no user agent' => ['', false],
+]);
+
 it('defaults sidebarOpen to true when no cookie', function (): void {
     $middleware = new HandleInertiaRequests();
 
