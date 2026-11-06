@@ -1,0 +1,21 @@
+{
+    "name": "devnull-mobile",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "sync": "cap sync ios",
+        "ios": "cap open ios",
+        "assets": "capacitor-assets generate --ios --iconBackgroundColor '#111112' --iconBackgroundColorDark '#111112' --splashBackgroundColor '#111112' --splashBackgroundColorDark '#111112'",
+        "testflight": "./scripts/testflight.sh"
+    },
+    "dependencies": {
+        "@capacitor/core": "^8.6.0",
+        "@capacitor/ios": "^8.6.0"
+    },
+    "devDependencies": {
+        "@capacitor/assets": "^4.0.0",
+        "@capacitor/cli": "^8.6.0",
+        "@types/node": "^26.6.6",
+        "typescript": "^7.0.2"
+    }
+}

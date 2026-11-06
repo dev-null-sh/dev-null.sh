@@ -1,0 +1,6 @@
+node_modules/
+build/
+# Signing keys never go in this public repository
+*.p8
+*.p12
+*.mobileprovision
