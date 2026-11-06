@@ -13,8 +13,9 @@ beforeEach(function (): void {
 
 it('shows the product metrics of all time to admins', function (): void {
     $admin = User::factory()->create(['handle' => 'admin', 'created_at' => '2026-10-16 09:00:00']);
-    User::factory()->create(['created_at' => '2026-10-17 09:00:00', 'last_seen_at' => '2026-10-19']);
+    $seen = User::factory()->create(['created_at' => '2026-10-17 09:00:00', 'last_seen_at' => '2026-10-19']);
     DB::table('active_user_counts')->insert(['seen_at' => '2026-10-17', 'count' => 7]);
+    DB::table('user_active_days')->insert(['user_id' => $seen->id, 'seen_at' => '2026-10-19', 'web_app' => true, 'mac_app' => true]);
 
     $this->actingAs($admin)
         ->get(route('product-metrics.show', ['all_time' => 1]))
@@ -26,6 +27,7 @@ it('shows the product metrics of all time to admins', function (): void {
             ->where('responses.commits', 0)
             ->where('newcomerFollows.newcomers', 2)
             ->where('activeUserCounts', [['date' => '2026-10-17', 'count' => 7, 'regular' => 6, 'back' => 0, 'lost' => 0, 'lost_complete' => false, 'backfilled' => true, 'activated' => 0, 'not_activated' => 1, 'pending' => 0]])
+            ->where('appUsage', ['days' => [['date' => '2026-10-19', 'web_app' => 1, 'native_mobile_app' => 0, 'mac_app' => 1, 'other_app' => 0]], 'recorded_since' => '2026-10-19'])
             ->missing('funnel')
             ->loadDeferredProps(fn ($reload) => $reload
                 ->where('funnel.signups', 2)

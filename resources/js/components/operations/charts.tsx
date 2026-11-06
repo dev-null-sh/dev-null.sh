@@ -164,6 +164,326 @@ export function Sparkline({
     );
 }
 
+const END_LABEL_WIDTH = 48;
+const END_LABEL_GAP = 13;
+
+/**
+ * Several daily lines on one scale, each named at its end, and hovering a day lists them all. The day still counting is
+ * dashed. Other series than the first only start at `markDate`, marked by a rule: before it, only the first has data,
+ * and it is faded, as it stands for all of them. Without a `markDate` yet, the first is faded all along.
+ */
+export function MultiLineChart<Key extends string>({
+    days,
+    series,
+    markDate,
+    partialDate,
+    height = 220,
+    label,
+    unit,
+}: {
+    days: ({ date: string } & Record<Key, number>)[];
+    series: readonly { key: Key; label: string; color: string }[];
+    markDate: string | null;
+    partialDate: string;
+    height?: number;
+    label: string;
+    unit: string;
+}) {
+    const [ref, width] = useWidth<HTMLDivElement>();
+    const [hovered, setHovered] = useState<number | null>(null);
+    const ticks = niceTicks(
+        Math.max(
+            1,
+            ...days.flatMap((day) => series.map((line) => day[line.key])),
+        ),
+    );
+    const top = ticks.at(-1) ?? 1;
+    const plotWidth = Math.max(0, width - AXIS_WIDTH - END_LABEL_WIDTH);
+    const plotHeight = height - X_AXIS_HEIGHT - TOP_PADDING;
+    const x = (index: number) =>
+        AXIS_WIDTH +
+        (days.length > 1
+            ? (index / (days.length - 1)) * plotWidth
+            : plotWidth / 2);
+    const y = (value: number) =>
+        TOP_PADDING + plotHeight - (value / top) * plotHeight;
+    const last = days.length - 1;
+    const lastComplete = days.at(-1)?.date === partialDate ? last - 1 : last;
+    const found = days.findIndex(
+        (day) => markDate !== null && day.date >= markDate,
+    );
+    const firstTracked = found === -1 ? days.length : found;
+    const visible = (at: number, index: number) =>
+        at === 0 || index >= firstTracked;
+    const path = (key: Key, from: number, to: number) =>
+        to > from
+            ? days
+                  .slice(from, to + 1)
+                  .map(
+                      (day, at) =>
+                          `${at === 0 ? 'M' : 'L'}${x(from + at).toFixed(1)},${y(day[key]).toFixed(1)}`,
+                  )
+                  .join(' ')
+            : '';
+    const endLabels = series
+        .filter((_, at) => visible(at, last))
+        .map((line) => ({ ...line, y: y(days[last]?.[line.key] ?? 0) }))
+        .toSorted((a, b) => b.y - a.y)
+        .reduce<{ key: Key; label: string; y: number }[]>(
+            (placed, line) => [
+                ...placed,
+                {
+                    key: line.key,
+                    label: line.label,
+                    y: Math.min(
+                        line.y,
+                        (placed.at(-1)?.y ?? Infinity) - END_LABEL_GAP,
+                    ),
+                },
+            ],
+            [],
+        );
+    const labelEvery = Math.max(
+        1,
+        Math.ceil(days.length / Math.max(2, Math.floor(plotWidth / 72))),
+    );
+    const active = hovered === null ? null : days[hovered];
+
+    const onPointerMove = (event: PointerEvent<SVGSVGElement>) => {
+        const box = event.currentTarget.getBoundingClientRect();
+        const offset = event.clientX - box.left - AXIS_WIDTH;
+        const index = Math.round((offset / Math.max(1, plotWidth)) * last);
+
+        setHovered(Math.min(last, Math.max(0, index)));
+    };
+
+    return (
+        <figure className="relative" ref={ref}>
+            {width > 0 && days.length > 0 && (
+                <svg
+                    role="img"
+                    aria-label={label}
+                    width={width}
+                    height={height}
+                    className="block touch-pan-y overflow-visible"
+                    onPointerMove={onPointerMove}
+                    onPointerLeave={() => setHovered(null)}
+                >
+                    {ticks.map((tick) => (
+                        <g key={tick}>
+                            <line
+                                x1={AXIS_WIDTH}
+                                x2={AXIS_WIDTH + plotWidth}
+                                y1={y(tick)}
+                                y2={y(tick)}
+                                className="stroke-border"
+                            />
+                            <text
+                                x={AXIS_WIDTH - 8}
+                                y={y(tick)}
+                                dy="0.32em"
+                                textAnchor="end"
+                                className="fill-muted-foreground font-mono text-[11px] tabular-nums"
+                            >
+                                {compactNumber(tick)}
+                            </text>
+                        </g>
+                    ))}
+                    {days.map(
+                        (day, index) =>
+                            (index === last ||
+                                (index % labelEvery === 0 &&
+                                    last - index >= labelEvery / 2)) && (
+                                <text
+                                    key={day.date}
+                                    x={x(index)}
+                                    y={height - 4}
+                                    textAnchor="middle"
+                                    className="fill-muted-foreground font-mono text-[11px]"
+                                >
+                                    {shortDate(day.date)}
+                                </text>
+                            ),
+                    )}
+                    {firstTracked > 0 &&
+                        firstTracked < days.length &&
+                        markDate !== null && (
+                            <g>
+                                <line
+                                    x1={x(firstTracked)}
+                                    x2={x(firstTracked)}
+                                    y1={TOP_PADDING}
+                                    y2={TOP_PADDING + plotHeight}
+                                    className="stroke-muted-foreground"
+                                    strokeDasharray="2 3"
+                                />
+                                <text
+                                    x={x(firstTracked)}
+                                    y={TOP_PADDING + plotHeight - 6}
+                                    dx={firstTracked > last / 2 ? -6 : 6}
+                                    textAnchor={
+                                        firstTracked > last / 2
+                                            ? 'end'
+                                            : 'start'
+                                    }
+                                    className="fill-muted-foreground stroke-card font-mono text-[11px] [paint-order:stroke]"
+                                    strokeWidth={3}
+                                >
+                                    tracked from {shortDate(markDate)}
+                                </text>
+                            </g>
+                        )}
+                    {series.map((line, at) => (
+                        <g
+                            key={line.key}
+                            fill="none"
+                            style={{ stroke: line.color }}
+                            strokeWidth={2}
+                            strokeLinejoin="round"
+                            strokeLinecap="round"
+                        >
+                            {at === 0 && (
+                                <path
+                                    d={path(
+                                        line.key,
+                                        0,
+                                        Math.min(firstTracked, last),
+                                    )}
+                                    opacity={0.45}
+                                />
+                            )}
+                            <path
+                                d={path(line.key, firstTracked, lastComplete)}
+                            />
+                            {lastComplete >= firstTracked && (
+                                <path
+                                    d={path(line.key, lastComplete, last)}
+                                    strokeDasharray="4 4"
+                                />
+                            )}
+                        </g>
+                    ))}
+                    {endLabels.map((line) => (
+                        <text
+                            key={line.key}
+                            x={x(last) + 8}
+                            y={line.y}
+                            dy="0.32em"
+                            className="fill-muted-foreground font-mono text-[11px]"
+                        >
+                            {line.label}
+                        </text>
+                    ))}
+                    {series.map(
+                        (line, at) =>
+                            visible(at, last) && (
+                                <circle
+                                    key={line.key}
+                                    cx={x(last)}
+                                    cy={y(days[last]?.[line.key] ?? 0)}
+                                    r={3}
+                                    style={{ fill: line.color }}
+                                />
+                            ),
+                    )}
+                    {active && hovered !== null && (
+                        <g>
+                            <line
+                                x1={x(hovered)}
+                                x2={x(hovered)}
+                                y1={TOP_PADDING}
+                                y2={TOP_PADDING + plotHeight}
+                                className="stroke-muted-foreground/50"
+                            />
+                            {series.map(
+                                (line, at) =>
+                                    visible(at, hovered) && (
+                                        <circle
+                                            key={line.key}
+                                            cx={x(hovered)}
+                                            cy={y(active[line.key])}
+                                            r={4.5}
+                                            strokeWidth={2}
+                                            className="stroke-card"
+                                            style={{ fill: line.color }}
+                                        />
+                                    ),
+                            )}
+                        </g>
+                    )}
+                </svg>
+            )}
+            {(width === 0 || days.length === 0) && (
+                <div
+                    style={{ height }}
+                    className="flex items-center justify-center font-mono text-[13px] text-muted-foreground"
+                >
+                    {width > 0 && 'nothing to draw yet'}
+                </div>
+            )}
+            {active && hovered !== null && (
+                <Tooltip x={x(hovered)} width={width}>
+                    <p className="font-medium">
+                        {shortDate(active.date)}
+                        {active.date === partialDate && (
+                            <span className="font-normal opacity-70">
+                                {' '}
+                                · so far
+                            </span>
+                        )}
+                    </p>
+                    {series.map(
+                        (line, at) =>
+                            visible(at, hovered) && (
+                                <p
+                                    key={line.key}
+                                    className="flex items-center gap-1.5 font-mono tabular-nums"
+                                >
+                                    <span
+                                        aria-hidden
+                                        className="size-2 rounded-sm"
+                                        style={{ backgroundColor: line.color }}
+                                    />
+                                    {compactNumber(active[line.key])}{' '}
+                                    {line.label}
+                                </p>
+                            ),
+                    )}
+                </Tooltip>
+            )}
+            <div className="sr-only">
+                <table>
+                    <caption>{label}</caption>
+                    <thead>
+                        <tr>
+                            <th scope="col">Day</th>
+                            {series.map((line) => (
+                                <th key={line.key} scope="col">
+                                    {line.label}, {unit}
+                                </th>
+                            ))}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {days.map((day, index) => (
+                            <tr key={day.date}>
+                                <th scope="row">{shortDate(day.date)}</th>
+                                {series.map((line, at) => (
+                                    <td key={line.key}>
+                                        {visible(at, index)
+                                            ? compactNumber(day[line.key])
+                                            : 'not tracked'}
+                                    </td>
+                                ))}
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        </figure>
+    );
+}
+
 export type LinePoint = { date: string; value: number };
 
 export type ForecastPoint = LinePoint & { lower: number; upper: number };

@@ -2,6 +2,7 @@ import { Deferred, Head, router } from '@inertiajs/react';
 import { useId, useLayoutEffect, useRef, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import ProductMetricsController from '@/actions/App/Http/Controllers/ProductMetricsController';
+import { MultiLineChart } from '@/components/operations/charts';
 import { Placeholder } from '@/components/operations/placeholder';
 import { PresetButton } from '@/components/operations/preset-button';
 import { RangePicker, utcDate } from '@/components/operations/range-picker';
@@ -22,6 +23,7 @@ import type {
     ActivationDay,
     ActiveUserCount,
     ActiveUsers,
+    AppUsage as AppUsageData,
     CommitResponses,
     RetentionByDay as RetentionByDayData,
     RetentionCell,
@@ -991,6 +993,53 @@ function ActiveUserCounts({
     );
 }
 
+const APP_SERIES = [
+    { key: 'web_app', label: 'web', color: 'var(--app-web)' },
+    { key: 'native_mobile_app', label: 'mobile', color: 'var(--app-mobile)' },
+    { key: 'mac_app', label: 'mac', color: 'var(--app-mac)' },
+    { key: 'other_app', label: 'other', color: 'var(--app-other)' },
+] as const;
+
+/**
+ * Lines rather than stacked bars, as someone using two apps in a day counts in both, so the apps of a day can add up to
+ * more than its active users. Past days count as web whatever was used, so the other apps only start at the mark.
+ */
+function AppUsageChart({ usage }: { usage: AppUsageData }) {
+    const { days, recorded_since: recordedSince } = usage;
+
+    return (
+        <div className="space-y-3 [--app-mac:#1baf7a] [--app-mobile:#eb6834] [--app-other:#eda100] [--app-web:#2a78d6] dark:[--app-mac:#199e70] dark:[--app-mobile:#d95926] dark:[--app-other:#c98500] dark:[--app-web:#3987e5]">
+            <ul className="flex flex-wrap gap-x-4 gap-y-1 font-mono text-xs text-muted-foreground">
+                {APP_SERIES.map((app) => (
+                    <li key={app.key} className="flex items-center gap-1.5">
+                        <span
+                            aria-hidden
+                            className="size-2.5 rounded-sm"
+                            style={{ backgroundColor: app.color }}
+                        />
+                        {app.label}
+                    </li>
+                ))}
+            </ul>
+            <p className="max-w-2xl text-sm text-muted-foreground">
+                {recordedSince === null
+                    ? 'No other app seen yet: all activity counts as web.'
+                    : `Before ${formatZonedDate(recordedSince, 'UTC')}, all activity counts as web.`}{' '}
+                Someone using two apps in a day counts in both. Phones approved
+                before the mobile app sent its id count as other.
+            </p>
+            <MultiLineChart
+                days={days}
+                series={APP_SERIES}
+                markDate={recordedSince}
+                partialDate={utcDate()}
+                label="People per day, per app"
+                unit="people"
+            />
+        </div>
+    );
+}
+
 type RetentionDayNumber = keyof RetentionByDayData;
 
 const RETENTION_DAYS: { key: RetentionDayNumber; label: string }[] = [
@@ -1408,6 +1457,7 @@ export default function Show({
     responses,
     newcomerFollows,
     activeUserCounts,
+    appUsage,
     retentionByDay,
     retentionCohorts,
     retentionRecordedSince,
@@ -1418,6 +1468,7 @@ export default function Show({
     responses: CommitResponses;
     newcomerFollows: NewcomerFollows;
     activeUserCounts: ActiveUserCount[];
+    appUsage: AppUsageData;
     retentionByDay: RetentionByDayData;
     retentionCohorts: RetentionCohortsData;
     retentionRecordedSince: string;
@@ -1457,6 +1508,14 @@ export default function Show({
 
                 <Panel title="Daily active users" meta="utc" fill>
                     <ActiveUserCounts range={range} counts={activeUserCounts} />
+                </Panel>
+
+                <Panel
+                    className="xl:col-span-2"
+                    title="People by app"
+                    meta="utc"
+                >
+                    <AppUsageChart usage={appUsage} />
                 </Panel>
 
                 <Panel
