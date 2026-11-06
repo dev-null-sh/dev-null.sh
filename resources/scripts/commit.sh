@@ -5,10 +5,15 @@
 #   curl -fsSL __DEVNULL_URL__/commit | bash -s -- 'Hello world!'
 #   curl -fsSL __DEVNULL_URL__/commit | bash -s -- --reply 0be0130 'Agreed!'
 #   curl -fsSL __DEVNULL_URL__/commit | bash -s -- --image shipped.png 'Shipped!'
+#   curl -fsSL __DEVNULL_URL__/commit | bash -s -- --key ~/.ssh/id_ed25519_work.pub 'From work'
+#   curl -fsSL __DEVNULL_URL__/commit | bash -s -- --key SHA256:wT1TXK 'From work'
 #
 # `--reply` takes the hash of a commit (as shown on /dev/null) or its link. `--image` takes the
-# path of a JPEG, PNG or WebP file of up to 10 MB, up to 3 times. A `--` ends the options,
-# for a message that starts with one of them.
+# path of a JPEG, PNG or WebP file of up to 10 MB, up to 3 times. `--key` picks the SSH key to
+# sign with, when several of them are on GitHub accounts: the path of its public (or private)
+# key file, or its SHA256 fingerprint (`ssh-add -l`, `ssh-keygen -lf`), or a prefix of it. Without
+# `--key`, the DEVNULL_KEY environment variable is used the same way, when it is set. A `--`
+# ends the options, for a message that starts with one of them.
 #
 # There is no login: your commit is signed locally with an SSH key that is on your GitHub
 # account, and /dev/null checks the signature against the public keys GitHub publishes for you.
@@ -50,6 +55,7 @@ main() {
 
   local reply_to=""
   local images=()
+  local key_spec=""
   while :; do
     case "${1:-}" in
       --reply)
@@ -63,6 +69,12 @@ main() {
         images+=("$2")
         shift 2
         ;;
+      --key)
+        [ -n "${2:-}" ] || fail "Usage: curl -fsSL $DEVNULL_URL/commit | bash -s -- --key <key file or SHA256 fingerprint> 'Your commit'"
+        [ -z "$key_spec" ] || fail "--key can only be given once."
+        key_spec="$2"
+        shift 2
+        ;;
       --)
         shift
         break
@@ -70,6 +82,9 @@ main() {
       *) break ;;
     esac
   done
+
+  # `--key` wins over DEVNULL_KEY.
+  [ -n "$key_spec" ] || key_spec="${DEVNULL_KEY:-}"
 
   local has_images=false
   if [ "${#images[@]}" -gt 0 ]; then
@@ -125,7 +140,26 @@ main() {
     for public_key in "$HOME"/.ssh/*.pub; do
       [ -f "$public_key" ] && [ -f "${public_key%.pub}" ] && head -n 1 -- "$public_key"
     done
-  } | grep -E '^(ssh-ed25519|ssh-rsa) ' | key_id | awk '!seen[$0]++' > "$TMP_DIR/candidates" || true
+  } | grep -E '^(ssh-ed25519|ssh-rsa) ' | key_id | awk '!seen[$0]++' > "$TMP_DIR/keys" || true
+
+  # `--key` narrows the candidates down to one key: the one in a file, or the one with a fingerprint.
+  local key_file=""
+  if [ -z "$key_spec" ]; then
+    cp -- "$TMP_DIR/keys" "$TMP_DIR/candidates"
+  elif [ "${key_spec#SHA256:}" != "$key_spec" ]; then
+    select_by_fingerprint "$key_spec" < "$TMP_DIR/keys" > "$TMP_DIR/candidates"
+    [ -s "$TMP_DIR/candidates" ] || fail "No key with the fingerprint $key_spec in your SSH agent or in ~/.ssh:
+$(list_keys < "$TMP_DIR/keys")"
+    [ "$(grep -c '' "$TMP_DIR/candidates")" -eq 1 ] || fail "Several keys match the fingerprint $key_spec:
+$(list_keys < "$TMP_DIR/candidates")"
+  else
+    key_file="$key_spec"
+    # A private key file is fine too: its public key is next to it.
+    [ "${key_file%.pub}" = "$key_file" ] && [ -f "$key_file.pub" ] && key_file="$key_file.pub"
+    [ -f "$key_file" ] && [ -r "$key_file" ] || fail "Could not read the key file $key_spec."
+    head -n 1 -- "$key_file" | grep -E '^(ssh-ed25519|ssh-rsa) ' | key_id > "$TMP_DIR/candidates" \
+      || fail "$key_file is not an Ed25519 or RSA public key."
+  fi
 
   [ -s "$TMP_DIR/candidates" ] || fail "No Ed25519 or RSA SSH key found in your SSH agent or in ~/.ssh."
 
@@ -138,7 +172,9 @@ main() {
 
   # 2. Sign with that key: through the agent if it has it, otherwise with the private key file.
   local signing_key=""
-  if agent_keys | key_id | grep -qxF -- "$key"; then
+  if [ -n "$key_file" ] && [ -f "${key_file%.pub}" ]; then
+    signing_key="${key_file%.pub}"
+  elif agent_keys | key_id | grep -qxF -- "$key"; then
     signing_key="$TMP_DIR/key.pub"
     printf '%s\n' "$key" > "$signing_key"
   else
@@ -200,7 +236,7 @@ main() {
 }
 
 # The only files this script creates, all inside its own temporary directory.
-TMP_FILES=(candidates commit commit.sig key.pub response ssh-keygen.log)
+TMP_FILES=(candidates commit commit.sig fingerprint.pub key.pub keys response ssh-keygen.log)
 TMP_DIR=""
 PROTOCOLS="=https"
 
@@ -257,6 +293,31 @@ key_id() {
 
 agent_keys() {
   ssh-add -L 2> /dev/null | grep -E '^(ssh-ed25519|ssh-rsa) ' || true
+}
+
+# The SHA256 fingerprint of the public key on stdin.
+fingerprint() {
+  cat >| "$TMP_DIR/fingerprint.pub"
+  ssh-keygen -lf "$TMP_DIR/fingerprint.pub" 2> /dev/null | awk '{ print $2 }'
+}
+
+# Keeps the keys on stdin whose fingerprint starts with $1.
+select_by_fingerprint() {
+  local line fp
+  while IFS= read -r line; do
+    fp="$(printf '%s\n' "$line" | fingerprint)"
+    case "$fp" in
+      "$1"*) printf '%s\n' "$line" ;;
+    esac
+  done
+}
+
+# One line per key on stdin: its fingerprint, for error messages.
+list_keys() {
+  local line
+  while IFS= read -r line; do
+    printf '  %s\n' "$(printf '%s\n' "$line" | fingerprint)"
+  done
 }
 
 main "$@"
