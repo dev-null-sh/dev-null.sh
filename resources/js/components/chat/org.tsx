@@ -4,6 +4,7 @@ import type { FormEvent, ReactNode } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { ConversationActions } from '@/components/chat/conversation-actions';
+import { RemoteLocalTime } from '@/components/chat/remote-local-time';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -532,6 +533,7 @@ function MemberRow({
                 <span className="flex min-w-0 items-center gap-1 font-mono text-xs text-muted-foreground">
                     <span className="truncate">@{member.user.handle}</span>
                 </span>
+                <RemoteLocalTime partner={member.user} />
             </span>
             <span
                 className={cn(

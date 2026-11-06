@@ -118,6 +118,22 @@ it('shows an org only to its members', function (): void {
     $this->getJson(route('org-message.index', $org))->assertNotFound();
 });
 
+it('shows opted-in member local times in a group remote without sharing timezones from other members', function (): void {
+    $mark = User::factory()->create();
+    [$sharing, $private] = followersOf($mark, 2);
+    $sharing->update(['timezone' => 'America/Los_Angeles', 'show_local_time' => true]);
+    $private->update(['timezone' => 'Asia/Tokyo', 'show_local_time' => false]);
+    $org = createOrg($mark, [$sharing, $private]);
+
+    $this->actingAs($mark)->get(route('org.show', $org))
+        ->assertOk()
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
+            ->where('thread.members.1.user.timezone', 'America/Los_Angeles')
+            ->where('thread.members.1.user.show_local_time', true)
+            ->where('thread.members.2.user.timezone', null)
+            ->where('thread.members.2.user.show_local_time', false));
+});
+
 it('polls the badge counts on an open org without marking it read', function (): void {
     $mark = User::factory()->create();
     [$nuno] = followersOf($mark, 1);

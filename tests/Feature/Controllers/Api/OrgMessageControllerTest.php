@@ -39,6 +39,23 @@ it('loads an org with its members, events and who is typing, as the web thread d
         ->assertJsonPath('data.access', 'open');
 });
 
+it('shares a member timezone through the group API only when they opt in', function (): void {
+    [$sharing, $private] = followersOf($this->user, 2);
+    $sharing->update(['timezone' => 'America/Los_Angeles', 'show_local_time' => true]);
+    $private->update(['timezone' => 'Asia/Tokyo', 'show_local_time' => false]);
+    $org = createOrg($this->user, [$sharing, $private]);
+
+    $members = collect(signedApiRequest($this->keyPair, 'GET', route('api-org-message.index', $org))
+        ->assertOk()
+        ->json('data.members'))
+        ->keyBy('user.handle');
+
+    expect($members[$sharing->handle]['user']['timezone'])->toBe('America/Los_Angeles')
+        ->and($members[$sharing->handle]['user']['show_local_time'])->toBeTrue()
+        ->and($members[$private->handle]['user']['timezone'])->toBeNull()
+        ->and($members[$private->handle]['user']['show_local_time'])->toBeFalse();
+});
+
 it('names who an event is about', function (): void {
     [$nuno, $taylor] = followersOf($this->user, 2);
     $org = createOrg($this->user, [$nuno]);

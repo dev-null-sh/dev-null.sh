@@ -30,7 +30,11 @@ final class ConversationResource extends JsonResource
 
         return [
             ...$conversation,
-            'partner' => $conversation['partner'] instanceof User ? UserResource::make($conversation['partner']) : null,
+            'partner' => $conversation['partner'] instanceof User ? [
+                ...UserResource::make($conversation['partner'])->toArray($request),
+                'timezone' => $conversation['partner']->show_local_time ? $conversation['partner']->timezone : null,
+                'show_local_time' => $conversation['partner']->show_local_time,
+            ] : null,
             'members' => $conversation['members']?->map(fn (array $member): array => [
                 'user' => UserResource::make($member['user']),
                 'role' => $member['role'],

@@ -37,6 +37,22 @@ it('hides pulls from people who do not share them', function (): void {
     $this->actingAs($mark)->getJson(route('org-message.index', $org))->assertJsonPath('members.1.read_through_id', 0);
 });
 
+it('shares a member timezone with the group only when they opt in', function (): void {
+    $mark = User::factory()->create();
+    [$sharing, $private] = followersOf($mark, 2);
+    $sharing->update(['timezone' => 'America/Los_Angeles', 'show_local_time' => true]);
+    $private->update(['timezone' => 'Asia/Tokyo', 'show_local_time' => false]);
+    $org = createOrg($mark, [$sharing, $private]);
+
+    $members = collect($this->actingAs($mark)->getJson(route('org-message.index', $org))->assertOk()->json('members'))
+        ->keyBy('user.handle');
+
+    expect($members[$sharing->handle]['user']['timezone'])->toBe('America/Los_Angeles')
+        ->and($members[$sharing->handle]['user']['show_local_time'])->toBeTrue()
+        ->and($members[$private->handle]['user']['timezone'])->toBeNull()
+        ->and($members[$private->handle]['user']['show_local_time'])->toBeFalse();
+});
+
 it('shows who is typing', function (): void {
     $mark = User::factory()->create();
     [$nuno] = followersOf($mark, 1);

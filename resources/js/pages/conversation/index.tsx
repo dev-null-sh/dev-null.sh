@@ -11,8 +11,8 @@ import OrgController from '@/actions/App/Http/Controllers/OrgController';
 import { ConversationActions } from '@/components/chat/conversation-actions';
 import { ConversationThread } from '@/components/chat/conversation-thread';
 import { InboxPanel } from '@/components/chat/inbox-panel';
-import { RemoteLocalTime } from '@/components/chat/remote-local-time';
 import { OrgHeader, OrgPeopleDialog } from '@/components/chat/org';
+import { RemoteLocalTime } from '@/components/chat/remote-local-time';
 import { RemoteSettingsMenu } from '@/components/chat/remote-settings-menu';
 import { SearchDialog } from '@/components/search-dialog';
 import { Button } from '@/components/ui/button';
@@ -44,13 +44,22 @@ export default function Index({
     thread: Thread | OrgThread | null;
 }) {
     const { user } = useUser();
+    const conversations = useInbox();
     const dock = useChatDock();
     const [isPicking, setIsPicking] = useState(false);
     const [isStartingOrg, setIsStartingOrg] = useState(false);
     const [seededFrom, setSeededFrom] = useState<object | null>(null);
+    const currentPartner =
+        partner === null
+            ? null
+            : (conversations?.find(
+                  (conversation) =>
+                      conversation.kind === 'direct' &&
+                      conversation.partner?.id === partner.id,
+              )?.partner ?? partner);
     const target: ChatTarget | null =
-        partner !== null
-            ? { kind: 'direct', partner }
+        currentPartner !== null
+            ? { kind: 'direct', partner: currentPartner }
             : org !== null
               ? { kind: 'org', org }
               : null;
@@ -63,8 +72,6 @@ export default function Index({
             seedThread(target, thread);
         }
     }
-
-    useInbox();
 
     // Keeps the inbox's tab and search while moving between conversations.
     const visit = (href: Parameters<typeof router.visit>[0]) =>
@@ -91,8 +98,8 @@ export default function Index({
         <>
             <Head
                 title={
-                    partner
-                        ? `@${partner.handle} · Remotes`
+                    currentPartner
+                        ? `@${currentPartner.handle} · Remotes`
                         : org
                           ? `${org.name ?? 'Org'} · Remotes`
                           : 'Remotes'

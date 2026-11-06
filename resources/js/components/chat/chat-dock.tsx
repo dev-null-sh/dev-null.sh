@@ -14,8 +14,8 @@ import OrgController from '@/actions/App/Http/Controllers/OrgController';
 import { ConversationActions } from '@/components/chat/conversation-actions';
 import { ConversationThread } from '@/components/chat/conversation-thread';
 import { InboxPanel } from '@/components/chat/inbox-panel';
-import { RemoteLocalTime } from '@/components/chat/remote-local-time';
 import { MemberStack, OrgHeader, orgTitle } from '@/components/chat/org';
+import { RemoteLocalTime } from '@/components/chat/remote-local-time';
 import { SearchDialog } from '@/components/search-dialog';
 import {
     Tooltip,
@@ -64,8 +64,9 @@ function DockedChat({ user }: { user: User }) {
     const target: ChatTarget | null =
         dock.conversation === null
             ? null
-            : (threads[dock.conversation]?.target ??
-              (summary === undefined ? null : targetOf(summary)));
+            : summary === undefined
+              ? (threads[dock.conversation]?.target ?? null)
+              : targetOf(summary);
     const thread = target === null ? undefined : threads[targetKey(target)];
 
     const open = (next: ChatTarget) => {

@@ -13,7 +13,7 @@ export function RemoteLocalTime({
     return (
         <ul
             title={partner.timezone}
-            className="min-w-0 font-mono text-[11px] text-muted-foreground [&_li]:min-w-0 [&_li]:gap-1 [&_li_span]:truncate [&_svg]:size-3 [&_svg]:shrink-0"
+            className="min-h-4 min-w-0 font-mono text-[11px] text-muted-foreground [&_li]:min-w-0 [&_li]:gap-1 [&_li_span]:truncate [&_svg]:size-3 [&_svg]:shrink-0"
             data-test="remote-local-time"
         >
             <LocalTime timeZone={partner.timezone} />
