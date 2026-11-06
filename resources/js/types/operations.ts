@@ -172,6 +172,7 @@ export type AppUsageDay = {
     date: string;
     web_app: number;
     native_mobile_app: number;
+    lite_mobile_app: number;
     mac_app: number;
     other_app: number;
 };
