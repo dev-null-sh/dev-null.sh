@@ -9,10 +9,12 @@ use App\Models\User;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Queue\Attributes\Backoff;
+use Illuminate\Queue\Attributes\DeleteWhenMissingModels;
 use Illuminate\Queue\Attributes\Tries;
 
 #[Backoff([10, 60])]
 #[Tries(3)]
+#[DeleteWhenMissingModels]
 final class ImportGitHubFollowsJob implements ShouldQueue
 {
     use Queueable;
