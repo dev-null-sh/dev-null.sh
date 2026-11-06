@@ -37,7 +37,10 @@ const reply = (id: string): Commit =>
 async function renderThread(
     count: number,
     repliesPerPage: number,
-    { isOnTrunk = false, depth = 0 }: { isOnTrunk?: boolean; depth?: number } = {},
+    {
+        isOnTrunk = false,
+        depth = 0,
+    }: { isOnTrunk?: boolean; depth?: number } = {},
 ) {
     const shown = Math.min(count, repliesPerPage);
     const commit = {
@@ -67,7 +70,11 @@ async function renderThread(
     const result = await createInertiaApp({
         page: {
             component: 'test',
-            props: { auth: { organizations: [], user: null }, errors: {}, repliesPerPage },
+            props: {
+                auth: { organizations: [], user: null },
+                errors: {},
+                repliesPerPage,
+            },
             url: '/',
             version: null,
             clearHistory: false,
@@ -209,24 +216,3 @@ test('branches the replies off a trunk that goes on below them, without a column
     assert.doesNotMatch(pieces(html, 'more-replies')[0] ?? '', /--spine/);
     assert.doesNotMatch(html, /d="M 0 0 /);
 });
-
-test("identifies each deep reply's direct parent without changing graph depth", async () => {
-    const firstLevel = await renderThread(1, 3);
-    const nested = await renderThread(1, 3, { depth: 1 });
-    const flattened = await renderThread(1, 3, { depth: 3 });
-
-    assert.equal(pieces(firstLevel, 'reply-parent-context').length, 0);
-    assert.equal(pieces(nested, 'thread-elbow').length, 1);
-
-    const [mobileContext] = pieces(nested, 'reply-parent-context');
-    assert.match(mobileContext, /sm:hidden/);
-
-    const [deepContext] = pieces(flattened, 'reply-parent-context');
-    assert.ok(deepContext);
-    assert.doesNotMatch(deepContext, /sm:hidden/);
-    assert.equal(pieces(flattened, 'thread-elbow').length, 0);
-    assert.match(flattened, /data-test="reply-parent-link"/);
-    assert.ok(flattened.includes('href="/@author/commits/parent"'));
-    assert.match(flattened, /Visible reply parent/);
-});
-

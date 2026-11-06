@@ -1,7 +1,6 @@
 import { Link, router, useRemember, useHttp, usePage } from '@inertiajs/react';
 import {
     ChevronDown,
-    CornerDownRight,
     ListTree,
     MessageSquareReply,
     Trash2,
@@ -1200,7 +1199,7 @@ export function ThreadReplies({
                             reply={reply}
                             parent={thread.commit}
                             depth={depth + 1}
-                            graph={isFlattened ? {} : { parent: branchFrom }}
+                            graph={{ parent: branchFrom }}
                             links={
                                 isFlattened ? null : (
                                     <WithoutGraph>
@@ -1243,9 +1242,7 @@ export function ThreadReplies({
                             <MoreRepliesButton
                                 thread={thread}
                                 isFlattened={depth + 1 > maxIndentDepth}
-                                graph={
-                                    isFlattened ? {} : { parent: branchFrom }
-                                }
+                                graph={{ parent: branchFrom }}
                             />
                         </div>
                     )}
@@ -1417,11 +1414,6 @@ function ReplyItem({
                             <span className="font-mono text-xs">[deleted]</span>
                             This commit was deleted.
                         </p>
-                        <ReplyParentContext
-                            parent={parent}
-                            depth={depth}
-                            isQuote={reply.quoted_commit_id === parent.id}
-                        />
                         <ThreadActions thread={thread} />
                     </div>
                 </div>
@@ -1441,58 +1433,6 @@ function ReplyItem({
             nodeRef={nodeRef}
             onDeleted={onDeleted}
         />
-    );
-}
-
-/**
- * Deep replies lose their graph edges when the thread flattens. Show the
- * specific parent message, not just its author, so siblings remain distinct.
- */
-function ReplyParentContext({
-    parent,
-    depth,
-    isQuote,
-}: {
-    parent: ThreadCommit;
-    depth: number;
-    isQuote: boolean;
-}) {
-    if (depth < 2) {
-        return null;
-    }
-
-    const excerpt = isDeleted(parent)
-        ? null
-        : parent.body.replace(/\s+/g, ' ').trim().slice(0, 80);
-
-    return (
-        <p
-            className={cn(
-                'flex min-w-0 items-center gap-1 font-mono text-xs text-muted-foreground',
-                depth <= maxIndentDepth && 'sm:hidden',
-            )}
-            data-test="reply-parent-context"
-        >
-            <CornerDownRight className="size-3 shrink-0" aria-hidden />
-            <span className="shrink-0">{isQuote ? 'quoting' : 'replying to'}</span>
-            {isDeleted(parent) ? (
-                <span>[deleted]</span>
-            ) : (
-                <Link
-                    prefetch
-                    href={CommitController.show({
-                        profile: parent.author,
-                        commit: parent,
-                    })}
-                    title={excerpt || undefined}
-                    className="min-w-0 truncate hover:text-foreground hover:underline"
-                    data-test="reply-parent-link"
-                >
-                    <span className="font-semibold">@{parent.author.handle}</span>
-                    {excerpt && <span> · {excerpt}</span>}
-                </Link>
-            )}
-        </p>
     );
 }
 
@@ -1689,12 +1629,6 @@ function CommitReply({
                             </Tooltip>
                         )}
                     </div>
-
-                    <ReplyParentContext
-                        parent={parent}
-                        depth={depth}
-                        isQuote={isQuote}
-                    />
 
                     <div ref={bodyRef} style={translation.bodyStyle}>
                         <FoldedCommitBody
