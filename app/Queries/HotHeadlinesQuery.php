@@ -51,6 +51,7 @@ final readonly class HotHeadlinesQuery
             ->select('headlines.id', 'headlines.name')
             ->selectRaw('sum(contributions.commits_count)::bigint as commits_count, count(*) as authors_count, sum(1 + greatest(0::float8, contributions.hot_score - ?::float8)) as score', [$baseline])
             ->groupBy('headlines.id', 'headlines.name')
+            ->havingRaw('sum(contributions.commits_count) > 1')
             ->orderByDesc('score')
             ->orderByDesc('authors_count')
             ->orderBy('headlines.name')
