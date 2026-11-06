@@ -194,7 +194,7 @@ function NavLink({
             <Link
                 href={item.href}
                 onClick={onClick}
-                prefetch={item.title !== 'Log'}
+                prefetch={onClick === undefined}
                 cacheFor="10s"
                 viewTransition
                 aria-current={item.isActive ? 'page' : undefined}
