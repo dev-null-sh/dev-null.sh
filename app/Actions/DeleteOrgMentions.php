@@ -12,14 +12,16 @@ use App\Models\User;
 final readonly class DeleteOrgMentions
 {
     /**
-     * Clears the one mention the user opened, or every mention they have in the org.
+     * Clears the mentions the user opened or saw, or every mention they have in the org.
+     *
+     * @param  list<int>|null  $messageIds
      */
-    public function handle(User $user, Conversation $org, ?int $messageId = null): void
+    public function handle(User $user, Conversation $org, ?array $messageIds = null): void
     {
         $mentions = $user->mentions()->where('conversation_id', $org->id);
 
-        if ($messageId !== null) {
-            $mentions->where('messages.id', $messageId);
+        if ($messageIds !== null) {
+            $mentions->whereIn('messages.id', $messageIds);
         }
 
         if ($user->mentions()->detach($mentions->pluck('messages.id')) === 0) {

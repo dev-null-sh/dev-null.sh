@@ -21,7 +21,7 @@ import type { Message, OrgRef } from '@/types';
 
 /**
  * Sits after Call in an org's composer and lists the messages that mentioned the user until they open or clear them.
- * Opening one jumps to it in the thread, and clears it once it is shown.
+ * Opening one jumps to it in the thread, and clears it once it is shown. Mentions the user scrolls to clear on their own.
  */
 export function MentionsBell({
     org,
@@ -38,8 +38,8 @@ export function MentionsBell({
 }) {
     const [isOpen, setIsOpen] = useState(false);
     const headingId = useId();
-    const clear = (messageId?: number) =>
-        void clearMentions(org, messageId).catch(() =>
+    const clear = (messageIds?: number[]) =>
+        void clearMentions(org, messageIds).catch(() =>
             toast.error('Could not clear mentions. Try again.'),
         );
 
@@ -124,7 +124,7 @@ export function MentionsBell({
                                         void onJump(message.id).then(
                                             (isShown) => {
                                                 if (isShown) {
-                                                    clear(message.id);
+                                                    clear([message.id]);
                                                 }
                                             },
                                         );
