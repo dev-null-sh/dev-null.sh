@@ -22,7 +22,7 @@ const APPS: [RegExp, string][] = [
  */
 export function inAppBrowser(userAgent: string): InAppBrowser | null {
     // Our own lite mobile app has no other browser to send people to
-    if (/DevNullWebView\//.test(userAgent)) {
+    if (/DevNullLite\//.test(userAgent)) {
         return null;
     }
 

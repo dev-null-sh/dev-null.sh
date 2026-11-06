@@ -19,7 +19,7 @@ await test('tells the app whose browser shows the page, when it names itself', (
 });
 
 await test('does not send people away from our own lite mobile app', () => {
-    assert.equal(inAppBrowser(`${IOS_WEB_VIEW} DevNullWebView/1.0`), null);
+    assert.equal(inAppBrowser(`${IOS_WEB_VIEW} DevNullLite/1.0`), null);
 });
 
 await test('tells web views of apps that do not name themselves', () => {

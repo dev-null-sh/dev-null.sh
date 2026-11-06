@@ -107,7 +107,7 @@ it('tells the lite mobile app from its user agent', function (string $userAgent,
 
     expect(new HandleInertiaRequests()->share($request)['isLiteMobileApp'])->toBe($isLiteMobileApp);
 })->with([
-    'the lite mobile app' => ['Mozilla/5.0 (iPhone) AppleWebKit/605.1.15 Mobile/15E148 DevNullWebView/1.0', true],
+    'the lite mobile app' => ['Mozilla/5.0 (iPhone) AppleWebKit/605.1.15 Mobile/15E148 DevNullLite/1.0', true],
     'Safari' => ['Mozilla/5.0 (iPhone) AppleWebKit/605.1.15 Version/18.6 Mobile/15E148 Safari/604.1', false],
     'no user agent' => ['', false],
 ]);

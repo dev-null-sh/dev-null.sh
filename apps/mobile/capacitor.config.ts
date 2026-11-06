@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 /**
  * The app is a shell around the site: its web view loads dev-null.sh, and the
- * site adapts to it when the user agent carries `DevNullWebView/`. Deploying the
+ * site adapts to it when the user agent carries `DevNullLite/`. Deploying the
  * site updates the app, without going through the App Store.
  *
  * CAP_SERVER_URL points the app to another copy of the site, for example a
@@ -21,7 +21,7 @@ const config: CapacitorConfig = {
     appName: '/dev/null',
     webDir: 'www',
     // For the site's UI only: anything can send it, so it never authorizes
-    appendUserAgent: `DevNullWebView/${version}`,
+    appendUserAgent: `DevNullLite/${version}`,
     server: {
         url,
         cleartext: url.startsWith('http://'),

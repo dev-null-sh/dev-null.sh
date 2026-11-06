@@ -161,7 +161,7 @@ final class HandleInertiaRequests extends Middleware
             'hasUnmoderatedCommits' => $isAdmin ? $live(fn (): bool => Commit::query()->pending()->exists(), UserUpdate::Moderation) : false,
             // The lite mobile app, which draws its own tab bar (see resources/js/lib/lite-mobile-app.ts). Any browser can send this
             // token, so it only ever changes the UI...
-            'isLiteMobileApp' => str_contains((string) $request->userAgent(), 'DevNullWebView/'),
+            'isLiteMobileApp' => str_contains((string) $request->userAgent(), 'DevNullLite/'),
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'showsWhoToFollow' => $showsWhoToFollow,
             ...$user instanceof User && $liveFollowing !== null ? [
