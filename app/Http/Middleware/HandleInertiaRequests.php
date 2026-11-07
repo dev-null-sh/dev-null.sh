@@ -108,6 +108,9 @@ final class HandleInertiaRequests extends Middleware
             ? Inertia::live($value, on: array_values(array_map(fn (UserUpdate $update): string => $update->value, $updates)), channel: new PrivateChannel($user))
             : $value;
 
+        // Kept across pages, so a page prefetched before the reader moved to another log doesn't bring the old one back.
+        $log = Inertia::once(fn (): ?Log => $request->user()?->log)->as('auth.log:'.($user->id ?? 'guest'));
+
         // Kept across pages until the first stream it lists runs out at most, so a stream extended meanwhile is read again.
         $liveFollowing = $user instanceof User && $hasAside
             ? Inertia::once(function () use (&$liveFollowing, $user): array {
@@ -145,7 +148,7 @@ final class HandleInertiaRequests extends Middleware
                 'translationLanguage' => $live(fn (): string => resolve(CommitTranslations::class)->language(), UserUpdate::Account),
                 'mustReadCommitRules' => $live(fn (): bool => $user instanceof User && $user->commit_rules_accepted_at === null, UserUpdate::Account),
                 'termsToAccept' => $live(fn (): ?string => $user instanceof User && ! $user->hasAcceptedCurrentTerms() ? config()->string('legal.terms_version') : null, UserUpdate::Account),
-                'log' => $live(fn (): ?Log => $request->user()?->log, UserUpdate::Account),
+                'log' => $user instanceof User ? $log->live(UserUpdate::Account->value, new PrivateChannel($user)) : $log,
                 // Each browser filters notifications its own way, and reloading the count goes through its cookie.
                 'unreadNotificationsCount' => $live(fn (): int => $user instanceof User ? resolve(NotificationGroupsQuery::class)->unreadCount($user, ListNotificationsRequest::rememberedType($request, $user)) : 0, UserUpdate::Notifications),
                 'unreadMessagesCount' => $live(fn (): int => $user?->remotes_enabled ? resolve(ConversationsQuery::class)->unreadCount($user) : 0, UserUpdate::Messages, UserUpdate::Inbox),
