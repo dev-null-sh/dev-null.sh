@@ -3,7 +3,7 @@ import type { Organization } from '@/types/organization';
 
 export type CommitStatus = 'pending' | 'approved' | 'rejected';
 
-export type CommitSource = 'web' | 'ios' | 'android' | 'macos' | 'cli' | 'api';
+export type CommitSource = 'web' | 'ios' | 'android' | 'lite_mobile' | 'macos' | 'cli' | 'api';
 
 export type EmbedKind = 'video' | 'audio' | 'code';
 

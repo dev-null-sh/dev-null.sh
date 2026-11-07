@@ -74,6 +74,7 @@ const sourceLabels: Record<CommitSource, string> = {
     web: 'Web',
     ios: 'iOS',
     android: 'Android',
+    lite_mobile: 'Lite',
     macos: 'macOS',
     cli: 'CLI',
     api: 'App',

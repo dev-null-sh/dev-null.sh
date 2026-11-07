@@ -28,6 +28,17 @@ it('records web commits and replies as web, even in a mobile browser', function 
         ->toBe([CommitSource::Web, CommitSource::Web]);
 });
 
+
+it('recognizes the lite mobile web view as distinct from a normal browser', function (): void {
+    $user = User::factory()->create();
+
+    $this->actingAs($user)->withHeader('User-Agent', 'Mozilla/5.0 DevNullLite/1.0.0')
+        ->post(route('commit.store'), ['body' => 'Sent from the lite app.'])
+        ->assertSessionHasNoErrors();
+
+    expect($user->commits()->sole()->source)->toBe(CommitSource::LiteMobile);
+});
+
 it('records the approved app platform rather than a client-provided source', function (?string $appId, CommitSource $source): void {
     $user = User::factory()->create();
     $keyPair = apiKeyPairFor($user);
@@ -40,9 +51,10 @@ it('records the approved app platform rather than a client-provided source', fun
 
     expect($user->commits()->sole()->source)->toBe($source);
 })->with([
-    'iOS' => ['ios:sh.dev-null.app', CommitSource::Ios],
-    'Android' => ['android:sh.dev-null.app', CommitSource::Android],
-    'macOS' => ['macos:sh.dev-null.mac', CommitSource::Macos],
+    'iOS NativePHP' => ['ios:com.nativephp.devnull', CommitSource::Ios],
+    'Android NativePHP' => ['android:com.nativephp.devnull', CommitSource::Android],
+    'unrecognized iOS app' => ['ios:sh.dev-null.app', CommitSource::Api],
+    'mac app id alone is not enough' => ['macos:sh.dev-null.mac', CommitSource::Api],
     'older app without an id' => [null, CommitSource::Api],
     'unknown app platform' => ['windows:sh.dev-null.app', CommitSource::Api],
 ]);
@@ -66,7 +78,7 @@ it('keeps the original posting source when a web commit is scheduled', function 
 it('keeps the approved app platform when a native commit is scheduled', function (): void {
     $user = User::factory()->create();
     $keyPair = apiKeyPairFor($user);
-    Device::query()->where('user_id', $user->id)->sole()->forceFill(['app_id' => 'android:sh.dev-null.app'])->save();
+    Device::query()->where('user_id', $user->id)->sole()->forceFill(['app_id' => 'android:com.nativephp.devnull'])->save();
 
     signedApiRequest($keyPair, 'POST', route('api-scheduled-commit.store'), [
         'body' => 'Scheduled from Android.',

@@ -41,7 +41,7 @@ final readonly class CommitReplyController
     public function store(CreateCommitReplyRequest $request, #[CurrentUser] User $user, Commit $commit, CreateCommit $action, CommitThreadQuery $thread): JsonResponse
     {
         $organization = $request->organization();
-        $reply = $action->handle($user, $request->string('body')->value(), $commit, images: $request->images(), imageDescriptions: $request->imageDescriptions(), linkPreview: $request->linkPreview(), replyRecipients: $request->replyRecipients(), organization: $organization, source: CommitSource::Web);
+        $reply = $action->handle($user, $request->string('body')->value(), $commit, images: $request->images(), imageDescriptions: $request->imageDescriptions(), linkPreview: $request->linkPreview(), replyRecipients: $request->replyRecipients(), organization: $organization, source: CommitSource::forRequest($request));
         $parent = $thread->get($commit, $user);
 
         return response()->json([
