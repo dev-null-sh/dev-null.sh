@@ -20,7 +20,6 @@ it('may choose a timezone', function (): void {
     expect($user->refresh()->timezone)->toBe('Europe/Budapest');
 });
 
-
 it('saves legacy browser timezones using their current IANA names', function (string $legacy, string $canonical): void {
     $user = User::factory()->create();
 

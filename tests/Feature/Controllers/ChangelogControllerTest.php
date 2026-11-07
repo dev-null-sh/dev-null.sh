@@ -67,7 +67,6 @@ it('groups days in the reader’s time zone, and carries on from where the reade
         ->assertJsonPath('olderBefore', null);
 });
 
-
 it('accepts legacy browser timezone names in changelog queries', function (): void {
     $this->mock(GitHubProvider::class)->shouldReceive('commits')
         ->andReturnUsing(fn (string $repository, string $branch, int $page): array => changelogPage($page));
