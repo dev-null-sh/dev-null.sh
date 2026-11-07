@@ -29,6 +29,7 @@ use LogicException;
  * @property-read CarbonInterface|null $github_synced_at
  * @property-read int|null $preferred_lane
  * @property-read string|null $lane_color
+ * @property-read bool $shows_people
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
  * @property-read Profile $profile
@@ -69,6 +70,7 @@ final class Organization extends Model
             'id' => 'string',
             'preferred_lane' => 'integer',
             'lane_color' => 'string',
+            'shows_people' => 'boolean',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
         ];

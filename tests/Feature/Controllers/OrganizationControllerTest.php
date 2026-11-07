@@ -244,3 +244,88 @@ it('keeps the query string out of the handle it moves an organization to', funct
     $this->get('/@laravel?user[]=a&user[]=b')->assertRedirect('/@Laravel?user[]=a&user[]=b');
     $this->get('/@laravel?tag=one&tag=two')->assertRedirect('/@Laravel?tag=one&tag=two');
 });
+
+it('keeps the people of an organization off its page until its admins show them', function (): void {
+    $organization = Organization::factory()->create(['handle' => 'laravel']);
+    $organization->members()->attach(User::factory()->create()->id, ['role' => OrganizationRole::Member]);
+
+    $this->get('/@laravel?tab=people')
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('organization/show')
+            ->where('showsPeople', false)
+            ->where('tab', 'commits')
+            ->has('commits')
+            ->missing('people'));
+});
+
+it('lists the people of an organization, first joined first, to guests too', function (): void {
+    $organization = Organization::factory()->create(['handle' => 'laravel', 'shows_people' => true]);
+    [$admin, $member] = User::factory()->count(2)->create()->all();
+    $organization->members()->attach($admin->id, ['role' => OrganizationRole::Admin, 'created_at' => now()->subDay()]);
+    $organization->members()->attach($member->id, ['role' => OrganizationRole::Member, 'created_at' => now()]);
+
+    $this->get('/@laravel?tab=people')
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('organization/show')
+            ->where('showsPeople', true)
+            ->where('tab', 'people')
+            ->missing('commits')
+            ->has('people.data', 2)
+            ->where('people.data.0.id', $admin->id)
+            ->where('people.data.1.id', $member->id)
+            ->missing('people.data.0.pivot'));
+});
+
+it('lists the people of an organization without anyone across a block or muted, with whether the viewer follows them', function (): void {
+    $organization = Organization::factory()->create(['handle' => 'laravel', 'shows_people' => true]);
+    $viewer = User::factory()->create();
+    [$friend, $muted, $blocked, $blocker] = User::factory()->count(4)->create()->all();
+    $organization->members()->attach(
+        collect([$friend, $muted, $blocked, $blocker])->mapWithKeys(fn (User $user): array => [$user->id => ['role' => OrganizationRole::Member]])->all(),
+    );
+    $viewer->following()->attach($friend);
+    $friend->following()->attach($viewer);
+    $viewer->muting()->attach($muted);
+    $viewer->blocking()->attach($blocked);
+    $blocker->blocking()->attach($viewer);
+
+    $this->actingAs($viewer)->get('/@laravel?tab=people')
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->has('people.data', 1)
+            ->where('people.data.0.id', $friend->id)
+            ->where('people.data.0.is_followed', true)
+            ->where('people.data.0.follows_you', true));
+});
+
+it('pages through the people of an organization, first joined first, with the tab in the link to the next page', function (): void {
+    $organization = Organization::factory()->create(['handle' => 'laravel', 'shows_people' => true]);
+    $people = User::factory()->count(31)->create();
+    $people->each(fn (User $person, int $index) => $organization->members()->attach($person->id, [
+        'role' => OrganizationRole::Member,
+        'created_at' => now()->subMinutes(31 - $index),
+    ]));
+
+    $nextPageUrl = null;
+
+    $this->get('/@laravel?tab=people')
+        ->assertOk()
+        ->assertInertia(function ($page) use ($people, &$nextPageUrl): void {
+            $page->has('people.data', 30)
+                ->where('people.data.0.id', $people->first()->id)
+                ->where('people.next_page_url', function (string $url) use (&$nextPageUrl): bool {
+                    $nextPageUrl = $url;
+
+                    return str_contains($url, 'tab=people');
+                });
+        });
+
+    $this->get($nextPageUrl)
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->has('people.data', 1)
+            ->where('people.data.0.id', $people->last()->id)
+            ->missing('people.data.0.pivot'));
+});

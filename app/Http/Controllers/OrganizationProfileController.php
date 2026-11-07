@@ -11,7 +11,8 @@ use Inertia\Inertia;
 use Inertia\Response;
 
 /**
- * The Profile tab of an organization's settings, like the user's, where its admins choose its color.
+ * The Profile tab of an organization's settings, like the user's, where its admins choose its color and whether its
+ * page shows its people.
  */
 final readonly class OrganizationProfileController
 {
@@ -20,6 +21,7 @@ final readonly class OrganizationProfileController
         return Inertia::render('organization-profile/edit', [
             'organization' => $organization,
             'role' => OrganizationRole::Admin,
+            'showsPeople' => $organization->shows_people,
         ]);
     }
 }
