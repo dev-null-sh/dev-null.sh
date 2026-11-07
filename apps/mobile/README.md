@@ -23,8 +23,10 @@ Run the `App` scheme on a simulator from Xcode. Without `CAP_SERVER_URL`, the ap
 - `ios/App/App/TabsPlugin.swift`: the bridge the site drives the tab bar with, from `resources/js/lib/lite-mobile-app.ts`. Everything crossing it is untrusted, because a script injected in the site reaches it too.
 - `ios/App/App/AppCoordinator.swift`: what the app shows, and signing in. See below.
 - `ios/App/App/BridgeFilters.swift`: only the main frame reaches plugins, and only the ones the site uses. Capacitor always registers the others, and `CapacitorHttp` would hand a page script the session cookie.
-- `www/offline.html`: shown when the site can't load. A copy of the site's `public/offline.html` with absolute links and a retry through the app, to keep in sync by hand.
-- `assets/`: icon and splash sources, for `bun run assets`.
+- `ios/App/App/RailPageView.swift`: the native screens, drawn like the site's standalone pages, with colors copied from its tokens.
+- `www/offline.html`: shown when the site can't load. A copy of the site's `public/offline.html` with absolute links, its fonts and a retry through the app, to keep in sync by hand.
+- `www/fonts/`: the site's fonts, for that page and the native screens, which find them through `bun run sync`.
+- `assets/`: the app icon's sources, light and dark, for `bun run assets`. The launch screen's logo is `Lockup` in the asset catalog: Geist's outlines, not text.
 
 ## Signing in
 

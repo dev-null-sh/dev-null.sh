@@ -15,6 +15,8 @@ final class AppCoordinator: NSObject, ASWebAuthenticationPresentationContextProv
 
     private let window: UIWindow
     private var main: MainViewController?
+    private weak var welcome: WelcomeViewController?
+    private var launchedAt: Date?
     private var authentication: ASWebAuthenticationSession?
     private var isSigningIn = false
 
@@ -25,18 +27,22 @@ final class AppCoordinator: NSObject, ASWebAuthenticationPresentationContextProv
 
     init(window: UIWindow) {
         self.window = window
+        // Behind the crossfades, in the corners of the screen, instead of black
+        window.backgroundColor = .siteBackground
     }
 
     func start() {
         Self.shared = self
 
         guard let key = DeviceKey.load() else {
-            showWelcome()
+            showWelcome(comesFromLaunch: true)
             return
         }
 
         // The site's first load has to find the cookies, so the web view waits for them
-        window.rootViewController = LaunchViewController()
+        let launchedAt = Date()
+        self.launchedAt = launchedAt
+        window.rootViewController = LaunchViewController(waitingSince: launchedAt)
 
         Task {
             if await hasLiveSession() {
@@ -53,6 +59,7 @@ final class AppCoordinator: NSObject, ASWebAuthenticationPresentationContextProv
         guard !isSigningIn else { return }
 
         isSigningIn = true
+        welcome?.setBusy(true)
 
         let key = DeviceKey.generate()
         let verifier = Data.random(count: 32).base64URLEncoded
@@ -82,7 +89,7 @@ final class AppCoordinator: NSObject, ASWebAuthenticationPresentationContextProv
                     await self.finishSignIn(callback: url, key: key, verifier: verifier, state: state)
                 }
 
-                self.isSigningIn = false
+                self.finishedSigningIn()
             }
         }
 
@@ -90,7 +97,16 @@ final class AppCoordinator: NSObject, ASWebAuthenticationPresentationContextProv
         // After signing out, for another account: reusing Safari's would sign the same one back in
         session.prefersEphemeralWebBrowserSession = UserDefaults.standard.bool(forKey: Self.signedOut)
         authentication = session
-        session.start()
+
+        if !session.start() {
+            authentication = nil
+            finishedSigningIn()
+        }
+    }
+
+    private func finishedSigningIn() {
+        isSigningIn = false
+        welcome?.setBusy(false)
     }
 
     func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
@@ -114,7 +130,7 @@ final class AppCoordinator: NSObject, ASWebAuthenticationPresentationContextProv
             try await SiteAPI(key: key).redeem(code: code, verifier: verifier)
             try key.save()
         } catch {
-            (window.rootViewController as? WelcomeViewController)?.showError("Couldn't sign in. Please try again.")
+            welcome?.showSignInFailed()
             return
         }
 
@@ -159,12 +175,14 @@ final class AppCoordinator: NSObject, ASWebAuthenticationPresentationContextProv
             // The web view shows the offline page, whose retry comes back through `renewSession`
             showMain()
         } catch {
-            window.rootViewController = MessageViewController(
-                message: "Couldn't reach /dev/null. Please try again.",
+            show(MessageViewController(
+                command: "fatal: the remote end hung up unexpectedly",
+                headline: "Couldn't connect.",
+                message: "The site didn't answer as expected. Try again in a moment.",
                 action: "Try again"
             ) { [weak self] in
                 self?.start()
-            }
+            })
         }
     }
 
@@ -264,19 +282,45 @@ final class AppCoordinator: NSObject, ASWebAuthenticationPresentationContextProv
 
     // MARK: Screens
 
-    private func showWelcome() {
+    private func show(_ controller: UIViewController) {
+        launchedAt = nil
+
+        // The site's cover is the launch screen's picture, and there's nothing to fade
+        if window.rootViewController is LaunchViewController, controller is MainViewController {
+            window.rootViewController = controller
+            return
+        }
+
+        UIView.transition(with: window, duration: 0.2, options: .transitionCrossDissolve) {
+            UIView.performWithoutAnimation {
+                self.window.rootViewController = controller
+            }
+        }
+    }
+
+    private func showWelcome(comesFromLaunch: Bool = false) {
         main = nil
-        window.rootViewController = WelcomeViewController(
-            showsPromptHint: !UserDefaults.standard.bool(forKey: Self.signedOut)
+
+        let welcome = WelcomeViewController(
+            showsPromptHint: !UserDefaults.standard.bool(forKey: Self.signedOut),
+            comesFromLaunch: comesFromLaunch
         ) { [weak self] in
             self?.signIn()
+        }
+        self.welcome = welcome
+
+        if comesFromLaunch {
+            window.rootViewController = welcome
+        } else {
+            show(welcome)
         }
     }
 
     private func showMain(path: String? = nil) {
         let main = MainViewController()
+        main.waitingSince = launchedAt ?? Date()
         self.main = main
-        window.rootViewController = main
+        show(main)
 
         // Capacitor starts loading the site with the view, so this comes right after
         if let path {
@@ -286,11 +330,13 @@ final class AppCoordinator: NSObject, ASWebAuthenticationPresentationContextProv
 
     private func showBanned() {
         main = nil
-        window.rootViewController = MessageViewController(
-            message: "This account has been banned from /dev/null.",
+        show(MessageViewController(
+            command: "remote: Permission to /dev/null denied: banned.",
+            headline: "Your account is banned.",
+            message: "You can't use the app with it anymore. Signing out removes it from this phone.",
             action: "Sign out"
         ) { [weak self] in
             Task { await self?.forgetSignIn() }
-        }
+        })
     }
 }
