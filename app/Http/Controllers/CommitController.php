@@ -96,6 +96,7 @@ final readonly class CommitController
         return back();
     }
 
+    /** Deletes a commit and returns its restoration window to the frontend. */
     public function destroy(DeleteCommitRequest $request, Commit $commit, DeleteCommit $action): RedirectResponse
     {
         $commit = $action->handle($commit);

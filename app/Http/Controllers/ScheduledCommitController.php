@@ -25,6 +25,7 @@ use Inertia\Response;
 
 final readonly class ScheduledCommitController
 {
+    /** Lists the user's scheduled posts with live updates when the queue changes. */
     public function index(Request $request, #[CurrentUser] User $user, ScheduledCommitsQuery $scheduled): Response
     {
         return Inertia::render('scheduled-commits/index', [
@@ -46,6 +47,7 @@ final readonly class ScheduledCommitController
         return back();
     }
 
+    /** Cancels a scheduled post, or explains why it can no longer be canceled. */
     public function destroy(DeleteScheduledCommitRequest $request, #[CurrentUser] User $user, ScheduledCommit $scheduledCommit, DeleteScheduledCommit $action): RedirectResponse
     {
         $canceled = $action->handle($user, $scheduledCommit);

@@ -62,6 +62,7 @@ final readonly class CommitReplyController
         ], 201);
     }
 
+    /** Deletes a reply and returns its updated state to the thread. */
     public function destroy(DeleteCommitReplyRequest $request, Commit $commit, Commit $reply, DeleteCommit $action): JsonResponse
     {
         $reply = $action->handle($reply);

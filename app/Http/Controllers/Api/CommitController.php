@@ -61,6 +61,7 @@ final readonly class CommitController
             ->setStatusCode(201);
     }
 
+    /** Deletes an API commit and returns an empty success response. */
     public function destroy(DeleteApiCommitRequest $request, Commit $commit, DeleteCommit $action): Response
     {
         $action->handle($commit);
