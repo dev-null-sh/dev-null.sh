@@ -23,9 +23,27 @@ final readonly class CreateCommitRestoration
     public function handle(Commit $commit): Commit
     {
         return DB::transaction(function () use ($commit): Commit {
+            if ($commit->quoted_commit_id !== null && $commit->user_id !== null && $commit->body === '') {
+                Commit::query()->lockForUpdate()->find($commit->quoted_commit_id);
+            }
+
             $commit = Commit::withTrashed()->lockForUpdate()->findOrFail($commit->id);
 
             if ($commit->isRestorable()) {
+                $replacementExists = $commit->quoted_commit_id !== null
+                    && $commit->user_id !== null
+                    && $commit->body === ''
+                    && Commit::query()
+                        ->where('user_id', $commit->user_id)
+                        ->where('quoted_commit_id', $commit->quoted_commit_id)
+                        ->where('body', '')
+                        ->whereKeyNot($commit->id)
+                        ->exists();
+
+                if ($replacementExists) {
+                    return $commit;
+                }
+
                 $commit->restore();
                 $this->updateCommitHotScores->handle([$commit->threadRootId()]);
 

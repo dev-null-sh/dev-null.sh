@@ -21,6 +21,29 @@ it('restores a commit within its undo window', function (): void {
     $this->assertNotSoftDeleted($commit);
 });
 
+it('does not restore a recommit when a replacement is already active', function (): void {
+    $user = App\Models\User::factory()->create();
+    $source = Commit::factory()->create();
+    $original = Commit::factory()->for($user)->create(['quoted_commit_id' => $source->id, 'body' => '']);
+    $deleted = resolve(DeleteCommit::class)->handle($original);
+    Commit::factory()->for($user)->create(['quoted_commit_id' => $source->id, 'body' => '']);
+
+    resolve(CreateCommitRestoration::class)->handle($deleted);
+
+    $this->assertSoftDeleted($original);
+});
+
+it('restores a recommit when there is no active replacement', function (): void {
+    $user = App\Models\User::factory()->create();
+    $source = Commit::factory()->create();
+    $original = Commit::factory()->for($user)->create(['quoted_commit_id' => $source->id, 'body' => '']);
+    $deleted = resolve(DeleteCommit::class)->handle($original);
+
+    resolve(CreateCommitRestoration::class)->handle($deleted);
+
+    $this->assertNotSoftDeleted($original);
+});
+
 it('checks the current deadline instead of a stale model timestamp', function (): void {
     $commit = Commit::factory()->create();
     $deleted = resolve(DeleteCommit::class)->handle($commit);
