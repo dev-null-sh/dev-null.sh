@@ -122,6 +122,7 @@ const doubleTapDistance = 24;
 export function isDoubleTap(previous: Tap | null, tap: Tap): boolean {
     return (
         previous !== null &&
+        tap.time >= previous.time &&
         tap.time - previous.time <= doubleTapWithin &&
         Math.hypot(tap.x - previous.x, tap.y - previous.y) <= doubleTapDistance
     );
