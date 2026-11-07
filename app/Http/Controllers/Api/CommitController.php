@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Actions\CreateCommit;
 use App\Actions\DeleteCommit;
+use App\Enums\CommitSource;
 use App\Http\Requests\CreateApiCommitRequest;
 use App\Http\Requests\DeleteApiCommitRequest;
 use App\Http\Requests\ShowApiCommitRequest;
@@ -51,13 +52,16 @@ final readonly class CommitController
      */
     public function store(CreateApiCommitRequest $request, #[CurrentUser] User $user, CreateCommit $action, CommitPageQuery $page): JsonResponse
     {
-        $commit = $action->handle($user, $request->string('body')->value(), $request->parent(), $request->quotedCommit(), $request->images(), $request->imageDescriptions(), poll: $request->poll(), replyRecipients: $request->replyRecipients(), organization: $request->organization());
+        $source = CommitSource::forRequest($request);
+
+        $commit = $action->handle($user, $request->string('body')->value(), $request->parent(), $request->quotedCommit(), $request->images(), $request->imageDescriptions(), poll: $request->poll(), replyRecipients: $request->replyRecipients(), organization: $request->organization(), source: $source);
 
         return CommitResource::make($page->get($commit, $user))
             ->response()
             ->setStatusCode(201);
     }
 
+    /** Deletes an API commit and returns an empty success response. */
     public function destroy(DeleteApiCommitRequest $request, Commit $commit, DeleteCommit $action): Response
     {
         $action->handle($commit);

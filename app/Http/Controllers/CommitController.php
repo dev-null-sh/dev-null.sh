@@ -7,6 +7,7 @@ namespace App\Http\Controllers;
 use App\Actions\CreateCommit;
 use App\Actions\DeleteCommit;
 use App\Dto\ThreadContinuation;
+use App\Enums\CommitSource;
 use App\Enums\CommitStatus;
 use App\Http\Requests\CreateCommitRequest;
 use App\Http\Requests\DeleteCommitRequest;
@@ -63,12 +64,15 @@ final readonly class CommitController
         ])->withViewData(['preview' => $preview]);
     }
 
+    /**
+     * Creates a web commit with its request-derived source, then flashes the commit and any new achievements.
+     */
     public function store(CreateCommitRequest $request, #[CurrentUser] User $user, CreateCommit $action, UserAchievementsQuery $achievements): RedirectResponse
     {
         $before = $achievements->unlockedBadgeNames($user);
 
         $organization = $request->organization();
-        $commit = $action->handle($user, $request->string('body')->value(), quotedCommit: $request->quotedCommit(), images: $request->images(), imageDescriptions: $request->imageDescriptions(), linkPreview: $request->linkPreview(), poll: $request->poll(), organization: $organization);
+        $commit = $action->handle($user, $request->string('body')->value(), quotedCommit: $request->quotedCommit(), images: $request->images(), imageDescriptions: $request->imageDescriptions(), linkPreview: $request->linkPreview(), poll: $request->poll(), organization: $organization, source: CommitSource::forRequest($request));
 
         $unlocked = $achievements->unlockedBadgeNames($user)->diff($before)->values();
 
@@ -92,6 +96,7 @@ final readonly class CommitController
         return back();
     }
 
+    /** Deletes a commit and returns its restoration window to the frontend. */
     public function destroy(DeleteCommitRequest $request, Commit $commit, DeleteCommit $action): RedirectResponse
     {
         $commit = $action->handle($commit);

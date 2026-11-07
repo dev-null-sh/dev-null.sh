@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Actions\CreateCommitReport;
 use App\Actions\CreateCommitTranslation;
 use App\Actions\CreateExport;
+use App\Enums\CommitSource;
 use App\Actions\DeleteUser;
 use App\Actions\UpdateDevicePushToken;
 use App\Contracts\Services\TranslationProvider;
@@ -92,7 +93,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
     $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
 
     expect($data)->toBe([
-        'schema_version' => 8,
+        'schema_version' => 9,
         'exported_at' => now()->toIso8601String(),
         'profile' => [
             'github_id' => $user->github_id,
@@ -224,7 +225,7 @@ it('exports all the signed-in users commits including replies, deleted ones, and
     $user = User::factory()->create();
     $other = User::factory()->create();
     $parent = Commit::factory()->for($other)->rejected()->create(['body' => 'Another developer private parent body']);
-    $approved = Commit::factory()->for($user)->create(['body' => "Shipped Unicode support 🚀\nNext: docs.", 'pasteis_count' => 3]);
+    $approved = Commit::factory()->for($user)->create(['body' => "Shipped Unicode support 🚀\nNext: docs.", 'pasteis_count' => 3, 'source' => CommitSource::Web]);
     $approved->headlines()->create(['name' => 'Unicode support ships']);
     $pending = Commit::factory()->for($user)->pending()->create();
     $rejected = Commit::factory()->for($user)->rejected()->create();
@@ -259,6 +260,7 @@ it('exports all the signed-in users commits including replies, deleted ones, and
             'translated_at' => now()->getTimestampMs(),
         ],
         'status' => 'approved',
+        'source' => 'web',
         'pasteis_count' => 3,
         'images' => [],
         'created_at' => $approved->created_at->toIso8601String(),

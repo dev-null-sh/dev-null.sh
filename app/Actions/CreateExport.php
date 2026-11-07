@@ -76,7 +76,7 @@ final readonly class CreateExport
     public function handle(User $user): array
     {
         return [
-            'schema_version' => 8,
+            'schema_version' => 9,
             'exported_at' => now()->toIso8601String(),
             'profile' => [
                 'github_id' => $user->github_id,
@@ -198,7 +198,7 @@ final readonly class CreateExport
     {
         $commits = $user->commits()
             ->withTrashed()
-            ->select(['id', 'parent_id', 'quoted_commit_id', 'body', 'status', 'pasteis_count', 'created_at', 'updated_at', 'deleted_at'])
+            ->select(['id', 'parent_id', 'quoted_commit_id', 'body', 'status', 'source', 'pasteis_count', 'created_at', 'updated_at', 'deleted_at'])
             ->with('images:id,commit_id')
             ->lazyById(500);
 
@@ -215,6 +215,7 @@ final readonly class CreateExport
                     'body' => $commit->body,
                     'cached_translations' => $cached[$translations->key($commit)],
                     'status' => $commit->status->value,
+                    'source' => $commit->source?->value,
                     'pasteis_count' => $commit->pasteis_count,
                     'images' => $commit->images->map(fn (CommitImage $image): string => $image->url())->all(),
                     'created_at' => $commit->created_at->toIso8601String(),
@@ -248,6 +249,7 @@ final readonly class CreateExport
                 'quoted_commit_id' => $commit->quoted_commit_id,
                 'body' => $commit->body,
                 'status' => $commit->status->value,
+                'source' => $commit->source?->value,
                 'images' => $commit->images->map(fn (CommitImage $image): string => $image->url())->all(),
                 'created_at' => $commit->created_at->toIso8601String(),
                 'deleted_at' => $commit->deleted_at?->toIso8601String(),

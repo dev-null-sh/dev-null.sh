@@ -8,6 +8,7 @@ use App\Actions\CreateExport;
 use App\Actions\DeleteOrganization;
 use App\Actions\DeleteUser;
 use App\Actions\UpdateCommitStatuses;
+use App\Enums\CommitSource;
 use App\Enums\CommitStatus;
 use App\Enums\Feature;
 use App\Enums\Log;
@@ -179,7 +180,7 @@ it('deletes the commits of an organization GitHub no longer has, keeping the rep
 });
 
 it('exports the commits someone posted for an organization', function (): void {
-    $commit = Commit::factory()->for($this->member)->create(['author_id' => $this->organization->id, 'body' => 'Laravel 13 is out']);
+    $commit = Commit::factory()->for($this->member)->create(['author_id' => $this->organization->id, 'body' => 'Laravel 13 is out', 'source' => CommitSource::Ios]);
 
     $export = resolve(CreateExport::class)->handle($this->member);
 
@@ -190,6 +191,7 @@ it('exports the commits someone posted for an organization', function (): void {
         'quoted_commit_id' => null,
         'body' => 'Laravel 13 is out',
         'status' => 'approved',
+        'source' => 'ios',
         'images' => [],
         'created_at' => $commit->created_at->toIso8601String(),
         'deleted_at' => null,
