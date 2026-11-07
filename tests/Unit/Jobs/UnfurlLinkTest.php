@@ -38,6 +38,19 @@ it('skips link previews that were fetched in the meantime', function (): void {
     expect($linkPreview->refresh()->title)->toBe('Fetched before');
 });
 
+it('does not fetch metadata for links to this sites commits', function (): void {
+    config(['app.url' => 'https://dev-null.sh']);
+    Http::fake();
+    $preview = LinkPreview::factory()->create([
+        'url' => 'https://dev-null.sh/@author/commits/123e4567-e89b-12d3-a456-426614174000',
+    ]);
+
+    dispatch_sync(new UnfurlLink($preview));
+
+    Http::assertNothingSent();
+    expect($preview->refresh()->fetched_at)->not->toBeNull();
+});
+
 it('retries a page that may be reachable later', function (): void {
     Exceptions::fake();
 

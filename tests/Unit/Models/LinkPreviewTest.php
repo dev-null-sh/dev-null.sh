@@ -21,6 +21,26 @@ test('to array', function (): void {
         ]);
 });
 
+it('replaces cached metadata of an internal commit with its private preview endpoint', function (): void {
+    config(['app.url' => 'https://dev-null.sh']);
+    $preview = LinkPreview::factory()->fetched()->create([
+        'url' => 'https://dev-null.sh/@author/commits/123e4567-e89b-12d3-a456-426614174000',
+        'title' => 'Previously public words',
+        'description' => 'Cached content must not bypass visibility checks.',
+        'image_url' => 'https://dev-null.sh/old-image.png',
+    ]);
+
+    expect($preview->toArray())->toMatchArray([
+        'title' => null,
+        'description' => null,
+        'image_url' => null,
+        'site_name' => null,
+        'is_pending' => false,
+        'embed' => null,
+        'commit_preview_url' => '/@author/commits/123e4567-e89b-12d3-a456-426614174000/preview',
+    ]);
+});
+
 it('is pending until it is fetched', function (): void {
     expect(LinkPreview::factory()->create()->toArray()['is_pending'])->toBeTrue()
         ->and(LinkPreview::factory()->fetched()->create()->toArray()['is_pending'])->toBeFalse()
