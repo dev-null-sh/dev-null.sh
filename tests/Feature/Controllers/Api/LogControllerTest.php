@@ -11,7 +11,9 @@ use App\Models\CommitImage;
 use App\Models\LinkPreview;
 use App\Models\User;
 use App\Services\CommitBodies;
+use App\Services\CommitTranslations;
 use Illuminate\Database\Eloquent\Factories\Sequence;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
 
@@ -78,6 +80,7 @@ it('lists the latest commits of everyone, newest first', function (): void {
         'body_segments' => [['type' => 'text', 'text' => 'It was DNS.']],
         'preview_segments' => null,
         'mentions' => [],
+        'translation' => ['language' => 'en', 'source_language' => null, 'source_name' => null, 'available' => true, 'translated' => null],
         'status' => 'approved',
         'is_pinned' => false,
         'starred' => false,
@@ -91,6 +94,19 @@ it('lists the latest commits of everyone, newest first', function (): void {
     $response->assertJsonPath('links.next', null)
         ->assertJsonPath('meta.next_cursor', null)
         ->assertJsonPath('meta.per_page', 20);
+});
+
+it('includes shared translations in the log and its reply previews', function (): void {
+    $this->user->update(['translation_language' => 'en']);
+    $commit = Commit::factory()->create(['body' => 'Guten morgen']);
+    Commit::factory()->for($commit, 'parent')->create(['body' => 'Guten morgen']);
+    Cache::put(resolve(CommitTranslations::class)->key($commit), ['source_language' => 'de', 'translations' => ['en' => 'Good morning']]);
+
+    signedApiRequest($this->keyPair, 'GET', route('api-log.show', 'latest'))
+        ->assertOk()
+        ->assertJsonPath('data.0.body', 'Guten morgen')
+        ->assertJsonPath('data.0.translation.translated.body_segments.0.text', 'Good morning')
+        ->assertJsonPath('data.0.reply_preview.data.0.translation.translated.body_segments.0.text', 'Good morning');
 });
 
 it('sends the excerpt the web shows of a long commit in a list', function (): void {

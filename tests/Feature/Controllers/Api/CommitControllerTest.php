@@ -2,7 +2,9 @@
 
 declare(strict_types=1);
 
+use App\Contracts\Services\TranslationProvider;
 use App\Enums\CommitStatus;
+use App\Enums\Feature;
 use App\Enums\PollDuration;
 use App\Http\Requests\CreateApiCommitRequest;
 use App\Http\Requests\CreateCommitReplyRequest;
@@ -15,8 +17,11 @@ use App\Models\Poll;
 use App\Models\PollOption;
 use App\Models\PollVote;
 use App\Models\User;
+use App\Services\CommitTranslations;
+use App\Services\Features;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 
@@ -46,6 +51,62 @@ it('bounds combined inherited and explicit reply recipients', function (int $inh
     'at limit with overlapping explicit mention' => [CreateCommitReplyRequest::MAX_REPLY_RECIPIENTS - 1, true],
     'combined recipients over limit' => [CreateCommitReplyRequest::MAX_REPLY_RECIPIENTS, false],
 ]);
+
+it('includes the reader language translation without replacing the original body', function (): void {
+    $reader = User::factory()->create(['translation_language' => 'pt', 'automatic_translation' => false]);
+    $commit = Commit::factory()->create(['body' => 'Guten morgen']);
+    Cache::put(resolve(CommitTranslations::class)->key($commit), [
+        'source_language' => 'de',
+        'translations' => ['en' => 'Good morning', 'pt' => 'Bom dia'],
+    ]);
+    $this->mock(TranslationProvider::class)->shouldNotReceive('translate');
+
+    signedApiRequest(apiKeyPairFor($reader), 'GET', route('api-commit.show', $commit))
+        ->assertOk()
+        ->assertJsonPath('data.body', 'Guten morgen')
+        ->assertJsonPath('data.body_segments.0.text', 'Guten morgen')
+        ->assertJsonPath('data.translation.language', 'pt')
+        ->assertJsonPath('data.translation.source_name', 'German')
+        ->assertJsonPath('data.translation.translated.body_segments.0.text', 'Bom dia');
+
+    $this->getJson(route('api-commit.show', $commit))
+        ->assertOk()
+        ->assertJsonMissingPath('data.translation');
+});
+
+it('includes translations of quoted commits and ancestors', function (): void {
+    $reader = User::factory()->create(['translation_language' => 'en']);
+    $parent = Commit::factory()->create(['body' => 'Guten morgen']);
+    $quoted = Commit::factory()->create(['body' => 'Guten morgen']);
+    $reply = Commit::factory()->for($parent, 'parent')->create(['quoted_commit_id' => $quoted->id]);
+    Cache::put(resolve(CommitTranslations::class)->key($parent), ['source_language' => 'de', 'translations' => ['en' => 'Good morning']]);
+
+    signedApiRequest(apiKeyPairFor($reader), 'GET', route('api-commit.show', $reply))
+        ->assertOk()
+        ->assertJsonPath('ancestors.0.translation.translated.body_segments.0.text', 'Good morning')
+        ->assertJsonPath('data.quoted_commit.translation.translated.body_segments.0.text', 'Good morning');
+});
+
+it('does not offer translations of the readers own commits', function (): void {
+    $reader = User::factory()->create(['translation_language' => 'en']);
+    $commit = Commit::factory()->for($reader)->create(['body' => 'Guten morgen']);
+    Cache::put(resolve(CommitTranslations::class)->key($commit), ['source_language' => 'de', 'translations' => ['en' => 'Good morning']]);
+
+    signedApiRequest(apiKeyPairFor($reader), 'GET', route('api-commit.show', $commit))
+        ->assertOk()
+        ->assertJsonPath('data.translation', null);
+});
+
+it('does not include cached translations when the feature is disabled', function (): void {
+    $reader = User::factory()->create();
+    $commit = Commit::factory()->create(['body' => 'Guten morgen']);
+    Cache::put(resolve(CommitTranslations::class)->key($commit), ['source_language' => 'de', 'translations' => ['en' => 'Good morning']]);
+    resolve(Features::class)->update(Feature::Translations, false);
+
+    signedApiRequest(apiKeyPairFor($reader), 'GET', route('api-commit.show', $commit))
+        ->assertOk()
+        ->assertJsonPath('data.translation', null);
+});
 
 it('shows an approved commit to anyone', function (): void {
     $user = User::factory()->create([
@@ -311,6 +372,7 @@ it('shows a signed request the commit as its page shows it to its user', functio
                 ],
                 'preview_segments' => null,
                 'mentions' => [['handle' => 'nunomaduro', 'offset' => 4, 'length' => 11, 'kind' => 'user']],
+                'translation' => null,
                 'status' => 'approved',
                 'is_pinned' => false,
                 'starred' => true,
@@ -334,6 +396,7 @@ it('shows a signed request the commit as its page shows it to its user', functio
                 'body_segments' => [['type' => 'text', 'text' => 'Who broke prod?']],
                 'preview_segments' => null,
                 'mentions' => [],
+                'translation' => ['language' => 'en', 'source_language' => null, 'source_name' => null, 'available' => true, 'translated' => null],
                 'status' => 'approved',
                 'is_pinned' => false,
                 'starred' => false,

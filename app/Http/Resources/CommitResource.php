@@ -10,6 +10,7 @@ use App\Models\CommitImage;
 use App\Models\Poll;
 use App\Models\User;
 use App\Services\CommitBodies;
+use App\Services\CommitTranslations;
 use App\Services\Mentions;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\Request;
@@ -50,7 +51,8 @@ final class CommitResource extends JsonResource
             ];
         }
 
-        $isSigned = $request->user() instanceof User;
+        $user = $request->user();
+        $isSigned = $user instanceof User;
 
         $commit = [
             'id' => $this->id,
@@ -72,10 +74,14 @@ final class CommitResource extends JsonResource
             return $commit;
         }
 
+        $model = $this->resource;
+        assert($model instanceof Commit);
+
         return [
             ...$commit,
             ...resolve(CommitBodies::class)->segments($this->body),
             'mentions' => resolve(Mentions::class)->positions($this->body, $this->organization_mentions ?? []),
+            'translation' => $this->user_id === $user->id ? null : resolve(CommitTranslations::class)->display($model, includePending: $user->isAdmin(), detectLanguage: false),
             'status' => $this->status,
             'is_pinned' => $this->author?->user?->pinned_commit_id === $this->id,
             'starred' => $this->whenHas('starred'),

@@ -104,7 +104,7 @@ final readonly class CommitTranslations
     }
 
     /** @return array<string, mixed>|null */
-    public function display(Commit $commit, ?string $language = null, bool $includePending = false): ?array
+    public function display(Commit $commit, ?string $language = null, bool $includePending = false, bool $detectLanguage = true): ?array
     {
         if ($commit->trashed() || ! in_array($commit->status, $includePending ? [CommitStatus::Approved, CommitStatus::Pending] : [CommitStatus::Approved], true) || $commit->body === '' || ! $this->enabled()) {
             return null;
@@ -113,7 +113,7 @@ final readonly class CommitTranslations
         /** @var CachedTranslations|null $cached */
         $cached = Cache::memo()->get($this->key($commit));
 
-        if ($cached === null) {
+        if ($cached === null && $detectLanguage) {
             try {
                 dispatch(new DetectCommitLanguage($commit->id))->afterCommit();
             } catch (Throwable $exception) {
