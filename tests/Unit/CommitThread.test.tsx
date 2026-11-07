@@ -11,7 +11,7 @@ import {
     useThread,
 } from '../../resources/js/components/commit-thread';
 import { TooltipProvider } from '../../resources/js/components/ui/tooltip';
-import type { Commit } from '../../resources/js/types';
+import type { Commit, ThreadCommit } from '../../resources/js/types';
 
 const reply = (id: string): Commit =>
     ({
@@ -37,14 +37,24 @@ const reply = (id: string): Commit =>
 async function renderThread(
     count: number,
     repliesPerPage: number,
-    { isOnTrunk = false }: { isOnTrunk?: boolean } = {},
+    {
+        isOnTrunk = false,
+        depth = 0,
+        replyPreview,
+    }: {
+        isOnTrunk?: boolean;
+        depth?: number;
+        replyPreview?: ThreadCommit[];
+    } = {},
 ) {
     const shown = Math.min(count, repliesPerPage);
     const commit = {
         ...reply('parent'),
         replies_count: count,
         reply_preview: {
-            data: Array.from({ length: shown }, (_, i) => reply(String(i))),
+            data:
+                replyPreview ??
+                Array.from({ length: shown }, (_, i) => reply(String(i))),
             next_cursor: count > shown ? 'older-replies' : null,
             prev_cursor: null,
         },
@@ -57,7 +67,7 @@ async function renderThread(
                 <ThreadActions thread={thread} />
                 <ThreadReplies
                     thread={thread}
-                    depth={0}
+                    depth={depth}
                     isOnTrunk={isOnTrunk}
                 />
             </TooltipProvider>
@@ -67,7 +77,11 @@ async function renderThread(
     const result = await createInertiaApp({
         page: {
             component: 'test',
-            props: { auth: { organizations: [], user: null }, errors: {}, repliesPerPage },
+            props: {
+                auth: { organizations: [], user: null },
+                errors: {},
+                repliesPerPage,
+            },
             url: '/',
             version: null,
             clearHistory: false,
@@ -187,6 +201,42 @@ test('hangs every reply off the parent with an elbow of its own, as the graph ca
 
     assert.equal(pieces(html, 'thread-elbow').length, 3);
     assert.equal(pieces(html, 'reply-link').length, 0);
+});
+
+test('labels flattened replies with a link to their direct parent', async () => {
+    const html = await renderThread(1, 3, { depth: 3 });
+
+    assert.equal(pieces(html, 'reply-parent-context').length, 1);
+    assert.match(text(html), /replying to @author/);
+    assert.match(
+        html,
+        /data-test="reply-parent-link"[^>]*href="\/@author\/commits\/parent"/,
+    );
+    assert.equal(pieces(html, 'thread-elbow').length, 0);
+});
+
+test('does not add a parent label before replies reach the flattening depth', async () => {
+    const html = await renderThread(1, 3, { depth: 2 });
+
+    assert.equal(pieces(html, 'reply-parent-context').length, 0);
+});
+
+test('labels a deleted quote as quoting its parent', async () => {
+    const html = await renderThread(1, 3, {
+        depth: 3,
+        replyPreview: [
+            {
+                id: 'deleted-quote',
+                parent_id: null,
+                deleted_at: new Date().toISOString(),
+                replies_count: 1,
+            },
+        ],
+    });
+
+    assert.equal(pieces(html, 'reply-tombstone').length, 1);
+    assert.match(text(html), /quoting @author/);
+    assert.doesNotMatch(text(html), /replying to @author/);
 });
 
 test("runs the parent's column on from each elbow to the next one, down to the more replies dot", async () => {
