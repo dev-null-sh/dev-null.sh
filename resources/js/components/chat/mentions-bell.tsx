@@ -14,9 +14,10 @@ import {
     TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { UserAvatar } from '@/components/user-avatar';
+import { useDateTime } from '@/hooks/use-date-time';
 import { clearMentions } from '@/lib/chat';
 import { formatExactCount } from '@/lib/numbers';
-import { cn, formatClockTime, formatDayLabel } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import type { Message, OrgRef } from '@/types';
 
 /**
@@ -36,6 +37,7 @@ export function MentionsBell({
     isCompact: boolean;
     onJump: (messageId: number) => Promise<boolean>;
 }) {
+    const { formatDayLabel, formatTime: formatClockTime } = useDateTime();
     const [isOpen, setIsOpen] = useState(false);
     const headingId = useId();
     const clear = (messageIds?: number[]) =>

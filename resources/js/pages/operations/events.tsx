@@ -8,9 +8,10 @@ import type { ColumnSeries } from '@/components/operations/charts';
 import { EventsLog, LEVEL_DOTS } from '@/components/operations/events-log';
 import { PresetButton } from '@/components/operations/preset-button';
 import { Panel } from '@/components/operations/section';
+import { useDateTime } from '@/hooks/use-date-time';
 import OperationsLayout from '@/layouts/operations/layout';
 import { exactCountTitle, formatCount } from '@/lib/numbers';
-import { cn, dateLocale, readerClock } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import type {
     OperationsEvent,
     OperationsEventBucket,
@@ -63,34 +64,6 @@ const SERIES: ColumnSeries<OperationsEventLevel>[] = [
         className: 'fill-muted-foreground/40 bg-muted-foreground/40',
     },
 ];
-
-// On the reader's clock, but for the days of the 30-day window, which run by UTC day.
-const BUCKET_FORMATS: Record<
-    OperationsEventWindow,
-    Intl.DateTimeFormatOptions
-> = {
-    '1h': {
-        hour: '2-digit',
-        minute: '2-digit',
-        hourCycle: 'h23',
-    },
-    '24h': {
-        hour: '2-digit',
-        minute: '2-digit',
-        hourCycle: 'h23',
-    },
-    '7d': {
-        weekday: 'short',
-        hour: '2-digit',
-        minute: '2-digit',
-        hourCycle: 'h23',
-    },
-    '30d': {
-        month: 'short',
-        day: 'numeric',
-        timeZone: 'UTC',
-    },
-};
 
 /**
  * The chart's key, with how many events of each level it holds.
@@ -286,6 +259,7 @@ export default function Index({
     counts: Record<OperationsEventSource, number>;
     histogram: OperationsEventBucket[];
 }) {
+    const { formatDate, formatTime } = useDateTime();
     const [query, setQuery] = useState(filters);
     const [isLoading, setIsLoading] = useState(false);
     const timer = useRef<number | undefined>(undefined);
@@ -365,10 +339,18 @@ export default function Index({
                             height={140}
                             label={`Events in ${phrase} by level`}
                             formatBucket={(at) =>
-                                new Date(at).toLocaleString(dateLocale, {
-                                    timeZone: readerClock().timeZone,
-                                    ...BUCKET_FORMATS[filters.window],
-                                })
+                                filters.window === '30d'
+                                    ? formatDate(at, {
+                                          timeZone: 'UTC',
+                                          year: false,
+                                      })
+                                    : formatTime(
+                                          at,
+                                          undefined,
+                                          filters.window === '7d'
+                                              ? { weekday: 'short' }
+                                              : {},
+                                      )
                             }
                             unit="events"
                         />

@@ -14,12 +14,13 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { UserAvatar } from '@/components/user-avatar';
+import { useDateTime } from '@/hooks/use-date-time';
 import { useNow } from '@/hooks/use-now';
 import { useUser } from '@/hooks/use-user';
 import AppLayout from '@/layouts/app-layout';
 import OrganizationSettingsLayout from '@/layouts/organization-settings/layout';
 import { toastWhenThrottled } from '@/lib/throttle';
-import { cn, formatFullDateTime, formatRelativeTime } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import type { Organization, User } from '@/types';
 
 type Role = 'admin' | 'member';
@@ -343,6 +344,7 @@ function MemberRow({
     onRemoved: () => void;
 }) {
     const { user } = useUser();
+    const { formatFullDateTime, formatRelativeTime } = useDateTime();
     const now = useNow();
     const isSelf = member.id === user.id;
     const [removal, setRemoval] = useState<'idle' | 'confirming' | 'removing'>(

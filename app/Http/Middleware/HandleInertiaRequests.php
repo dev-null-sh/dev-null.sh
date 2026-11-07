@@ -139,6 +139,10 @@ final class HandleInertiaRequests extends Middleware
                     ? Inertia::live(fn (): bool => resolve(Features::class)->enabled(Feature::OrganizationCommits), 'features', new Channel('features'))
                     : false,
                 'isAdmin' => $isAdmin,
+                'dateTime' => fn (): array => [
+                    'dateFormat' => $user?->date_format,
+                    'timeFormat' => $user?->time_format,
+                ],
                 'automaticTranslation' => $live(fn (): bool => $user->automatic_translation ?? true, UserUpdate::Account),
                 // The language translations are read in, saved or from the browser, so a change saved elsewhere reaches
                 // the translations already shown.

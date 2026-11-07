@@ -5,7 +5,7 @@ declare(strict_types=1);
 use App\Models\User;
 
 it('may choose a timezone', function (): void {
-    $user = User::factory()->create();
+    $user = User::factory()->create(['date_format' => 'day_first', 'time_format' => '24h']);
 
     $response = $this->actingAs($user)
         ->fromRoute('user-profile.edit')
@@ -18,6 +18,8 @@ it('may choose a timezone', function (): void {
         ]);
 
     expect($user->refresh()->timezone)->toBe('Europe/Budapest');
+    expect($user->getRawOriginal('date_format'))->toBe('day_first');
+    expect($user->getRawOriginal('time_format'))->toBe('24h');
 });
 
 it('may opt in to showing the local time', function (): void {

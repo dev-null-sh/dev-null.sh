@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Dto;
 
+use App\Enums\DateFormat;
 use Illuminate\Contracts\Support\Arrayable;
 use Illuminate\Http\Request;
 use IntlTimeZone;
@@ -21,6 +22,7 @@ final readonly class ReaderClock implements Arrayable
     public function __construct(
         public ?string $timeZone,
         public ?string $hourCycle,
+        public ?string $dateOrder,
     ) {
         //
     }
@@ -29,6 +31,7 @@ final readonly class ReaderClock implements Arrayable
     {
         $timeZone = $request->cookie('time_zone');
         $hourCycle = $request->cookie('hour_cycle');
+        $dateOrder = $request->cookie('date_order');
         $isSystemTimeZone = false;
 
         if (is_string($timeZone)) {
@@ -39,17 +42,19 @@ final readonly class ReaderClock implements Arrayable
         return new self(
             is_string($timeZone) && $isSystemTimeZone ? $timeZone : null,
             is_string($hourCycle) && in_array($hourCycle, self::HOUR_CYCLES, true) ? $hourCycle : null,
+            is_string($dateOrder) ? DateFormat::tryFrom($dateOrder)?->value : null,
         );
     }
 
     /**
-     * @return array{timeZone: string|null, hourCycle: string|null}
+     * @return array{timeZone: string|null, hourCycle: string|null, dateOrder: string|null}
      */
     public function toArray(): array
     {
         return [
             'timeZone' => $this->timeZone,
             'hourCycle' => $this->hourCycle,
+            'dateOrder' => $this->dateOrder,
         ];
     }
 }

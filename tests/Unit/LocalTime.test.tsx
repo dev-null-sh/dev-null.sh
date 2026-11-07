@@ -8,6 +8,9 @@ vi.doMock('react', () => ({
     ...React,
     useSyncExternalStore: (_subscribe: unknown, read: () => unknown) => read(),
 }));
+vi.doMock('@inertiajs/react', () => ({
+    usePage: () => ({ props: { auth: { dateTime: {} } } }),
+}));
 
 const { LocalTime } = await import('../../resources/js/components/local-time');
 

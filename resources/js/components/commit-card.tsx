@@ -44,6 +44,7 @@ import {
 import { TimestampTooltip } from '@/components/timestamp-tooltip';
 import { Button } from '@/components/ui/button';
 import { UserPreview } from '@/components/user-preview';
+import { useDateTime } from '@/hooks/use-date-time';
 import {
     useCommitNotFound,
     useIsCommitDeleted,
@@ -56,8 +57,6 @@ import { measureCommitSize } from '@/lib/commit-size';
 import {
     authorLaneColor,
     cn,
-    formatFullDateTime,
-    formatRelativeTime,
     isDeleted,
     isWithinSeconds,
     shortHash,
@@ -119,6 +118,7 @@ export function CommitCard({
         props: { auth },
         component,
     } = usePage();
+    const { formatFullDateTime, formatRelativeTime } = useDateTime();
     const now = useNow();
     const hiddenLinkPreviewUrl = useContext(HiddenLinkPreviewContext);
     const { bodyRef, ...translation } = useCommitTranslation(commit);

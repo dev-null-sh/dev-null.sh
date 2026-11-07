@@ -46,6 +46,7 @@ import { NotificationFilters } from '@/components/notification-filters';
 import { QuotedCommit } from '@/components/quoted-commit';
 import { Button } from '@/components/ui/button';
 import { UserPreview } from '@/components/user-preview';
+import { useDateTime } from '@/hooks/use-date-time';
 import { useNow } from '@/hooks/use-now';
 import { useIsListening } from '@/hooks/use-realtime';
 import { useUser } from '@/hooks/use-user';
@@ -56,15 +57,7 @@ import {
 } from '@/lib/background-poll';
 import { exactCountTitle, formatCount } from '@/lib/numbers';
 import { coalesce, isListening, listen, userChannel } from '@/lib/realtime';
-import {
-    cn,
-    formatDayLabel,
-    formatFullDateTime,
-    formatRelativeTime,
-    isDeleted,
-    authorLaneColor,
-    localDayKey,
-} from '@/lib/utils';
+import { authorLaneColor, cn, isDeleted, localDayKey } from '@/lib/utils';
 import { show } from '@/routes/user';
 import type {
     Actor,
@@ -250,6 +243,7 @@ export default function Index({
     filters: Filters;
     readAt: string;
 }) {
+    const { formatDayLabel } = useDateTime();
     const now = useNow();
     const pollRequest = useRef<CancelToken | null>(null);
     const header = useRef<HTMLDivElement>(null);
@@ -1139,6 +1133,7 @@ export function NotificationContent({
     graph?: { id: string; endId: string };
     children?: ReactNode;
 }) {
+    const { formatFullDateTime, formatRelativeTime } = useDateTime();
     const now = useNow();
     const { user } = useUser();
     const actorRef = useRef<HTMLSpanElement>(null);

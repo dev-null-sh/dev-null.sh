@@ -7,6 +7,7 @@ import { PresetButton } from '@/components/operations/preset-button';
 import { Panel } from '@/components/operations/section';
 import { Stats } from '@/components/operations/stats';
 import { UserPreview } from '@/components/user-preview';
+import { useDateTime } from '@/hooks/use-date-time';
 import { usePicked } from '@/hooks/use-picked';
 import OperationsLayout from '@/layouts/operations/layout';
 import { formatCount } from '@/lib/numbers';
@@ -115,6 +116,7 @@ export default function Show({
     activity: SiteActivity;
     breakdowns: ActivityBreakdowns;
 }) {
+    const { formatDate } = useDateTime();
     const windowLabel = ACTIVITY_SCALES.find(
         (preset) => preset.scale === activity.scale,
     )?.label;
@@ -139,7 +141,11 @@ export default function Show({
 
                 <Panel
                     title="Overall"
-                    meta={overall.since ? `since ${overall.since}` : 'all time'}
+                    meta={
+                        overall.since
+                            ? `since ${formatDate(overall.since, { timeZone: 'UTC', year: true })}`
+                            : 'all time'
+                    }
                 >
                     <Stats
                         stats={COUNTERS.map((stat) => ({

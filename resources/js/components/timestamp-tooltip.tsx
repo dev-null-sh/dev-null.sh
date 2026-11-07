@@ -6,13 +6,8 @@ import {
     TooltipTrigger,
     useTooltipArmed,
 } from '@/components/ui/tooltip';
-import {
-    browserTimeZone,
-    formatZonedDate,
-    formatZonedTime,
-    laneColor,
-    timeZoneCity,
-} from '@/lib/utils';
+import { useDateTime } from '@/hooks/use-date-time';
+import { browserTimeZone, laneColor, timeZoneCity } from '@/lib/utils';
 import type { User } from '@/types';
 
 export function TimestampTooltip({
@@ -55,6 +50,7 @@ function ZonedTimesTooltip({ date, author }: { date: string; author?: User }) {
 }
 
 function ZonedTimes({ date, author }: { date: string; author?: User }) {
+    const { formatZonedDate, formatZonedTime } = useDateTime();
     const { auth } = usePage().props;
 
     const columns = [

@@ -1,5 +1,6 @@
 import { Head } from '@inertiajs/react';
 import AppearanceTabs from '@/components/appearance-tabs';
+import DateTimeSettings from '@/components/date-time-settings';
 import EventThemeSelect from '@/components/event-theme-select';
 import Heading from '@/components/heading';
 import LaneDimmingTabs from '@/components/lane-dimming-tabs';
@@ -29,6 +30,8 @@ export default function Update() {
                 />
                 <EventThemeSelect />
             </section>
+
+            <DateTimeSettings />
 
             <section className="hidden border-t px-4 py-6 sm:px-6 lg:block">
                 <Heading
