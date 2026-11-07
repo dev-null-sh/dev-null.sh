@@ -88,15 +88,23 @@ export function waveformOf(samples: Float32Array, bars = voiceBars): number[] {
  */
 export function barsOf(levels: number[], bars = voiceBars): number[] {
     return Array.from({ length: bars }, (_, bar) => {
+        if (levels.length === 0) {
+            return 0;
+        }
+
         const from = Math.floor((levels.length * bar) / bars);
         const to = Math.max(
             from + 1,
             Math.floor((levels.length * (bar + 1)) / bars),
         );
 
-        return Math.round(
-            Math.min(1, Math.max(0, ...levels.slice(from, to))) * 100,
-        );
+        let peak = 0;
+
+        for (let index = from; index < to; index++) {
+            peak = Math.max(peak, levels[index] as number);
+        }
+
+        return Math.round(Math.min(1, peak) * 100);
     });
 }
 

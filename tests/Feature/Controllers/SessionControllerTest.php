@@ -3,10 +3,12 @@
 declare(strict_types=1);
 
 use App\Contracts\Services\GitHubProvider;
+use App\Dto\MobileAuthorization;
 use App\Enums\Log;
 use App\Jobs\ImportGitHubFollowsJob;
 use App\Jobs\LookUpUserOrganizations;
 use App\Jobs\SyncGitHubSshKeysJob;
+use App\Models\Device;
 use App\Models\User;
 use Illuminate\Support\Facades\Queue;
 use Laravel\Socialite\Socialite;
@@ -286,6 +288,72 @@ it('redirects authenticated users away from login', function (): void {
         ->get(route('login'));
 
     $response->assertRedirectToRoute('log.show', Log::Following);
+});
+
+it('leaves a new account to onboard in the lite mobile app, while approving it', function (): void {
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('hasSponsorsListing')->andReturnFalse();
+
+    User::factory()->notOnboarded()->create(['github_id' => '583231']);
+
+    Socialite::fake('github', GitHubUser::fake(['id' => '583231', 'nickname' => 'octocat']));
+
+    $approval = route('mobile-authorization.show', ['app_id' => MobileAuthorization::LiteMobileAppId, 'state' => 'state']);
+
+    $this->withSession(['url.intended' => $approval])
+        ->get(route('login.store'))
+        ->assertRedirect($approval);
+});
+
+it('still onboards in the browser anyone going anywhere else', function (string $intended): void {
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('hasSponsorsListing')->andReturnFalse();
+
+    User::factory()->notOnboarded()->create(['github_id' => '583231']);
+
+    Socialite::fake('github', GitHubUser::fake(['id' => '583231', 'nickname' => 'octocat']));
+
+    $this->withSession(['url.intended' => url($intended)])
+        ->get(route('login.store'))
+        ->assertRedirectToRoute('onboarding.show');
+})->with([
+    'approving another app' => '/mobile/authorize?app_id=ios:com.nativephp.devnull',
+    'approving an app that does not say which' => '/mobile/authorize?state=state',
+    'a public page' => '/@octocat?app_id=ios:sh.devnull.app',
+]);
+
+it('signs the lite mobile app out along with its web view', function (): void {
+    $user = User::factory()->create();
+    $device = Device::factory()->create(['user_id' => $user->id]);
+    $other = Device::factory()->create(['user_id' => $user->id]);
+
+    $this->actingAs($user)
+        ->withSession([Device::SessionKey => $device->id])
+        ->post(route('logout'))
+        ->assertRedirectToRoute('home');
+
+    $this->assertGuest();
+    $this->assertModelMissing($device);
+    $this->assertModelExists($other);
+});
+
+it("leaves alone a device that has become someone else's when signing out", function (): void {
+    $device = Device::factory()->create();
+
+    $this->actingAs(User::factory()->create())
+        ->withSession([Device::SessionKey => $device->id])
+        ->post(route('logout'));
+
+    $this->assertModelExists($device);
+});
+
+it('leaves devices alone when signing out of any other web session', function (): void {
+    $user = User::factory()->create();
+    $device = Device::factory()->create(['user_id' => $user->id]);
+
+    $this->actingAs($user)->post(route('logout'))->assertRedirectToRoute('home');
+
+    $this->assertModelExists($device);
 });
 
 it('may destroy a session', function (): void {

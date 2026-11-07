@@ -5,13 +5,15 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Actions\CreateTomFriendship;
+use App\Actions\DeleteDevice;
 use App\Actions\DeletePushSubscription;
 use App\Actions\UpdateOrCreateUser;
+use App\Dto\MobileAuthorization;
 use App\Jobs\ImportGitHubFollowsJob;
 use App\Jobs\LookUpUserOrganizations;
 use App\Jobs\SyncGitHubSshKeysJob;
+use App\Models\Device;
 use App\Models\User;
-use App\Services\AppSignIn;
 use App\Services\GitHubAccountScreening;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -31,7 +33,7 @@ final readonly class SessionController
         return Socialite::driver('github')->redirect();
     }
 
-    public function store(Request $request, UpdateOrCreateUser $action, CreateTomFriendship $createTomFriendship, GitHubAccountScreening $screening, AppSignIn $appSignIn): RedirectResponse
+    public function store(Request $request, UpdateOrCreateUser $action, CreateTomFriendship $createTomFriendship, GitHubAccountScreening $screening): RedirectResponse
     {
         $hasRetried = (bool) $request->session()->pull(self::RETRIED, false);
 
@@ -65,41 +67,39 @@ final readonly class SessionController
 
         if ($user->wasRecentlyCreated) {
             $createTomFriendship->handle($user);
+
+            // Counted by Fathom in the browser, for the conversion rate of the metrics...
+            Inertia::flash('signedUp', true);
         }
 
         dispatch(new SyncGitHubSshKeysJob($user));
         dispatch(new ImportGitHubFollowsJob($user, notify: $user->wasRecentlyCreated));
         LookUpUserOrganizations::dispatchFor($user);
 
-        // Signed in from the iOS app POC's sheet: the app's web view signs in, not this browser (temporary, see AppSignIn)...
-        $appCallbackUrl = $appSignIn->handOff($request, $user, signedUp: $user->wasRecentlyCreated);
-
-        if ($appCallbackUrl !== null) {
-            return redirect()->away($appCallbackUrl);
-        }
-
-        if ($user->wasRecentlyCreated) {
-            // Counted by Fathom in the browser, for the conversion rate of the metrics...
-            Inertia::flash('signedUp', true);
-        }
-
         Auth::login($user, remember: true);
 
         $request->session()->regenerate();
 
-        if (! $user->isOnboarded()) {
+        if (! $user->isOnboarded() && ! $this->isApprovingLiteMobileApp($request)) {
             return to_route('onboarding.show');
         }
 
         return redirect()->intended(route('log.show', $user->log, absolute: false));
     }
 
-    public function destroy(Request $request, DeletePushSubscription $deletePushSubscription): RedirectResponse
+    public function destroy(Request $request, DeletePushSubscription $deletePushSubscription, DeleteDevice $deleteDevice): RedirectResponse
     {
         $user = $request->user();
         assert($user instanceof User);
         $endpointHash = $request->session()->get('push_endpoint_hash');
         $deletePushSubscription->handle($user, is_string($endpointHash) ? $endpointHash : '');
+
+        // Signing out of the lite mobile app's web view signs the app out, or it would make a new session right away...
+        $device = $user->devices()->whereKey($request->session()->get(Device::SessionKey))->first();
+
+        if ($device instanceof Device) {
+            $deleteDevice->handle($device);
+        }
 
         Auth::guard('web')->logout();
 
@@ -107,6 +107,19 @@ final readonly class SessionController
         $request->session()->regenerateToken();
 
         return to_route('home');
+    }
+
+    /**
+     * The lite mobile app onboards a new account in its web view once it is signed in, rather than in its sign-in sheet.
+     * The other apps have nowhere else to send them, so they keep onboarding in the browser before approving.
+     */
+    private function isApprovingLiteMobileApp(Request $request): bool
+    {
+        $intended = $request->session()->get('url.intended');
+
+        return is_string($intended)
+            && str_starts_with($intended, route('mobile-authorization.show').'?')
+            && Request::create($intended)->query('app_id') === MobileAuthorization::LiteMobileAppId;
     }
 
     private function failed(?string $message = null): RedirectResponse
