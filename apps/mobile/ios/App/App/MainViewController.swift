@@ -143,6 +143,22 @@ final class MainViewController: UITabBarController, UITabBarControllerDelegate {
         setTabBarVisible(newState.isVisible && !newState.tabs.isEmpty, animated: previous.isVisible != newState.isVisible)
     }
 
+    /// Whether the site is in the web view, rather than the offline page.
+    var isShowingSite: Bool {
+        Site.contains(web.webView?.url)
+    }
+
+    /// Loads the page again with a new session, or the given one instead.
+    func reloadSite(path: String? = nil) {
+        if let path, web.webView?.url?.path != path {
+            web.webView?.load(URLRequest(url: Site.url(path: path)))
+        } else if isShowingSite {
+            web.webView?.reload()
+        } else {
+            web.webView?.load(URLRequest(url: Site.url))
+        }
+    }
+
     func adoptWebView(in tab: WebTabViewController) {
         guard web.parent !== tab else { return }
 
@@ -241,8 +257,19 @@ final class WebTabViewController: UIViewController {
 /// The web view of the site.
 final class WebViewController: CAPBridgeViewController {
     private var navigationFilter: CancelledNavigationFilter?
+    private var promptFilter: BridgePromptFilter?
 
     override func capacitorDidLoad() {
+        if let handler = (bridge as? CapacitorBridge)?.webViewDelegationHandler {
+            handler.contentController.removeScriptMessageHandler(forName: "bridge")
+            handler.contentController.add(BridgeMessageFilter(handler: handler), name: "bridge")
+        }
+
+        if let handler = webView?.uiDelegate {
+            promptFilter = BridgePromptFilter(handler: handler)
+            webView?.uiDelegate = promptFilter
+        }
+
         if let handler = webView?.navigationDelegate {
             navigationFilter = CancelledNavigationFilter(handler: handler)
             webView?.navigationDelegate = navigationFilter
@@ -257,6 +284,7 @@ final class WebViewController: CAPBridgeViewController {
         webView?.backgroundColor = .clear
 
         bridge?.registerPluginInstance(TabsPlugin())
+        bridge?.registerPluginInstance(SessionPlugin())
     }
 }
 
