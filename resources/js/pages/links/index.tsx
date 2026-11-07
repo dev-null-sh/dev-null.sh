@@ -47,27 +47,6 @@ function commitCount(count: number) {
     return `${count} commit${count === 1 ? '' : 's'}`;
 }
 
-/**
- * What stands for a link as a topic. Most links are pages of any site, which go by their title and the site's icon. A
- * GitHub project has a better name and picture than its page's: its own, and its owner's avatar.
- */
-function linkTopic(url: string, link: LinkDetails) {
-    const [, owner, project] =
-        /^https?:\/\/(?:www\.)?github\.com\/([^/?#]+)(?:\/([^/?#]+))?/.exec(
-            url,
-        ) ?? [];
-
-    return owner
-        ? {
-              title: project ? `${owner}/${project}` : owner,
-              iconUrl: `https://github.com/${owner}.png?size=160`,
-          }
-        : {
-              title: link.title ?? displayedLink(url),
-              iconUrl: siteFavicon(url),
-          };
-}
-
 /** A stand-in until the app reads icons itself, when it fetches a link's page. */
 function siteFavicon(url: string): string | null {
     return URL.canParse(url) ? `https://favicon.show/${hostname(url)}` : null;
@@ -234,13 +213,13 @@ function TopLinks({ links }: { links: TopLink[] }) {
  * the topic's colour, and its most starred commits nest below, each in its own author's colour.
  */
 function LinkTopic({ link }: { link: TopLink }) {
-    const topic = linkTopic(link.url, link);
     const lane = linkLane(link.url);
     const href = linkPage(link.url);
     const nodeId = `topic:${link.url}`;
     const endId = `${nodeId}:end`;
     const hasMore = link.commits > link.top_commits.length;
     const shownLink = displayedLink(link.url);
+    const title = link.title ?? shownLink;
 
     const openClickedCommit = (event: MouseEvent<HTMLElement>) => {
         const click = clickedCommit(
@@ -258,7 +237,7 @@ function LinkTopic({ link }: { link: TopLink }) {
 
     return (
         <section
-            aria-label={topic.title}
+            aria-label={title}
             className="grid grid-cols-[4rem_minmax(0,1fr)] sm:grid-cols-[4.5rem_minmax(0,1fr)]"
             data-test="topic"
         >
@@ -278,7 +257,7 @@ function LinkTopic({ link }: { link: TopLink }) {
                         <span className="relative flex rounded-lg bg-card">
                             <span className="relative flex rounded-lg border-2 border-(--lane) p-0.5">
                                 <TopicIcon
-                                    iconUrl={topic.iconUrl}
+                                    iconUrl={siteFavicon(link.url)}
                                     className="size-10"
                                 />
                             </span>
@@ -291,12 +270,12 @@ function LinkTopic({ link }: { link: TopLink }) {
                 <Link
                     prefetch
                     href={href}
-                    title={topic.title}
+                    title={title}
                     className="block truncate text-[15px] font-semibold hover:underline"
                 >
-                    {topic.title}
+                    {title}
                 </Link>
-                {topic.title !== shownLink && (
+                {title !== shownLink && (
                     <a
                         href={link.url}
                         target="_blank"
@@ -352,8 +331,7 @@ function LinkPage({
     stats: LinkStats;
     commits: CursorPaginated<Commit> | null;
 }) {
-    const topic = link ? linkTopic(url, link) : null;
-    const title = topic?.title ?? displayedLink(url);
+    const title = link?.title ?? displayedLink(url);
     const lane = linkLane(url);
     const firstCommit = commits?.data[0];
 
@@ -383,7 +361,7 @@ function LinkPage({
                         style={{ '--lane': lane } as CSSProperties}
                     >
                         <TopicIcon
-                            iconUrl={topic?.iconUrl ?? siteFavicon(url)}
+                            iconUrl={siteFavicon(url)}
                             className="size-16 rounded-lg"
                         />
                     </span>
