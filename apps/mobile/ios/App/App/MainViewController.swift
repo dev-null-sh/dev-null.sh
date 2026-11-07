@@ -33,6 +33,58 @@ final class MainViewController: UITabBarController, UITabBarControllerDelegate {
         if #available(iOS 26, *) {
             followScrolling()
         }
+
+        coverUntilSiteLoads()
+    }
+
+    // MARK: The first page
+
+    /// Set before the view loads, for a launch that's been waiting for its session.
+    var waitingSince = Date()
+    private var launchView: LaunchView?
+    private var loadingObservation: NSKeyValueObservation?
+
+    /// An empty web view isn't worth showing: the launch screen's picture stays until
+    /// the first page is there, or until it's better to see it arrive.
+    private func coverUntilSiteLoads() {
+        let cover = LaunchView(waitingSince: waitingSince)
+        cover.frame = view.bounds
+        cover.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        // VoiceOver doesn't reach the web view behind it
+        cover.accessibilityViewIsModal = true
+        view.addSubview(cover)
+        launchView = cover
+
+        loadingObservation = web.webView?.observe(\.isLoading) { [weak self] webView, _ in
+            MainActor.assumeIsolated {
+                guard !webView.isLoading else { return }
+
+                // A failed load, or a redirected one, starts another right after
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    if !webView.isLoading {
+                        self?.uncover()
+                    }
+                }
+            }
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 6) { [weak self] in
+            self?.uncover()
+        }
+    }
+
+    private func uncover() {
+        guard let launchView else { return }
+
+        self.launchView = nil
+        loadingObservation = nil
+
+        UIView.animate(withDuration: 0.16) {
+            launchView.alpha = 0
+        } completion: { _ in
+            launchView.removeFromSuperview()
+            UIAccessibility.post(notification: .screenChanged, argument: nil)
+        }
     }
 
     /// The status bar sits on the band that takes the color of the page. Until the
@@ -141,6 +193,10 @@ final class MainViewController: UITabBarController, UITabBarControllerDelegate {
         }
 
         setTabBarVisible(newState.isVisible && !newState.tabs.isEmpty, animated: previous.isVisible != newState.isVisible)
+
+        if let launchView {
+            view.bringSubviewToFront(launchView)
+        }
     }
 
     /// Whether the site is in the web view, rather than the offline page.

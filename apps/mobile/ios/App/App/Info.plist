@@ -55,6 +55,12 @@
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
 	<string>Main</string>
+	<key>UIAppFonts</key>
+	<array>
+		<string>public/fonts/Geist-Regular.ttf</string>
+		<string>public/fonts/Geist-SemiBold.ttf</string>
+		<string>public/fonts/GeistMono-Regular.ttf</string>
+	</array>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
