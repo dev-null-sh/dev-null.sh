@@ -8,6 +8,7 @@ use App\Models\Poll;
 use App\Models\PollOption;
 use App\Models\PollVote;
 use App\Models\User;
+use Illuminate\Database\QueryException;
 use Illuminate\Database\UniqueConstraintViolationException;
 
 function pollFor(User $viewer, Poll $poll): Poll
@@ -25,6 +26,13 @@ it('belongs to a commit and lists its options in order', function (): void {
     expect($poll->commit->poll->is($poll))->toBeTrue()
         ->and($poll->options->pluck('label')->all())->toBe(['Tabs', 'Spaces'])
         ->and($poll->options->first()->poll->is($poll))->toBeTrue();
+});
+
+it('stores an option label of at most 255 characters', function (): void {
+    $label = str_repeat('é', 255);
+
+    expect(PollOption::factory()->create(['label' => $label])->refresh()->label)->toBe($label)
+        ->and(fn (): PollOption => PollOption::factory()->create(['label' => $label.'é']))->toThrow(QueryException::class);
 });
 
 it('opens for the length of its duration', function (): void {
