@@ -434,6 +434,7 @@ Route::middleware('auth')->group(function (): void {
 
     // Every commit about a link, a prototype only reachable by its URL...
     Route::get('links', [LinkController::class, 'index'])->name('link.index');
+    Route::post('links/lookup', [LinkController::class, 'lookup'])->name('link.lookup');
 
     // Commit...
     Route::get('scheduled-commits', [ScheduledCommitController::class, 'index'])->name('scheduled-commit.index');

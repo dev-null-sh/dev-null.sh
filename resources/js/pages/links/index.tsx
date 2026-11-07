@@ -92,8 +92,21 @@ function displayedLink(url: string): string {
     return url.replace(/^https?:\/\/(?:www\.)?/u, '');
 }
 
-function linkPage(url: string) {
-    return LinkController.index({ query: { url } });
+/** Keep navigation URLs short enough for the browser, CDN and web server. */
+function linkVisit(url: string) {
+    const href = LinkController.index({
+        query: url === '' ? {} : { url },
+    }).url;
+
+    return href.length <= 1_800
+        ? { href, method: 'get' as const, prefetch: true }
+        : {
+              href: LinkController.lookup().url,
+              method: 'post' as const,
+              data: { url },
+              prefetch: false,
+              preserveState: false,
+          };
 }
 
 export default function Index(props: Props) {
@@ -187,8 +200,12 @@ function TopLinks({ links }: { links: TopLink[] }) {
 
     const submit = (event: FormEvent) => {
         event.preventDefault();
-        const url = draft.trim();
-        router.get(LinkController.index({ query: url === '' ? {} : { url } }));
+        const visit = linkVisit(draft.trim());
+        if (visit.method === 'post') {
+            router.post(visit.href, visit.data, { preserveState: false });
+        } else {
+            router.get(visit.href);
+        }
     };
 
     return (
@@ -258,7 +275,7 @@ function TopLinks({ links }: { links: TopLink[] }) {
 function LinkTopic({ link }: { link: TopLink }) {
     const topic = linkTopic(link.url, link);
     const lane = linkLane(link.url);
-    const href = linkPage(link.url);
+    const visit = linkVisit(link.url);
     const nodeId = `topic:${link.url}`;
     const endId = `${nodeId}:end`;
     const hasMore = link.commits > link.top_commits.length;
@@ -292,8 +309,7 @@ function LinkTopic({ link }: { link: TopLink }) {
                 graph={{ id: nodeId, endId }}
                 node={
                     <Link
-                        prefetch
-                        href={href}
+                        {...visit}
                         tabIndex={-1}
                         className="flex rounded-lg"
                     >
@@ -311,8 +327,7 @@ function LinkTopic({ link }: { link: TopLink }) {
 
             <div className="min-w-0 pt-3 pr-4">
                 <Link
-                    prefetch
-                    href={href}
+                    {...visit}
                     title={topic.title}
                     className="block truncate text-[15px] font-semibold hover:underline"
                 >
@@ -352,7 +367,7 @@ function LinkTopic({ link }: { link: TopLink }) {
                     commits={link.top_commits}
                     lane={lane}
                     graphParent={endId}
-                    more={hasMore ? { count: link.commits, href } : undefined}
+                    more={hasMore ? { count: link.commits, visit } : undefined}
                 />
             </div>
         </section>
@@ -372,8 +387,7 @@ function QuietLinkTopic({ link }: { link: TopLink }) {
             style={{ '--lane': linkLane(link.url) } as CSSProperties}
         >
             <Link
-                prefetch
-                href={linkPage(link.url)}
+                {...linkVisit(link.url)}
                 className="grid grid-cols-[4rem_minmax(0,1fr)] items-center py-2.5 pr-4 transition-colors hover:bg-accent focus-visible:bg-accent sm:grid-cols-[4.5rem_minmax(0,1fr)]"
             >
                 <span className="flex justify-center">

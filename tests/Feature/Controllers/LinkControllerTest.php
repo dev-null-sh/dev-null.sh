@@ -179,3 +179,27 @@ it('shows no commits for a link nobody used as their card', function (): void {
         ->where('stats', ['commits' => 0, 'people' => 0])
         ->where('commits', null));
 });
+
+it('redirects an oversized link lookup to a refreshable session-backed GET URL', function (): void {
+    $url = 'https://example.com/'.str_repeat('a', 1900);
+    $link = LinkPreview::factory()->fetched()->create(['url' => $url]);
+    $commit = Commit::factory()->create(['link_preview_id' => $link->id]);
+    $user = User::factory()->create();
+
+    $response = $this->actingAs($user)->post(route('link.lookup'), ['url' => $url])->assertRedirect();
+    $destination = $response->headers->get('Location');
+    expect($destination)->toBeString()->toContain('lookup=');
+
+    $this->get($destination)->assertOk()->assertInertia(fn ($page) => $page
+        ->component('links/index')
+        ->where('url', $url)
+        ->where('commits.data.0.id', $commit->id));
+
+    $this->get($destination)->assertOk()->assertInertia(fn ($page) => $page->where('url', $url));
+});
+
+it('rejects an unknown long-link lookup token', function (): void {
+    $this->actingAs(User::factory()->create())
+        ->get(route('link.index', ['lookup' => str_repeat('X', 24)]))
+        ->assertNotFound();
+});

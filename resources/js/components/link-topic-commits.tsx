@@ -61,7 +61,10 @@ export function LinkTopicCommits({
     /** The node the commits branch off. */
     graphParent: string;
     /** The link's other commits, when it has more than the ones listed. */
-    more?: { count: number; href: NonNullable<InertiaLinkProps['href']> };
+    more?: {
+        count: number;
+        visit: Pick<InertiaLinkProps, 'href' | 'method' | 'data' | 'prefetch' | 'preserveState'>;
+    };
 }) {
     return (
         <div
@@ -283,11 +286,11 @@ function LinkTopicCommit({
 
 function MoreCommitsLink({
     count,
-    href,
+    visit,
     graphParent,
 }: {
     count: number;
-    href: NonNullable<InertiaLinkProps['href']>;
+    visit: Pick<InertiaLinkProps, 'href' | 'method' | 'data' | 'prefetch' | 'preserveState'>;
     graphParent: string;
 }) {
     const dotRef = useGraphNode({
@@ -300,8 +303,7 @@ function MoreCommitsLink({
 
     return (
         <Link
-            prefetch
-            href={href}
+            {...visit}
             className="-ml-2 flex w-fit max-w-full min-w-0 items-center gap-2 rounded-md px-2 py-0.5 text-[13px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground sm:gap-2.5"
         >
             <span
