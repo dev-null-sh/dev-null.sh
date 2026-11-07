@@ -6,7 +6,7 @@ use App\Enums\OrganizationRole;
 use App\Models\Organization;
 use App\Models\User;
 
-it('shows admins the profile of the organization in its settings, with its color', function (): void {
+it('shows admins the profile of the organization in its settings, with its color and whether it shows its people', function (): void {
     $user = User::factory()->create();
     $organization = Organization::factory()->create(['lane_color' => '#1a2b3c']);
     $organization->admins()->attach($user->id);
@@ -19,7 +19,8 @@ it('shows admins the profile of the organization in its settings, with its color
             ->where('organization.id', $organization->id)
             ->where('role', 'admin')
             ->where('organization.lane', '#1a2b3c')
-            ->missing('organization.lane_color'));
+            ->missing('organization.lane_color')
+            ->where('showsPeople', false));
 });
 
 it('hides the profile settings from members who are not admins, and from everyone else', function (): void {

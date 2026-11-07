@@ -142,6 +142,8 @@ it('gives the local developer GitHub organizations with threads that mention the
         ->and($laravel->profile->only(['github_id', 'avatar_url']))->toBe(['github_id' => '958072', 'avatar_url' => 'https://avatars.githubusercontent.com/u/958072?v=4'])
         ->and($devNull->roleOf($localDeveloper))->toBe(OrganizationRole::Admin)
         ->and($devNull->members()->count())->toBe(4)
+        ->and($devNull->shows_people)->toBeTrue()
+        ->and($laravel->shows_people)->toBeFalse()
         ->and($devNull->followers()->count())->toBe(5)
         ->and($laravel->roleOf($localDeveloper))->toBeNull()
         ->and($laravel->admins()->count())->toBe(1)

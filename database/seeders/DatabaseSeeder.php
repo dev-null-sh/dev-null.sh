@@ -82,9 +82,10 @@ final class DatabaseSeeder extends Seeder
     }
 
     /**
-     * Two GitHub organizations, as if someone had mentioned them: /dev/null, which the local developer manages, and
-     * Laravel, which they follow. Their pages list threads that mention them, and the commits they post, through their
-     * members, reach the Following log of whoever follows them.
+     * Two GitHub organizations, as if someone had mentioned them: /dev/null, which the local developer manages and whose
+     * page shows its people, and Laravel, which they follow and whose page keeps them hidden. Their pages list threads
+     * that mention them, and the commits they post, through their members, reach the Following log of whoever follows
+     * them.
      *
      * @param  Collection<int, User>  $users
      */
@@ -98,6 +99,7 @@ final class DatabaseSeeder extends Seeder
             $localDeveloper->id => ['role' => OrganizationRole::Admin],
             ...array_fill_keys([$maintainer->id, $contributor->id, $reviewer->id], ['role' => OrganizationRole::Member]),
         ]);
+        $devNull->update(['shows_people' => true]);
         $devNull->followers()->syncWithoutDetaching($users->take(5)->modelKeys());
         $laravel->admins()->syncWithoutDetaching([$artisan->id]);
         $laravel->followers()->syncWithoutDetaching([$localDeveloper->id, $maintainer->id]);

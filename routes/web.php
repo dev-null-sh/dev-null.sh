@@ -91,6 +91,7 @@ use App\Http\Controllers\OrganizationFollowController;
 use App\Http\Controllers\OrganizationLaneController;
 use App\Http\Controllers\OrganizationMemberController;
 use App\Http\Controllers\OrganizationMentionController;
+use App\Http\Controllers\OrganizationPeopleVisibilityController;
 use App\Http\Controllers\OrganizationProfileController;
 use App\Http\Controllers\OrganizationSitemapController;
 use App\Http\Controllers\OrgArchiveController;
@@ -420,6 +421,9 @@ Route::middleware('auth')->group(function (): void {
     Route::put('organizations/{organization}/settings/lane', [OrganizationLaneController::class, 'update'])
         ->whereUuid('organization')
         ->name('organization-lane.update');
+    Route::put('organizations/{organization}/settings/people', [OrganizationPeopleVisibilityController::class, 'update'])
+        ->whereUuid('organization')
+        ->name('organization-people-visibility.update');
 
     // Followers the viewer knows...
     Route::get('@{user:handle}/followers-you-know', [UserFollowersYouKnowController::class, 'index'])
