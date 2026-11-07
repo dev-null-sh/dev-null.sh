@@ -271,3 +271,16 @@ it('shows a signed request the newest reply or quote under each commit, as the w
         ->assertOk()
         ->assertJsonMissingPath('data.0.reply_preview');
 });
+
+it('tells a signed request which reply continues the thread of each commit it lists', function (): void {
+    $keyPair = apiKeyPairFor(User::factory()->create());
+    $user = User::factory()->create();
+    $commit = Commit::factory()->for($user)->create(['created_at' => now()->subMinutes(3)]);
+    $continuation = Commit::factory()->for($user)->for($commit, 'parent')->create(['created_at' => now()->subMinutes(2)]);
+    Commit::factory()->for($user)->create(['created_at' => now()->subMinutes(4)]);
+
+    signedApiRequest($keyPair, 'GET', route('api-user-commit.index', $user))
+        ->assertOk()
+        ->assertJsonPath('data.0.continuation_id', $continuation->id)
+        ->assertJsonPath('data.1.continuation_id', null);
+});

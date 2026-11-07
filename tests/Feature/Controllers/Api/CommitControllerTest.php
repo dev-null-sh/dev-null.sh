@@ -316,6 +316,7 @@ it('shows a signed request the commit as its page shows it to its user', functio
                 'starred' => true,
                 'pasteis_count' => 4,
                 'deleted_at' => null,
+                'continuation_id' => null,
                 'quoted_commit_id' => null,
                 'quoted_commit' => null,
                 'poll' => null,
@@ -345,6 +346,24 @@ it('shows a signed request the commit as its page shows it to its user', functio
             ]],
             'reply_participants' => [],
         ]);
+});
+
+it('tells a signed request which reply continues the thread of its author, and leaves it out of the replies count', function (): void {
+    $keyPair = apiKeyPairFor(User::factory()->create());
+    $author = User::factory()->create();
+    $commit = Commit::factory()->for($author)->create(['created_at' => now()->subMinutes(4)]);
+    $continuation = Commit::factory()->for($author)->for($commit, 'parent')->create(['created_at' => now()->subMinutes(3)]);
+    Commit::factory()->for($author)->for($commit, 'parent')->create(['created_at' => now()->subMinutes(2)]);
+    Commit::factory()->for($commit, 'parent')->create(['created_at' => now()->subMinute()]);
+
+    signedApiRequest($keyPair, 'GET', route('api-commit.show', $commit))
+        ->assertOk()
+        ->assertJsonPath('data.continuation_id', $continuation->id)
+        ->assertJsonPath('data.replies_count', 2);
+
+    $this->getJson(route('api-commit.show', $commit))
+        ->assertOk()
+        ->assertJsonMissingPath('data.continuation_id');
 });
 
 it('shows a signed request the poll of a commit as the web does, with each share once the votes show', function (): void {
