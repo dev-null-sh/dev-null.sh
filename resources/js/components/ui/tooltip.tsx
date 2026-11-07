@@ -48,7 +48,7 @@ function Tooltip({
     isArmed,
     arm: (byFocus) => {
       takesFocus.current = byFocus
-      // At once: React waits to render after a pointer enters, and a click landing meanwhile would press the trigger
+      // At once: React waits to render after a pointer moves, and a click landing meanwhile would press the trigger
       // before it is mounted again and be released on the new one, which loses it.
       flushSync(() => setHasArmed(true))
     },
@@ -97,7 +97,7 @@ function focusableIn(element: HTMLElement): HTMLElement | null {
 function TooltipTrigger({
   ref,
   asChild,
-  onPointerEnter,
+  onPointerMove,
   onFocus,
   ...props
 }: React.ComponentProps<typeof TooltipPrimitive.Trigger>) {
@@ -111,11 +111,14 @@ function TooltipTrigger({
         ref={ref}
         {...(!asChild && { type: "button" as const })}
         {...props}
-        onPointerEnter={(event: React.PointerEvent<HTMLButtonElement>) => {
-          onPointerEnter?.(event)
-          // A tap would land on a trigger mounted again under the finger, and touch shows no tooltip anyway.
-          if (event.pointerType !== "touch") {
-            arming.arm(false)
+        onPointerMove={(event: React.PointerEvent<HTMLButtonElement>) => {
+          onPointerMove?.(event)
+          // On a move with nothing pressed, not on entering: a trigger that scrolled or shifted under a still pointer
+          // is entered by the press itself, and mounting it again during a press would drop it. A tap would land on a
+          // trigger mounted again under the finger, and touch shows no tooltip anyway. A click that landed before any
+          // move left its button focused, which the trigger mounted again takes back.
+          if (event.pointerType !== "touch" && event.buttons === 0) {
+            arming.arm(event.currentTarget.contains(document.activeElement))
           }
         }}
         onFocus={(event: React.FocusEvent<HTMLButtonElement>) => {
@@ -140,7 +143,7 @@ function TooltipTrigger({
         }
       }}
       asChild={asChild}
-      onPointerEnter={onPointerEnter}
+      onPointerMove={onPointerMove}
       onFocus={onFocus}
       {...props}
     />
