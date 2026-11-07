@@ -64,6 +64,9 @@ final readonly class CommitController
         ])->withViewData(['preview' => $preview]);
     }
 
+    /**
+     * Creates a web commit with its request-derived source, then flashes the commit and any new achievements.
+     */
     public function store(CreateCommitRequest $request, #[CurrentUser] User $user, CreateCommit $action, UserAchievementsQuery $achievements): RedirectResponse
     {
         $before = $achievements->unlockedBadgeNames($user);

@@ -33,6 +33,9 @@ final readonly class ScheduledCommitController
         ]);
     }
 
+    /**
+     * Schedules a post with the current app source so it can retain that source when published later.
+     */
     public function store(CreateScheduledCommitRequest $request, #[CurrentUser] User $user, CreateScheduledCommit $action): RedirectResponse
     {
         $action->handle($user, $request->string('body')->value(), CarbonImmutable::parse($request->string('scheduled_at')->value())->utc(), $request->images(), $request->imageDescriptions(), $request->poll(), $request->linkPreview(), $request->organization(), source: CommitSource::forRequest($request));

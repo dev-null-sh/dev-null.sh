@@ -14,6 +14,9 @@ use Illuminate\Http\Response;
 
 final readonly class CommitController
 {
+    /**
+     * Creates a terminal commit and returns its URL, keeping the CLI source separate from signed app posts.
+     */
     public function store(CreateCliCommitRequest $request, #[CurrentUser] User $user, CreateCommit $action): Response
     {
         $commit = $action->handle($user, $request->string('body')->value(), $request->parent(), images: $request->images(), source: CommitSource::Cli);

@@ -80,6 +80,7 @@ const sourceLabels: Record<CommitSource, string> = {
     api: 'App',
 };
 
+/** Draws a commit with its thread graph, actions, and posting source when available. */
 export function CommitCard({
     commit,
     previousLane,
