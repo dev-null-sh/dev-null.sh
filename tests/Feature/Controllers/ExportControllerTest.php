@@ -94,7 +94,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
     $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
 
     expect($data)->toBe([
-        'schema_version' => 7,
+        'schema_version' => 8,
         'exported_at' => now()->toIso8601String(),
         'profile' => [
             'github_id' => $user->github_id,
@@ -137,7 +137,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
             'created_at' => $user->created_at->toIso8601String(),
             'updated_at' => $user->updated_at->toIso8601String(),
         ],
-        'active_days' => [['date' => now()->toDateString(), 'web_app' => true, 'native_mobile_app' => false, 'mac_app' => false, 'other_app' => false]],
+        'active_days' => [['date' => now()->toDateString(), 'web_app' => true, 'native_mobile_app' => false, 'lite_mobile_app' => false, 'mac_app' => false, 'other_app' => false]],
         'commits' => [],
         'organization_commits' => [],
         'polls' => [],
@@ -490,17 +490,17 @@ it('exports the days the user was seen with the apps they used, oldest first, wi
     $this->travelTo(now()->setDate(2026, 10, 21)->setTime(12, 0));
     $user = User::factory()->create(['last_seen_at' => now()]);
     DB::table('user_active_days')->insert([
-        ['user_id' => $user->id, 'seen_at' => '2026-10-21', 'web_app' => true, 'native_mobile_app' => true, 'mac_app' => false, 'other_app' => false],
-        ['user_id' => $user->id, 'seen_at' => '2026-10-19', 'web_app' => false, 'native_mobile_app' => false, 'mac_app' => true, 'other_app' => true],
-        ['user_id' => User::factory()->create()->id, 'seen_at' => '2026-10-20', 'web_app' => true, 'native_mobile_app' => false, 'mac_app' => false, 'other_app' => false],
+        ['user_id' => $user->id, 'seen_at' => '2026-10-21', 'web_app' => true, 'native_mobile_app' => true, 'lite_mobile_app' => false, 'mac_app' => false, 'other_app' => false],
+        ['user_id' => $user->id, 'seen_at' => '2026-10-19', 'web_app' => false, 'native_mobile_app' => false, 'lite_mobile_app' => true, 'mac_app' => true, 'other_app' => true],
+        ['user_id' => User::factory()->create()->id, 'seen_at' => '2026-10-20', 'web_app' => true, 'native_mobile_app' => false, 'lite_mobile_app' => false, 'mac_app' => false, 'other_app' => false],
     ]);
 
     $response = $this->actingAs($user)->get(route('export'));
     $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
 
     expect($data['active_days'])->toBe([
-        ['date' => '2026-10-19', 'web_app' => false, 'native_mobile_app' => false, 'mac_app' => true, 'other_app' => true],
-        ['date' => '2026-10-21', 'web_app' => true, 'native_mobile_app' => true, 'mac_app' => false, 'other_app' => false],
+        ['date' => '2026-10-19', 'web_app' => false, 'native_mobile_app' => false, 'lite_mobile_app' => true, 'mac_app' => true, 'other_app' => true],
+        ['date' => '2026-10-21', 'web_app' => true, 'native_mobile_app' => true, 'lite_mobile_app' => false, 'mac_app' => false, 'other_app' => false],
     ]);
 });
 

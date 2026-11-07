@@ -19,14 +19,14 @@ function usedOn(string $day, string ...$apps): void
 
 it('counts the people who used each app each day of the range, oldest first, in every app they used', function (): void {
     usedOn('2026-11-02', 'web_app', 'native_mobile_app');
-    usedOn('2026-11-02', 'web_app');
+    usedOn('2026-11-02', 'web_app', 'lite_mobile_app');
     usedOn('2026-11-01', 'web_app');
     usedOn('2026-11-02', 'mac_app', 'other_app');
     usedOn('2026-10-31', 'web_app');
 
     expect(resolve(AppUsageQuery::class)->get(CarbonImmutable::parse('2026-11-01'), CarbonImmutable::parse('2026-11-02'))['days'])->toBe([
-        ['date' => '2026-11-01', 'web_app' => 1, 'native_mobile_app' => 0, 'mac_app' => 0, 'other_app' => 0],
-        ['date' => '2026-11-02', 'web_app' => 2, 'native_mobile_app' => 1, 'mac_app' => 1, 'other_app' => 1],
+        ['date' => '2026-11-01', 'web_app' => 1, 'native_mobile_app' => 0, 'lite_mobile_app' => 0, 'mac_app' => 0, 'other_app' => 0],
+        ['date' => '2026-11-02', 'web_app' => 2, 'native_mobile_app' => 1, 'lite_mobile_app' => 1, 'mac_app' => 1, 'other_app' => 1],
     ]);
 });
 
@@ -44,6 +44,13 @@ it('says tracking started on the first day any other app than web shows up, even
     usedOn('2026-10-20', 'web_app');
     usedOn('2026-10-25', 'mac_app');
     usedOn('2026-10-28', 'other_app');
+
+    expect(resolve(AppUsageQuery::class)->get(CarbonImmutable::parse('2026-11-01'), CarbonImmutable::parse('2026-11-02'))['recorded_since'])->toBe('2026-10-25');
+});
+
+it('says tracking started on the first day the lite mobile app shows up, when no other app did', function (): void {
+    usedOn('2026-10-20', 'web_app');
+    usedOn('2026-10-25', 'lite_mobile_app');
 
     expect(resolve(AppUsageQuery::class)->get(CarbonImmutable::parse('2026-11-01'), CarbonImmutable::parse('2026-11-02'))['recorded_since'])->toBe('2026-10-25');
 });

@@ -33,6 +33,58 @@ final class MainViewController: UITabBarController, UITabBarControllerDelegate {
         if #available(iOS 26, *) {
             followScrolling()
         }
+
+        coverUntilSiteLoads()
+    }
+
+    // MARK: The first page
+
+    /// Set before the view loads, for a launch that's been waiting for its session.
+    var waitingSince = Date()
+    private var launchView: LaunchView?
+    private var loadingObservation: NSKeyValueObservation?
+
+    /// An empty web view isn't worth showing: the launch screen's picture stays until
+    /// the first page is there, or until it's better to see it arrive.
+    private func coverUntilSiteLoads() {
+        let cover = LaunchView(waitingSince: waitingSince)
+        cover.frame = view.bounds
+        cover.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        // VoiceOver doesn't reach the web view behind it
+        cover.accessibilityViewIsModal = true
+        view.addSubview(cover)
+        launchView = cover
+
+        loadingObservation = web.webView?.observe(\.isLoading) { [weak self] webView, _ in
+            MainActor.assumeIsolated {
+                guard !webView.isLoading else { return }
+
+                // A failed load, or a redirected one, starts another right after
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    if !webView.isLoading {
+                        self?.uncover()
+                    }
+                }
+            }
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 6) { [weak self] in
+            self?.uncover()
+        }
+    }
+
+    private func uncover() {
+        guard let launchView else { return }
+
+        self.launchView = nil
+        loadingObservation = nil
+
+        UIView.animate(withDuration: 0.16) {
+            launchView.alpha = 0
+        } completion: { _ in
+            launchView.removeFromSuperview()
+            UIAccessibility.post(notification: .screenChanged, argument: nil)
+        }
     }
 
     /// The status bar sits on the band that takes the color of the page. Until the
@@ -141,6 +193,26 @@ final class MainViewController: UITabBarController, UITabBarControllerDelegate {
         }
 
         setTabBarVisible(newState.isVisible && !newState.tabs.isEmpty, animated: previous.isVisible != newState.isVisible)
+
+        if let launchView {
+            view.bringSubviewToFront(launchView)
+        }
+    }
+
+    /// Whether the site is in the web view, rather than the offline page.
+    var isShowingSite: Bool {
+        Site.contains(web.webView?.url)
+    }
+
+    /// Loads the page again with a new session, or the given one instead.
+    func reloadSite(path: String? = nil) {
+        if let path, web.webView?.url?.path != path {
+            web.webView?.load(URLRequest(url: Site.url(path: path)))
+        } else if isShowingSite {
+            web.webView?.reload()
+        } else {
+            web.webView?.load(URLRequest(url: Site.url))
+        }
     }
 
     func adoptWebView(in tab: WebTabViewController) {
@@ -241,8 +313,19 @@ final class WebTabViewController: UIViewController {
 /// The web view of the site.
 final class WebViewController: CAPBridgeViewController {
     private var navigationFilter: CancelledNavigationFilter?
+    private var promptFilter: BridgePromptFilter?
 
     override func capacitorDidLoad() {
+        if let handler = (bridge as? CapacitorBridge)?.webViewDelegationHandler {
+            handler.contentController.removeScriptMessageHandler(forName: "bridge")
+            handler.contentController.add(BridgeMessageFilter(handler: handler), name: "bridge")
+        }
+
+        if let handler = webView?.uiDelegate {
+            promptFilter = BridgePromptFilter(handler: handler)
+            webView?.uiDelegate = promptFilter
+        }
+
         if let handler = webView?.navigationDelegate {
             navigationFilter = CancelledNavigationFilter(handler: handler)
             webView?.navigationDelegate = navigationFilter
@@ -257,6 +340,7 @@ final class WebViewController: CAPBridgeViewController {
         webView?.backgroundColor = .clear
 
         bridge?.registerPluginInstance(TabsPlugin())
+        bridge?.registerPluginInstance(SessionPlugin())
     }
 }
 

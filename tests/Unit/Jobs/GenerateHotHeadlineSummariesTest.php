@@ -16,7 +16,7 @@ it('expires old snapshots and queues only hot topics without a fresh recap', fun
         ->sequence(fn (Sequence $sequence): array => ['name' => 'Topic '.$sequence->index])
         ->create();
     foreach ($headlines as $headline) {
-        Commit::factory()->hasAttached($headline)->create();
+        Commit::factory()->count(2)->hasAttached($headline)->create();
     }
 
     $fresh = $headlines->first();

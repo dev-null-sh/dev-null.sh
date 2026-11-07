@@ -16,6 +16,10 @@ const shortcodePattern = new RegExp(
 );
 
 export function emojify(text: string): string {
+    if (!text.includes(':')) {
+        return text;
+    }
+
     return text.replace(
         shortcodePattern,
         (_, name: string) => shortcodeEmoji[name],
@@ -26,6 +30,10 @@ export function emojifyInput(
     text: string,
     caret: number,
 ): { text: string; caret: number } {
+    if (!text.includes(':')) {
+        return { text, caret };
+    }
+
     const emojifyTyped = (typed: string) => mapTypedProse(typed, emojify);
 
     return {

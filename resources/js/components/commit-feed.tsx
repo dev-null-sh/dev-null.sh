@@ -229,6 +229,7 @@ export function CommitFeed({
             actions={actions?.(commit)}
             threadActions={threadActions?.(commit)}
             isFolded={isFolded}
+            showsParent={isModeration}
             onAuthorHover={(isHovering) =>
                 highlightAuthor(commit.author.id, isHovering)
             }

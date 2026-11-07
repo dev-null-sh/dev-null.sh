@@ -5,10 +5,11 @@ import type { ReactNode } from 'react';
 import { renderToString } from 'react-dom/server';
 import { afterEach, beforeEach, test, vi } from 'vite-plus/test';
 import type { DateTimePreferences } from '../../resources/js/lib/date-time';
-import type { User } from '../../resources/js/types';
+import type { Commit, User } from '../../resources/js/types';
 
 const auth = {
     user: { timezone: 'Pacific/Honolulu' },
+    organizations: [],
     dateTime: {} as DateTimePreferences,
 };
 let server = false;
@@ -71,6 +72,10 @@ const { FailedJobsPanel } =
 const { OverviewEvents } =
     await import('../../resources/js/components/operations/overview-events');
 const { default: Links } = await import('../../resources/js/pages/links/index');
+const { LinkTopicCommits } =
+    await import('../../resources/js/components/link-topic-commits');
+const { GraphCanvas } =
+    await import('../../resources/js/components/graph-canvas');
 const { PinnedBanner } =
     await import('../../resources/js/components/chat/pinned-messages');
 const { MentionsBell } =
@@ -511,10 +516,13 @@ test('health, overview and shared links use preferences for absolute date fallba
                         {
                             url: 'https://example.com',
                             title: 'Example link',
-                            site_name: 'Example',
+                            description: null,
                             people: 2,
                             commits: 3,
                             last_mentioned_at: at,
+                            stars: 0,
+                            stars_last_6h: 0,
+                            top_commits: [],
                         },
                     ]}
                 />
@@ -533,6 +541,63 @@ test('health, overview and shared links use preferences for absolute date fallba
         3,
     );
     assert.match(panels(), /last Oct 19, 2025/);
+});
+
+test('link topic commits follow date preferences without changing relative labels or instants', () => {
+    process.env.TZ = 'Pacific/Honolulu';
+    setReaderClock(browserClock());
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-11-07T12:00:00Z'));
+    setRenderedAt(Date.now());
+    server = true;
+    const commits = ['2026-10-20T00:35:00Z', '2026-11-07T10:00:00Z'].map(
+        (created_at, index) =>
+            ({
+                id: `topic-commit-${index}`,
+                parent_id: null,
+                quoted_commit_id: null,
+                created_at,
+                status: 'approved',
+                body: 'Example commit',
+                body_segments: [{ type: 'text', text: 'Example commit' }],
+                preview_segments: [{ type: 'text', text: 'Example commit' }],
+                replies_count: 0,
+                author: {
+                    id: 'author',
+                    type: 'user',
+                    name: 'Example Author',
+                    handle: 'example',
+                    lane: 1,
+                    timezone: null,
+                    show_local_time: false,
+                },
+            }) as Commit,
+    );
+    const panel = () =>
+        renderToString(
+            <TooltipProvider>
+                <GraphCanvas>
+                    <LinkTopicCommits
+                        commits={commits}
+                        lane="blue"
+                        graphParent="topic"
+                    />
+                </GraphCanvas>
+            </TooltipProvider>,
+        );
+
+    auth.dateTime = { dateFormat: 'day_first' };
+    assert.match(
+        panel(),
+        /dateTime="2026-10-20T00:35:00Z"[^>]*>19 Oct<\/time>/,
+    );
+    assert.match(panel(), /dateTime="2026-11-07T10:00:00Z"[^>]*>2h<\/time>/);
+    auth.dateTime = { dateFormat: 'month_first' };
+    assert.match(
+        panel(),
+        /dateTime="2026-10-20T00:35:00Z"[^>]*>Oct 19<\/time>/,
+    );
+    assert.match(panel(), /dateTime="2026-11-07T10:00:00Z"[^>]*>2h<\/time>/);
 });
 
 test('timeout deadlines follow the viewer date and clock preferences', () => {
@@ -647,6 +712,7 @@ test('metrics dates follow viewer date order without changing UTC buckets or dat
                     web_app: 7,
                     mac_app: 0,
                     native_mobile_app: 0,
+                    lite_mobile_app: 0,
                     other_app: 0,
                 },
                 {
@@ -654,6 +720,7 @@ test('metrics dates follow viewer date order without changing UTC buckets or dat
                     web_app: 3,
                     mac_app: 2,
                     native_mobile_app: 1,
+                    lite_mobile_app: 1,
                     other_app: 0,
                 },
             ],
