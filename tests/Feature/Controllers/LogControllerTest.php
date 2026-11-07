@@ -200,6 +200,15 @@ it('preserves loaded commits when an approval moves the oldest boundary', functi
         ->toContain($boundary->id, ...$loaded->modelKeys());
 });
 
+it('rejects a forged pagination boundary timestamp outside its commit lifetime', function (): void {
+    $boundary = Commit::factory()->create(['created_at' => now()->subHour()]);
+    $request = \App\Http\Requests\ShowLogRequest::create('/log/latest', 'GET');
+    $request->headers->set('X-Log-Through', $boundary->id);
+    $request->headers->set('X-Log-Through-At', now()->subYears(20)->toIso8601String());
+
+    expect($request->throughAt($boundary))->toBeNull();
+});
+
 it('paginates the log', function (Log $log): void {
     $user = User::factory()->create();
 

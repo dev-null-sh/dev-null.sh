@@ -84,7 +84,11 @@ final class ShowLogRequest extends FormRequest
         }
 
         try {
-            return CarbonImmutable::parse($time);
+            $observed = CarbonImmutable::parse($time);
+            $current = $through->approved_at ?? $through->created_at;
+
+            // A commit cannot have appeared before creation or after its current approval.
+            return $observed->betweenIncluded($through->created_at, $current) ? $observed : null;
         } catch (\Exception) {
             return null;
         }
