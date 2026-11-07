@@ -20,7 +20,6 @@ final readonly class LatestLogQuery implements LogQuery
             ->withVisibleReplyCount($user)
             ->withReplyPreviews($user)
             ->withCardDataFor($user)
-            ->latest()
-            ->latest('id');
+            ->newestInFeed();
     }
 }

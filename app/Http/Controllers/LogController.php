@@ -53,16 +53,30 @@ final readonly class LogController
 
         return Inertia::render('log/show', [
             'log' => $log,
-            'commits' => Inertia::scroll(fn (): CursorPaginator => ShownStreams::page($commits->paginate($log, $user, $request->through(), $request->cursor($log)))),
+            'commits' => Inertia::scroll(function () use ($request, $log, $user, $commits): CursorPaginator {
+                $through = $request->through();
+
+                return ShownStreams::page($commits->paginate($log, $user, $through, $request->cursor($log), $request->throughAt($through)));
+            }),
             'isRanked' => $log->isRanked(),
             'newCommitsCount' => Inertia::optional(function () use ($request, $user, $log, $latest): int {
                 $seen = $request->since();
 
-                return $seen instanceof Commit || $request->boolean('everything') ? $latest->count($log, $user, $seen) : 0;
+                return $seen instanceof Commit || $request->boolean('everything')
+                    ? $latest->count($log, $user, $seen, $request->date('since_at'))
+                    : 0;
             }),
             'removedCommitIds' => Inertia::optional(fn (): array => $latest->missing($log, $user, $request->pending())),
-            'arrivedCommitIds' => Inertia::optional(fn (): array => $latest->arrived($log, $user, $request->arrived(), $request->through())),
-            'windowDigest' => Inertia::optional(fn (): ?string => $latest->window($log, $user, $request->through(), $request->since())),
+            'arrivedCommitIds' => Inertia::optional(function () use ($request, $latest, $log, $user): array {
+                $through = $request->through();
+
+                return $latest->arrived($log, $user, $request->arrived(), $through, $request->throughAt($through));
+            }),
+            'windowDigest' => Inertia::optional(function () use ($request, $latest, $log, $user): ?string {
+                $through = $request->through();
+
+                return $latest->window($log, $user, $through, $request->since(), $request->throughAt($through), $request->date('since_at'));
+            }),
             'suggestions' => fn (): array => $user instanceof User && $log === Log::Following && ! $user->following()->exists()
                 ? ShownStreams::commits($suggested->get($user))
                 : [],

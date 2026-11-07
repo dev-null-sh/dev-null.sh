@@ -77,12 +77,24 @@ export default function Show({
 
     const commitDialogClosedCount = useCommitDialogClosedCount();
     const viewerId = user?.id ?? 'guest';
+    const observedAt = useRef(new Map<string, string>());
+    useEffect(() => {
+        for (const commit of commits.data) {
+            if (!observedAt.current.has(commit.id)) {
+                observedAt.current.set(commit.id, commit.approved_at ?? commit.created_at);
+            }
+        }
+    }, [commits.data]);
+
     const newestId = isRanked ? undefined : commits.data[0]?.id;
-    // The oldest loaded commits, oldest first: the range holds on the oldest the reader can still see.
-    const throughIds = commits.data
-        .slice(-20)
-        .map((commit) => commit.id)
-        .reverse()
+    const newestAt = newestId === undefined
+        ? undefined
+        : (observedAt.current.get(newestId) ?? commits.data[0]?.approved_at ?? commits.data[0]?.created_at);
+    // Keep the exact boundary and its original timestamp when approvals reorder the feed.
+    const throughRows = commits.data.slice(-20).reverse();
+    const throughIds = throughRows.map((commit) => commit.id).join(',');
+    const throughTimes = throughRows
+        .map((commit) => observedAt.current.get(commit.id) ?? commit.approved_at ?? commit.created_at)
         .join(',');
     const tabsRef = useRef<HTMLDivElement>(null);
     const [tabsHeight, setTabsHeight] = useState(0);
@@ -401,7 +413,7 @@ export default function Show({
                 reset: ['commits'],
                 data: { since: '' },
                 // Retain the loaded range so inserting new commits preserves the reader's row.
-                headers: { 'X-Log-Through': throughIds },
+                headers: { 'X-Log-Through': throughIds, 'X-Log-Through-At': throughTimes },
                 preserveUrl: true,
                 onCancelToken: (token) => {
                     loadRequest.current = token;
@@ -485,6 +497,7 @@ export default function Show({
             ],
             data: {
                 since: newestId,
+                since_at: newestAt,
                 ...(newestId === undefined && !isRanked
                     ? { everything: 1 }
                     : {}),
@@ -496,7 +509,7 @@ export default function Show({
                 ].slice(0, 100),
                 arrived,
             },
-            headers: { 'X-Log-Through': throughIds },
+            headers: { 'X-Log-Through': throughIds, 'X-Log-Through-At': throughTimes },
             preserveUrl: true,
             onSuccess: (page: { props: PageProps }) => {
                 const removed = new Set(

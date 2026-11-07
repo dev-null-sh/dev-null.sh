@@ -13,9 +13,11 @@ it('may approve a commit', function (): void {
 
     $action = resolve(UpdateCommitStatus::class);
 
+    $this->travel(10)->minutes();
     $action->handle($commit, CommitStatus::Approved);
 
-    expect($commit->refresh()->status)->toBe(CommitStatus::Approved);
+    expect($commit->refresh()->status)->toBe(CommitStatus::Approved)
+        ->and($commit->approved_at?->toIso8601String())->toBe(now()->toIso8601String());
 });
 
 it('may reject a commit', function (): void {
@@ -30,6 +32,22 @@ it('may reject a commit', function (): void {
     expect($commit->refresh()->status)->toBe(CommitStatus::Rejected)
         ->and($notification->type)->toBe(NotificationType::Rejected)
         ->and($notification->reason)->toBe('Please add context.');
+});
+
+it('keeps the first approval date when a commit is rejected and approved again', function (): void {
+    $commit = Commit::factory()->pending()->create();
+    $action = resolve(UpdateCommitStatus::class);
+
+    $action->handle($commit, CommitStatus::Approved);
+
+    $approvedAt = $commit->refresh()->approved_at?->toIso8601String();
+
+    $this->travel(1)->hour();
+    $action->handle($commit, CommitStatus::Rejected);
+    $action->handle($commit, CommitStatus::Approved);
+
+    expect($approvedAt)->not->toBeNull()
+        ->and($commit->refresh()->approved_at?->toIso8601String())->toBe($approvedAt);
 });
 
 it('notifies the parent author once a reply is approved', function (): void {

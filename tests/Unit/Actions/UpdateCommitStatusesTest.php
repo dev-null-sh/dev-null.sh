@@ -21,13 +21,16 @@ it('may approve many commits', function (): void {
 
     $action = resolve(UpdateCommitStatuses::class);
 
+    $this->travel(1)->minute();
     $action->handle($commits->modelKeys(), CommitStatus::Approved);
 
     foreach ($commits as $commit) {
-        expect($commit->refresh()->status)->toBe(CommitStatus::Approved);
+        expect($commit->refresh()->status)->toBe(CommitStatus::Approved)
+            ->and($commit->approved_at?->toIso8601String())->toBe(now()->toIso8601String());
     }
 
-    expect($other->refresh()->status)->toBe(CommitStatus::Pending);
+    expect($other->refresh()->status)->toBe(CommitStatus::Pending)
+        ->and($other->approved_at)->toBeNull();
 });
 
 it('only clears recaps directly linked to rejected sources', function (bool $isReply): void {
