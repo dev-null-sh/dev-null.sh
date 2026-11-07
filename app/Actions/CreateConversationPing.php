@@ -22,6 +22,8 @@ final readonly class CreateConversationPing
     public function handle(User $sender, Conversation $conversation): Message
     {
         return DB::transaction(function () use ($sender, $conversation): Message {
+            Conversation::query()->whereKey($conversation->id)->lockForUpdate()->firstOrFail();
+
             $message = Message::query()->create([
                 'conversation_id' => $conversation->id,
                 'user_id' => $sender->id,
