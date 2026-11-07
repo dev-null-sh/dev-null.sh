@@ -21,7 +21,7 @@ final readonly class CreateUserFeed
         $commits = $user->commits()
             ->approved()
             ->topLevel()
-            ->with('images')
+            ->with(['images', 'gif'])
             ->latest()
             ->latest('id')
             ->limit(self::LIMIT)
@@ -69,6 +69,10 @@ final readonly class CreateUserFeed
 
         foreach ($commit->images as $image) {
             $this->link($xml, 'enclosure', $image->url(), 'image/webp');
+        }
+
+        if ($commit->gif !== null) {
+            $this->link($xml, 'enclosure', $commit->gif->url, 'image/gif');
         }
 
         $xml->writeElement('published', $commit->created_at->toAtomString());

@@ -46,3 +46,29 @@ test('hints the command a plain draft mentions', () => {
     assert.equal(name('/bug already a command'), null);
     assert.equal(name('Shipped the parser'), null);
 });
+
+test('suggests /gif only when a GIF provider key is stored', () => {
+    const names = (body: string, canAttachGif = false) =>
+        suggestedCommands(body, { canAttachGif }).map(
+            (command) => command.name,
+        );
+
+    assert.deepEqual(names('/'), ['/feature', '/bug']);
+    assert.deepEqual(names('/', true), ['/feature', '/bug', '/gif']);
+    assert.deepEqual(names('/g', true), ['/gif']);
+    assert.deepEqual(names('/g', false), []);
+});
+
+test('a lone /gif command attaches a GIF without discarding typed text', () => {
+    assert.deepEqual(typedCommand('/gif ', { canAttachGif: true }), {
+        kind: 'gif',
+        body: '',
+    });
+    assert.deepEqual(typedCommand('/gif\n', { canAttachGif: true }), {
+        kind: 'gif',
+        body: '',
+    });
+    assert.equal(typedCommand('/gif', { canAttachGif: true }), null);
+    assert.equal(typedCommand('/gif cats ', { canAttachGif: true }), null);
+    assert.equal(typedCommand('/gif ', { canAttachGif: false }), null);
+});

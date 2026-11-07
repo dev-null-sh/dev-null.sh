@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Dto\Gif;
 use App\Dto\NewPoll;
 use App\Dto\ThreadEngagement;
 use App\Enums\CommitStatus;
@@ -62,7 +63,7 @@ final readonly class CreateCommit
      * @param  array<int, string|null>  $imageDescriptions
      * @param  array<string, string>  $replyRecipients
      */
-    public function handle(User $user, string $body, ?Commit $parent = null, ?Commit $quotedCommit = null, array $images = [], array $imageDescriptions = [], bool|string $linkPreview = true, ?NewPoll $poll = null, array $replyRecipients = [], ?Organization $organization = null): Commit
+    public function handle(User $user, string $body, ?Commit $parent = null, ?Commit $quotedCommit = null, array $images = [], array $imageDescriptions = [], bool|string $linkPreview = true, ?NewPoll $poll = null, array $replyRecipients = [], ?Organization $organization = null, ?Gif $gif = null): Commit
     {
         $url = match ($linkPreview) {
             true => $this->urls->first($body),
@@ -70,7 +71,7 @@ final readonly class CreateCommit
             default => $linkPreview,
         };
 
-        return DB::transaction(function () use ($user, $body, $parent, $quotedCommit, $images, $imageDescriptions, $url, $poll, $replyRecipients, $organization): Commit {
+        return DB::transaction(function () use ($user, $body, $parent, $quotedCommit, $images, $imageDescriptions, $url, $poll, $replyRecipients, $organization, $gif): Commit {
             $linkPreview = $this->linkPreviewFor($url);
             $createdAt = now();
             $hasGoodReputation = $user->hasGoodReputation();
@@ -89,6 +90,10 @@ final readonly class CreateCommit
                 'hot_score' => $this->theAlgorithm->score($createdAt, ThreadEngagement::none()),
                 'created_at' => $createdAt,
             ]);
+
+            if ($gif instanceof Gif) {
+                $commit->gif()->create($gif->toColumns());
+            }
 
             $this->createCommitTopics->handle($commit, $this->mentionedOrganizations->get($body, $mentions));
             $this->createCommitImages->handle($commit, $images, $imageDescriptions);

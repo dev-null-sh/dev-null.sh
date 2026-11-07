@@ -38,7 +38,7 @@ final readonly class NotificationGroupsQuery
             ->with([
                 'actor.user' => fn (HasOne $query): HasOne => $query
                     ->withExists(['followers as is_followed' => fn (Builder $query): Builder => $query->whereKey($user->id)]),
-                'commit',
+                'commit.gif',
                 'organization',
             ])
             ->latest()->latest('id');

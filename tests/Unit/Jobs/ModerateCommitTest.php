@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Contracts\Services\ModerationProvider;
 use App\Enums\CommitStatus;
+use App\Enums\GifProvider;
 use App\Enums\NotificationType;
 use App\Exceptions\CommitProcessingFailed;
 use App\Jobs\ModerateCommit;
@@ -18,8 +19,14 @@ use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Exceptions;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
+
+function tinyGif(): string
+{
+    return base64_decode('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7');
+}
 
 it('stores that the ai would approve a commit it does not flag', function (): void {
     $moderation = $this->mock(ModerationProvider::class);
@@ -298,6 +305,48 @@ it('throws when the ai is unavailable, so the job is retried', function (): void
             ->and($exception->getPrevious())->toBeNull();
     })->and($commit->refresh())->ai_decision->toBeNull()->status->toBe(CommitStatus::Pending);
 });
+
+it('moderates an attached giphy gif by its first frame', function (): void {
+    Http::fake(['media2.giphy.com/*' => Http::response(tinyGif())]);
+    $moderation = $this->mock(ModerationProvider::class);
+    $moderation->shouldReceive('moderate')->once()->withArgs(fn (string $text, array $images): bool => count($images) === 1
+        && str_starts_with($images[0], 'data:image/webp;base64,'))->andReturn([]);
+    $moderation->shouldReceive('isHarmful')->andReturnFalse();
+
+    $commit = Commit::factory()->pending()->withGif()->create();
+
+    dispatch_sync(new ModerateCommit($commit));
+
+    expect($commit->refresh()->ai_decision)->toBe(CommitStatus::Approved);
+});
+
+it('moderates an attached klipy gif by its first frame', function (): void {
+    Http::fake(['static.klipy.com/*' => Http::response(tinyGif())]);
+    $moderation = $this->mock(ModerationProvider::class);
+    $moderation->shouldReceive('moderate')->once()->withArgs(fn (string $text, array $images): bool => count($images) === 1
+        && str_starts_with($images[0], 'data:image/webp;base64,'))->andReturn([]);
+    $moderation->shouldReceive('isHarmful')->andReturnFalse();
+
+    $commit = Commit::factory()->pending()->withGif(GifProvider::Klipy)->create();
+
+    dispatch_sync(new ModerateCommit($commit));
+
+    expect($commit->refresh()->ai_decision)->toBe(CommitStatus::Approved);
+});
+
+it('keeps a commit pending when its gif cannot be moderated', function (string $body): void {
+    Http::fake(['media2.giphy.com/*' => Http::response($body)]);
+    $moderation = $this->mock(ModerationProvider::class);
+    $moderation->shouldNotReceive('moderate');
+
+    $commit = Commit::factory()->pending()->withGif()->create();
+
+    expect(fn () => dispatch_sync(new ModerateCommit($commit)))->toThrow(CommitProcessingFailed::class)
+        ->and($commit->refresh())->ai_decision->toBeNull()->status->toBe(CommitStatus::Pending);
+})->with([
+    'too large' => [str_repeat('é', 10 * 1024 * 1024 + 1)],
+    'not an image' => ['not a gif'],
+]);
 
 it('keeps unavailable moderation pending and recovers on a later queued attempt', function (bool $recovers): void {
     config(['queue.default' => 'sync']);

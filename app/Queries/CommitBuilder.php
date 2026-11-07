@@ -206,7 +206,7 @@ final class CommitBuilder extends Builder
             'quotedCommit' => fn (BelongsTo $query): BelongsTo => $query
                 ->withTrashed()
                 ->where(fn (self $query): self => $query->visibleTo($viewer))
-                ->with(['author', 'linkPreview', 'images'])
+                ->with(['author', 'linkPreview', 'images', 'gif'])
                 ->withPollFor($viewer),
         ]);
     }
@@ -236,7 +236,7 @@ final class CommitBuilder extends Builder
         return $this
             ->withVisibleReplyCount(null)
             ->withCount('stars')
-            ->with(['author', 'linkPreview', 'images', 'parent' => fn (BelongsTo $query): BelongsTo => $query->where('status', CommitStatus::Approved)]);
+            ->with(['author', 'linkPreview', 'images', 'gif', 'parent' => fn (BelongsTo $query): BelongsTo => $query->where('status', CommitStatus::Approved)->with('gif')]);
     }
 
     public function pending(): self
@@ -294,7 +294,7 @@ final class CommitBuilder extends Builder
     public function withCardDataFor(?User $viewer): self
     {
         return $this
-            ->with(['author', 'linkPreview', 'images'])
+            ->with(['author', 'linkPreview', 'images', 'gif'])
             ->withQuotedCommitFor($viewer)
             ->withStarsFor($viewer)
             ->withPollFor($viewer)
@@ -312,9 +312,6 @@ final class CommitBuilder extends Builder
         return $viewer instanceof User ? $rows->where($userColumn, $viewer->id) : $rows->whereRaw('1 = 0');
     }
 
-    /**
-     * A bare * only stands for the commit's columns when no other table is joined in.
-     */
     private function isEveryColumn(Expression|string $column): bool
     {
         return $this->query->from === $this->getModel()->getTable()
