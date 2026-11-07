@@ -11,12 +11,11 @@ import { HiddenLinkPreviewContext } from '@/components/hidden-link-preview-conte
 import { LinkPreview } from '@/components/link-preview';
 import { LinkTopicCommits } from '@/components/link-topic-commits';
 import { Button } from '@/components/ui/button';
-import { useDateTime } from '@/hooks/use-date-time';
 import AppLayout from '@/layouts/app-layout';
 import { clickedCommit } from '@/lib/commit-click';
 import { exactCountTitle, formatCount } from '@/lib/numbers';
 import { hostname } from '@/lib/urls';
-import { cn, isDeleted, laneColor } from '@/lib/utils';
+import { cn, laneColor } from '@/lib/utils';
 import type {
     Commit,
     CursorPaginated,
@@ -29,9 +28,7 @@ type TopLink = LinkDetails & {
     url: string;
     people: number;
     commits: number;
-    last_mentioned_at: string;
     stars: number;
-    stars_last_6h: number;
     top_commits: Commit[];
 };
 
@@ -48,27 +45,6 @@ type Props =
 
 function commitCount(count: number) {
     return `${count} commit${count === 1 ? '' : 's'}`;
-}
-
-/**
- * What stands for a link as a topic. Most links are pages of any site, which go by their title and the site's icon. A
- * GitHub project has a better name and picture than its page's: its own, and its owner's avatar.
- */
-function linkTopic(url: string, link: LinkDetails) {
-    const [, owner, project] =
-        /^https?:\/\/(?:www\.)?github\.com\/([^/?#]+)(?:\/([^/?#]+))?/.exec(
-            url,
-        ) ?? [];
-
-    return owner
-        ? {
-              title: project ? `${owner}/${project}` : owner,
-              iconUrl: `https://github.com/${owner}.png?size=160`,
-          }
-        : {
-              title: link.title ?? displayedLink(url),
-              iconUrl: siteFavicon(url),
-          };
 }
 
 /** A stand-in until the app reads icons itself, when it fetches a link's page. */
@@ -183,8 +159,6 @@ function LinkCount({ count, label }: { count: number; label: string }) {
 
 function TopLinks({ links }: { links: TopLink[] }) {
     const [draft, setDraft] = useState('');
-    const active = links.filter((link) => link.stars_last_6h > 0);
-    const quiet = links.filter((link) => link.stars_last_6h === 0);
 
     const submit = (event: FormEvent) => {
         event.preventDefault();
@@ -225,27 +199,9 @@ function TopLinks({ links }: { links: TopLink[] }) {
                 </div>
             ) : (
                 <GraphCanvas>
-                    {active.map((link) => (
+                    {links.map((link) => (
                         <LinkTopic key={link.url} link={link} />
                     ))}
-                    {quiet.length > 0 && (
-                        <section aria-label="Quiet links">
-                            <h2 className="flex items-baseline gap-2 border-b px-4 pt-5 pb-2 font-mono text-xs sm:px-6">
-                                <span>quiet</span>
-                                <span className="text-muted-foreground">
-                                    no stars in 6h
-                                </span>
-                            </h2>
-                            <ul>
-                                {quiet.map((link) => (
-                                    <QuietLinkTopic
-                                        key={link.url}
-                                        link={link}
-                                    />
-                                ))}
-                            </ul>
-                        </section>
-                    )}
                 </GraphCanvas>
             )}
         </>
@@ -257,13 +213,13 @@ function TopLinks({ links }: { links: TopLink[] }) {
  * the topic's colour, and its most starred commits nest below, each in its own author's colour.
  */
 function LinkTopic({ link }: { link: TopLink }) {
-    const topic = linkTopic(link.url, link);
     const lane = linkLane(link.url);
     const href = linkPage(link.url);
     const nodeId = `topic:${link.url}`;
     const endId = `${nodeId}:end`;
     const hasMore = link.commits > link.top_commits.length;
     const shownLink = displayedLink(link.url);
+    const title = link.title ?? shownLink;
 
     const openClickedCommit = (event: MouseEvent<HTMLElement>) => {
         const click = clickedCommit(
@@ -281,7 +237,7 @@ function LinkTopic({ link }: { link: TopLink }) {
 
     return (
         <section
-            aria-label={topic.title}
+            aria-label={title}
             className="grid grid-cols-[4rem_minmax(0,1fr)] sm:grid-cols-[4.5rem_minmax(0,1fr)]"
             data-test="topic"
         >
@@ -301,7 +257,7 @@ function LinkTopic({ link }: { link: TopLink }) {
                         <span className="relative flex rounded-lg bg-card">
                             <span className="relative flex rounded-lg border-2 border-(--lane) p-0.5">
                                 <TopicIcon
-                                    iconUrl={topic.iconUrl}
+                                    iconUrl={siteFavicon(link.url)}
                                     className="size-10"
                                 />
                             </span>
@@ -314,12 +270,12 @@ function LinkTopic({ link }: { link: TopLink }) {
                 <Link
                     prefetch
                     href={href}
-                    title={topic.title}
+                    title={title}
                     className="block truncate text-[15px] font-semibold hover:underline"
                 >
-                    {topic.title}
+                    {title}
                 </Link>
-                {topic.title !== shownLink && (
+                {title !== shownLink && (
                     <a
                         href={link.url}
                         target="_blank"
@@ -361,66 +317,6 @@ function LinkTopic({ link }: { link: TopLink }) {
 }
 
 /**
- * A link no commit got stars on lately folds to a line, with what was last said about it.
- */
-function QuietLinkTopic({ link }: { link: TopLink }) {
-    const { formatRelativeTime } = useDateTime();
-    const topic = linkTopic(link.url, link);
-    const last = link.top_commits[0];
-
-    return (
-        <li
-            className="border-b"
-            style={{ '--lane': linkLane(link.url) } as CSSProperties}
-        >
-            <Link
-                prefetch
-                href={linkPage(link.url)}
-                className="grid grid-cols-[4rem_minmax(0,1fr)] items-center py-2.5 pr-4 transition-colors hover:bg-accent focus-visible:bg-accent sm:grid-cols-[4.5rem_minmax(0,1fr)]"
-            >
-                <span className="flex justify-center">
-                    <span className="flex rounded-lg border-2 border-(--lane) p-0.5">
-                        <TopicIcon iconUrl={topic.iconUrl} className="size-7" />
-                    </span>
-                </span>
-                <span className="min-w-0">
-                    <span className="flex items-baseline gap-x-1.5 text-sm">
-                        <span
-                            className="min-w-0 truncate font-semibold"
-                            title={topic.title}
-                        >
-                            {topic.title}
-                        </span>
-                        <span className="ml-auto shrink-0 font-mono text-xs text-muted-foreground">
-                            <span className="max-sm:hidden">
-                                {commitCount(link.commits)} ·{' '}
-                            </span>
-                            last {formatRelativeTime(link.last_mentioned_at)}
-                        </span>
-                    </span>
-                    {topic.title !== displayedLink(link.url) && (
-                        <span
-                            className="block truncate font-mono text-xs text-muted-foreground"
-                            title={link.url}
-                        >
-                            {displayedLink(link.url)}
-                        </span>
-                    )}
-                    {last && !isDeleted(last) && (
-                        <span className="block truncate text-[13px] text-muted-foreground">
-                            <span className="font-medium">
-                                {last.author.name}
-                            </span>{' '}
-                            {last.body}
-                        </span>
-                    )}
-                </span>
-            </Link>
-        </li>
-    );
-}
-
-/**
  * A link's own page, like an organization's: who it is at the top, then its commits, each standing on its own in its
  * author's lane, like in a log.
  */
@@ -435,8 +331,7 @@ function LinkPage({
     stats: LinkStats;
     commits: CursorPaginated<Commit> | null;
 }) {
-    const topic = link ? linkTopic(url, link) : null;
-    const title = topic?.title ?? displayedLink(url);
+    const title = link?.title ?? displayedLink(url);
     const lane = linkLane(url);
     const firstCommit = commits?.data[0];
 
@@ -466,7 +361,7 @@ function LinkPage({
                         style={{ '--lane': lane } as CSSProperties}
                     >
                         <TopicIcon
-                            iconUrl={topic?.iconUrl ?? siteFavicon(url)}
+                            iconUrl={siteFavicon(url)}
                             className="size-16 rounded-lg"
                         />
                     </span>
@@ -546,7 +441,8 @@ function LinkPage({
                     <HiddenLinkPreviewContext value={link?.url ?? null}>
                         <CommitFeed
                             commits={commits}
-                            end="That's the first commit about this link."
+                            isRanked
+                            end="That's every commit about this link."
                             empty={
                                 <EmptyFeed command="fatal: no commits about this link">
                                     No commit you can see uses this link as its

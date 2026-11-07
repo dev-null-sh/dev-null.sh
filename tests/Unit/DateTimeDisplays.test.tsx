@@ -72,10 +72,6 @@ const { FailedJobsPanel } =
 const { OverviewEvents } =
     await import('../../resources/js/components/operations/overview-events');
 const { default: Links } = await import('../../resources/js/pages/links/index');
-const { LinkTopicCommits } =
-    await import('../../resources/js/components/link-topic-commits');
-const { GraphCanvas } =
-    await import('../../resources/js/components/graph-canvas');
 const { PinnedBanner } =
     await import('../../resources/js/components/chat/pinned-messages');
 const { MentionsBell } =
@@ -465,7 +461,7 @@ test('event logs keep seconds and local grouping while chart days stay UTC', () 
     assert.match(page(), /<th scope="row">Oct 19<\/th>/);
 });
 
-test('health, overview and shared links use preferences for absolute date fallbacks', () => {
+test('health and overview use preferences for absolute date fallbacks', () => {
     process.env.TZ = 'UTC';
     const at = '2025-10-19T14:35:00Z';
     const event: Parameters<typeof OverviewEvents>[0]['events'][number] = {
@@ -510,22 +506,6 @@ test('health, overview and shared links use preferences for absolute date fallba
                     }}
                 />
                 <OverviewEvents events={[event]} />
-                <Links
-                    url={null}
-                    topLinks={[
-                        {
-                            url: 'https://example.com',
-                            title: 'Example link',
-                            description: null,
-                            people: 2,
-                            commits: 3,
-                            last_mentioned_at: at,
-                            stars: 0,
-                            stars_last_6h: 0,
-                            top_commits: [],
-                        },
-                    ]}
-                />
             </>,
         ).replaceAll('<!-- -->', '');
     auth.dateTime = { dateFormat: 'day_first', timeFormat: '24h' };
@@ -533,14 +513,12 @@ test('health, overview and shared links use preferences for absolute date fallba
         (panels().match(/title="14:35 · 19 Oct 2025"/g) ?? []).length,
         3,
     );
-    assert.match(panels(), /last 19 Oct 2025/);
     assert.match(panels(), /<th scope="row">14:35<\/th>/);
     auth.dateTime = { dateFormat: 'month_first', timeFormat: '12h' };
     assert.equal(
         (panels().match(/title="2:35\s*PM · Oct 19, 2025"/g) ?? []).length,
         3,
     );
-    assert.match(panels(), /last Oct 19, 2025/);
 });
 
 test('link topic commits follow date preferences without changing relative labels or instants', () => {
@@ -576,13 +554,20 @@ test('link topic commits follow date preferences without changing relative label
     const panel = () =>
         renderToString(
             <TooltipProvider>
-                <GraphCanvas>
-                    <LinkTopicCommits
-                        commits={commits}
-                        lane="blue"
-                        graphParent="topic"
-                    />
-                </GraphCanvas>
+                <Links
+                    url={null}
+                    topLinks={[
+                        {
+                            url: 'https://example.com',
+                            title: 'Example link',
+                            description: null,
+                            people: 2,
+                            commits: 2,
+                            stars: 3,
+                            top_commits: commits,
+                        },
+                    ]}
+                />
             </TooltipProvider>,
         );
 
