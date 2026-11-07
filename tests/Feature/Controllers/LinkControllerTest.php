@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Models\Commit;
 use App\Models\LinkPreview;
 use App\Models\User;
+use App\Queries\LinkCommitsQuery;
 
 it('keeps the link page to signed-in users', function (): void {
     $this->get(route('link.index'))->assertRedirectToRoute('home');
@@ -41,7 +42,25 @@ it('shows only the 10 most shared links', function (): void {
         ->has('topLinks', 10));
 });
 
-it('lists the commits whose card is the link, newest first', function (): void {
+it('lists the most starred commits of a link first, then its newest, from one page to the next', function (): void {
+    $link = LinkPreview::factory()->fetched()->create();
+    $newest = Commit::factory()->create(['link_preview_id' => $link->id, 'created_at' => now()->subHour()]);
+    $older = Commit::factory()->create(['link_preview_id' => $link->id, 'created_at' => now()->subHours(2)]);
+    $oldest = Commit::factory()->create(['link_preview_id' => $link->id, 'created_at' => now()->subDays(3)]);
+    $favourite = Commit::factory()->create(['link_preview_id' => $link->id, 'created_at' => now()->subDays(2)]);
+    $favourite->stars()->attach(User::factory()->count(2)->create());
+    $oldest->stars()->attach(User::factory()->create());
+    $viewer = User::factory()->create();
+
+    $commits = resolve(LinkCommitsQuery::class)->builder($link, $viewer);
+    $first = $commits->clone()->cursorPaginate(2);
+    $second = $commits->clone()->cursorPaginate(2, cursor: $first->nextCursor());
+
+    expect($first->pluck('id')->all())->toBe([$favourite->id, $oldest->id])
+        ->and($second->pluck('id')->all())->toBe([$newest->id, $older->id]);
+});
+
+it('lists the commits whose card is the link, newest first when none has stars', function (): void {
     $link = LinkPreview::factory()->fetched()->create(['url' => 'https://wiki.php.net/rfc/pipe-operator']);
     $first = Commit::factory()->create(['link_preview_id' => $link->id, 'created_at' => now()->subDay()]);
     $reply = Commit::factory()->create(['link_preview_id' => $link->id, 'parent_id' => $first->id]);
@@ -61,20 +80,18 @@ it('lists the commits whose card is the link, newest first', function (): void {
             ->where('commits.data.1.id', $first->id));
 });
 
-it('nests the 3 most starred commits of the last 6 hours under each link, then its newest', function (): void {
+it('nests the 3 most starred commits under each link, then its newest', function (): void {
     $link = LinkPreview::factory()->fetched()->create();
-    $trending = Commit::factory()->create(['link_preview_id' => $link->id, 'created_at' => now()->subDay()]);
-    $oldFavourite = Commit::factory()->create(['link_preview_id' => $link->id, 'created_at' => now()->subHours(3)]);
+    $favourite = Commit::factory()->create(['link_preview_id' => $link->id, 'created_at' => now()->subDay()]);
     $newest = Commit::factory()->create(['link_preview_id' => $link->id, 'created_at' => now()->subHour()]);
     $newer = Commit::factory()->create(['link_preview_id' => $link->id, 'created_at' => now()->subHours(2)]);
-    $trending->stars()->attach(User::factory()->count(2)->create(), ['created_at' => now()->subHour()]);
-    $oldFavourite->stars()->attach(User::factory()->count(5)->create(), ['created_at' => now()->subHours(7)]);
+    Commit::factory()->create(['link_preview_id' => $link->id, 'created_at' => now()->subHours(3)]);
+    $favourite->stars()->attach(User::factory()->count(2)->create(), ['created_at' => now()->subWeek()]);
 
     $this->actingAs(User::factory()->create())->get(route('link.index'))->assertOk()->assertInertia(fn ($page) => $page
-        ->where('topLinks.0.stars_last_6h', 2)
         ->where('topLinks.0.commits', 4)
         ->has('topLinks.0.top_commits', 3)
-        ->where('topLinks.0.top_commits.0.id', $trending->id)
+        ->where('topLinks.0.top_commits.0.id', $favourite->id)
         ->where('topLinks.0.top_commits.1.id', $newest->id)
         ->where('topLinks.0.top_commits.2.id', $newer->id));
 });
@@ -86,19 +103,7 @@ it('counts every star of the approved commits of each link, however old', functi
     Commit::factory()->pending()->create(['link_preview_id' => $link->id])->stars()->attach(User::factory()->create(), ['created_at' => now()]);
 
     $this->actingAs(User::factory()->create())->get(route('link.index'))->assertOk()->assertInertia(fn ($page) => $page
-        ->where('topLinks.0.stars', 3)
-        ->where('topLinks.0.stars_last_6h', 1));
-});
-
-it('lists the links whose commits got stars in the last 6 hours first', function (): void {
-    $shared = LinkPreview::factory()->fetched()->create();
-    Commit::factory()->count(3)->create(['link_preview_id' => $shared->id]);
-    $starred = LinkPreview::factory()->fetched()->create();
-    Commit::factory()->create(['link_preview_id' => $starred->id])->stars()->attach(User::factory()->create(), ['created_at' => now()]);
-
-    $this->actingAs(User::factory()->create())->get(route('link.index'))->assertOk()->assertInertia(fn ($page) => $page
-        ->where('topLinks.0.url', $starred->url)
-        ->where('topLinks.1.url', $shared->url));
+        ->where('topLinks.0.stars', 3));
 });
 
 it('counts the commits of a link the viewer may see, however old', function (): void {

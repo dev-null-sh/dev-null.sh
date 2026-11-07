@@ -15,7 +15,7 @@ import AppLayout from '@/layouts/app-layout';
 import { clickedCommit } from '@/lib/commit-click';
 import { exactCountTitle, formatCount } from '@/lib/numbers';
 import { hostname } from '@/lib/urls';
-import { cn, formatRelativeTime, isDeleted, laneColor } from '@/lib/utils';
+import { cn, laneColor } from '@/lib/utils';
 import type {
     Commit,
     CursorPaginated,
@@ -28,9 +28,7 @@ type TopLink = LinkDetails & {
     url: string;
     people: number;
     commits: number;
-    last_mentioned_at: string;
     stars: number;
-    stars_last_6h: number;
     top_commits: Commit[];
 };
 
@@ -182,8 +180,6 @@ function LinkCount({ count, label }: { count: number; label: string }) {
 
 function TopLinks({ links }: { links: TopLink[] }) {
     const [draft, setDraft] = useState('');
-    const active = links.filter((link) => link.stars_last_6h > 0);
-    const quiet = links.filter((link) => link.stars_last_6h === 0);
 
     const submit = (event: FormEvent) => {
         event.preventDefault();
@@ -224,27 +220,9 @@ function TopLinks({ links }: { links: TopLink[] }) {
                 </div>
             ) : (
                 <GraphCanvas>
-                    {active.map((link) => (
+                    {links.map((link) => (
                         <LinkTopic key={link.url} link={link} />
                     ))}
-                    {quiet.length > 0 && (
-                        <section aria-label="Quiet links">
-                            <h2 className="flex items-baseline gap-2 border-b px-4 pt-5 pb-2 font-mono text-xs sm:px-6">
-                                <span>quiet</span>
-                                <span className="text-muted-foreground">
-                                    no stars in 6h
-                                </span>
-                            </h2>
-                            <ul>
-                                {quiet.map((link) => (
-                                    <QuietLinkTopic
-                                        key={link.url}
-                                        link={link}
-                                    />
-                                ))}
-                            </ul>
-                        </section>
-                    )}
                 </GraphCanvas>
             )}
         </>
@@ -356,65 +334,6 @@ function LinkTopic({ link }: { link: TopLink }) {
                 />
             </div>
         </section>
-    );
-}
-
-/**
- * A link no commit got stars on lately folds to a line, with what was last said about it.
- */
-function QuietLinkTopic({ link }: { link: TopLink }) {
-    const topic = linkTopic(link.url, link);
-    const last = link.top_commits[0];
-
-    return (
-        <li
-            className="border-b"
-            style={{ '--lane': linkLane(link.url) } as CSSProperties}
-        >
-            <Link
-                prefetch
-                href={linkPage(link.url)}
-                className="grid grid-cols-[4rem_minmax(0,1fr)] items-center py-2.5 pr-4 transition-colors hover:bg-accent focus-visible:bg-accent sm:grid-cols-[4.5rem_minmax(0,1fr)]"
-            >
-                <span className="flex justify-center">
-                    <span className="flex rounded-lg border-2 border-(--lane) p-0.5">
-                        <TopicIcon iconUrl={topic.iconUrl} className="size-7" />
-                    </span>
-                </span>
-                <span className="min-w-0">
-                    <span className="flex items-baseline gap-x-1.5 text-sm">
-                        <span
-                            className="min-w-0 truncate font-semibold"
-                            title={topic.title}
-                        >
-                            {topic.title}
-                        </span>
-                        <span className="ml-auto shrink-0 font-mono text-xs text-muted-foreground">
-                            <span className="max-sm:hidden">
-                                {commitCount(link.commits)} ·{' '}
-                            </span>
-                            last {formatRelativeTime(link.last_mentioned_at)}
-                        </span>
-                    </span>
-                    {topic.title !== displayedLink(link.url) && (
-                        <span
-                            className="block truncate font-mono text-xs text-muted-foreground"
-                            title={link.url}
-                        >
-                            {displayedLink(link.url)}
-                        </span>
-                    )}
-                    {last && !isDeleted(last) && (
-                        <span className="block truncate text-[13px] text-muted-foreground">
-                            <span className="font-medium">
-                                {last.author.name}
-                            </span>{' '}
-                            {last.body}
-                        </span>
-                    )}
-                </span>
-            </Link>
-        </li>
     );
 }
 
@@ -544,7 +463,8 @@ function LinkPage({
                     <HiddenLinkPreviewContext value={link?.url ?? null}>
                         <CommitFeed
                             commits={commits}
-                            end="That's the first commit about this link."
+                            isRanked
+                            end="That's every commit about this link."
                             empty={
                                 <EmptyFeed command="fatal: no commits about this link">
                                     No commit you can see uses this link as its
