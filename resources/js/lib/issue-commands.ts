@@ -25,15 +25,6 @@ export const issueCommands: IssueCommand[] = [
 ];
 
 /**
- * The commands a draft could still become while it is only a slash and the start of a name.
- */
-export function suggestedCommands(body: string): IssueCommand[] {
-    return /^\/[a-z]*$/.test(body)
-        ? issueCommands.filter((command) => command.name.startsWith(body))
-        : [];
-}
-
-/**
  * A complete command followed by a space or a new line turns the draft into an issue, without the command.
  */
 export function typedCommand(

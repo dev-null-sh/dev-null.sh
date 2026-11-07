@@ -31,7 +31,7 @@ Developers who left X or Bluesky, or are thinking about it, and want a feed with
 
 What exists, one line each (details in the knowledge base):
 
-- **Commits:** text with code, images, link cards and embedded players, or a poll; replies, quotes, threads, scheduling, translation.
+- **Commits:** text with code, images, link cards and embedded players, or a poll; slash commands for images, polls, code, and GitHub issue drafts; replies, quotes, threads, scheduling, translation.
 - **Logs:** Following, Latest, and Trending.
 - **Engagement:** follows, stars, saved commits, pins, mentions, and pastéis (an opt-in daily allowance of pastries).
 - **Profiles:** mirrored from GitHub, with an activity graph, streaks, achievements, a Unix rank, and a live marker while you stream on YouTube.

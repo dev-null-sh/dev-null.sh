@@ -27,7 +27,6 @@ import type { UseIssueCommandReturn } from '@/components/issue-command';
 import {
     IssueCommandBadge,
     IssueCommandHint,
-    IssueCommandSuggestions,
     useIssueCommand,
 } from '@/components/issue-command';
 import { LinkCardPicker } from '@/components/link-card-picker';
@@ -159,8 +158,16 @@ function CommitComposerBody({
             : undefined);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const textBox = useRef<HTMLDivElement>(null);
+    const imageInputRef = useRef<HTMLInputElement>(null);
     const preview = useComposerPreview({ body, textareaRef, isSubmittable });
     const isIssue = issue.command !== null;
+
+    const startPoll = () => {
+        setPoll(emptyPollDraft);
+        requestAnimationFrame(() =>
+            document.getElementById(`${id}-poll-option-0`)?.focus(),
+        );
+    };
 
     // When the dialog's text box shrinks, as the keyboard opens or an image is added, it keeps the caret in view.
     useEffect(() => {
@@ -290,17 +297,25 @@ function CommitComposerBody({
                                 preview.handleShortcut(event) ||
                                 onKeyDown(event)
                             }
-                            onFocus={(event) => {
-                                issue.focus();
-
-                                if (isRestored) {
-                                    moveCaretToEnd(event);
-                                }
-                            }}
-                            onBlur={issue.blur}
+                            onFocus={isRestored ? moveCaretToEnd : undefined}
                             maxLength={
                                 isIssue ? maxBodyLength : maxRawBodyLength
                             }
+                            onImage={
+                                isIssue
+                                    ? undefined
+                                    : () => imageInputRef.current?.click()
+                            }
+                            onPoll={isIssue ? undefined : startPoll}
+                            onIssue={(kind, rest) => issue.start(kind, rest)}
+                            commandContext={{
+                                surface: 'commit',
+                                hasPoll: poll !== null,
+                                imageCount: attachments.images.length,
+                                isScheduling,
+                                processing,
+                                reading: attachments.reading,
+                            }}
                             placeholder={
                                 issue.command?.placeholder ??
                                 (poll ? 'Ask a question' : 'What did you ship?')
@@ -344,17 +359,6 @@ function CommitComposerBody({
                                 focusBody(id);
                             }}
                             onDismiss={issue.dismissHint}
-                        />
-                    )}
-
-                    {issue.suggestions.length > 0 && (
-                        <IssueCommandSuggestions
-                            suggestions={issue.suggestions}
-                            selected={issue.selected}
-                            onPick={(kind) => {
-                                issue.start(kind, '');
-                                focusBody(id);
-                            }}
                         />
                     )}
 
@@ -456,6 +460,7 @@ function CommitComposerBody({
                                         disabled={processing || poll !== null}
                                         reading={attachments.reading}
                                         onPick={attachments.pick}
+                                        inputRef={imageInputRef}
                                         className="-ml-2"
                                     />
                                     <ActionTooltip
@@ -475,16 +480,7 @@ function CommitComposerBody({
                                                 poll !== null ||
                                                 hasImages
                                             }
-                                            onClick={() => {
-                                                setPoll(emptyPollDraft);
-                                                requestAnimationFrame(() =>
-                                                    document
-                                                        .getElementById(
-                                                            `${id}-poll-option-0`,
-                                                        )
-                                                        ?.focus(),
-                                                );
-                                            }}
+                                            onClick={startPoll}
                                             aria-label="Add poll"
                                             className="text-muted-foreground"
                                             data-test="add-poll-button"

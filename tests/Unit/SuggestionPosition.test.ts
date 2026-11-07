@@ -42,3 +42,15 @@ await test('suggestions fit a narrow, horizontally panned viewport', () => {
     assert.equal(position.top, 140);
     assert.equal(position.maxHeight, 252);
 });
+
+await test('a wider menu still fits inside the viewport', () => {
+    const position = suggestionPosition(
+        { left: 300, top: 400, bottom: 424 },
+        { left: 0, top: 0, width: 390, height: 844 },
+        844,
+        384,
+    );
+
+    assert.equal(position.width, 374);
+    assert.equal(position.left, 8);
+});
