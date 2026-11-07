@@ -126,7 +126,7 @@ it('hides the commits the viewer may not see from the link page', function (): v
 
     $this->actingAs($viewer)->get(route('link.index', ['url' => $link->url]))->assertOk()->assertInertia(fn ($page) => $page
         ->has('commits.data', 2)
-        ->where('commits.data', fn ($commits) => collect($commits)->pluck('id')->sort()->values()->all() === collect([$visible->id, $own->id])->sort()->values()->all()));
+        ->where('commits.data', fn ($commits): bool => collect($commits)->pluck('id')->sort()->values()->all() === collect([$visible->id, $own->id])->sort()->values()->all()));
 });
 
 it('finds the link of a bare domain like its card does', function (): void {
