@@ -19,6 +19,7 @@ it('shows admins the profile of the organization in its settings, with its color
             ->where('organization.id', $organization->id)
             ->where('role', 'admin')
             ->where('organization.lane', '#1a2b3c')
+            ->where('githubSyncedAt', $organization->github_synced_at?->toIso8601String())
             ->missing('organization.lane_color'));
 });
 
