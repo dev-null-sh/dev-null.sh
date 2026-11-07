@@ -75,6 +75,7 @@ use App\Http\Controllers\MessageImageController;
 use App\Http\Controllers\MessageLinkPreviewController;
 use App\Http\Controllers\MessagePinController;
 use App\Http\Controllers\MessageReactionController;
+use App\Http\Controllers\MessageReportController;
 use App\Http\Controllers\MessageVoiceController;
 use App\Http\Controllers\MobileAuthorizationController;
 use App\Http\Controllers\ModeratedUserController;
@@ -116,6 +117,7 @@ use App\Http\Controllers\PushSubscriptionController;
 use App\Http\Controllers\RelatedCommitController;
 use App\Http\Controllers\RemoteCandidateController;
 use App\Http\Controllers\ReportedCommitController;
+use App\Http\Controllers\ReportedUserController;
 use App\Http\Controllers\SafetyController;
 use App\Http\Controllers\ScheduledCommitController;
 use App\Http\Controllers\ScheduledCommitSubmissionController;
@@ -151,6 +153,7 @@ use App\Http\Controllers\UserPreviewController;
 use App\Http\Controllers\UserProfileController;
 use App\Http\Controllers\UserRemotePreferencesController;
 use App\Http\Controllers\UserRemotesController;
+use App\Http\Controllers\UserReportController;
 use App\Http\Controllers\UserSitemapController;
 use App\Http\Controllers\UserTermsController;
 use App\Http\Controllers\UserTimeoutController;
@@ -598,6 +601,9 @@ Route::middleware('auth')->group(function (): void {
     Route::get('moderation/reports/{report}/images/{image}', [CommitReportImageController::class, 'show'])->whereUuid('report')->whereIn('image', ['0', '1', '2'])->name('commit-report-image.show');
     Route::get('moderation/reports', [ReportedCommitController::class, 'index'])->name('reported-commit.index');
     Route::delete('moderation/reports/{report}', [CommitReportController::class, 'destroy'])->name('commit-report.destroy');
+    Route::get('moderation/people-reports', [ReportedUserController::class, 'index'])->name('reported-user.index');
+    Route::delete('moderation/message-reports/{report}', [MessageReportController::class, 'destroy'])->whereUuid('report')->name('message-report.destroy');
+    Route::delete('moderation/user-reports/{report}', [UserReportController::class, 'destroy'])->whereUuid('report')->name('user-report.destroy');
     Route::post('moderation/{commit}/approval', [CommitApprovalController::class, 'store'])
         ->name('commit-approval.store');
     Route::post('moderation/{commit}/rejection', [CommitRejectionController::class, 'store'])

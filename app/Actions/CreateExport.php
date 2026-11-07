@@ -12,10 +12,12 @@ use App\Models\Conversation;
 use App\Models\ConversationParticipant;
 use App\Models\Device;
 use App\Models\Message;
+use App\Models\MessageReport;
 use App\Models\Poll;
 use App\Models\PollOption;
 use App\Models\PushSubscription;
 use App\Models\User;
+use App\Models\UserReport;
 use App\Models\UserTimeout;
 use App\Queries\CommitBuilder;
 use App\Services\CommitTranslations;
@@ -55,6 +57,8 @@ use Traversable;
  *     pending_follows: list<string>,
  *     messages: Generator<int, ExportMessage>,
  *     reports: Traversable<int, array<string, mixed>>,
+ *     message_reports: Traversable<int, array{message_id: int, reason: string, details: string|null, created_at: string}>,
+ *     user_reports: Traversable<int, array{user_id: string, reason: string, details: string|null, created_at: string}>,
  *     remote_pins: array<int, array{to: string|null, pinned_at: string|null}>,
  *     remote_mentions: Generator<int, array{to: string|null, created_at: string}>,
  *     remote_mutes: array<int, array{to: string|null, muted_until_at: string|null}>,
@@ -76,7 +80,7 @@ final readonly class CreateExport
     public function handle(User $user): array
     {
         return [
-            'schema_version' => 8,
+            'schema_version' => 9,
             'exported_at' => now()->toIso8601String(),
             'profile' => [
                 'github_id' => $user->github_id,
@@ -137,6 +141,18 @@ final readonly class CreateExport
                 'reason' => $report->reason,
                 'details' => $report->details,
                 'attachments' => $report->toArray()['attachments'],
+                'created_at' => $report->created_at->toIso8601String(),
+            ])->getIterator(),
+            'message_reports' => MessageReport::query()->where('reporter_id', $user->id)->oldest('id')->cursor()->map(fn (MessageReport $report): array => [
+                'message_id' => $report->message_id,
+                'reason' => $report->reason,
+                'details' => $report->details,
+                'created_at' => $report->created_at->toIso8601String(),
+            ])->getIterator(),
+            'user_reports' => UserReport::query()->where('reporter_id', $user->id)->oldest('id')->cursor()->map(fn (UserReport $report): array => [
+                'user_id' => $report->user_id,
+                'reason' => $report->reason,
+                'details' => $report->details,
                 'created_at' => $report->created_at->toIso8601String(),
             ])->getIterator(),
             'remote_mutes' => Conversation::query()

@@ -42,6 +42,7 @@ This file documents the platform's features, stack, and stories. Feature entries
   - [Orgs: group chats](#orgs-group-chats)
   - [Muting and blocking](#muting-and-blocking)
   - [Reporting commits](#reporting-commits)
+  - [Reporting messages and people](#reporting-messages-and-people)
   - [Appearance, color, and timezone](#appearance-color-and-timezone)
   - [Installing /dev/null as an app](#installing-devnull-as-an-app)
   - [Activity graphs and README embeds](#activity-graphs-and-readme-embeds)
@@ -498,6 +499,12 @@ Report another person's visible, approved commit or reply privately from its con
 
 Sources: [report control](resources/js/components/commit-report-button.tsx), [report validation](app/Http/Requests/CreateCommitReportRequest.php), [reported-commit controller](app/Http/Controllers/ReportedCommitController.php).
 
+### Reporting messages and people
+
+Through the API used by the mobile app, you can also privately report a Remotes message you can see, in a direct conversation or an organization's thread, or another person's account. Reports take the same reasons as commit reports and up to **500 characters** of optional detail, without images. You can't report your own messages or yourself. You can report a particular message or person once, and file up to five of these reports a minute. Reporting does not hide the message or affect the account by itself, and the person reported is not told who reported them. Moderators review these reports privately.
+
+Sources: [message report validation](app/Http/Requests/CreateApiMessageReportRequest.php), [user report validation](app/Http/Requests/CreateApiUserReportRequest.php).
+
 ### Appearance, color, and timezone
 
 Settings → Appearance offers:
@@ -656,7 +663,7 @@ Choose **Download JSON** in Settings → Profile to export your account data. Th
 - SSH key fingerprints, approved devices, and your timeout history;
 - active-session metadata: IP address, browser information, and last activity.
 
-Other people's replies and received messages are not included as your authored data. Message images, message reactions, scheduled commits, and ban records are not included either. Reports you filed include their reason, details, and attachment references; reports filed by other people are excluded. Image and voice-note references are URLs, not an archive of the media files. Deleted commit entries do not restore content already erased after the undo window.
+Other people's replies and received messages are not included as your authored data. Message images, message reactions, scheduled commits, and ban records are not included either. Reports you filed, on commits, messages and people, include their reason and details, and commit reports their attachment references; reports filed by other people are excluded. Image and voice-note references are URLs, not an archive of the media files. Deleted commit entries do not restore content already erased after the undo window.
 
 The export does not expose session IDs, authentication tokens, private SSH keys, or other people's poll choices. Keep the downloaded JSON private because it includes personal account information. Exports are limited to **three per hour**.
 

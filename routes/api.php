@@ -40,6 +40,7 @@ use App\Http\Controllers\Api\MessageImageController;
 use App\Http\Controllers\Api\MessageLinkPreviewController;
 use App\Http\Controllers\Api\MessagePinController;
 use App\Http\Controllers\Api\MessageReactionController;
+use App\Http\Controllers\Api\MessageReportController;
 use App\Http\Controllers\Api\MessageVoiceController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\NotificationGroupController;
@@ -83,6 +84,7 @@ use App\Http\Controllers\Api\UserProfileController;
 use App\Http\Controllers\Api\UserPushPreferencesController;
 use App\Http\Controllers\Api\UserRemotePreferencesController;
 use App\Http\Controllers\Api\UserRemotesController;
+use App\Http\Controllers\Api\UserReportController;
 use App\Http\Controllers\Api\UserSearchController;
 use App\Http\Controllers\Api\UserSettingsController;
 use App\Http\Controllers\Api\UserTermsController;
@@ -345,6 +347,11 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         Route::post('users/{user:handle}/mute', [UserMuteController::class, 'store'])->name('api-user-mute.store');
         Route::delete('users/{user:handle}/mute', [UserMuteController::class, 'destroy'])->name('api-user-mute.destroy');
 
+        // User Report...
+        Route::post('users/{user:handle}/reports', [UserReportController::class, 'store'])
+            ->middleware('throttle:reports')
+            ->name('api-user-report.store');
+
         // User Block...
         Route::get('me/blocked', [UserBlockController::class, 'index'])->name('api-user-block.index');
         Route::post('users/{user:handle}/block', [UserBlockController::class, 'store'])->name('api-user-block.store');
@@ -466,6 +473,13 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 ->whereNumber('message')
                 ->name('api-message-reaction.destroy');
         });
+
+        // Remote Report: a message the user can't see gets the same answer as one that doesn't exist...
+        Route::post('remotes/messages/{message}/reports', [MessageReportController::class, 'store'])
+            ->whereNumber('message')
+            ->middleware('throttle:reports')
+            ->missing(fn (): never => abort(404, 'Not Found'))
+            ->name('api-message-report.store');
 
         // Remote Pins: an org's maintainers pinning and unpinning messages for everyone in it...
         Route::middleware('throttle:pins')->group(function (): void {

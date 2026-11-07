@@ -17,6 +17,7 @@ use App\Models\CommitImage;
 use App\Models\CommitReport;
 use App\Models\Device;
 use App\Models\Message;
+use App\Models\MessageReport;
 use App\Models\MessageVoice;
 use App\Models\Notification;
 use App\Models\Organization;
@@ -24,6 +25,7 @@ use App\Models\Poll;
 use App\Models\PollVote;
 use App\Models\SshKey;
 use App\Models\User;
+use App\Models\UserReport;
 use App\Models\UserTimeout;
 use App\Services\CommitTranslations;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -92,7 +94,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
     $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
 
     expect($data)->toBe([
-        'schema_version' => 8,
+        'schema_version' => 9,
         'exported_at' => now()->toIso8601String(),
         'profile' => [
             'github_id' => $user->github_id,
@@ -149,6 +151,8 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
         'pending_follows' => [],
         'messages' => [],
         'reports' => [],
+        'message_reports' => [],
+        'user_reports' => [],
         'remote_mutes' => [],
         'remote_pins' => [],
         'remote_mentions' => [],
@@ -706,4 +710,24 @@ it('exports subscription metadata without delivery endpoints', function (): void
     $subscription = $user->pushSubscriptions()->create(['endpoint_hash' => 'browser', 'endpoint' => 'https://fcm.googleapis.com/wp/private']);
     $export = resolve(CreateExport::class)->handle($user);
     expect($export['push_subscriptions'])->toBe([['id' => $subscription->id]]);
+});
+
+it('exports the message and user reports the user filed, and not those about them', function (): void {
+    $this->freezeSecond();
+    $user = User::factory()->create();
+    $message = Message::factory()->create();
+    $reported = User::factory()->create();
+    MessageReport::factory()->for($message)->create(['reporter_id' => $user->id, 'reason' => 'harassment', 'details' => 'Rude message']);
+    UserReport::factory()->for($reported)->create(['reporter_id' => $user->id, 'reason' => 'spam']);
+    MessageReport::factory()->for(Message::factory()->for($user))->create(['details' => 'Someone reported my message']);
+    UserReport::factory()->for($user)->create(['details' => 'Someone reported me']);
+
+    $content = $this->actingAs($user)->get(route('export'))->streamedContent();
+    $data = json_decode($content, true, flags: JSON_THROW_ON_ERROR);
+
+    expect($data['message_reports'])->toBe([
+        ['message_id' => $message->id, 'reason' => 'harassment', 'details' => 'Rude message', 'created_at' => now()->toIso8601String()],
+    ])->and($data['user_reports'])->toBe([
+        ['user_id' => $reported->id, 'reason' => 'spam', 'details' => null, 'created_at' => now()->toIso8601String()],
+    ])->and($content)->not->toContain('Someone reported');
 });

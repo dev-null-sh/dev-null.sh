@@ -19,6 +19,7 @@ use App\Models\Device;
 use App\Models\LinkPreview;
 use App\Models\Message;
 use App\Models\MessageImage;
+use App\Models\MessageReport;
 use App\Models\MessageVoice;
 use App\Models\Organization;
 use App\Models\Poll;
@@ -26,6 +27,7 @@ use App\Models\PollOption;
 use App\Models\PollVote;
 use App\Models\PushSubscription;
 use App\Models\User;
+use App\Models\UserReport;
 use App\Queries\HeadlineSummaryQuery;
 use App\Services\CommitTranslations;
 use App\Services\TheAlgorithm;
@@ -473,4 +475,19 @@ it('erases browser push subscriptions with the account', function (): void {
     PushSubscription::factory()->create(['user_id' => $user->id]);
     resolve(DeleteUser::class)->handle($user);
     expect(PushSubscription::query()->count())->toBe(0);
+});
+
+it('erases the message and user reports filed by, about, or on messages of the deleted user', function (): void {
+    $user = User::factory()->create();
+    $other = User::factory()->create();
+    MessageReport::factory()->create(['reporter_id' => $user->id]);
+    MessageReport::factory()->for(Message::factory()->for($user))->create(['reporter_id' => $other->id]);
+    UserReport::factory()->create(['reporter_id' => $user->id]);
+    UserReport::factory()->for($user)->create(['reporter_id' => $other->id]);
+    $kept = [MessageReport::factory()->create(['reporter_id' => $other->id]), UserReport::factory()->create(['reporter_id' => $other->id])];
+
+    resolve(DeleteUser::class)->handle($user);
+
+    expect(MessageReport::query()->pluck('id')->all())->toBe([$kept[0]->id])
+        ->and(UserReport::query()->pluck('id')->all())->toBe([$kept[1]->id]);
 });

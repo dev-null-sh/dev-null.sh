@@ -2,12 +2,13 @@ import { index as bulk } from '@/actions/App/Http/Controllers/BulkActivityContro
 import { index as people } from '@/actions/App/Http/Controllers/ModeratedUserController';
 import { show } from '@/actions/App/Http/Controllers/ModerationController';
 import { index } from '@/actions/App/Http/Controllers/ReportedCommitController';
+import { index as peopleReports } from '@/actions/App/Http/Controllers/ReportedUserController';
 import { PageTabs } from '@/components/page-tabs';
 
 export function ModerationTabs({
     active,
 }: {
-    active: 'pending' | 'reports' | 'people' | 'bulk';
+    active: 'pending' | 'reports' | 'people-reports' | 'people' | 'bulk';
 }) {
     return (
         <PageTabs
@@ -22,6 +23,11 @@ export function ModerationTabs({
                     title: 'Reports',
                     href: index(),
                     isActive: active === 'reports',
+                },
+                {
+                    title: 'Messages & people',
+                    href: peopleReports(),
+                    isActive: active === 'people-reports',
                 },
                 {
                     title: 'Timeouts & bans',
