@@ -91,7 +91,7 @@ it('lets site admins add anyone with remotes on', function (): void {
     $this->actingAs($nuno)->getJson(route('inbox.index'))->assertJsonCount(1, 'conversations');
 });
 
-it('caps an org at a hundred people', function (): void {
+it('caps an org at 256 people', function (): void {
     $mark = User::factory()->create();
 
     $this->actingAs($mark)->postJson(route('org.store'), ['members' => array_map(fn (User $user): string => $user->handle, followersOf($mark, Conversation::MAX_MEMBERS))])
