@@ -1,7 +1,13 @@
 import { InfiniteScroll, router, usePage } from '@inertiajs/react';
 import { Pin } from 'lucide-react';
 import type { PointerEvent, ReactNode } from 'react';
-import { Fragment, useEffect, useRef, useState } from 'react';
+import {
+    Fragment,
+    useEffect,
+    useRef,
+    useState,
+    useSyncExternalStore,
+} from 'react';
 import { CommitCard } from '@/components/commit-card';
 import { GraphCanvas } from '@/components/graph-canvas';
 import { GraphRail, RailSegment } from '@/components/graph-rail';
@@ -10,7 +16,12 @@ import {
     restoreFeedCommit,
     updateQuotedCommits,
 } from '@/lib/commit-mutation-options';
-import { isDeliberateHover } from '@/lib/feed-hover';
+import type { FeedHighlightStore } from '@/lib/feed-hover';
+import {
+    createFeedHighlight,
+    isDeliberateHover,
+    isDimmedBy,
+} from '@/lib/feed-hover';
 import { authorLaneColor, cn, formatDayLabel, localDayKey } from '@/lib/utils';
 import type { Commit, CursorPaginated } from '@/types';
 
@@ -48,7 +59,6 @@ export function CommitFeed({
 }) {
     const now = useNow();
     const page = usePage();
-    const { dimsLanes } = page.props;
     const isModeration = page.component === 'moderation/show';
     const isStarred = page.component === 'starred/index';
     const profileUserId =
@@ -62,12 +72,7 @@ export function CommitFeed({
         page.component === 'organization/show'
             ? (page.props.organization as { id: string }).id
             : null;
-    const [highlightedAuthor, setHighlightedAuthor] = useState<string | null>(
-        null,
-    );
-    const [highlightedCommit, setHighlightedCommit] = useState<string | null>(
-        null,
-    );
+    const [highlight] = useState(createFeedHighlight);
     const unhighlightTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
     const isScrolling = useRef(false);
     const authorUnderPointer = useRef<string | null>(null);
@@ -80,8 +85,7 @@ export function CommitFeed({
         const unhighlight = () => {
             isScrolling.current = true;
             clearTimeout(unhighlightTimer.current);
-            setHighlightedCommit(null);
-            setHighlightedAuthor(null);
+            highlight.set({ commitId: null, authorId: null });
 
             clearTimeout(settleTimer);
             settleTimer = setTimeout(() => {
@@ -95,15 +99,15 @@ export function CommitFeed({
             window.removeEventListener('scroll', unhighlight);
             clearTimeout(settleTimer);
         };
-    }, []);
+    }, [highlight]);
 
     const highlightAuthor = (userId: string, isHovering: boolean) => {
         authorUnderPointer.current = isHovering ? userId : null;
 
         if (!isHovering) {
-            setHighlightedAuthor(null);
+            highlight.set({ authorId: null });
         } else if (!isScrolling.current) {
-            setHighlightedAuthor(userId);
+            highlight.set({ authorId: userId });
         }
     };
 
@@ -115,9 +119,11 @@ export function CommitFeed({
         if (isHovering) {
             if (isDeliberateHover(event, isScrolling.current)) {
                 clearTimeout(unhighlightTimer.current);
-                setHighlightedCommit(commitId);
                 // Author targets only report entering, so one that slid under the pointer while scrolling lights up on the next move.
-                setHighlightedAuthor(authorUnderPointer.current);
+                highlight.set({
+                    commitId,
+                    authorId: authorUnderPointer.current,
+                });
             }
 
             return;
@@ -127,7 +133,7 @@ export function CommitFeed({
 
         // Crossing a day marker between two commits shouldn't flash the whole feed back on.
         unhighlightTimer.current = setTimeout(
-            () => setHighlightedCommit(null),
+            () => highlight.set({ commitId: null }),
             150,
         );
     };
@@ -204,37 +210,35 @@ export function CommitFeed({
         return <div className="px-6 py-16 text-center sm:px-12">{empty}</div>;
     }
 
-    const isDimmed = (commit: Commit) =>
-        dimsLanes &&
-        (highlightedAuthor !== null
-            ? commit.author.id !== highlightedAuthor
-            : highlightedCommit !== null && commit.id !== highlightedCommit);
-
     const lastCommit = listed.at(-1) ?? pinnedCommit;
     const interludeIndex = Math.min(interludeAfter, listed.length) - 1;
 
     // Feed commits are unrelated to each other, so each one stands on its own with its author's avatar, even when the
     // same author committed several in a row.
     const card = (commit: Commit) => (
-        <CommitCard
-            commit={commit}
-            endsWithDot
-            isDimmed={isDimmed(commit)}
-            isHighlighted={
-                highlightedPeriod !== null &&
-                commit.created_at.startsWith(highlightedPeriod)
-            }
-            actions={actions?.(commit)}
-            threadActions={threadActions?.(commit)}
-            isFolded={isFolded}
-            showsParent={isModeration}
-            onAuthorHover={(isHovering) =>
-                highlightAuthor(commit.author.id, isHovering)
-            }
-            onHover={(isHovering, event) =>
-                highlightCommit(commit.id, isHovering, event)
-            }
-        />
+        <Highlighted highlight={highlight} commit={commit}>
+            {(isDimmed) => (
+                <CommitCard
+                    commit={commit}
+                    endsWithDot
+                    isDimmed={isDimmed}
+                    isHighlighted={
+                        highlightedPeriod !== null &&
+                        commit.created_at.startsWith(highlightedPeriod)
+                    }
+                    actions={actions?.(commit)}
+                    threadActions={threadActions?.(commit)}
+                    isFolded={isFolded}
+                    showsParent={isModeration}
+                    onAuthorHover={(isHovering) =>
+                        highlightAuthor(commit.author.id, isHovering)
+                    }
+                    onHover={(isHovering, event) =>
+                        highlightCommit(commit.id, isHovering, event)
+                    }
+                />
+            )}
+        </Highlighted>
     );
 
     return (
@@ -248,21 +252,29 @@ export function CommitFeed({
                             Pinned
                         </p>
                     </div>
-                    <CommitCard
-                        commit={pinnedCommit}
-                        endsWithDot
-                        isDimmed={isDimmed(pinnedCommit)}
-                        onHover={(isHovering, event) =>
-                            highlightCommit(pinnedCommit.id, isHovering, event)
-                        }
-                        isHighlighted={
-                            highlightedPeriod !== null &&
-                            pinnedCommit.created_at.startsWith(
-                                highlightedPeriod,
-                            )
-                        }
-                        threadActions={threadActions?.(pinnedCommit)}
-                    />
+                    <Highlighted highlight={highlight} commit={pinnedCommit}>
+                        {(isDimmed) => (
+                            <CommitCard
+                                commit={pinnedCommit}
+                                endsWithDot
+                                isDimmed={isDimmed}
+                                onHover={(isHovering, event) =>
+                                    highlightCommit(
+                                        pinnedCommit.id,
+                                        isHovering,
+                                        event,
+                                    )
+                                }
+                                isHighlighted={
+                                    highlightedPeriod !== null &&
+                                    pinnedCommit.created_at.startsWith(
+                                        highlightedPeriod,
+                                    )
+                                }
+                                threadActions={threadActions?.(pinnedCommit)}
+                            />
+                        )}
+                    </Highlighted>
                 </section>
             )}
             <InfiniteScroll
@@ -303,11 +315,19 @@ export function CommitFeed({
                                 />
                             )}
                             {card(commit)}
-                            {index === interludeIndex &&
-                                interlude?.(
-                                    authorLaneColor(commit.author),
-                                    isDimmed(commit),
-                                )}
+                            {index === interludeIndex && interlude && (
+                                <Highlighted
+                                    highlight={highlight}
+                                    commit={commit}
+                                >
+                                    {(isDimmed) =>
+                                        interlude(
+                                            authorLaneColor(commit.author),
+                                            isDimmed,
+                                        )
+                                    }
+                                </Highlighted>
+                            )}
                         </Fragment>
                     );
                 })}
@@ -380,6 +400,25 @@ function LastVisitMarker({ stagedLane }: { stagedLane?: string }) {
             </div>
         </div>
     );
+}
+
+function Highlighted({
+    highlight,
+    commit,
+    children,
+}: {
+    highlight: FeedHighlightStore;
+    commit: Commit;
+    children: (isDimmed: boolean) => ReactNode;
+}) {
+    const { dimsLanes } = usePage().props;
+    const isDimmed = useSyncExternalStore(
+        highlight.subscribe,
+        () => dimsLanes && isDimmedBy(highlight.get(), commit),
+        () => false,
+    );
+
+    return children(isDimmed);
 }
 
 export function CommitSkeleton() {
