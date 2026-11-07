@@ -21,7 +21,11 @@ final readonly class NotificationController
         $type = $request->type($user);
 
         return Inertia::render('notification/index', [
-            'notifications' => Inertia::scroll(fn (): CursorPaginator => ShownStreams::notifications($query->withStarredCommitImages($query->withQuotedCommits($user, $query->paginate($user, $type, $request->through())))))->matchOn('data.group_id'),
+            'notifications' => Inertia::scroll(function () use ($request, $user, $type, $query): CursorPaginator {
+                $groups = $query->withStarredCommitImages($query->withQuotedCommits($user, $query->paginate($user, $type, $request->through())));
+
+                return ShownStreams::notifications($groups, $query->commitStars($user, $groups->items()));
+            })->matchOn('data.group_id'),
             'filters' => ['type' => $type],
             'readAt' => CarbonImmutable::now()->startOfSecond()->toJSON(),
         ]);

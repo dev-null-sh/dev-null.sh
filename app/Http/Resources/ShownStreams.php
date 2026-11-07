@@ -114,12 +114,13 @@ final class ShownStreams
 
     /**
      * @param  CursorPaginator<int, Notification>  $page
+     * @param  array<string, array{stars_count: int, starred: bool}>  $commitStars  how starred each notification's commit is, by the notification's ID
      * @return CursorPaginator<int, ShownNotificationResource>
      */
-    public static function notifications(CursorPaginator $page): CursorPaginator
+    public static function notifications(CursorPaginator $page, array $commitStars): CursorPaginator
     {
         $shown = clone $page;
-        $shown->setCollection($page->getCollection()->map(fn (Notification $notification): ShownNotificationResource => new ShownNotificationResource($notification)));
+        $shown->setCollection($page->getCollection()->map(fn (Notification $notification): ShownNotificationResource => new ShownNotificationResource($notification, $commitStars[$notification->id] ?? null)));
 
         return $shown;
     }
