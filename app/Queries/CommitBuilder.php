@@ -267,6 +267,29 @@ final class CommitBuilder extends Builder
             ->withCasts(['starred' => 'bool']);
     }
 
+    /** Whether the viewer has already shared each commit without commentary. */
+    public function withRecommitFor(?User $viewer): self
+    {
+        if (! $viewer instanceof User) {
+            return $this
+                ->addSelect(['recommitted' => new QueryExpression('false')])
+                ->withCasts(['recommitted' => 'bool']);
+        }
+
+        $recommits = $this->getModel()->newQuery()
+            ->from('commits as recommits')
+            ->withoutGlobalScopes()
+            ->selectRaw('count(*) > 0')
+            ->whereColumn('recommits.quoted_commit_id', $this->qualifyColumn('id'))
+            ->where('recommits.body', '')
+            ->whereNull('recommits.deleted_at')
+            ->where('recommits.user_id', $viewer->id);
+
+        return $this
+            ->addSelect(['recommitted' => $recommits])
+            ->withCasts(['recommitted' => 'bool']);
+    }
+
     /**
      * Loads the poll with each option's vote count and whether the viewer chose it, in two queries for any number of commits.
      */
@@ -297,6 +320,7 @@ final class CommitBuilder extends Builder
             ->with(['author', 'linkPreview', 'images'])
             ->withQuotedCommitFor($viewer)
             ->withStarsFor($viewer)
+            ->withRecommitFor($viewer)
             ->withPollFor($viewer)
             ->afterQuery(fn (Collection $commits) => resolve(CommitTranslations::class)->attach($commits));
     }

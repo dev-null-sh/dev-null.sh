@@ -27,6 +27,7 @@ use App\Http\Controllers\CommitPinController;
 use App\Http\Controllers\CommitPollController;
 use App\Http\Controllers\CommitPollVoteController;
 use App\Http\Controllers\CommitPreviewController;
+use App\Http\Controllers\CommitRecommitController;
 use App\Http\Controllers\CommitRejectionController;
 use App\Http\Controllers\CommitReplyController;
 use App\Http\Controllers\CommitReportController;
@@ -447,6 +448,10 @@ Route::middleware('auth')->group(function (): void {
     Route::post('commits', [CommitController::class, 'store'])
         ->middleware([PreventPostingInTimeout::class, RequireCommitRules::class, ThrottleCommits::class])
         ->name('commit.store');
+    Route::post('commits/{commit}/recommit', [CommitRecommitController::class, 'store'])
+        ->middleware([PreventPostingInTimeout::class, RequireCommitRules::class, ThrottleCommits::class])
+        ->whereUuid('commit')
+        ->name('commit-recommit.store');
     Route::post('commits/preview', [CommitPreviewController::class, 'store'])
         ->name('commit-preview.store');
     Route::post('commits/{commit}/translation', [CommitTranslationController::class, 'store'])

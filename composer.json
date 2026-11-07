@@ -111,7 +111,7 @@
         "test:unit": [
             "Composer\\Config::disableProcessTimeout",
             "@putenv XDEBUG_MODE=coverage",
-            "@php -d memory_limit=-1 vendor/bin/pest --parallel --coverage --exactly=100.0 --passthru-php=\"-d memory_limit=-1\"",
+            "@php -d zend.assertions=1 -d memory_limit=-1 vendor/bin/pest --parallel --coverage --exactly=100.0 --passthru-php=\"-d zend.assertions=1 -d memory_limit=-1\"",
             "bun run test:unit"
         ],
         "test:types": [

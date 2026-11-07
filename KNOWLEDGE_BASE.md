@@ -326,11 +326,13 @@ Sources: [related commits query](app/Queries/RelatedCommitsQuery.php), [related 
 
 Quote a visible commit to publish a new top-level commit with your own commentary and an embedded card pointing to the original. Quotes follow normal commit limits, image support, and moderation. The quote composer has a preview and link-card choice, but no poll or scheduling. Quoting is different from replying: the quote appears in logs as its own post, and it is also listed among the original's replies and counted in its reply count. The original author is notified after approval, except for self-quotes.
 
-The embedded original only shows content the viewer may see. Deleted originals appear as `[deleted]`; otherwise-inaccessible originals appear as `[unavailable]` without exposing their author or body. There is no comment-free repost action.
+Use **Recommit** to share an approved commit without adding commentary. It creates a top-level commit under your profile with the original embedded, so it appears in logs and gives other readers a way to discover you. It follows the normal moderation and commit rate limits, and is listed with the original's replies.
 
-Sources: [quote validation](app/Http/Requests/CreateCommitRequest.php), [quoted commit card](resources/js/components/quoted-commit.tsx), [quote notifications](app/Actions/CreateQuoteNotifications.php).
+The embedded original only shows content the viewer may see. Deleted originals appear as `[deleted]`; otherwise-inaccessible originals appear as `[unavailable]` without exposing their author or body.
 
-Livestream history: on [day two at 7:31:27](https://www.youtube.com/watch?v=nfmVdXZfzUE&t=27087s), the team explained why plain reposts were unnecessary: quoting already existed and required the person sharing to write something themselves.
+Sources: [quote validation](app/Http/Requests/CreateCommitRequest.php), [recommit authorization](app/Http/Requests/CreateCommitRecommitRequest.php), [recommit action](resources/js/components/commit-recommit-button.tsx), [quoted commit card](resources/js/components/quoted-commit.tsx), [quote notifications](app/Actions/CreateQuoteNotifications.php).
+
+Livestream history: before Recommit was added, on [day two at 7:31:27](https://www.youtube.com/watch?v=nfmVdXZfzUE&t=27087s), the team explained why plain reposts seemed unnecessary: quoting already existed and required the person sharing to write something themselves.
 
 ### Polls and voting
 

@@ -6,8 +6,11 @@ use App\Contracts\Services\EmbeddingProvider;
 use App\Contracts\Services\RelevanceProvider;
 use App\Models\Commit;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 
 beforeEach(function (): void {
+    DB::statement('SET LOCAL enable_indexscan TO off');
+
     $this->user = User::factory()->create();
     $this->keyPair = apiKeyPairFor($this->user);
 });

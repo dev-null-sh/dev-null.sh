@@ -46,6 +46,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read int $stars_count
  * @property-read int $pasteis_count
  * @property-read bool $starred
+ * @property-read bool $recommitted
  * @property-read User|null $user
  * @property-read Profile|null $author
  * @property-read Collection<int, User> $stars

@@ -1,5 +1,5 @@
 import { Link, router, usePage } from '@inertiajs/react';
-import { CornerDownRight } from 'lucide-react';
+import { CornerDownRight, Quote, Repeat2 } from 'lucide-react';
 import type { MouseEvent, PointerEvent, ReactNode } from 'react';
 import { useCallback, useContext, useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
@@ -9,6 +9,7 @@ import { CommitImages } from '@/components/commit-images';
 import { CommitPastelButton } from '@/components/commit-pastel-button';
 import { CommitPoll } from '@/components/commit-poll';
 import { CommitQuoteButton } from '@/components/commit-quote-button';
+import { CommitRecommitButton } from '@/components/commit-recommit-button';
 import { CommitSecondaryActions } from '@/components/commit-secondary-actions';
 import { CommitStarButton } from '@/components/commit-star-button';
 import { CommitStatusBadge } from '@/components/commit-status-badge';
@@ -157,6 +158,10 @@ export function CommitCard({
         hasRailTail && railNodePosition !== 'bottom' && endsWithDot;
     const graphEndId = `${commit.id}:end`;
     const isOwn = useOwnsCommit()(commit);
+    const isRecommit =
+        commit.quoted_commit_id !== null &&
+        commit.body === '' &&
+        (commit.images?.length ?? 0) === 0;
     const isFresh = isOwn && isWithinSeconds(commit.created_at, 15);
     const isDeletable = isOwn && canDelete;
     const hash = shortHash(commit.id);
@@ -429,6 +434,17 @@ export function CommitCard({
                                 </span>
                             </div>
 
+                            {commit.quoted_commit_id !== null && (
+                                <p className="mt-0.5 flex items-center gap-1 font-mono text-xs text-muted-foreground">
+                                    {isRecommit ? (
+                                        <Repeat2 className="size-3" />
+                                    ) : (
+                                        <Quote className="size-3" />
+                                    )}
+                                    {isRecommit ? 'Recommitted' : 'Quoted'}
+                                </p>
+                            )}
+
                             {commit.parent && isDeleted(commit.parent) && (
                                 <p className="mt-0.5 flex w-fit items-center gap-1 font-mono text-xs text-muted-foreground">
                                     <CornerDownRight className="size-3" />
@@ -547,6 +563,7 @@ export function CommitCard({
                                             commit={commit}
                                             keyShortcut="q"
                                         />
+                                        <CommitRecommitButton commit={commit} />
                                         {translation.button}
                                     </div>
                                     <CommitSecondaryActions
@@ -574,6 +591,9 @@ export function CommitCard({
                                             <CommitQuoteButton
                                                 commit={commit}
                                                 keyShortcut="q"
+                                            />
+                                            <CommitRecommitButton
+                                                commit={commit}
                                             />
                                             {translation.button}
                                             {threadActions}
