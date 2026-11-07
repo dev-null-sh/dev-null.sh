@@ -124,9 +124,9 @@ final readonly class LinkCommitsQuery
     /**
      * @return array{commits: int, people: int}
      */
-    public function stats(LinkPreview $link): array
+    public function stats(LinkPreview $link, User $user): array
     {
-        $commits = Commit::query()->where('link_preview_id', $link->id)->approved();
+        $commits = Commit::query()->where('link_preview_id', $link->id)->visibleTo($user);
 
         return [
             'commits' => $commits->count(),

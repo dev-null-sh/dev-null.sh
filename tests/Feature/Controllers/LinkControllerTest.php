@@ -154,14 +154,17 @@ it('hides the commits the viewer may not see from the link page', function (): v
     $blocked = User::factory()->create();
     $viewer->blocking()->attach($blocked);
     $link = LinkPreview::factory()->create();
-    $visible = Commit::factory()->create(['link_preview_id' => $link->id]);
-    Commit::factory()->for($blocked)->create(['link_preview_id' => $link->id]);
+    $visibleAuthor = User::factory()->create();
+    $visible = Commit::factory()->for($visibleAuthor)->create(['link_preview_id' => $link->id]);
+    $alsoVisible = Commit::factory()->for($visibleAuthor)->create(['link_preview_id' => $link->id]);
+    Commit::factory()->count(2)->for($blocked)->create(['link_preview_id' => $link->id]);
     Commit::factory()->pending()->create(['link_preview_id' => $link->id]);
     $own = Commit::factory()->pending()->for($viewer)->create(['link_preview_id' => $link->id]);
 
     $this->actingAs($viewer)->get(route('link.index', ['url' => $link->url]))->assertOk()->assertInertia(fn ($page) => $page
-        ->has('commits.data', 2)
-        ->where('commits.data', fn ($commits): bool => collect($commits)->pluck('id')->sort()->values()->all() === collect([$visible->id, $own->id])->sort()->values()->all()));
+        ->where('stats', ['commits' => 3, 'people' => 2])
+        ->has('commits.data', 3)
+        ->where('commits.data', fn ($commits): bool => collect($commits)->pluck('id')->sort()->values()->all() === collect([$visible->id, $alsoVisible->id, $own->id])->sort()->values()->all()));
 });
 
 it('finds the link of a bare domain like its card does', function (): void {
