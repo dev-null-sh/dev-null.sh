@@ -15,6 +15,7 @@ use App\Models\CommitReport;
 use App\Models\Conversation;
 use App\Models\ConversationParticipant;
 use App\Models\Headline;
+use App\Models\LinkPreview;
 use App\Models\Message;
 use App\Models\MessageImage;
 use App\Models\MessageVoice;
@@ -42,8 +43,9 @@ final readonly class DeleteUser
      * What they posted for organizations stays, and only forgets who posted it.
      * The database cascades the image rows of erased commits and the user's scheduled commits, and the voice notes of their
      * messages, but the files are erased here. Orgs the user was the last one in go too, with everything sent in them,
-     * as they do when the last member leaves. Only their GitHub ID is kept, so looking their handle up never brings their
-     * page back as an unclaimed one, until they sign in again.
+     * as they do when the last member leaves. So do the previews of links to the erased commits, which hold their bodies,
+     * and to the replies to their commits, whose titles name them. Only their GitHub ID is kept, so looking their handle up
+     * never brings their page back as an unclaimed one, until they sign in again.
      */
     public function handle(User $user): void
     {
@@ -80,6 +82,11 @@ final readonly class DeleteUser
                 ->whereIn('commit_id', $this->touchedCommits($user)->select('id')))
                 ->update(['summary' => null, 'summary_created_at' => null]);
             DB::table('commit_headline')->whereIn('commit_id', $this->touchedCommits($user)->select('id'))->delete();
+            LinkPreview::query()
+                ->whereIn(DB::raw("substring(lower(url) from '/commits/([0-9a-f-]{36})')"), $this->touchedCommits($user)
+                    ->orWhereIn('parent_id', $user->commits()->withTrashed()->select('id'))
+                    ->selectRaw('id::text'))
+                ->delete();
             $user->commits()->withTrashed()->topLevel()->forceDelete();
             CommitImage::query()->whereIn('commit_id', $this->replies($user)->select('id'))->delete();
             CommitReport::query()->whereIn('commit_id', $this->replies($user)->select('id'))->delete();
