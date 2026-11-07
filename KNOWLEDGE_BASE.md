@@ -614,7 +614,7 @@ Sign in with GitHub: the app makes a signing key that stays on your phone and si
 
 ### Terminal app
 
-**/dev/null TUI** is a terminal client built by [Wendell Adriel](https://wendelladriel.com) for reading logs, publishing commits, following developers, and checking notifications. The **/apps** page has a copyable install command for Linux, macOS, and WSL, plus a link to the [Windows PowerShell installation instructions](https://github.com/WendellAdriel/dev-null-tui/blob/main/docs/installation.md#windows-powershell) for Windows without WSL. Run `devnull` after installing and approve the device in your browser to connect your account. The code is open source at [WendellAdriel/dev-null-tui](https://github.com/WendellAdriel/dev-null-tui).
+**/dev/null TUI** is a terminal client built by [Wendell Adriel](https://wendelladriel.com) for reading logs, publishing commits, following developers, chatting in remotes, and checking notifications. The **/apps** page has a copyable install command for Linux, macOS, and WSL, plus a link to the [Windows PowerShell installation instructions](https://github.com/WendellAdriel/dev-null-tui/blob/main/docs/installation.md#windows-powershell) for Windows without WSL. Run `devnull` after installing and approve the device in your browser to connect your account. The code is open source at [WendellAdriel/dev-null-tui](https://github.com/WendellAdriel/dev-null-tui).
 
 ### Mac app
 
