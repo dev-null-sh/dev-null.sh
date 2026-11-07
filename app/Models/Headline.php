@@ -21,6 +21,8 @@ use Illuminate\Support\Facades\Cache;
 /**
  * @property-read string $id
  * @property-read string $name
+ * @property-read string|null $summary
+ * @property-read CarbonInterface|null $summary_created_at
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
  * @property-read Collection<int, Commit> $commits
@@ -40,6 +42,8 @@ final class Headline extends Model
 
     public const int PROCESSING_LOCK_SECONDS = 960;
 
+    public const int SUMMARY_HOURS = 2;
+
     /**
      * @return array<string, string>
      */
@@ -48,6 +52,8 @@ final class Headline extends Model
         return [
             'id' => 'string',
             'name' => 'string',
+            'summary' => 'string',
+            'summary_created_at' => 'datetime',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
         ];

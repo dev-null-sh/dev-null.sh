@@ -50,11 +50,16 @@ const applyTheme = (appearance: Appearance): void => {
 
     document.documentElement.classList.toggle('dark', isDark);
     document.documentElement.style.colorScheme = isDark ? 'dark' : 'light';
+
+    // The page color follows the palette in use, whether the usual one or an event theme's.
+    const themeColor =
+        getComputedStyle(document.documentElement)
+            .getPropertyValue('--background')
+            .trim() || (isDark ? '#111112' : '#f6f7f8');
+
     document
         .querySelectorAll('meta[name="theme-color"]')
-        .forEach((meta) =>
-            meta.setAttribute('content', isDark ? '#111112' : '#f6f7f8'),
-        );
+        .forEach((meta) => meta.setAttribute('content', themeColor));
 };
 
 const subscribe = (callback: () => void) => {

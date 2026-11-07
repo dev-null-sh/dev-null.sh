@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Exceptions\ApiException;
+use App\Http\Controllers\Api\BroadcastAuthorizationController;
 use App\Http\Controllers\Api\CallController;
 use App\Http\Controllers\Api\CommitController as ApiCommitController;
 use App\Http\Controllers\Api\CommitPastelController;
@@ -29,6 +30,7 @@ use App\Http\Controllers\Api\ConversationReadController;
 use App\Http\Controllers\Api\ConversationTypingController;
 use App\Http\Controllers\Api\CurrentUserController;
 use App\Http\Controllers\Api\DeviceController;
+use App\Http\Controllers\Api\DevicePushTokenController;
 use App\Http\Controllers\Api\IssueSuggestionController;
 use App\Http\Controllers\Api\LiveFollowingController;
 use App\Http\Controllers\Api\LogController;
@@ -42,6 +44,7 @@ use App\Http\Controllers\Api\MessageVoiceController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\NotificationGroupController;
 use App\Http\Controllers\Api\OrganizationAdminController;
+use App\Http\Controllers\Api\OrganizationCommitController;
 use App\Http\Controllers\Api\OrganizationController;
 use App\Http\Controllers\Api\OrganizationFollowController;
 use App\Http\Controllers\Api\OrganizationMentionController;
@@ -77,6 +80,7 @@ use App\Http\Controllers\Api\UserLiveController;
 use App\Http\Controllers\Api\UserMuteController;
 use App\Http\Controllers\Api\UserPasteisModeController;
 use App\Http\Controllers\Api\UserProfileController;
+use App\Http\Controllers\Api\UserPushPreferencesController;
 use App\Http\Controllers\Api\UserRemotePreferencesController;
 use App\Http\Controllers\Api\UserRemotesController;
 use App\Http\Controllers\Api\UserSearchController;
@@ -84,6 +88,7 @@ use App\Http\Controllers\Api\UserSettingsController;
 use App\Http\Controllers\Api\UserTermsController;
 use App\Http\Controllers\Api\UserTimezoneController;
 use App\Http\Controllers\Api\UserTranslationLanguageController;
+use App\Http\Controllers\Api\WebSessionController;
 use App\Http\Controllers\Cli\CommitController;
 use App\Http\Controllers\Cli\KeyLookupController;
 use App\Http\Middleware\AuthenticateSignedRequest;
@@ -91,7 +96,11 @@ use App\Http\Middleware\AuthenticateSshSignature;
 use App\Http\Middleware\PreventPostingInTimeout;
 use App\Http\Middleware\RequireCommitRules;
 use App\Http\Middleware\ThrottleCommits;
+use App\Http\Middleware\UpdateLastSeenAt;
+use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
+use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Session\Middleware\StartSession;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('cli')->group(function (): void {
@@ -116,6 +125,8 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             ->name('api-related-commit.index');
         Route::get('organizations/{handle}', [OrganizationController::class, 'show'])
             ->name('api-organization.show');
+        Route::get('organizations/{handle}/commits', [OrganizationCommitController::class, 'index'])
+            ->name('api-organization-commit.index');
         Route::get('organizations/{handle}/mentions', [OrganizationMentionController::class, 'index'])
             ->name('api-organization-mention.index');
     });
@@ -144,6 +155,11 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
     // Signed by the mobile app with an SSH key that the user approved as a device...
     Route::middleware(AuthenticateSignedRequest::class)->group(function (): void {
         Route::get('me', [CurrentUserController::class, 'show'])->name('api-current-user.show');
+
+        // Live updates, on the user's own private channel...
+        Route::post('broadcasting/auth', [BroadcastAuthorizationController::class, 'store'])
+            ->middleware('throttle:broadcast-authorizations')
+            ->name('api-broadcast-authorization.store');
         Route::delete('me', [CurrentUserController::class, 'destroy'])->name('api-current-user.destroy');
 
         // Pastéis...
@@ -178,6 +194,17 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         Route::delete('me/devices/{device}', [DeviceController::class, 'destroy'])
             ->whereUuid('device')
             ->name('api-device.destroy');
+
+        // Web session: the lite mobile app's web view signs in with cookies made for the device. It isn't a visit: the page it loads next is...
+        Route::post('me/web-session', [WebSessionController::class, 'store'])
+            ->withoutMiddleware(UpdateLastSeenAt::class)
+            ->middleware([EncryptCookies::class, AddQueuedCookiesToResponse::class, StartSession::class])
+            ->name('api-web-session.store');
+
+        // Push notifications: the token pushes reach the phone that signs the request with, and what the user wants pushed...
+        Route::put('me/push-token', [DevicePushTokenController::class, 'update'])->name('api-device-push-token.update');
+        Route::delete('me/push-token', [DevicePushTokenController::class, 'destroy'])->name('api-device-push-token.destroy');
+        Route::put('me/push-preferences', [UserPushPreferencesController::class, 'update'])->name('api-user-push-preferences.update');
 
         // Who follows whom, for members like on the web, so scrapers can't walk the graph...
         Route::get('users/{user:handle}/followers', [UserFollowersController::class, 'index'])
@@ -279,6 +306,8 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         Route::get('starred', [StarredCommitController::class, 'index'])->name('api-starred.index');
 
         // Commit Star...
+        Route::get('commits/{commit}/stars', [CommitStarController::class, 'index'])
+            ->name('api-commit-star.index');
         Route::post('commits/{commit}/star', [CommitStarController::class, 'store'])
             ->middleware('throttle:stars')
             ->name('api-commit-star.store');

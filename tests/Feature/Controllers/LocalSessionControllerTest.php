@@ -48,6 +48,17 @@ it('opens the sign in modal on the home page without a previous page', function 
         ->assertInertiaFlash('localSignIn', true);
 });
 
+it('takes a signed-out following reader home instead of looping through local login', function (): void {
+    registerRoutes('local');
+
+    $this->from(route('log.show', Log::Following))
+        ->get(route('log.show', Log::Following))
+        ->assertRedirectToRoute('home')
+        ->assertInertiaFlash('localSignIn', true);
+
+    $this->get(route('home'))->assertOk();
+});
+
 it('creates a user for a new handle and signs them in', function (): void {
     registerRoutes('local');
 
@@ -105,7 +116,7 @@ it('seeds activity for a local developer who already signed in', function (): vo
 
     $this->assertAuthenticatedAs($localDeveloper);
 
-    expect($localDeveloper->commits()->topLevel()->count())->toBe(3)
+    expect($localDeveloper->commits()->topLevel()->count())->toBe(4)
         ->and($localDeveloper->following()->count())->toBe(3)
         ->and($localDeveloper->notifications()->unread()->count())->toBe(12);
 

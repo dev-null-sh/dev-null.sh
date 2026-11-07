@@ -245,6 +245,6 @@ it('is null when GitHub cannot be reached, and asks again next time', function (
     expect($query->get('UTC'))->toBeNull()
         ->and(changelogNumbers($query->get('UTC')))->toBe([377]);
 })->with([
-    'an error' => fn () => throw new RequestException(new Response(new Psr7Response(403))),
-    'a timeout' => fn () => throw new ConnectionException('timed out'),
+    'an error' => fn (): never => throw new RequestException(new Response(new Psr7Response(403))),
+    'a timeout' => fn (): never => throw new ConnectionException('timed out'),
 ]);

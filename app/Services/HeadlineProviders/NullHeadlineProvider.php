@@ -44,4 +44,10 @@ final readonly class NullHeadlineProvider implements HeadlineProvider
     {
         return [];
     }
+
+    /** @param list<string> $bodies */
+    public function summarize(string $headline, array $bodies): ?string
+    {
+        return null;
+    }
 }

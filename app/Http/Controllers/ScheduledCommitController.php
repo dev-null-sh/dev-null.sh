@@ -7,6 +7,7 @@ namespace App\Http\Controllers;
 use App\Actions\CreateScheduledCommit;
 use App\Actions\DeleteScheduledCommit;
 use App\Enums\CommitSource;
+use App\Enums\UserUpdate;
 use App\Http\Requests\CreateScheduledCommitRequest;
 use App\Http\Requests\DeleteScheduledCommitRequest;
 use App\Http\Resources\ScheduledCommitResource;
@@ -14,6 +15,7 @@ use App\Models\ScheduledCommit;
 use App\Models\User;
 use App\Queries\ScheduledCommitsQuery;
 use Carbon\CarbonImmutable;
+use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\RedirectResponse;
@@ -26,8 +28,8 @@ final readonly class ScheduledCommitController
     public function index(Request $request, #[CurrentUser] User $user, ScheduledCommitsQuery $scheduled): Response
     {
         return Inertia::render('scheduled-commits/index', [
-            'scheduledCommits' => fn (): LengthAwarePaginator => $scheduled->builder($user)
-                ->paginate(20)->through(fn (ScheduledCommit $scheduledCommit): array => ScheduledCommitResource::make($scheduledCommit)->resolve($request)),
+            'scheduledCommits' => Inertia::live(fn (): LengthAwarePaginator => $scheduled->builder($user)
+                ->paginate(20)->through(fn (ScheduledCommit $scheduledCommit): array => ScheduledCommitResource::make($scheduledCommit)->resolve($request)), on: UserUpdate::ScheduledCommits->value, channel: new PrivateChannel($user)),
         ]);
     }
 

@@ -5,16 +5,18 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Http\Requests\ListLinksRequest;
+use App\Http\Resources\ShownStreams;
 use App\Models\LinkPreview;
 use App\Models\User;
 use App\Queries\LinkCommitsQuery;
 use App\Queries\TopLinksQuery;
 use Illuminate\Container\Attributes\CurrentUser;
+use Illuminate\Pagination\CursorPaginator;
 use Inertia\Inertia;
 use Inertia\Response;
 
 /**
- * A prototype gathering every commit about a link on one page, like the comments under it.
+ * A prototype of topics, a link being one: a page to explore them, and a page for each one with every commit about it.
  */
 final readonly class LinkController
 {
@@ -25,7 +27,7 @@ final readonly class LinkController
         if ($url === null) {
             return Inertia::render('links/index', [
                 'url' => null,
-                'topLinks' => $topLinks->get(),
+                'topLinks' => $topLinks->get($user),
             ]);
         }
 
@@ -35,7 +37,7 @@ final readonly class LinkController
             'url' => $url,
             'link' => $link,
             'stats' => $link === null ? ['commits' => 0, 'people' => 0] : $commits->stats($link),
-            'commits' => $link === null ? null : Inertia::scroll(fn () => $commits->builder($link, $user)->cursorPaginate(20)),
+            'commits' => $link === null ? null : Inertia::scroll(fn (): CursorPaginator => ShownStreams::page($commits->builder($link, $user)->cursorPaginate(20))),
         ]);
     }
 }

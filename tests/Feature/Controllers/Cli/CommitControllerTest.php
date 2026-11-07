@@ -577,7 +577,7 @@ it('keeps the default error pages elsewhere', function (): void {
 it('answers unexpected errors in plain text', function (): void {
     Exceptions::fake();
 
-    Route::get('api/cli/boom', fn () => throw new RuntimeException('Boom.'));
+    Route::get('api/cli/boom', fn (): never => throw new RuntimeException('Boom.'));
 
     $response = $this->get('api/cli/boom');
 

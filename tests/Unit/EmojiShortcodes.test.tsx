@@ -26,3 +26,9 @@ test('keeps the shortcode being typed until its closing colon', () => {
         caret: 5,
     });
 });
+
+test('leaves plain prose untouched without shortcode processing', () => {
+    const text = 'shipping 🚀 without a shortcode';
+    assert.equal(emojify(text), text);
+    assert.deepEqual(emojifyInput(text, 8), { text, caret: 8 });
+});

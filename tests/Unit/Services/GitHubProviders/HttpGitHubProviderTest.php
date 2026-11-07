@@ -101,6 +101,35 @@ it('does not list users GitHub no longer has as public members', function (): vo
     Http::assertSentCount(1);
 });
 
+it('reads every public organization member page without exposing or persisting account details', function (): void {
+    Http::fake(['api.github.com/orgs/example/public_members*' => Http::sequence()
+        ->push([['id' => 101, 'login' => 'first']], 200, ['Link' => '<https://api.github.com/orgs/example/public_members?page=2>; rel="next"'])
+        ->push([['id' => 102, 'login' => 'second'], ['id' => 101, 'login' => 'first']])]);
+
+    expect(new HttpGitHubProvider()->publicOrganizationMemberIds('example'))->toBe(['101', '102']);
+
+    Http::assertSent(fn (Request $request): bool => $request['page'] === 2 && $request['per_page'] === 100);
+    Http::assertSentCount(2);
+});
+
+it('does not return a partial public membership list when the scan limit is reached', function (): void {
+    Http::fake(['api.github.com/orgs/example/public_members*' => Http::response([['id' => 101]], 200, ['Link' => '<https://api.github.com/orgs/example/public_members?page=11>; rel="next"'])]);
+
+    expect(new HttpGitHubProvider()->publicOrganizationMemberIds('example'))->toBeNull();
+
+    Http::assertSentCount(10);
+});
+
+it('distinguishes a missing organization from an empty public member list', function (): void {
+    Http::fake([
+        'api.github.com/orgs/missing/public_members*' => Http::response([], 404),
+        'api.github.com/orgs/empty/public_members*' => Http::response([]),
+    ]);
+
+    expect(new HttpGitHubProvider()->publicOrganizationMemberIds('missing'))->toBeNull()
+        ->and(new HttpGitHubProvider()->publicOrganizationMemberIds('empty'))->toBe([]);
+});
+
 it('fails when GitHub fails to say whether the user is a public member', function (): void {
     Http::fake([
         'api.github.com/user/720328' => Http::response(['id' => 720328, 'login' => 'mnapoli']),
@@ -132,7 +161,7 @@ it('cannot say whether there is a sponsors listing when GitHub does not answer',
 })->with([
     'server error' => [fn () => Http::response(status: 502), ['status' => 502, 'errors' => null]],
     'graphql error' => [fn () => Http::response(['errors' => [['type' => 'INSUFFICIENT_SCOPES']]]), ['status' => 200, 'errors' => [['type' => 'INSUFFICIENT_SCOPES']]]],
-    'connection failure' => [fn () => throw new ConnectionException('timeout'), ['error' => 'timeout']],
+    'connection failure' => [fn (): never => throw new ConnectionException('timeout'), ['error' => 'timeout']],
 ]);
 
 it('reads the ids of followed and following accounts a page at a time, up to the given number of pages', function (): void {

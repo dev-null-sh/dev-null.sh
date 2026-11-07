@@ -17,7 +17,8 @@ use InvalidArgumentException;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * Authenticates a request to the API signed by the mobile app with an SSH key that the user approved as a device.
+ * Authenticates a request to the API signed by the mobile app with an SSH key that the user approved as a device, and
+ * keeps that device on the request for endpoints about the phone itself.
  *
  * The public read endpoints use it through optional(): a request without any signature header is read as a guest,
  * but one that is signed must be signed right, so a broken client never quietly gets the public view instead.
@@ -72,6 +73,7 @@ final readonly class AuthenticateSignedRequest
 
         Auth::setUser($device->user);
         $request->attributes->set('authenticated_device', $device);
+        $request->attributes->set(Device::class, $device);
 
         return $next($request);
     }

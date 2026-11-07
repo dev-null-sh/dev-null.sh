@@ -11,6 +11,7 @@ use App\Enums\CommitStatus;
 use App\Http\Requests\CreateCommitReplyRequest;
 use App\Http\Requests\DeleteCommitReplyRequest;
 use App\Http\Requests\ListCommitRepliesRequest;
+use App\Http\Resources\ShownStreams;
 use App\Models\Commit;
 use App\Models\User;
 use App\Queries\CommitRepliesQuery;
@@ -20,9 +21,20 @@ use Illuminate\Http\JsonResponse;
 
 final readonly class CommitReplyController
 {
+    /**
+     * Reading only some replies again also counts the thread's replies anew, since those are what changed.
+     */
     public function index(ListCommitRepliesRequest $request, #[CurrentUser] ?User $user, Commit $commit, CommitRepliesQuery $replies): JsonResponse
     {
-        return response()->json($replies->paginate($commit, $user, $request->boolean('newest'), $request->integer('limit', CommitRepliesQuery::PER_PAGE), $request->exceptedReplyId()));
+        $page = $replies->paginate($commit, $user, $request->boolean('newest'), $request->integer('limit', CommitRepliesQuery::PER_PAGE), $request->exceptedReplyId(), $request->replyIds());
+
+        return response()->json($request->replyIds() === null ? ShownStreams::page($page) : [
+            'data' => ShownStreams::commits($page->items()),
+            'parent' => [
+                'id' => $commit->id,
+                'replies_count' => $replies->count($commit, $user),
+            ],
+        ]);
     }
 
     /** Creates a reply addressed to the parent author and the validated selection of conversation participants. */

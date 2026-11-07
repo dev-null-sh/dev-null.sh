@@ -6,6 +6,8 @@ namespace App\Actions;
 
 use App\Dto\NewPoll;
 use App\Enums\CommitSource;
+use App\Enums\UserUpdate;
+use App\Events\UsersUpdated;
 use App\Models\Organization;
 use App\Models\ScheduledCommit;
 use App\Models\User;
@@ -32,19 +34,25 @@ final readonly class CreateScheduledCommit
     {
         $body = mb_trim($body);
 
-        return DB::transaction(fn (): ScheduledCommit => ScheduledCommit::query()->create([
-            'user_id' => $user->id,
-            'author_id' => $organization?->id,
-            'source' => $source,
-            'body' => $body,
-            'poll' => $poll instanceof NewPoll ? ['options' => $poll->options, 'duration' => $poll->duration->value] : null,
-            'images' => $images === [] ? null : $this->createImageFiles->handle($images, $imageDescriptions),
-            'link_preview_url' => match ($linkPreview) {
-                true => $this->urls->first($body),
-                false => null,
-                default => $linkPreview,
-            },
-            'scheduled_at' => $scheduledAt->utc(),
-        ]));
+        return DB::transaction(function () use ($user, $organization, $body, $poll, $images, $imageDescriptions, $linkPreview, $scheduledAt, $source): ScheduledCommit {
+            $scheduled = ScheduledCommit::query()->create([
+                'user_id' => $user->id,
+                'author_id' => $organization?->id,
+                'source' => $source,
+                'body' => $body,
+                'poll' => $poll instanceof NewPoll ? ['options' => $poll->options, 'duration' => $poll->duration->value] : null,
+                'images' => $images === [] ? null : $this->createImageFiles->handle($images, $imageDescriptions),
+                'link_preview_url' => match ($linkPreview) {
+                    true => $this->urls->first($body),
+                    false => null,
+                    default => $linkPreview,
+                },
+                'scheduled_at' => $scheduledAt->utc(),
+            ]);
+
+            event(new UsersUpdated([$user->id], UserUpdate::ScheduledCommits));
+
+            return $scheduled;
+        });
     }
 }

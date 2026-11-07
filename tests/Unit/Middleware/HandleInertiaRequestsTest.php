@@ -6,6 +6,7 @@ use App\Enums\CommitStatus;
 use App\Enums\LivePlatform;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\Commit;
+use App\Models\Headline;
 use App\Models\Notification;
 use App\Models\User;
 use App\Queries\SuggestedUsersQuery;
@@ -33,7 +34,8 @@ it('shares null user when guest', function (): void {
 
     expect($shared)->toHaveKey('auth')
         ->and($shared['auth'])->toHaveKey('user')
-        ->and($shared['auth']['user']())->toBeNull();
+        ->and($shared['auth']['user']())->toBeNull()
+        ->and($shared)->not->toHaveKey('hotTopics');
 });
 
 it('shares authenticated user data', function (): void {
@@ -50,9 +52,9 @@ it('shares authenticated user data', function (): void {
     $sharedUser = $middleware->share($request)['auth']['user']();
 
     expect($sharedUser)->not->toBeNull()
-        ->and($sharedUser->id)->toBe($user->id)
-        ->and($sharedUser->name)->toBe('Test User')
-        ->and($sharedUser->handle)->toBe('test-user');
+        ->and($sharedUser['id'])->toBe($user->id)
+        ->and($sharedUser['name'])->toBe('Test User')
+        ->and($sharedUser['handle'])->toBe('test-user');
 });
 
 it('shares the authenticated user commit and follow counts', function (): void {
@@ -67,9 +69,9 @@ it('shares the authenticated user commit and follow counts', function (): void {
 
     $sharedUser = $middleware->share($request)['auth']['user']();
 
-    expect($sharedUser->commits_count)->toBe(2)
-        ->and($sharedUser->following_count)->toBe(3)
-        ->and($sharedUser->followers_count)->toBe(1);
+    expect($sharedUser['commits_count'])->toBe(2)
+        ->and($sharedUser['following_count'])->toBe(3)
+        ->and($sharedUser['followers_count'])->toBe(1);
 });
 
 it('defers loading the authenticated user until the prop is resolved', function (): void {
@@ -99,6 +101,16 @@ it('shares how many developers are here with guests only', function (): void {
 
     expect(new HandleInertiaRequests()->share($request)['developersCount']())->toBeNull();
 });
+
+it('tells the lite mobile app from its user agent', function (string $userAgent, bool $isLiteMobileApp): void {
+    $request = Request::create('/', 'GET', server: ['HTTP_USER_AGENT' => $userAgent]);
+
+    expect(new HandleInertiaRequests()->share($request)['isLiteMobileApp'])->toBe($isLiteMobileApp);
+})->with([
+    'the lite mobile app' => ['Mozilla/5.0 (iPhone) AppleWebKit/605.1.15 Mobile/15E148 DevNullLite/1.0', true],
+    'Safari' => ['Mozilla/5.0 (iPhone) AppleWebKit/605.1.15 Version/18.6 Mobile/15E148 Safari/604.1', false],
+    'no user agent' => ['', false],
+]);
 
 it('defaults sidebarOpen to true when no cookie', function (): void {
     $middleware = new HandleInertiaRequests();
@@ -179,11 +191,11 @@ it('shares whether there are unmoderated commits for admins', function (): void 
 
     $shared = $middleware->share($request);
 
-    expect(value($shared['hasUnmoderatedCommits']))->toBeFalse();
+    expect($shared['hasUnmoderatedCommits']())->toBeFalse();
 
     Commit::factory()->pending()->create();
 
-    expect(value($shared['hasUnmoderatedCommits']))->toBeTrue();
+    expect($shared['hasUnmoderatedCommits']())->toBeTrue();
 });
 
 it('does not count deleted pending commits as unmoderated', function (): void {
@@ -197,7 +209,7 @@ it('does not count deleted pending commits as unmoderated', function (): void {
 
     $shared = new HandleInertiaRequests()->share($request);
 
-    expect(value($shared['hasUnmoderatedCommits']))->toBeFalse();
+    expect($shared['hasUnmoderatedCommits']())->toBeFalse();
 });
 
 it('shares hasUnmoderatedCommits as false for non admins', function (): void {
@@ -383,8 +395,92 @@ it('leaves who to follow and live following out of the operations console, which
     $shared = $middleware->share($request);
 
     expect($shared)->not->toHaveKey('suggestedUsers')
-        ->and($shared)->not->toHaveKey('liveFollowing');
+        ->and($shared)->not->toHaveKey('liveFollowing')
+        ->and($shared)->not->toHaveKey('hotTopics');
 })->with(['/operations', '/operations/events']);
+
+it('shares ranked visible hot topic links for a minute and refreshes on request', function (): void {
+    $this->freezeSecond();
+    $user = User::factory()->create();
+    $muted = User::factory()->create();
+    $user->muting()->attach($muted);
+    $topic = Headline::factory()->create(['name' => 'Database indexes', 'summary' => 'Developers compare indexing strategies.', 'summary_created_at' => now()]);
+    $hidden = Headline::factory()->create();
+    Commit::factory()->count(2)->hasAttached($topic)->create();
+    Commit::factory()->count(2)->for($muted)->hasAttached($hidden)->create();
+    $headers = [
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) resolve(HandleInertiaRequests::class)->version(request()),
+    ];
+
+    $this->actingAs($user)->withHeaders($headers)->get(route('starred.index'))
+        ->assertOk()
+        ->assertJsonPath('props.hotTopics', [['id' => $topic->id, 'name' => 'Database indexes', 'summary' => 'Developers compare indexing strategies.']])
+        ->assertJsonPath('onceProps.hotTopics.expiresAt', now()->addMinute()->getTimestampMs());
+
+    $this->withHeaders([...$headers, 'X-Inertia-Except-Once-Props' => 'hotTopics'])->get(route('starred.index'))
+        ->assertOk()->assertJsonMissingPath('props.hotTopics');
+
+    $next = Headline::factory()->create(['name' => 'Accessible developer tools']);
+    Commit::factory()->count(2)->hasAttached($next)->create();
+
+    $this->withHeaders([
+        ...$headers,
+        'X-Inertia-Except-Once-Props' => 'hotTopics',
+        'X-Inertia-Partial-Component' => 'starred/index',
+        'X-Inertia-Partial-Data' => 'hotTopics',
+    ])->get(route('starred.index'))->assertOk()->assertJsonPath('props.hotTopics', [
+        ['id' => $next->id, 'name' => 'Accessible developer tools', 'summary' => null],
+        ['id' => $topic->id, 'name' => 'Database indexes', 'summary' => 'Developers compare indexing strategies.'],
+    ]);
+});
+
+it('loads all five hot topic recaps in two queries regardless of the number of recaps', function (): void {
+    $viewer = User::factory()->create();
+    $headlines = Headline::factory()->count(5)->create(['summary' => 'A fresh recap.', 'summary_created_at' => now()]);
+    foreach ($headlines as $headline) {
+        Commit::factory()->count(2)->hasAttached($headline)->create();
+    }
+
+    $request = Request::create(route('starred.index'), 'GET');
+    $request->setUserResolver(fn () => $viewer);
+
+    $shared = resolve(HandleInertiaRequests::class)->share($request);
+
+    DB::enableQueryLog();
+    $topics = $shared['hotTopics']();
+
+    expect(array_column($topics, 'summary'))->toBe(array_fill(0, 5, 'A fresh recap.'))
+        ->and(DB::getQueryLog())->toHaveCount(2);
+});
+
+it('omits expired recaps from hot topics', function (): void {
+    $this->freezeSecond();
+    $topic = Headline::factory()->create(['summary' => 'An expired recap.', 'summary_created_at' => now()->subHours(2)]);
+    Commit::factory()->count(2)->hasAttached($topic)->create();
+
+    $this->actingAs(User::factory()->create())->get(route('starred.index'))
+        ->assertOk()->assertInertia(fn ($page) => $page
+        ->where('hotTopics.0.id', $topic->id)->where('hotTopics.0.summary', null));
+});
+
+it('does not repeat hidden authors through sidebar recaps', function (string $relationship, bool $isReply): void {
+    $viewer = User::factory()->create();
+    $hidden = User::factory()->create();
+    $viewer->{$relationship}()->attach($hidden);
+    $topic = Headline::factory()->create(['summary' => 'A recap with hidden contributions.', 'summary_created_at' => now()]);
+    $root = Commit::factory()->hasAttached($topic)->create();
+    Commit::factory()->hasAttached($topic)->create();
+    if ($isReply) {
+        Commit::factory()->for($hidden)->for($root, 'parent')->create();
+    } else {
+        Commit::factory()->for($hidden)->hasAttached($topic)->create();
+    }
+
+    $this->actingAs($viewer)->get(route('starred.index'))
+        ->assertOk()->assertInertia(fn ($page) => $page
+        ->where('hotTopics.0.id', $topic->id)->where('hotTopics.0.summary', null));
+})->with(['muting', 'blocking'])->with(['root' => false, 'reply' => true]);
 
 it('keeps the live following list of the aside for a minute, unless a partial reload asks for it', function (): void {
     $this->freezeSecond();
@@ -430,7 +526,7 @@ it('suggests the round of people the user refreshed to', function (string $cooki
 
     $suggested = $middleware->share($request)['suggestedUsers']();
 
-    expect($suggested->pluck('id')->all())
+    expect(array_column($suggested, 'id'))
         ->toBe(resolve(SuggestedUsersQuery::class)->get($user, round: $round, spares: 3)->pluck('id')->all());
 })->with([
     'next round' => ['1', 1],

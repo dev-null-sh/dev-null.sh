@@ -32,7 +32,10 @@ export function CommitFeed({
 }: {
     commits: CursorPaginated<Commit>;
     empty: ReactNode;
-    end: string;
+    /**
+     * Shown once the feed reached its end, and left out while what follows it is being read again.
+     */
+    end?: string;
     highlightedPeriod?: string | null;
     firstSeenId?: string | null;
     actions?: (commit: Commit) => ReactNode;
@@ -224,6 +227,7 @@ export function CommitFeed({
             actions={actions?.(commit)}
             threadActions={threadActions?.(commit)}
             isFolded={isFolded}
+            showsParent={isModeration}
             onAuthorHover={(isHovering) =>
                 highlightAuthor(commit.author.id, isHovering)
             }
@@ -309,18 +313,20 @@ export function CommitFeed({
                 })}
             </InfiniteScroll>
 
-            {commits.next_cursor === null && lastCommit && (
-                <div className="flex">
-                    <GraphRail
-                        lane={authorLaneColor(lastCommit.author)}
-                        variant="root"
-                        hasTail={false}
-                    />
-                    <p className="pt-[1.3rem] pr-4 pb-10 text-sm text-muted-foreground">
-                        {end}
-                    </p>
-                </div>
-            )}
+            {commits.next_cursor === null &&
+                lastCommit &&
+                end !== undefined && (
+                    <div className="flex">
+                        <GraphRail
+                            lane={authorLaneColor(lastCommit.author)}
+                            variant="root"
+                            hasTail={false}
+                        />
+                        <p className="pt-[1.3rem] pr-4 pb-10 text-sm text-muted-foreground">
+                            {end}
+                        </p>
+                    </div>
+                )}
         </GraphCanvas>
     );
 }

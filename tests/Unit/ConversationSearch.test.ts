@@ -39,3 +39,14 @@ test('keeps every conversation the server found for the term, ahead of stale cop
 
     assert.deepEqual(conversationsMatching('review', [org('core', 'Core', [ben])], found), [...found]);
 });
+
+test('deduplicates many matching server and local copies without changing their first match', () => {
+    const first = direct(ana, { ahead: 4 });
+    const duplicates = Array.from({ length: 100 }, () => direct(ana));
+    const last = org('team', 'Ana team', [ben]);
+
+    assert.deepEqual(
+        conversationsMatching('ana', [...duplicates, last], [first, first]),
+        [first, last],
+    );
+});

@@ -1,14 +1,16 @@
 import { useHttp, usePage } from '@inertiajs/react';
 import { Languages } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import CommitTranslationController from '@/actions/App/Http/Controllers/CommitTranslationController';
 import { useCommitNotFound } from '@/hooks/use-deleted-resources';
 import { signIn } from '@/lib/auth';
+import { changesSince, readAt } from '@/lib/commit-changes';
+import { coalesce, commitChannel, listen } from '@/lib/realtime';
 import type { Commit, CommitTranslation } from '@/types';
 
 export function useCommitTranslation(commit: Commit) {
-    const { auth } = usePage().props;
+    const { auth, now: serverNow } = usePage().props;
     const commitNotFound = useCommitNotFound();
     const bodyRef = useRef<HTMLDivElement>(null);
     const [bodyHeight, setBodyHeight] = useState<number>();
@@ -19,19 +21,113 @@ export function useCommitTranslation(commit: Commit) {
     const [display, setDisplay] = useState<'original' | 'translated' | null>(
         null,
     );
+    // The reader's language, saved or from the browser, which a change saved elsewhere replaces on every page.
+    const language =
+        auth.translationLanguage ?? commit.translation?.language ?? null;
     const translation =
         generated?.body === commit.body &&
-        generated.translation?.language === commit.translation?.language
+        generated.translation?.language === language
             ? generated.translation
             : commit.translation;
     const request = useHttp<
         { language: string },
         { translation: CommitTranslation | null }
-    >({ language: translation?.language ?? 'en' });
+    >({ language: language ?? 'en' });
     const translated =
         (display === 'translated' ||
             (display === null && auth.automaticTranslation)) &&
         translation?.translated;
+    const isApproved = commit.status === 'approved';
+    const readSince = useRef(Math.min(serverNow - 5_000, readAt()));
+    const isTranslated = Boolean(translation?.translated);
+    const isOtherLanguage =
+        translation !== null &&
+        translation !== undefined &&
+        translation.language !== language;
+
+    // A translation finished for someone else is read again in this reader's language; showing the original stays.
+    useEffect(() => {
+        if (!isApproved || language === null) {
+            return;
+        }
+
+        const controller = new AbortController();
+        const body = commit.body;
+        let needsRead = isOtherLanguage;
+        const read = coalesce(async () => {
+            const since = readAt();
+            const response = await fetch(
+                CommitTranslationController.show.url(commit.id, {
+                    query: { language },
+                }),
+                {
+                    headers: { Accept: 'application/json' },
+                    cache: 'no-store',
+                    signal: controller.signal,
+                },
+            );
+
+            if (response.ok) {
+                const fresh = (await response.json()) as {
+                    translation: CommitTranslation | null;
+                };
+
+                readSince.current = since;
+                needsRead = false;
+                setGenerated({ body, translation: fresh.translation });
+            }
+        }, 500);
+        const refresh = () => {
+            needsRead = true;
+            read.request();
+        };
+        // A translation finished while not listening is learnt by asking, with every commit shown, what was
+        // translated since: joining does while none is shown yet, and reads again only those.
+        const catchUp = async () => {
+            if (needsRead) {
+                read.request();
+
+                return;
+            }
+
+            if (isTranslated) {
+                return;
+            }
+
+            const since = readSince.current;
+            const checkedAt = readAt();
+            const change = await changesSince(commit.id, since);
+
+            if (change === null || change.translated) {
+                refresh();
+            } else {
+                readSince.current = checkedAt;
+            }
+        };
+        const stop = listen(
+            commitChannel(commit.id),
+            { translation: refresh },
+            () => void catchUp(),
+        );
+
+        // Shown in another language than the reader's: read again in theirs, keeping Show original if chosen.
+        if (isOtherLanguage) {
+            refresh();
+        }
+
+        return () => {
+            stop();
+            read.cancel();
+            controller.abort();
+        };
+    }, [
+        commit.id,
+        commit.body,
+        isApproved,
+        language,
+        isTranslated,
+        isOtherLanguage,
+    ]);
 
     const translate = async () => {
         setBodyHeight(bodyRef.current?.getBoundingClientRect().height);
@@ -46,7 +142,7 @@ export function useCommitTranslation(commit: Commit) {
             return;
         }
 
-        request.transform(() => ({ language: translation?.language ?? 'en' }));
+        request.transform(() => ({ language: language ?? 'en' }));
 
         let isNotFound = false;
         let failureMessage = 'Could not translate this commit. Try again.';
