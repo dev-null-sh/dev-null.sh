@@ -48,6 +48,17 @@ it('opens the sign in modal on the home page without a previous page', function 
         ->assertInertiaFlash('localSignIn', true);
 });
 
+it('takes a signed-out following reader home instead of looping through local login', function (): void {
+    registerRoutes('local');
+
+    $this->from(route('log.show', Log::Following))
+        ->get(route('log.show', Log::Following))
+        ->assertRedirectToRoute('home')
+        ->assertInertiaFlash('localSignIn', true);
+
+    $this->get(route('home'))->assertOk();
+});
+
 it('creates a user for a new handle and signs them in', function (): void {
     registerRoutes('local');
 
