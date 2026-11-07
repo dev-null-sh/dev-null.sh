@@ -8,6 +8,7 @@ import { GraphRail, RailSegment } from '@/components/graph-rail';
 import { useNow } from '@/hooks/use-now';
 import {
     restoreFeedCommit,
+    restoredCommitBelongsInFeed,
     updateQuotedCommits,
 } from '@/lib/commit-mutation-options';
 import { isDeliberateHover } from '@/lib/feed-hover';
@@ -57,6 +58,8 @@ export function CommitFeed({
             : null;
     const isProfileReplies =
         profileUserId !== null && page.props.tab === 'replies';
+    const isProfileShipped =
+        profileUserId !== null && page.props.tab === 'shipped';
     // The organization's Mentions tab lists replies too, whatever handle they mention it with.
     const mentionedOrganizationId =
         page.component === 'organization/show'
@@ -149,19 +152,16 @@ export function CommitFeed({
                     );
                 }
                 if (restored) {
-                    const belongsInFeed =
-                        (isStarred
-                            ? restored.starred === true
-                            : mentionedOrganizationId !== null
-                              ? Object.values(
-                                    restored.organization_mentions ?? {},
-                                ).includes(mentionedOrganizationId)
-                              : isProfileReplies
-                                ? restored.parent_id !== null
-                                : restored.parent_id === null) &&
-                        (profileUserId === null ||
-                            (restored.author.id === profileUserId &&
-                                !restored.is_pinned));
+                    const belongsInFeed = restoredCommitBelongsInFeed(
+                        restored,
+                        {
+                            isStarred,
+                            isProfileReplies,
+                            isProfileShipped,
+                            profileUserId,
+                            mentionedOrganizationId,
+                        },
+                    );
 
                     router.replaceProp('commits.data', (rows: Commit[]) =>
                         belongsInFeed
@@ -182,6 +182,7 @@ export function CommitFeed({
             profileUserId,
             isModeration,
             isProfileReplies,
+            isProfileShipped,
             mentionedOrganizationId,
             isStarred,
             isRanked,
