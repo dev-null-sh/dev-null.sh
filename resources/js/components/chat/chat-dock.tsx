@@ -15,6 +15,7 @@ import { ConversationActions } from '@/components/chat/conversation-actions';
 import { ConversationThread } from '@/components/chat/conversation-thread';
 import { InboxPanel } from '@/components/chat/inbox-panel';
 import { MemberStack, OrgHeader, orgTitle } from '@/components/chat/org';
+import { RemoteLocalTime } from '@/components/chat/remote-local-time';
 import { SearchDialog } from '@/components/search-dialog';
 import {
     Tooltip,
@@ -63,8 +64,9 @@ function DockedChat({ user }: { user: User }) {
     const target: ChatTarget | null =
         dock.conversation === null
             ? null
-            : (threads[dock.conversation]?.target ??
-              (summary === undefined ? null : targetOf(summary)));
+            : summary === undefined
+              ? (threads[dock.conversation]?.target ?? null)
+              : targetOf(summary);
     const thread = target === null ? undefined : threads[targetKey(target)];
 
     const open = (next: ChatTarget) => {
@@ -217,17 +219,22 @@ function DockedChat({ user }: { user: User }) {
                                     avatarClassName="size-6"
                                 />
                             )}
-                            <span className="min-w-0 truncate text-sm font-semibold">
-                                {target.kind === 'direct'
-                                    ? target.partner.name
-                                    : orgTitle(
-                                          target.org,
-                                          thread?.members ??
-                                              summary?.members ??
-                                              null,
-                                          user,
-                                      )}
-                            </span>
+                            <div className="min-w-0 flex-1">
+                                <span className="block truncate text-sm font-semibold">
+                                    {target.kind === 'direct'
+                                        ? target.partner.name
+                                        : orgTitle(
+                                              target.org,
+                                              thread?.members ??
+                                                  summary?.members ??
+                                                  null,
+                                              user,
+                                          )}
+                                </span>
+                                {target.kind === 'direct' && (
+                                    <RemoteLocalTime partner={target.partner} />
+                                )}
+                            </div>
                             {unread > 0 && (
                                 <span
                                     title={`${unread} unread conversations`}
@@ -310,7 +317,7 @@ function DirectDockHeader({
             <Link
                 href={show(partner)}
                 prefetch
-                className="group min-w-0 rounded-md"
+                className="group min-w-0 flex-1 rounded-md"
                 title={partner.name}
             >
                 <span className="block truncate text-sm font-semibold group-hover:underline">
@@ -319,6 +326,7 @@ function DirectDockHeader({
                 <span className="block truncate font-mono text-[11px] text-muted-foreground">
                     @{partner.handle}
                 </span>
+                <RemoteLocalTime partner={partner} />
             </Link>
             <ConversationActions
                 target={{ kind: 'direct', partner }}

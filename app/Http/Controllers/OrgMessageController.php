@@ -17,9 +17,19 @@ final readonly class OrgMessageController
 {
     public function index(ListOrgMessagesRequest $request, #[CurrentUser] User $user, Conversation $org, ConversationThreadQuery $threads): JsonResponse
     {
+        $thread = $threads->org($user, $org, $request->afterId(), $request->beforeId(), $request->reactionsAfter());
+        $thread['members'] = $thread['members']->map(function (array $member): array {
+            $member['user'] = [
+                ...$member['user']->toArray(),
+                'timezone' => $member['user']->show_local_time ? $member['user']->timezone : null,
+            ];
+
+            return $member;
+        });
+
         return response()->json([
             'org' => ['id' => $org->id, 'name' => $org->name],
-            ...$threads->org($user, $org, $request->afterId(), $request->beforeId(), $request->reactionsAfter()),
+            ...$thread,
         ])->header('Cache-Control', 'private, no-store');
     }
 
