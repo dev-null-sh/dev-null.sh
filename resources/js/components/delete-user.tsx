@@ -11,6 +11,7 @@ import {
     DialogTitle,
     DialogTrigger,
 } from '@/components/ui/dialog';
+import { clearUserPreviews } from '@/components/user-preview';
 import { WordmarkText } from '@/components/wordmark-text';
 import { clearRecentSearches } from '@/hooks/use-recent-searches';
 
@@ -55,7 +56,13 @@ export default function DeleteUser() {
 
                     <Form
                         {...UserController.destroy.form()}
-                        onSuccess={() => user && clearRecentSearches(user.id)}
+                        onSuccess={() => {
+                            clearUserPreviews();
+
+                            if (user) {
+                                clearRecentSearches(user.id);
+                            }
+                        }}
                     >
                         {({ processing }) => (
                             <DialogFooter className="gap-2">
