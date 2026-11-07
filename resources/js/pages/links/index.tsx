@@ -71,8 +71,8 @@ function linkTopic(url: string, link: LinkDetails) {
 }
 
 /** A stand-in until the app reads icons itself, when it fetches a link's page. */
-function siteFavicon(url: string): string {
-    return `https://favicon.show/${hostname(url)}`;
+function siteFavicon(url: string): string | null {
+    return URL.canParse(url) ? `https://favicon.show/${hostname(url)}` : null;
 }
 
 /**
