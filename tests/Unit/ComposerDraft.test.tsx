@@ -89,6 +89,8 @@ const { LinkCardPicker } =
 const { PollEditor } =
     await import('../../resources/js/components/poll-editor');
 const { GraphRail } = await import('../../resources/js/components/graph-rail');
+const InputError = (await import('../../resources/js/components/input-error'))
+    .default;
 
 type Element = ReactElement<Record<string, unknown>>;
 
@@ -111,9 +113,9 @@ function elements(node: ReactNode): Element[] {
     ];
 }
 
-function render() {
+function render(props: Record<string, unknown> = {}) {
     cursor = 0;
-    const form = CommitComposer({});
+    const form = CommitComposer(props);
     const fields = elements(
         form.props.children({ processing: false, errors: {} }),
     );
@@ -537,6 +539,36 @@ test('typing a command and a space turns the draft into an issue, and backspace 
     );
     assert.equal(find('data-test', 'add-poll-button'), undefined);
     assert.equal(view.form.props.onBefore(), false);
+    const issueTextarea = view.fields.find(
+        (element) => element.type === MentionTextarea,
+    )!;
+    assert.equal(issueTextarea.props.onPaste, undefined);
+    assert.equal(
+        view.fields.some(
+            (element) => element.props.onDragEnter !== undefined,
+        ),
+        false,
+    );
+    const dropzone = view.fields.find(
+        (element) => element.props.onDragOver !== undefined,
+    )!;
+    const onDragOver = dropzone.props.onDragOver as (event: unknown) => void;
+    let prevented = false;
+    onDragOver({
+        dataTransfer: { types: ['Files'] },
+        preventDefault: () => {
+            prevented = true;
+        },
+    });
+    assert.equal(prevented, true);
+    prevented = false;
+    onDragOver({
+        dataTransfer: { types: ['text/plain'] },
+        preventDefault: () => {
+            prevented = true;
+        },
+    });
+    assert.equal(prevented, false);
 
     keyDown(view, 'Backspace');
     view = render();
@@ -816,4 +848,32 @@ test('ignores further submits while a commit is being posted', () => {
     assert.equal(form.props.onBefore(), false);
     form.props.onFinish();
     assert.equal(form.props.onBefore(), true);
+});
+
+test('notifies the user and preserves previews if images are restored while in issue mode', () => {
+    let view = render({ issue: 'bug' });
+    assert.ok(
+        view.fields.some((element) => element.type === IssueCommandBadge),
+    );
+    const initialPreview = view.fields.find(
+        (element) => element.type === ImagePickerPreviews,
+    )!;
+    assert.deepEqual(initialPreview.props.images, []);
+
+    draft.images = [image];
+    draft.descriptions = ['A restored screenshot'];
+    view = render({ issue: 'bug' });
+
+    const preview = view.fields.find(
+        (element) => element.type === ImagePickerPreviews,
+    )!;
+    assert.deepEqual(preview.props.images, [image]);
+
+    const error = view.fields.find(
+        (element) =>
+            element.type === InputError &&
+            element.props.message ===
+                'Issues carry text only: images will not be attached.',
+    );
+    assert.ok(error);
 });
