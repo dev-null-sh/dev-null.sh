@@ -9,6 +9,7 @@ use App\Enums\NotificationType;
 use App\Enums\TopicType;
 use App\Enums\UserUpdate;
 use App\Events\UsersUpdated;
+use App\Jobs\SendNotificationPush;
 use App\Models\Commit;
 use App\Models\Notification;
 use App\Models\User;
@@ -119,6 +120,8 @@ final readonly class CreateMentionNotifications
         Notification::query()->insertOrIgnore($notifications);
 
         event(new UsersUpdated(array_column($notifications, 'recipient_id'), UserUpdate::Notifications));
+
+        SendNotificationPush::dispatchFor(array_column($notifications, 'id'));
     }
 
     /**

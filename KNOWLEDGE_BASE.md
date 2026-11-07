@@ -610,6 +610,10 @@ Sources: [signed requests](app/Services/SignedRequests.php), [sign-in page](app/
 
 Sign in with GitHub: the app makes a signing key that stays on your phone and signs every request, so there is no password, and the phone shows up under **Settings → Devices**. On iOS you can also link an Apple ID to an existing account, which never creates a new one.
 
+Once you allow notifications in a version of the app that asks for them, the phone gets pushes for follows, replies, mentions, and Remotes messages and pings, even when the app is closed. Each kind has its own switch in the app, with Remotes split into direct remotes and orgs, and all are on until you turn them off. A push says who did something, such as "Replied to your commit" or "Sent you a message" under their name, and never what they wrote: no commit text, message text, images, or voice notes are sent to Google or Apple, though an org's pushes carry its name. Nobody you mute, block, or are blocked by pushes you, and neither does a muted remote; a stashed remote still does, since a new message brings it back. Pushes wait about ten seconds and are skipped if you have read the message or the notification by then. They go through Firebase Cloud Messaging to the phone the app registered, and stop when you turn notifications off in the app, sign out, or revoke the device.
+
+Sources: [notification pushes](app/Jobs/SendNotificationPush.php), [Remotes pushes](app/Jobs/SendRemotePush.php), [push switches](app/Enums/PushPreference.php), [Firebase delivery](app/Services/DevicePushProviders/FcmDevicePushProvider.php).
+
 [NativePHP](https://nativephp.com) builds both apps with NativePHP Mobile: native screens, with the app logic in Laravel. The code is open source at [nativephp/dev-null-app](https://github.com/nativephp/dev-null-app), and feedback and pull requests go there.
 
 ### Terminal app

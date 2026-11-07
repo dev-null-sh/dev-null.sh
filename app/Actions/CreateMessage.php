@@ -106,10 +106,7 @@ final readonly class CreateMessage
                     ->pluck('user_id'));
             }
 
-            foreach (ConversationParticipant::query()->where('conversation_id', $conversation->id)
-                ->where('user_id', '!=', $sender->id)->whereHas('user.pushSubscriptions')->get(['user_id']) as $participant) {
-                dispatch(new SendRemotePush($message->id, $participant->user_id))->delay(now()->addSeconds(10))->afterCommit();
-            }
+            SendRemotePush::dispatchFor($message);
 
             ConversationParticipant::query()
                 ->where('conversation_id', $conversation->id)
