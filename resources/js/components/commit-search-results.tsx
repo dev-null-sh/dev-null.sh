@@ -12,11 +12,13 @@ export function SearchResults({
     isWaiting = false,
     heading = 'Most relevant commits',
     empty = 'Try describing the idea in other words, or pick one of the searches below.',
+    isStandalone = false,
 }: {
     results: SearchResultSet | null;
     isWaiting?: boolean;
     heading?: string;
     empty?: ReactNode;
+    isStandalone?: boolean;
 }) {
     if (results === null) {
         return (
@@ -57,6 +59,16 @@ export function SearchResults({
             ) : (
                 <GraphCanvas>
                     {results.commits.map((commit, index) => {
+                        if (isStandalone) {
+                            return (
+                                <CommitCard
+                                    key={commit.id}
+                                    commit={commit}
+                                    endsWithDot
+                                />
+                            );
+                        }
+
                         const previous = results.commits[index - 1];
 
                         return (
