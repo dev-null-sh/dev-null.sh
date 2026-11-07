@@ -147,6 +147,7 @@ use App\Http\Controllers\UserLiveController;
 use App\Http\Controllers\UserMuteController;
 use App\Http\Controllers\UserMutualsController;
 use App\Http\Controllers\UserPasteisModeController;
+use App\Http\Controllers\UserPlaylistController;
 use App\Http\Controllers\UserPreviewController;
 use App\Http\Controllers\UserProfileController;
 use App\Http\Controllers\UserRemotePreferencesController;
@@ -669,6 +670,12 @@ Route::middleware('auth')->group(function (): void {
         ->middleware(PreventPostingInTimeout::class)
         ->name('user-live.update');
     Route::delete('settings/live', [UserLiveController::class, 'destroy'])->name('user-live.destroy');
+
+    // User Playlist...
+    Route::put('settings/playlist', [UserPlaylistController::class, 'update'])
+        ->middleware([PreventPostingInTimeout::class, 'throttle:playlist-links'])
+        ->name('user-playlist.update');
+    Route::delete('settings/playlist', [UserPlaylistController::class, 'destroy'])->name('user-playlist.destroy');
 
     // Appearance...
     Route::get('settings/appearance', fn () => Inertia::render('appearance/update'))->name('appearance.edit');

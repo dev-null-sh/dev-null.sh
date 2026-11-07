@@ -258,7 +258,7 @@ export default function Show() {
                         items={[
                             'Service providers that process data for us, such as hosting, storage, network, and AI providers, and GitHub for sign-in.',
                             'Moderators and others who help us run the service.',
-                            'Third parties whose content you load, such as GitHub for avatars and the providers of embedded players once you press play, under their own privacy policies, for which we are not responsible.',
+                            'Third parties whose content you load, such as GitHub for avatars, the providers of embedded players once you press play, and Audius for the music in Winamp once you open it, under their own privacy policies, for which we are not responsible.',
                             'Authorities and others, when required by law or when we believe it is necessary to protect the service, its users, us, or anyone else.',
                             'A buyer, successor, or other party in a merger, acquisition, financing, reorganization, or sale of assets.',
                             'Professional advisers, such as lawyers, accountants, and insurers.',

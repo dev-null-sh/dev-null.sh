@@ -7,6 +7,7 @@ import {
     Flame,
     History,
     Lightbulb,
+    Music,
     Radio,
     Search,
     Square,
@@ -24,6 +25,7 @@ import { OrganizationAvatar } from '@/components/organization-avatar';
 import { DialogOverlay, DialogPortal } from '@/components/ui/dialog';
 import { Spinner } from '@/components/ui/spinner';
 import { UserAvatar } from '@/components/user-avatar';
+import { useMediaQuery } from '@/hooks/use-media-query';
 import { useNow } from '@/hooks/use-now';
 import {
     clearRecentSearches,
@@ -47,6 +49,7 @@ import {
     formatRelativeTime,
     laneColor,
 } from '@/lib/utils';
+import { winampMedia } from '@/lib/winamp';
 import { show } from '@/routes/user';
 import type { Commit, CommitAuthor, Organization, User } from '@/types';
 
@@ -108,6 +111,7 @@ export function SearchDialog({
     const [activeIndex, setActiveIndex] = useState(0);
     const isPicking = onPickDeveloper !== undefined;
     const isMember = userId !== null;
+    const hasWinamp = useMediaQuery(winampMedia);
 
     const term = query.trim();
     const developerTerm = term.replace(/^@/u, '');
@@ -148,7 +152,9 @@ export function SearchDialog({
         visibleCommits,
         commitQuery,
         !isMember,
-        onAction && !isPicking ? searchActions(term, { isLive }) : [],
+        onAction && !isPicking
+            ? searchActions(term, { isLive, hasWinamp })
+            : [],
     );
     const isLoading = developers.isLoading || commits.isLoading;
     const hasSearched =
@@ -795,6 +801,7 @@ const actionLabels: Record<
     bug: { label: 'Report a bug', icon: Bug, command: '/bug' },
     'go-live': { label: 'Go live', icon: Radio },
     'end-stream': { label: 'End stream', icon: Square },
+    winamp: { label: 'Open Winamp', icon: Music },
 };
 
 function ActionResult({ action }: { action: SearchAction }) {

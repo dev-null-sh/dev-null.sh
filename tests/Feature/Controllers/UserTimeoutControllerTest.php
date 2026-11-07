@@ -195,6 +195,22 @@ it('stops a user in timeout from going live, but lets them end a stream', functi
     expect($user->refresh()->live_url)->toBeNull();
 });
 
+it('stops a user in timeout from sharing a playlist, but lets them stop sharing it', function (): void {
+    $user = User::factory()->create(['playlist_url' => 'https://audius.co/rj/playlist/focus']);
+    UserTimeout::factory()->for($user)->create();
+
+    $this->actingAs($user)
+        ->putJson(route('user-playlist.update'), ['playlist_url' => 'https://audius.co/buymycourse/playlist/ads'])
+        ->assertForbidden()
+        ->assertJsonPath('timeout.reason', 'Spam or self-promotion');
+
+    expect($user->refresh()->playlist_url)->toBe('https://audius.co/rj/playlist/focus');
+
+    $this->delete(route('user-playlist.destroy'))->assertRedirect();
+
+    expect($user->refresh()->playlist_url)->toBeNull();
+});
+
 it('stops a user in timeout from starting, renaming, or growing orgs, and from messaging or pinning in them', function (): void {
     $user = User::factory()->create();
     [$member, $newcomer] = followersOf($user, 2);
