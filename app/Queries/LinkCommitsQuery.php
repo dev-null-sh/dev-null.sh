@@ -72,6 +72,34 @@ final readonly class LinkCommitsQuery
     }
 
     /**
+     * How many commits of each link the viewer may see, however old, keyed by link.
+     *
+     * @param  list<string>  $linkIds
+     * @return array<string, int>
+     */
+    public function visibleCounts(array $linkIds, User $user): array
+    {
+        /** @var list<object{link_preview_id: string, commits: int}> $rows */
+        $rows = Commit::query()
+            ->whereIn('link_preview_id', $linkIds)
+            ->visibleTo($user)
+            ->toBase()
+            ->select('link_preview_id')
+            ->selectRaw('count(*) as commits')
+            ->groupBy('link_preview_id')
+            ->get()
+            ->all();
+
+        $counts = [];
+
+        foreach ($rows as $row) {
+            $counts[$row->link_preview_id] = $row->commits;
+        }
+
+        return $counts;
+    }
+
+    /**
      * How many stars the approved commits of each link got over the last 6 hours, keyed by link.
      *
      * @param  list<string>  $linkIds

@@ -101,6 +101,20 @@ it('lists the links whose commits got stars in the last 6 hours first', function
         ->where('topLinks.1.url', $shared->url));
 });
 
+it('counts the commits of a link the viewer may see, however old', function (): void {
+    $viewer = User::factory()->create();
+    $blocked = User::factory()->create();
+    $viewer->blocking()->attach($blocked);
+    $link = LinkPreview::factory()->fetched()->create();
+    Commit::factory()->count(3)->create(['link_preview_id' => $link->id]);
+    Commit::factory()->create(['link_preview_id' => $link->id, 'created_at' => now()->subDays(31)]);
+    Commit::factory()->for($blocked)->create(['link_preview_id' => $link->id]);
+
+    $this->actingAs($viewer)->get(route('link.index'))->assertOk()->assertInertia(fn ($page) => $page
+        ->where('topLinks.0.commits', 4)
+        ->has('topLinks.0.top_commits', 3));
+});
+
 it('hides the commits the viewer may not see from the list of links', function (): void {
     $viewer = User::factory()->create();
     $blocked = User::factory()->create();
