@@ -6,7 +6,9 @@ namespace App\Queries;
 
 use App\Enums\CommitStatus;
 use App\Enums\RepliesPerPage;
+use App\Enums\TopicType;
 use App\Models\Commit;
+use App\Models\Organization;
 use App\Models\User;
 use App\Services\CommitTranslations;
 use Carbon\CarbonInterface;
@@ -32,7 +34,8 @@ final class CommitBuilder extends Builder
      */
     private const array COLUMNS_BUT_EMBEDDING = [
         'id', 'user_id', 'body', 'created_at', 'updated_at', 'status', 'parent_id', 'deleted_at', 'link_preview_id',
-        'quoted_commit_id', 'mentions', 'ai_decision', 'ai_categories', 'root_id', 'hot_score', 'pasteis_count', 'approved_at',
+        'quoted_commit_id', 'mentions', 'ai_decision', 'ai_categories', 'root_id', 'hot_score', 'pasteis_count', 'author_id',
+        'headlines_classified_at', 'approved_at',
     ];
 
     /**
@@ -67,8 +70,8 @@ final class CommitBuilder extends Builder
     }
 
     /**
-     * Approved commits are visible to everyone, guests included, while authors may also see their own pending or rejected commits.
-     * A block hides each one's commits from the other.
+     * Approved commits are visible to everyone, guests included, while authors may also see their own pending or rejected commits,
+     * and the members of an organization the organization's. A block hides the commits from each one's profile from the other.
      */
     public function visibleTo(?User $user): self
     {
@@ -78,10 +81,11 @@ final class CommitBuilder extends Builder
 
         return $this->where(fn (Builder $query): Builder => $query
             ->where($this->qualifyColumn('status'), CommitStatus::Approved)
-            ->orWhere($this->qualifyColumn('user_id'), $user->id))
+            ->orWhere($this->qualifyColumn('user_id'), $user->id)
+            ->orWhereIn($this->qualifyColumn('author_id'), $user->organizations()->newPivotQuery()->select('organization_id')))
             ->where(fn (Builder $query): Builder => $query
-                ->whereNull($this->qualifyColumn('user_id'))
-                ->orWhereNotIn($this->qualifyColumn('user_id'), $user->idsAcrossBlocks()));
+                ->whereNull($this->qualifyColumn('author_id'))
+                ->orWhereNotIn($this->qualifyColumn('author_id'), $user->idsAcrossBlocks()));
     }
 
     /**
@@ -90,8 +94,8 @@ final class CommitBuilder extends Builder
     public function withoutMutedAuthorsFor(?User $user): self
     {
         return $user instanceof User ? $this->where(fn (Builder $query): Builder => $query
-            ->whereNull($this->qualifyColumn('user_id'))
-            ->orWhereNotIn($this->qualifyColumn('user_id'), $user->mutedIds())) : $this;
+            ->whereNull($this->qualifyColumn('author_id'))
+            ->orWhereNotIn($this->qualifyColumn('author_id'), $user->mutedIds())) : $this;
     }
 
     /**
@@ -125,8 +129,8 @@ final class CommitBuilder extends Builder
     }
 
     /**
-     * Count commits newly placed ahead of the viewer's last seen position.
-     * Use the timestamp the browser saw because moderation may have moved that commit.
+     * Compare positions in the approval-ordered feed. Use the position the browser
+     * originally observed because moderation can move an existing commit.
      */
     public function newerThan(Commit $commit, ?CarbonInterface $sinceAt = null): self
     {
@@ -141,10 +145,7 @@ final class CommitBuilder extends Builder
                     ->where($this->qualifyColumn('id'), '>', $commit->id)));
     }
 
-    /**
-     * First public approval determines chronological feed order; private commits
-     * visible to their authors use their creation time instead.
-     */
+    /** Use first approval for chronological logs, retaining creation time for pending posts. */
     public function newestInFeed(): self
     {
         return $this->selectRaw(self::FEED_AT_SQL.' as feed_at')
@@ -197,7 +198,7 @@ final class CommitBuilder extends Builder
             ->from((new Commit)->getTable().' as earliest_reply')
             ->select('earliest_reply.id')
             ->whereColumn('earliest_reply.parent_id', $this->qualifyColumn('id'))
-            ->whereColumn('earliest_reply.user_id', $this->qualifyColumn('user_id'))
+            ->whereColumn('earliest_reply.author_id', $this->qualifyColumn('author_id'))
             ->oldest('earliest_reply.created_at')
             ->oldest('earliest_reply.id')
             ->limit(1);
@@ -222,7 +223,7 @@ final class CommitBuilder extends Builder
             'quotedCommit' => fn (BelongsTo $query): BelongsTo => $query
                 ->withTrashed()
                 ->where(fn (self $query): self => $query->visibleTo($viewer))
-                ->with(['user', 'linkPreview', 'images'])
+                ->with(['author', 'linkPreview', 'images'])
                 ->withPollFor($viewer),
         ]);
     }
@@ -233,6 +234,18 @@ final class CommitBuilder extends Builder
     }
 
     /**
+     * The commits linked to the organization by a mention, whatever handle it had when they were written.
+     */
+    public function mentioning(Organization $organization): self
+    {
+        return $this->whereExists(fn (QueryBuilder $query): QueryBuilder => $query
+            ->from('commit_topics')
+            ->whereColumn('commit_topics.commit_id', $this->qualifyColumn('id'))
+            ->where('commit_topics.topic_type', TopicType::Organization)
+            ->where('commit_topics.topic_id', $organization->id));
+    }
+
+    /**
      * Loads what anyone may see around the commits, like Commit::loadPublicPreview(): approved replies, stars, images, and the parent only when approved.
      */
     public function withPublicPreview(): self
@@ -240,7 +253,7 @@ final class CommitBuilder extends Builder
         return $this
             ->withVisibleReplyCount(null)
             ->withCount('stars')
-            ->with(['user', 'linkPreview', 'images', 'parent' => fn (BelongsTo $query): BelongsTo => $query->where('status', CommitStatus::Approved)]);
+            ->with(['author', 'linkPreview', 'images', 'parent' => fn (BelongsTo $query): BelongsTo => $query->where('status', CommitStatus::Approved)]);
     }
 
     public function pending(): self
@@ -298,7 +311,7 @@ final class CommitBuilder extends Builder
     public function withCardDataFor(?User $viewer): self
     {
         return $this
-            ->with(['user', 'linkPreview', 'images'])
+            ->with(['author', 'linkPreview', 'images'])
             ->withQuotedCommitFor($viewer)
             ->withStarsFor($viewer)
             ->withPollFor($viewer)
@@ -377,14 +390,14 @@ final class CommitBuilder extends Builder
             ->keyBy('id');
 
         foreach ($previewed as $commit) {
-            $replies = collect($newest[$commit->id])->map(fn (string $id): ?Commit => $cards->get($id))->filter()->values();
+            $replies = new Collection(array_values(array_filter(array_map(fn (int|string $id): ?Commit => $cards->get($id), $newest->get($commit->id, [])))));
             $oldest = $replies->last();
             $cursor = $oldest instanceof Commit && $commit->replies_count > $replies->count()
                 ? new Cursor(['created_at' => $oldest->getRawOriginal('created_at'), 'id' => $oldest->id])->encode()
                 : null;
 
             $commit->setAttribute('reply_preview', [
-                'data' => $replies->map(fn (Commit $reply): array => $reply->toArray())->all(),
+                'data' => $replies,
                 'next_cursor' => $cursor,
                 'prev_cursor' => null,
             ]);

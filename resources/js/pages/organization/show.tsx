@@ -1,15 +1,55 @@
-import { Head } from '@inertiajs/react';
-import { Link2, MapPin } from 'lucide-react';
+import { Head, Link, usePage } from '@inertiajs/react';
+import { AlertCircleIcon, Flag, Link2, MapPin, Settings } from 'lucide-react';
+import type { CSSProperties } from 'react';
+import { useState } from 'react';
 import { show } from '@/actions/App/Http/Controllers/UserController';
 import { BioText } from '@/components/bio-text';
-import { EmptyFeed } from '@/components/commit-feed';
+import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
+import { useIsFollowing } from '@/components/follow-button';
 import { GitHubIcon } from '@/components/github-icon';
 import { OrganizationAvatar } from '@/components/organization-avatar';
+import { OrganizationFollowButton } from '@/components/organization-follow-button';
+import { PageTabs } from '@/components/page-tabs';
 import { ProfileShareButton } from '@/components/profile-share-button';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { UserAvatar } from '@/components/user-avatar';
 import AppLayout from '@/layouts/app-layout';
-import type { Organization } from '@/types';
+import { exactCountTitle, formatCount } from '@/lib/numbers';
+import { organizationLaneColor } from '@/lib/utils';
+import type { Commit, CursorPaginated, Organization, User } from '@/types';
 
-export default function Show({ organization }: { organization: Organization }) {
+export default function Show({
+    organization,
+    tab,
+    commits,
+    claimUrl,
+    settingsUrl,
+    admins,
+    followersCount,
+    isFollowing,
+}: {
+    organization: Organization;
+    tab: 'commits' | 'mentions';
+    commits: CursorPaginated<Commit>;
+    claimUrl: string;
+    settingsUrl: string | null;
+    admins: User[];
+    followersCount: number;
+    isFollowing: boolean;
+}) {
+    const { props, flash } = usePage();
+    const { auth } = props;
+    // Kept until the user leaves the page, as the background reloads bring no flash and would hide it. Claiming
+    // redirects back here, so its links don't preserve state, or this would keep the value from before the claim.
+    const [claimFailed] = useState(flash.claimFailed);
+    // Only the first claim makes an admin. While a claim failed, its alert offers to try again instead.
+    const claimable = auth.user !== null && admins.length === 0;
+    const canClaim = claimable && claimFailed === undefined;
+    const [isFollowingNow] = useIsFollowing(organization, isFollowing);
+    const shownFollowersCount =
+        followersCount + Number(isFollowingNow) - Number(isFollowing);
+
     return (
         <>
             <Head title={`${organization.name} (@${organization.handle})`} />
@@ -27,14 +67,36 @@ export default function Show({ organization }: { organization: Organization }) {
                 <div className="flex items-start justify-between gap-4">
                     <OrganizationAvatar
                         organization={organization}
-                        className="size-20 rounded-lg text-2xl"
+                        className="size-20 rounded-lg text-2xl ring-2 ring-(--lane) ring-offset-4 ring-offset-card"
                         pixels={160}
+                        style={
+                            {
+                                '--lane': organizationLaneColor(
+                                    organization.lane,
+                                ),
+                            } as CSSProperties
+                        }
                     />
 
-                    <div className="flex shrink-0 gap-1.5 sm:gap-2">
+                    <div className="flex min-w-0 flex-wrap justify-end gap-1.5 sm:gap-2">
+                        {settingsUrl && (
+                            <Button variant="outline" asChild>
+                                <Link href={settingsUrl} prefetch>
+                                    <Settings />
+                                    Settings
+                                </Link>
+                            </Button>
+                        )}
                         <ProfileShareButton
                             handle={organization.handle}
                             href={show(organization).url}
+                        />
+                        <OrganizationFollowButton
+                            organization={organization}
+                            isFollowing={isFollowing}
+                            menu
+                            only={['auth', 'followersCount', 'isFollowing']}
+                            className="min-w-32"
                         />
                     </div>
                 </div>
@@ -43,6 +105,15 @@ export default function Show({ organization }: { organization: Organization }) {
                     {organization.name}
                 </h1>
                 <p className="flex items-center gap-1.5 font-mono text-sm text-muted-foreground">
+                    <span
+                        aria-hidden
+                        className="size-2 rounded-full"
+                        style={{
+                            background: organizationLaneColor(
+                                organization.lane,
+                            ),
+                        }}
+                    />
                     @{organization.handle}
                     <span className="ml-1 shrink-0 rounded bg-muted px-1.5 py-0.5 font-sans text-xs">
                         Organization
@@ -90,14 +161,162 @@ export default function Show({ organization }: { organization: Organization }) {
                         </a>
                     </li>
                 </ul>
+
+                <p className="mt-4 flex gap-1.5 text-sm">
+                    <span
+                        className="font-mono font-medium tabular-nums"
+                        title={exactCountTitle(shownFollowersCount)}
+                    >
+                        {formatCount(shownFollowersCount)}
+                    </span>
+                    <span className="text-muted-foreground">
+                        {shownFollowersCount === 1 ? 'follower' : 'followers'}
+                    </span>
+                </p>
+
+                {admins.length > 0 && (
+                    <div className="mt-4 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                        <span>Admins</span>
+                        {admins.map((admin) => (
+                            <Link
+                                key={admin.id}
+                                href={show(admin.handle)}
+                                prefetch
+                                className="flex items-center gap-1.5 text-foreground hover:underline"
+                            >
+                                <UserAvatar
+                                    user={admin}
+                                    className="size-5"
+                                    pixels={40}
+                                />
+                                @{admin.handle}
+                            </Link>
+                        ))}
+                    </div>
+                )}
+
+                {canClaim && (
+                    <div className="mt-4 flex flex-wrap items-start gap-x-3.5 gap-y-3 rounded-lg border border-primary/25 bg-primary-soft px-4 py-3.5">
+                        <Flag
+                            aria-hidden
+                            className="mt-0.5 size-5 shrink-0 text-primary"
+                        />
+                        <div className="min-w-0 flex-[999_1_16rem]">
+                            <p className="font-semibold">
+                                Nobody has claimed @{organization.handle} yet
+                            </p>
+                            <p className="mt-0.5 text-sm text-pretty">
+                                This page is waiting for its team. A member of{' '}
+                                {organization.name} on GitHub can claim it, then
+                                post as the organization and add teammates.
+                            </p>
+                        </div>
+                        <Button className="ml-8.5 sm:ml-0" asChild>
+                            {/* A form, so no other site can claim for the user. */}
+                            <Link
+                                href={claimUrl}
+                                method="post"
+                                as="button"
+                                preserveState={false}
+                            >
+                                Claim
+                            </Link>
+                        </Button>
+                    </div>
+                )}
+
+                {claimFailed && (
+                    <Alert className="mt-4 border-destructive-foreground/40 [&>svg]:text-destructive-foreground">
+                        <AlertCircleIcon />
+                        <AlertTitle className="text-destructive-foreground">
+                            Couldn't claim @{organization.handle}
+                        </AlertTitle>
+                        {/* The reason in the text color, as red at this size is hard to read. */}
+                        <AlertDescription className="text-foreground">
+                            <p>{claimFailed.message}</p>
+                            {(claimFailed.githubUrl || claimable) && (
+                                <div className="mt-2 flex flex-wrap gap-2">
+                                    {claimFailed.githubUrl && (
+                                        <Button size="sm" asChild>
+                                            <a
+                                                href={claimFailed.githubUrl}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                            >
+                                                <GitHubIcon className="size-4" />
+                                                Open GitHub
+                                            </a>
+                                        </Button>
+                                    )}
+                                    {claimable && (
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            asChild
+                                        >
+                                            <Link
+                                                href={claimUrl}
+                                                method="post"
+                                                as="button"
+                                                preserveState={false}
+                                            >
+                                                Try again
+                                            </Link>
+                                        </Button>
+                                    )}
+                                </div>
+                            )}
+                        </AlertDescription>
+                    </Alert>
+                )}
             </header>
 
-            <div className="px-6 py-16 text-center sm:px-12">
-                <EmptyFeed command={`$ git log --grep=@${organization.handle}`}>
-                    Organization pages are new. Soon you'll be able to follow @
-                    {organization.handle} and read what the community commits
-                    about it, right here.
-                </EmptyFeed>
+            <div className="min-h-dvh">
+                <PageTabs
+                    label="Organization feed"
+                    preserveScroll
+                    only={['tab', 'commits']}
+                    reset={['commits']}
+                    tabs={[
+                        {
+                            title: 'Commits',
+                            href: show(organization),
+                            isActive: tab === 'commits',
+                        },
+                        {
+                            title: 'Mentions',
+                            href: show(organization, {
+                                query: { tab: 'mentions' },
+                            }),
+                            isActive: tab === 'mentions',
+                        },
+                    ]}
+                />
+
+                <CommitFeed
+                    key={`${organization.handle}:${tab}`}
+                    commits={commits}
+                    end={
+                        tab === 'mentions'
+                            ? `That's the first commit mentioning @${organization.handle}.`
+                            : `That's @${organization.handle}'s first commit.`
+                    }
+                    empty={
+                        tab === 'mentions' ? (
+                            <EmptyFeed
+                                command={`$ git log --grep=@${organization.handle}`}
+                            >
+                                Nobody has mentioned @{organization.handle} yet.
+                                Mention it in a commit and it shows up here.
+                            </EmptyFeed>
+                        ) : (
+                            <EmptyFeed command="fatal: no commits yet">
+                                @{organization.handle} hasn't committed anything
+                                yet.
+                            </EmptyFeed>
+                        )
+                    }
+                />
             </div>
         </>
     );

@@ -14,8 +14,8 @@ use Illuminate\Support\Str;
 final readonly class CreateConversationEvent
 {
     /**
-     * Records a membership change in the org's history. It is read straight away by whoever made it, and doesn't
-     * pop the org out of anyone's stash.
+     * Records a system event in a remote's history. It is read straight away by whoever made it and doesn't
+     * bring the remote out of anyone's stash.
      */
     public function handle(User $actor, Conversation $org, OrgEvent $event, ?User $subject = null, string $body = ''): Message
     {

@@ -1,11 +1,20 @@
 import type { CancelToken } from '@inertiajs/core';
-import { Head, InfiniteScroll, Link, router, usePoll } from '@inertiajs/react';
+import {
+    Head,
+    InfiniteScroll,
+    Link,
+    router,
+    useHttp,
+    usePage,
+    usePoll,
+} from '@inertiajs/react';
 import {
     ArrowUp,
     AtSign,
     Check,
     ChevronDown,
     ChevronsUp,
+    GitCommitVertical,
     MessageSquareReply,
     Quote,
     Star,
@@ -16,6 +25,7 @@ import type { ReactNode, RefObject } from 'react';
 import {
     Fragment,
     useEffect,
+    useEffectEvent,
     useId,
     useLayoutEffect,
     useRef,
@@ -24,6 +34,8 @@ import {
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import { index } from '@/actions/App/Http/Controllers/NotificationController';
 import { show as groupShow } from '@/actions/App/Http/Controllers/NotificationGroupController';
+import NotificationReadAtController from '@/actions/App/Http/Controllers/NotificationReadAtController';
+import { AuthorAvatar } from '@/components/author-avatar';
 import { CommitBodyExcerpt } from '@/components/commit-body';
 import { EmptyFeed } from '@/components/commit-feed';
 import { replaceFailedImage } from '@/components/commit-images';
@@ -33,31 +45,35 @@ import { GraphRail, RailSegment } from '@/components/graph-rail';
 import { NotificationFilters } from '@/components/notification-filters';
 import { QuotedCommit } from '@/components/quoted-commit';
 import { Button } from '@/components/ui/button';
-import { UserAvatar } from '@/components/user-avatar';
 import { UserPreview } from '@/components/user-preview';
 import { useNow } from '@/hooks/use-now';
+import { useIsListening } from '@/hooks/use-realtime';
 import { useUser } from '@/hooks/use-user';
 import AppLayout from '@/layouts/app-layout';
-import { backgroundPollOptions } from '@/lib/background-poll';
+import {
+    backgroundPollOptions,
+    reloadInBackground,
+} from '@/lib/background-poll';
 import { exactCountTitle, formatCount } from '@/lib/numbers';
+import { coalesce, isListening, listen, userChannel } from '@/lib/realtime';
 import {
     cn,
     formatDayLabel,
     formatFullDateTime,
     formatRelativeTime,
     isDeleted,
-    laneColor,
+    authorLaneColor,
     localDayKey,
 } from '@/lib/utils';
 import { show } from '@/routes/user';
 import type {
+    Actor,
     BodySegment,
     Commit,
     CursorPaginated,
     DeletedCommit,
     Notification,
     NotificationGroup,
-    User,
 } from '@/types';
 
 type Filters = { type: string };
@@ -111,30 +127,118 @@ const isNewSince = (
     notification.read_at === null ||
     Date.parse(notification.read_at) >= Date.parse(readAt);
 
-type PollAnchor = { id: string; top: number; position: number };
+type PollAnchor = {
+    id: string;
+    top: number;
+    position: number;
+    member: string | null;
+};
 
+/**
+ * The first member of an open group shown below the given line, which is where the reader is reading in it.
+ */
+function firstVisibleMember(
+    group: HTMLElement,
+    below: number,
+): { id: string; top: number } | null {
+    for (const element of group.querySelectorAll<HTMLElement>(
+        '[data-notification-member]',
+    )) {
+        const { top } = element.getBoundingClientRect();
+
+        if (top >= below) {
+            return { id: element.dataset.notificationMember ?? '', top };
+        }
+    }
+
+    return null;
+}
+
+/**
+ * Where the reader is reading: the first member shown of an open group, or else the first group that starts below the
+ * header. A group only its end is still shown of isn't, so it moving doesn't move the reader.
+ */
 function firstVisibleGroup(
     header: HTMLElement | null,
     groups: NotificationGroup[],
 ): PollAnchor | null {
     const headerBottom = header?.getBoundingClientRect().bottom ?? 0;
+    let partial: PollAnchor | null = null;
 
     for (const element of document.querySelectorAll<HTMLElement>(
         '[data-notification-group]',
     )) {
         const { top, bottom } = element.getBoundingClientRect();
         const id = element.dataset.notificationGroup ?? '';
+        const position = groups.findIndex((group) => group.group_id === id);
 
-        if (bottom > headerBottom) {
-            return {
-                id,
-                top,
-                position: groups.findIndex((group) => group.group_id === id),
-            };
+        if (bottom <= headerBottom) {
+            continue;
         }
+
+        const member = firstVisibleMember(element, headerBottom);
+
+        if (member !== null && member.top < window.innerHeight) {
+            return { id, top: member.top, position, member: member.id };
+        }
+
+        if (top >= headerBottom) {
+            return { id, top, position, member: null };
+        }
+
+        partial ??= { id, top, position, member: null };
     }
 
-    return null;
+    return partial;
+}
+
+type ShownGroup = { group: NotificationGroup; placement: NotificationGroup };
+
+/**
+ * The groups read again, with each one the reader has open kept where it was among them, next to the group it
+ * followed (or else preceded): what they are reading doesn't move while it is read again. It is placed, and its day
+ * and last-visit markers drawn, as it was when it was shown there, until it is closed and the groups are read again.
+ */
+function keepOpenInPlace(
+    previous: ShownGroup[],
+    next: NotificationGroup[],
+    open: ReadonlySet<string>,
+): ShownGroup[] {
+    const before = new Map(
+        previous.map((shown, index) => [shown.group.group_id, index]),
+    );
+    const isHeld = (group: NotificationGroup) =>
+        open.has(group.group_id) && before.has(group.group_id);
+    const placed: ShownGroup[] = next
+        .filter((group) => !isHeld(group))
+        .map((group) => ({ group, placement: group }));
+    const at = (id: string) =>
+        placed.findIndex((shown) => shown.group.group_id === id);
+
+    for (const group of next
+        .filter(isHeld)
+        .sort((a, b) => before.get(a.group_id)! - before.get(b.group_id)!)) {
+        const index = before.get(group.group_id)!;
+        const preceding = previous
+            .slice(0, index)
+            .reverse()
+            .find((shown) => at(shown.group.group_id) !== -1);
+        const following = previous
+            .slice(index + 1)
+            .find((shown) => at(shown.group.group_id) !== -1);
+        const position = preceding
+            ? at(preceding.group.group_id) + 1
+            : following
+              ? at(following.group.group_id)
+              : placed.length;
+
+        placed.splice(position, 0, {
+            group,
+            placement: previous[index].placement,
+        });
+    }
+
+    return placed;
 }
 
 export default function Index({
@@ -151,32 +255,128 @@ export default function Index({
     const header = useRef<HTMLDivElement>(null);
     const pollAnchor = useRef<PollAnchor | null>(null);
     const [arrivals, setArrivals] = useState(0);
-    const { start, stop } = usePoll(
-        30_000,
-        backgroundPollOptions(() => ({
-            only: ['notifications', 'auth.unreadNotificationsCount'],
-            reset: ['notifications'],
-            data: {
-                cursor: '',
-                through: notifications.data.at(-1)?.created_at,
-            },
-            preserveUrl: true,
-            preserveErrors: true,
-            onStart: () => {
-                pollAnchor.current = firstVisibleGroup(
-                    header.current,
-                    notifications.data,
-                );
-            },
-            onCancelToken: (token) => {
-                pollRequest.current = token;
-            },
-            onFinish: () => {
-                pollRequest.current = null;
-            },
-        })),
-        { mode: 'rest', background: 'pause' },
+    const [openGroups, setOpenGroups] = useState<ReadonlySet<string>>(
+        () => new Set(),
     );
+    const [placed, setPlaced] = useState(() => ({
+        data: notifications.data,
+        shown: keepOpenInPlace([], notifications.data, new Set()),
+    }));
+
+    if (placed.data !== notifications.data) {
+        setPlaced({
+            data: notifications.data,
+            shown: keepOpenInPlace(
+                placed.shown,
+                notifications.data,
+                openGroups,
+            ),
+        });
+    }
+
+    const shownGroups = placed.shown;
+    const setGroupOpen = (groupId: string, isOpen: boolean) =>
+        setOpenGroups((current) => {
+            const next = new Set(current);
+
+            if (isOpen) {
+                next.add(groupId);
+            } else {
+                next.delete(groupId);
+            }
+
+            return next;
+        });
+    const { auth } = usePage().props;
+    const channel = auth.user === null ? null : userChannel(auth.user.id);
+    const reloadOptions = backgroundPollOptions(() => ({
+        only: ['notifications', 'auth.unreadNotificationsCount'],
+        reset: ['notifications'],
+        data: {
+            cursor: '',
+            through: notifications.data.at(-1)?.created_at,
+        },
+        preserveUrl: true,
+        preserveErrors: true,
+        onStart: () => {
+            pollAnchor.current = firstVisibleGroup(
+                header.current,
+                shownGroups.map((shown) => shown.group),
+            );
+        },
+        onCancelToken: (token) => {
+            pollRequest.current = token;
+        },
+        onFinish: () => {
+            pollRequest.current = null;
+        },
+    }));
+    const { start, stop } = usePoll(30_000, reloadOptions, {
+        mode: 'rest',
+        background: 'pause',
+        autoStart: false,
+    });
+    const isHearing = useIsListening(channel);
+    const pollUnlessHearing = () =>
+        channel !== null && isListening(channel) ? stop() : start();
+
+    useEffect(() => {
+        if (isHearing) {
+            stop();
+        } else {
+            start();
+        }
+    }, [isHearing, start, stop]);
+
+    // What the user is notified about changes as it happens, also when something stops being relevant. The loaded
+    // groups are read again down to the oldest one shown, like a poll, and a hidden tab waits until it is shown, so
+    // nothing arrives where it would be marked read unseen.
+    const [pendingTypes, setPendingTypes] = useState<string[] | null>(null);
+    const hasMissed = useRef(false);
+    const refreshGroups = useRef<(() => void) | null>(null);
+    // Settles once the reload does, so the next one waits for it rather than racing it. Changing the filter cancels
+    // it, and reads the groups afresh anyway.
+    const reloadGroups = useEffectEvent(async (signal: AbortSignal) => {
+        if (document.visibilityState !== 'visible' || pendingTypes !== null) {
+            hasMissed.current = true;
+
+            return;
+        }
+
+        hasMissed.current = false;
+        await reloadInBackground(reloadOptions(), signal);
+    });
+    const channelName = channel?.name ?? null;
+
+    useEffect(() => {
+        if (channelName === null) {
+            return;
+        }
+
+        const controller = new AbortController();
+        const refresh = coalesce(() => reloadGroups(controller.signal), 500);
+        refreshGroups.current = refresh.request;
+        const onVisible = () => {
+            if (hasMissed.current) {
+                refresh.request();
+            }
+        };
+        const stopListening = listen(
+            { name: channelName, type: 'private' },
+            { notifications: refresh.request },
+            refresh.request,
+        );
+
+        document.addEventListener('visibilitychange', onVisible);
+
+        return () => {
+            refreshGroups.current = null;
+            stopListening();
+            refresh.cancel();
+            controller.abort();
+            document.removeEventListener('visibilitychange', onVisible);
+        };
+    }, [channelName]);
     const filterVisit = useRef(0);
     const selected = filterOptions
         .filter((option) => option.type !== 'all')
@@ -186,7 +386,6 @@ export default function Index({
                 filters.type.split(',').includes(option.type),
         )
         .map((option) => option.type);
-    const [pendingTypes, setPendingTypes] = useState<string[] | null>(null);
     const enabled = pendingTypes ?? selected;
     const changeFilters = (types: string[]) => {
         const type =
@@ -207,7 +406,12 @@ export default function Index({
             onFinish: () => {
                 if (visit === filterVisit.current) {
                     setPendingTypes(null);
-                    start();
+                    pollUnlessHearing();
+
+                    // What changed while the filter loaded, after it read the groups, is read once it has, with it.
+                    if (hasMissed.current) {
+                        refreshGroups.current?.();
+                    }
                 }
             },
         });
@@ -221,25 +425,77 @@ export default function Index({
     useLayoutEffect(() => {
         const anchor = pollAnchor.current;
         pollAnchor.current = null;
-        const element =
+        const group =
             anchor &&
             document.querySelector(`[data-notification-group="${anchor.id}"]`);
 
-        if (!anchor || !element) {
+        if (!anchor || !group) {
             return;
         }
 
-        window.scrollBy(0, element.getBoundingClientRect().top - anchor.top);
+        const member =
+            anchor.member === null
+                ? null
+                : group.querySelector(
+                      `[data-notification-member="${anchor.member}"]`,
+                  );
+
+        if (anchor.member === null || member !== null) {
+            window.scrollBy(
+                0,
+                (member ?? group).getBoundingClientRect().top - anchor.top,
+            );
+        }
 
         const arrived =
-            notifications.data.findIndex(
-                (group) => group.group_id === anchor.id,
+            shownGroups.findIndex(
+                (shown) => shown.group.group_id === anchor.id,
             ) - anchor.position;
 
         if (anchor.position >= 0 && arrived > 0) {
             setArrivals((count) => count + arrived);
         }
-    }, [notifications.data]);
+    }, [shownGroups]);
+
+    const markRead = useHttp<{ through: string }>({ through: '' });
+    const newestAt = notifications.data[0]?.created_at;
+    const hasUnread = notifications.data.some(
+        (group) => group.unread_count > 0,
+    );
+
+    const markReadThrough = useEffectEvent((through: string) => {
+        markRead.transform(() => ({ through }));
+        void markRead
+            .put(NotificationReadAtController.update.url())
+            .then(() => {
+                router.flushAll();
+                router.reload({ only: ['auth.unreadNotificationsCount'] });
+            });
+    });
+
+    // Only a reader looking at the page acknowledges what it shows: arrivals in a hidden or unfocused tab wait for them.
+    useEffect(() => {
+        if (newestAt === undefined || !hasUnread) {
+            return;
+        }
+
+        const acknowledge = () => {
+            if (document.visibilityState === 'visible' && document.hasFocus()) {
+                stopWaiting();
+                markReadThrough(newestAt);
+            }
+        };
+        const stopWaiting = () => {
+            window.removeEventListener('focus', acknowledge);
+            document.removeEventListener('visibilitychange', acknowledge);
+        };
+
+        window.addEventListener('focus', acknowledge);
+        document.addEventListener('visibilitychange', acknowledge);
+        acknowledge();
+
+        return stopWaiting;
+    }, [newestAt, hasUnread]);
 
     useEffect(() => {
         if (arrivals === 0) {
@@ -343,55 +599,69 @@ export default function Index({
                             </div>
                         }
                     >
-                        {notifications.data.map((notification, position) => {
-                            const previous = notifications.data[position - 1];
-                            const next = notifications.data[position + 1];
-                            const isNew = isNewSince(notification, readAt);
-                            const beforeLastVisit =
-                                isNew && next && !isNewSince(next, readAt);
-                            const startsDay =
-                                !previous ||
-                                localDayKey(previous.created_at) !==
-                                    localDayKey(notification.created_at);
+                        {shownGroups.map(
+                            ({ group: notification, placement }, position) => {
+                                const previous =
+                                    shownGroups[position - 1]?.placement;
+                                const next =
+                                    shownGroups[position + 1]?.placement;
+                                const isNew = isNewSince(notification, readAt);
+                                const isPlacedNew = isNewSince(
+                                    placement,
+                                    readAt,
+                                );
+                                const beforeLastVisit =
+                                    isPlacedNew &&
+                                    next &&
+                                    !isNewSince(next, readAt);
+                                const startsDay =
+                                    !previous ||
+                                    localDayKey(previous.created_at) !==
+                                        localDayKey(placement.created_at);
 
-                            return (
-                                <Fragment key={notification.group_id}>
-                                    {previous &&
-                                        isNewSince(previous, readAt) &&
-                                        !isNew && <LastVisitMarker />}
-                                    {startsDay && (
-                                        <DayMarker
-                                            label={formatDayLabel(
-                                                notification.created_at,
-                                                now,
-                                            )}
-                                        />
-                                    )}
-                                    <NotificationGroupItem
-                                        key={
-                                            filters.type +
-                                            '-' +
-                                            notification.id +
-                                            '-' +
-                                            notification.event_count
-                                        }
-                                        notification={notification}
-                                        type={filters.type}
-                                        readAt={readAt}
-                                        isNew={isNew}
-                                        withoutBottomBorder={Boolean(
-                                            beforeLastVisit,
+                                return (
+                                    <Fragment key={notification.group_id}>
+                                        {previous &&
+                                            isNewSince(previous, readAt) &&
+                                            !isPlacedNew && <LastVisitMarker />}
+                                        {startsDay && (
+                                            <DayMarker
+                                                label={formatDayLabel(
+                                                    placement.created_at,
+                                                    now,
+                                                )}
+                                            />
                                         )}
-                                    />
-                                </Fragment>
-                            );
-                        })}
+                                        <NotificationGroupItem
+                                            key={
+                                                filters.type +
+                                                '-' +
+                                                notification.group_id
+                                            }
+                                            notification={notification}
+                                            type={filters.type}
+                                            readAt={readAt}
+                                            isNew={isNew}
+                                            withoutBottomBorder={Boolean(
+                                                beforeLastVisit,
+                                            )}
+                                            onOpenChange={(isOpen) =>
+                                                setGroupOpen(
+                                                    notification.group_id,
+                                                    isOpen,
+                                                )
+                                            }
+                                        />
+                                    </Fragment>
+                                );
+                            },
+                        )}
                     </InfiniteScroll>
                     {notifications.next_cursor === null && (
                         <div className="flex">
                             <GraphRail
-                                lane={laneColor(
-                                    notifications.data.at(-1)!.actor.lane,
+                                lane={authorLaneColor(
+                                    notifications.data.at(-1)!.actor,
                                 )}
                                 variant="root"
                                 hasTail={false}
@@ -477,14 +747,51 @@ function NotificationGroupItem({
     readAt,
     isNew,
     withoutBottomBorder,
+    onOpenChange,
 }: {
     notification: NotificationGroup;
     type: Filters['type'];
     readAt: string;
     isNew: boolean;
     withoutBottomBorder: boolean;
+    onOpenChange?: (isOpen: boolean) => void;
 }) {
     const [open, setOpen] = useState(false);
+    // Who the summary names while the reader has it open, so it doesn't re-wrap under them as others join: still
+    // one of its latest members, or the latest again once they no longer are.
+    const [lead, setLead] = useState<NotificationGroup['actor'] | null>(null);
+    const isLeading =
+        open &&
+        lead !== null &&
+        notification.actors.some((actor) => actor.id === lead.id);
+    const summarized =
+        isLeading && lead !== null
+            ? {
+                  ...notification,
+                  actor: lead,
+                  actors: [
+                      lead,
+                      ...notification.actors.filter(
+                          (actor) => actor.id !== lead.id,
+                      ),
+                  ],
+              }
+            : notification;
+    const toggle = () => {
+        setLead(open ? null : notification.actor);
+        setOpen(!open);
+        onOpenChange?.(!open);
+    };
+    const reportClosed = useEffectEvent(() => onOpenChange?.(false));
+
+    // A group gone from the page, as after changing the filter, is no longer open there.
+    useEffect(() => {
+        if (!open) {
+            return;
+        }
+
+        return () => reportClosed();
+    }, [open]);
     const [items, setItems] = useState<Notification[]>([]);
     const [cursor, setCursor] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
@@ -494,7 +801,103 @@ function NotificationGroupItem({
     const grouped = notification.event_count > 1;
     const noun = groupNoun(notification);
 
+    // Members read again are put in place without moving the one the reader is at.
+    const listRef = useRef<HTMLUListElement>(null);
+    const membersAnchor = useRef<{ id: string; top: number } | null>(null);
+    // Only the latest read of the group's members counts, so an older one coming back late never replaces it.
+    const generation = useRef(0);
+    // A change heard while the members load waits for that load, which may have been read before it.
+    const isDirty = useRef(false);
+
+    // The groups being read again while this one is open, as when something in it is no longer relevant, reads again
+    // what it showed: as many as were loaded, from the start, even when its counts stayed the same.
+    const reloadOpen = useEffectEvent(async () => {
+        // Closed, the members loaded are let go, and opening again reads them afresh.
+        if (!open) {
+            generation.current++;
+            isDirty.current = false;
+            setItems([]);
+            setCursor(null);
+
+            return;
+        }
+
+        // Including the first load, which may have read the members before the change.
+        if (loading) {
+            isDirty.current = true;
+
+            return;
+        }
+
+        if (items.length === 0) {
+            return;
+        }
+
+        isDirty.current = false;
+        const current = ++generation.current;
+        let loaded: Notification[] = [];
+        let next: string | null = null;
+
+        try {
+            do {
+                const response = await fetch(
+                    groupShow(notification, { query: { type, cursor: next } })
+                        .url,
+                    { headers: { Accept: 'application/json' } },
+                );
+
+                if (!response.ok) {
+                    return;
+                }
+
+                const page =
+                    (await response.json()) as CursorPaginated<Notification>;
+                loaded = [...loaded, ...page.data];
+                next = page.next_cursor;
+            } while (next !== null && loaded.length < items.length);
+        } catch {
+            return;
+        }
+
+        if (current === generation.current) {
+            const list = listRef.current;
+            membersAnchor.current =
+                list === null ? null : firstVisibleMember(list, 0);
+            setItems(loaded);
+            setCursor(next);
+        }
+    });
+
+    useLayoutEffect(() => {
+        const anchor = membersAnchor.current;
+        membersAnchor.current = null;
+        const member =
+            anchor &&
+            listRef.current?.querySelector(
+                `[data-notification-member="${anchor.id}"]`,
+            );
+
+        if (anchor && member) {
+            window.scrollBy(0, member.getBoundingClientRect().top - anchor.top);
+        }
+    }, [items]);
+    const shown = useRef(notification);
+
+    useEffect(() => {
+        if (shown.current !== notification) {
+            shown.current = notification;
+            void reloadOpen();
+        }
+    }, [notification]);
+
+    useEffect(() => {
+        if (!loading && isDirty.current) {
+            void reloadOpen();
+        }
+    }, [loading]);
+
     const load = async (next: string | null = null) => {
+        const current = ++generation.current;
         setLoading(true);
         setFailed(false);
         const slow = window.setTimeout(() => setIsSlow(true), 300);
@@ -506,6 +909,7 @@ function NotificationGroupItem({
             if (!response.ok) throw new Error('Unable to load activity');
             const data =
                 (await response.json()) as CursorPaginated<Notification>;
+            if (current !== generation.current) return;
             setItems((previous) =>
                 next ? [...previous, ...data.data] : data.data,
             );
@@ -525,7 +929,7 @@ function NotificationGroupItem({
             className="isolate transition-colors has-[[data-notification-link]:focus-visible]:bg-accent/50 has-[[data-notification-link]:hover]:bg-accent/40"
         >
             <NotificationContent
-                notification={notification}
+                notification={summarized}
                 isNew={isNew}
                 withoutBottomBorder={withoutBottomBorder}
                 graph={{
@@ -540,7 +944,7 @@ function NotificationGroupItem({
                         aria-expanded={open}
                         aria-controls={id}
                         onClick={() => {
-                            setOpen(!open);
+                            toggle();
                             if (!open && items.length === 0) void load();
                         }}
                         className="mt-1.5 -ml-2 flex items-center gap-1 rounded-md px-2 py-0.5 text-[13px] font-medium text-primary transition-colors hover:bg-primary-soft"
@@ -580,9 +984,13 @@ function NotificationGroupItem({
                             aria-hidden
                             className="absolute top-0 bottom-2 left-3.5 border-l border-rail"
                         />
-                        <ul>
+                        <ul ref={listRef}>
                             {items.map((item) => (
-                                <li key={item.id} className="py-2 pl-8">
+                                <li
+                                    key={item.id}
+                                    data-notification-member={item.id}
+                                    className="py-2 pl-8"
+                                >
                                     <NotificationContent
                                         notification={item}
                                         isNew={isNewSince(item, readAt)}
@@ -657,8 +1065,8 @@ function OwnCommitExcerpt({ segments }: { segments: BodySegment[] }) {
 }
 
 /**
- * A quote always quotes the recipient's own commit, so it shows like the other commits of theirs here, or as the usual
- * tombstone once deleted.
+ * A quote always quotes the recipient's own commit, or their organization's, so it shows like the other commits of
+ * theirs here, or as the usual tombstone once deleted.
  */
 function QuotedOwnCommit({
     commit,
@@ -678,12 +1086,12 @@ export function ActorAvatar({
     className,
     linked = false,
 }: {
-    user: User;
+    user: Actor;
     anchor: RefObject<HTMLSpanElement | null>;
     className?: string;
     linked?: boolean;
 }) {
-    const avatar = <UserAvatar user={user} className={className} />;
+    const avatar = <AuthorAvatar author={user} className={className} />;
 
     return (
         <UserPreview
@@ -694,10 +1102,16 @@ export function ActorAvatar({
             <span ref={anchor} className="flex">
                 {linked ? (
                     <Link
+                        prefetch
                         href={show(user)}
                         tabIndex={-1}
                         aria-hidden
-                        className="flex rounded-full"
+                        className={cn(
+                            'flex',
+                            user.type === 'organization'
+                                ? 'rounded-md'
+                                : 'rounded-full',
+                        )}
                     >
                         {avatar}
                     </Link>
@@ -739,6 +1153,9 @@ export function NotificationContent({
         notification.type === 'followed' || notification.type === 'starred'
             ? actorsCount - 1
             : 0;
+    // Two people are both named; "and N others" is kept for three or more.
+    const secondActor =
+        otherActors === 1 && actors[1]?.id !== actor.id ? actors[1] : undefined;
     const grouped =
         summary &&
         (actorsCount > 1 ||
@@ -756,7 +1173,8 @@ export function NotificationContent({
     const isActorsCommit =
         notification.type === 'replied' ||
         notification.type === 'quoted' ||
-        notification.type === 'mentioned';
+        notification.type === 'mentioned' ||
+        notification.type === 'first_commit';
     const level = notification.type === 'leveled_up' ? notification : null;
     const Icon = {
         followed: UserPlus,
@@ -765,6 +1183,7 @@ export function NotificationContent({
         quoted: Quote,
         starred: Star,
         mentioned: AtSign,
+        first_commit: GitCommitVertical,
         approved: Check,
         rejected: X,
     }[notification.type];
@@ -774,7 +1193,7 @@ export function NotificationContent({
                 'text-muted-foreground': moderation,
                 'fill-current': notification.type === 'starred',
             })}
-            style={moderation ? undefined : { color: laneColor(actor.lane) }}
+            style={moderation ? undefined : { color: authorLaneColor(actor) }}
             aria-hidden
         />
     );
@@ -784,7 +1203,9 @@ export function NotificationContent({
         (!summary && notification.type === 'starred')
             ? show(actor)
             : CommitController.show({
-                  user: isOwnCommit ? user : actor,
+                  profile: isOwnCommit
+                      ? (notification.organization ?? user)
+                      : actor,
                   commit: notification.commit,
               });
     const time = (
@@ -796,16 +1217,22 @@ export function NotificationContent({
             {formatRelativeTime(notification.created_at, now)}
         </time>
     );
+    // A member hears about the organization's commits and mentions as the organization's, not their own.
+    const organization = notification.organization;
+    const whose = organization ? `@${organization.handle}'s` : 'your';
     const action = {
         followed: 'followed you',
-        replied: 'replied to your commit',
-        quoted: 'quoted your commit',
+        replied: `replied to ${whose} commit`,
+        quoted: `quoted ${whose} commit`,
         starred: isImageOnly
-            ? `starred your ${starredImages.length === 1 ? 'image' : 'images'}`
-            : 'starred your commit',
-        mentioned: 'mentioned you',
-        approved: 'Your commit was approved',
-        rejected: 'Your commit was rejected',
+            ? `starred ${whose} ${starredImages.length === 1 ? 'image' : 'images'}`
+            : `starred ${whose} commit`,
+        mentioned: organization
+            ? `mentioned @${organization.handle}`
+            : 'mentioned you',
+        first_commit: 'made their first commit',
+        approved: `${organization ? whose : 'Your'} commit was approved`,
+        rejected: `${organization ? whose : 'Your'} commit was rejected`,
         leveled_up: level && `You reached level ${level.level}: ${level.rank}`,
     }[notification.type];
     const excerpt =
@@ -837,7 +1264,9 @@ export function NotificationContent({
                 </p>
             )}
             <p className="mt-1">
-                Only you can see this update and your rejected commit.
+                {organization
+                    ? `Only @${organization.handle}'s members can see this update and its rejected commit.`
+                    : 'Only you can see this update and your rejected commit.'}
             </p>
         </div>
     );
@@ -859,6 +1288,7 @@ export function NotificationContent({
                             className="relative z-10 flex min-w-0 items-center"
                         >
                             <Link
+                                prefetch
                                 href={show(actor)}
                                 className="flex min-w-0 items-center gap-1.5 rounded-md outline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-ring"
                             >
@@ -881,6 +1311,7 @@ export function NotificationContent({
                             {action}
                         </span>
                         <Link
+                            prefetch
                             href={href}
                             className="ml-auto flex shrink-0 items-center gap-2 rounded-md pl-2 outline-offset-4 focus-visible:outline-2 focus-visible:outline-ring"
                         >
@@ -888,7 +1319,7 @@ export function NotificationContent({
                             {time}
                         </Link>
                     </div>
-                    <Link href={href} tabIndex={-1} className="block">
+                    <Link href={href} prefetch tabIndex={-1} className="block">
                         {excerpt}
                     </Link>
                 </div>
@@ -900,6 +1331,7 @@ export function NotificationContent({
         return (
             <div className="flex items-start gap-3">
                 <Link
+                    prefetch
                     href={href}
                     className="flex min-w-0 flex-1 gap-2.5 rounded-md outline-offset-4 focus-visible:outline-2 focus-visible:outline-ring"
                 >
@@ -940,7 +1372,7 @@ export function NotificationContent({
                         {notification.type !== 'starred' && excerpt}
                     </div>
                 </Link>
-                {notification.type === 'followed' && (
+                {notification.type === 'followed' && actor.type === 'user' && (
                     <FollowIconButton
                         user={actor}
                         isFollowing={actor.is_followed}
@@ -954,6 +1386,7 @@ export function NotificationContent({
     const actorLinks = (
         <>
             <Link
+                prefetch
                 href={show(actor)}
                 className="relative z-10 truncate font-semibold hover:underline"
                 title={actor.name}
@@ -961,6 +1394,7 @@ export function NotificationContent({
                 {actor.name}
             </Link>
             <Link
+                prefetch
                 href={show(actor)}
                 tabIndex={-1}
                 className="relative z-10 shrink-4 truncate font-mono text-[13px] text-muted-foreground"
@@ -973,6 +1407,7 @@ export function NotificationContent({
 
     const rowLink = (
         <Link
+            prefetch
             href={href}
             data-notification-link
             className="after:absolute after:inset-0 after:z-[1] after:rounded-md after:outline-offset-4 focus-visible:outline-none focus-visible:after:outline-2 focus-visible:after:outline-ring"
@@ -984,17 +1419,31 @@ export function NotificationContent({
     return (
         <div className="flex">
             <GraphRail
-                lane={laneColor(actor.lane)}
+                lane={authorLaneColor(actor)}
                 endsWithDot
                 graph={graph}
                 nodePosition={isActorsCommit ? 'author' : 'top'}
                 node={
                     isActorsCommit ? (
-                        <span className="flex rounded-full bg-card">
-                            <span className="flex rounded-full border-2 border-(--lane) p-0.5 transition-colors">
+                        <span
+                            className={cn(
+                                'flex bg-card',
+                                actor.type === 'organization'
+                                    ? 'rounded-lg'
+                                    : 'rounded-full',
+                            )}
+                        >
+                            <span
+                                className={cn(
+                                    'flex border-2 border-(--lane) p-0.5 transition-colors',
+                                    actor.type === 'organization'
+                                        ? 'rounded-lg'
+                                        : 'rounded-full',
+                                )}
+                            >
                                 {grouped ? (
-                                    <UserAvatar
-                                        user={actor}
+                                    <AuthorAvatar
+                                        author={actor}
                                         className="size-10"
                                     />
                                 ) : (
@@ -1051,9 +1500,9 @@ export function NotificationContent({
                                         <span
                                             className="rounded-md border px-2 py-0.5 font-mono text-xs font-medium"
                                             style={{
-                                                borderColor: `${laneColor(actor.lane)}40`,
-                                                backgroundColor: `${laneColor(actor.lane)}15`,
-                                                color: laneColor(actor.lane),
+                                                borderColor: `${authorLaneColor(actor)}40`,
+                                                backgroundColor: `${authorLaneColor(actor)}15`,
+                                                color: authorLaneColor(actor),
                                             }}
                                             data-test="level-chip"
                                         >
@@ -1088,9 +1537,9 @@ export function NotificationContent({
                                             aria-hidden
                                         >
                                             {actors.map((stacked, position) => (
-                                                <UserAvatar
-                                                    key={stacked.id}
-                                                    user={stacked}
+                                                <AuthorAvatar
+                                                    key={position}
+                                                    author={stacked}
                                                     className="relative size-8 ring-2 ring-card"
                                                     style={{
                                                         zIndex:
@@ -1130,20 +1579,42 @@ export function NotificationContent({
                                             (grouped ? (
                                                 <>
                                                     <Link
+                                                        prefetch
                                                         href={show(actor)}
                                                         className="relative z-10 inline-block max-w-full truncate align-bottom font-semibold hover:underline"
                                                         title={actor.name}
                                                     >
                                                         {actor.name}
                                                     </Link>{' '}
-                                                    {otherActors > 0 && (
-                                                        <span
-                                                            title={exactCountTitle(
-                                                                otherActors,
-                                                            )}
-                                                        >
-                                                            {`and ${formatCount(otherActors)} ${otherActors === 1 ? 'other' : 'others'} `}
-                                                        </span>
+                                                    {secondActor ? (
+                                                        <>
+                                                            and{' '}
+                                                            <Link
+                                                                prefetch
+                                                                href={show(
+                                                                    secondActor,
+                                                                )}
+                                                                className="relative z-10 inline-block max-w-full truncate align-bottom font-semibold hover:underline"
+                                                                title={
+                                                                    secondActor.name
+                                                                }
+                                                            >
+                                                                {
+                                                                    secondActor.name
+                                                                }
+                                                            </Link>{' '}
+                                                        </>
+                                                    ) : (
+                                                        otherActors > 0 && (
+                                                            <span
+                                                                className="tabular-nums"
+                                                                title={exactCountTitle(
+                                                                    otherActors,
+                                                                )}
+                                                            >
+                                                                {`and ${formatCount(otherActors)} ${otherActors === 1 ? 'other' : 'others'} `}
+                                                            </span>
+                                                        )
                                                     )}
                                                 </>
                                             ) : (
@@ -1154,6 +1625,7 @@ export function NotificationContent({
                                                         className="relative z-10"
                                                     >
                                                         <Link
+                                                            prefetch
                                                             href={show(actor)}
                                                             className="relative z-10 inline-block max-w-full truncate align-bottom font-semibold hover:underline"
                                                             title={actor.name}
@@ -1161,6 +1633,7 @@ export function NotificationContent({
                                                             {actor.name}
                                                         </Link>{' '}
                                                         <Link
+                                                            prefetch
                                                             href={show(actor)}
                                                             tabIndex={-1}
                                                             className="relative z-10 inline-block max-w-full truncate align-bottom font-mono text-[13px] text-muted-foreground"
@@ -1194,15 +1667,17 @@ export function NotificationContent({
                         {quote}
                         {reason}
                     </div>
-                    {notification.type === 'followed' && actorsCount === 1 && (
-                        <span className="flex h-10 items-center">
-                            <FollowIconButton
-                                user={actor}
-                                isFollowing={actor.is_followed}
-                                followsYou
-                            />
-                        </span>
-                    )}
+                    {notification.type === 'followed' &&
+                        actorsCount === 1 &&
+                        actor.type === 'user' && (
+                            <span className="flex h-10 items-center">
+                                <FollowIconButton
+                                    user={actor}
+                                    isFollowing={actor.is_followed}
+                                    followsYou
+                                />
+                            </span>
+                        )}
                 </div>
                 {children}
             </div>

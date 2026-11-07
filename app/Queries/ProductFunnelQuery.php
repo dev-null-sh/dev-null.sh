@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Queries;
 
+use App\Contracts\Services\AnalyticsProvider;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
@@ -45,7 +46,7 @@ final readonly class ProductFunnelQuery
 
     private const string SIGNUP_EVENT = 'signup';
 
-    public function __construct(private FathomTrafficQuery $traffic, private ActivationByDayQuery $activationByDay)
+    public function __construct(private AnalyticsProvider $analytics, private ActivationByDayQuery $activationByDay)
     {
         //
     }
@@ -70,7 +71,7 @@ final readonly class ProductFunnelQuery
 
         $retention = $this->retention($from, $to, $trackedSince);
 
-        $visitors = $this->traffic->eventVisitors($from, $to, self::GUEST_VISIT_EVENT);
+        $visitors = $this->analytics->eventVisitors($from, $to, self::GUEST_VISIT_EVENT);
         $activationByDay = $this->activationByDay->get($from, $to);
         $activation = $this->activationTotal($activationByDay);
 
@@ -94,7 +95,7 @@ final readonly class ProductFunnelQuery
             );
 
             return [
-                'conversion' => $this->conversion($from, $to, $this->traffic->eventVisitors($from, $to, self::GUEST_VISIT_EVENT)),
+                'conversion' => $this->conversion($from, $to, $this->analytics->eventVisitors($from, $to, self::GUEST_VISIT_EVENT)),
                 'activation' => $this->rate($activation['activated'], $activation['eligible']),
                 'retention' => $this->rate($retention['retained'], $retention['eligible']),
             ];
@@ -141,14 +142,14 @@ final readonly class ProductFunnelQuery
      */
     private function conversion(CarbonImmutable $from, CarbonImmutable $to, ?int $visitors): ?float
     {
-        $signups = $visitors === null ? null : $this->traffic->eventVisitors($from, $to, self::SIGNUP_EVENT);
+        $signups = $visitors === null ? null : $this->analytics->eventVisitors($from, $to, self::SIGNUP_EVENT);
 
         return $signups === null ? null : $this->rate($signups, $visitors);
     }
 
     /**
      * Signups from the database, and visitors not signed in and signups from Fathom for the conversion, for each day
-     * that has any, oldest first. Fathom's are null when it isn't set up or didn't answer. Today is incomplete.
+     * that has any, oldest first. Fathom's are null when it didn't answer. Today is incomplete.
      *
      * @return list<AcquisitionDay>
      */
@@ -167,8 +168,8 @@ final readonly class ProductFunnelQuery
 
         $signups = array_column($rows, 'signups', 'date');
 
-        $visitors = $this->traffic->eventVisitorsByDay($from, $to, self::GUEST_VISIT_EVENT);
-        $converted = $visitors === null ? null : $this->traffic->eventVisitorsByDay($from, $to, self::SIGNUP_EVENT);
+        $visitors = $this->analytics->eventVisitorsByDay($from, $to, self::GUEST_VISIT_EVENT);
+        $converted = $visitors === null ? null : $this->analytics->eventVisitorsByDay($from, $to, self::SIGNUP_EVENT);
         $dates = array_unique([...array_keys($signups), ...array_keys($visitors ?? [])]);
         sort($dates);
 
@@ -184,15 +185,15 @@ final readonly class ProductFunnelQuery
     /**
      * Visitors not signed in, taps to sign in and signups from Fathom for each type of device, most visitors first, so
      * a change in the mix of devices can be told apart from a change in how each converts, and a pitch that doesn't
-     * convince from sign-in at GitHub that people give up on. Null when Fathom isn't set up or didn't answer.
+     * convince from sign-in at GitHub that people give up on. Null when Fathom didn't answer.
      *
      * @return list<DeviceConversion>|null
      */
     private function conversionByDevice(CarbonImmutable $from, CarbonImmutable $to): ?array
     {
-        $visitors = $this->traffic->eventVisitorsBy($from, $to, self::GUEST_VISIT_EVENT, 'device_type');
-        $tapped = $visitors === null ? null : $this->traffic->eventVisitorsBy($from, $to, self::SIGN_IN_TAP_EVENT, 'device_type');
-        $converted = $tapped === null ? null : $this->traffic->eventVisitorsBy($from, $to, self::SIGNUP_EVENT, 'device_type');
+        $visitors = $this->analytics->eventVisitorsBy($from, $to, self::GUEST_VISIT_EVENT, 'device_type');
+        $tapped = $visitors === null ? null : $this->analytics->eventVisitorsBy($from, $to, self::SIGN_IN_TAP_EVENT, 'device_type');
+        $converted = $tapped === null ? null : $this->analytics->eventVisitorsBy($from, $to, self::SIGNUP_EVENT, 'device_type');
 
         if ($visitors === null || $tapped === null || $converted === null) {
             return null;

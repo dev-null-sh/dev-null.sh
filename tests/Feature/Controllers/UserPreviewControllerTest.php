@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Actions\DeleteUser;
 use App\Models\Commit;
+use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 
@@ -32,6 +33,16 @@ it('returns a summary of the user for the user preview', function (): void {
         ->assertJsonMissingPath('user.email')
         ->assertJsonMissingPath('user.github_id');
 });
+
+it('says which accounts the bio mentions are on dev/null', function (bool $guest): void {
+    Organization::factory()->create(['handle' => 'Laravel']);
+    User::factory()->create(['handle' => 'octocat', 'bio' => 'Building @laravel, previously @nobody']);
+
+    ($guest ? $this : $this->actingAs(User::factory()->create()))
+        ->getJson('/@octocat/preview')
+        ->assertOk()
+        ->assertJsonPath('bioProfiles', ['laravel' => 'Laravel']);
+})->with(['guest' => true, 'member' => false]);
 
 it('does not count deleted commits in the user preview', function (): void {
     $user = User::factory()->create(['handle' => 'octocat']);
@@ -125,8 +136,45 @@ it('returns guests a summary of the user with only approved commits counted', fu
         ->assertJsonPath('followsYou', false)
         ->assertJsonPath('isMuting', false)
         ->assertJsonPath('isBlocking', false)
-        ->assertJsonPath('isUnavailable', false);
+        ->assertJsonPath('isUnavailable', false)
+        ->assertJsonPath('canPush', false);
 });
+
+it('offers a remote only when the viewer could push to the user', function (string $case, bool $canPush): void {
+    $viewer = User::factory()->create(['handle' => 'viewer']);
+    $user = User::factory()->create(['handle' => 'octocat']);
+
+    if (! in_array($case, ['they do not follow you', 'they pushed to you first', 'you are an admin'], true)) {
+        $user->following()->attach($viewer);
+    }
+
+    if ($case === 'they pushed to you first') {
+        $viewer->following()->attach($user);
+        sendChatMessage($user, $viewer);
+    }
+
+    match ($case) {
+        'you have remotes off' => $viewer->update(['remotes_enabled' => false]),
+        'they have remotes off' => $user->update(['remotes_enabled' => false]),
+        'you blocked them' => $viewer->blocking()->attach($user),
+        'they blocked you' => $user->blocking()->attach($viewer),
+        'you are an admin' => config(['app.admins' => ['viewer']]),
+        default => null,
+    };
+
+    $this->actingAs($viewer)->getJson('/@octocat/preview')
+        ->assertOk()
+        ->assertJsonPath('canPush', $canPush);
+})->with([
+    ['they follow you', true],
+    ['they do not follow you', false],
+    ['they pushed to you first', true],
+    ['you are an admin', true],
+    ['you have remotes off', false],
+    ['they have remotes off', false],
+    ['you blocked them', false],
+    ['they blocked you', false],
+]);
 
 it('previews the captured mention recipient after a rename and handle reuse', function (bool $authenticated): void {
     $viewer = User::factory()->create();

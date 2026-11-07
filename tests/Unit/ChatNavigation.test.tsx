@@ -17,7 +17,7 @@ function thread(kind: 'direct' | 'org' = 'direct'): ChatTarget {
         ? { kind, partner: { id, handle: id } as User }
         : { kind, org: { id, name: 'Navigation' } };
     seedThread(target, kind === 'direct' ? page([101, 102]) : {
-        ...page([101, 102]), members: [], typing: [], role: 'contributor', pinned: [],
+        ...page([101, 102]), members: [], typing: [], role: 'contributor', pinned: [], mentions: [], mentions_count: 0,
     });
     return target;
 }

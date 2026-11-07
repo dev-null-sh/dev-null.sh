@@ -7,7 +7,7 @@ namespace App\Queries;
 use App\Enums\Log;
 use App\Models\Commit;
 use App\Models\User;
-use Illuminate\Pagination\Cursor;
+use Carbon\CarbonInterface;
 use Illuminate\Pagination\CursorPaginator;
 use Illuminate\Pagination\Paginator;
 
@@ -16,33 +16,25 @@ final readonly class LogCommitsQuery
     /**
      * @return CursorPaginator<int, Commit>
      */
-    public function paginate(Log $log, ?User $user, ?Commit $through = null): CursorPaginator
+    public function paginate(Log $log, ?User $user, ?Commit $through = null, string $cursor = '', ?CarbonInterface $throughAt = null): CursorPaginator
     {
-        // The old feed cursor lacks feed_at and cannot paginate the approval-ordered feed.
-        // Start from page one instead of letting Laravel throw for the missing parameter.
-        if (! $log->isRanked()) {
-            $cursor = Cursor::fromEncoded(request()->query('cursor'));
-
-            if ($cursor instanceof Cursor && ! array_key_exists('feed_at', $cursor->toArray())) {
-                request()->query->remove('cursor');
-            }
-        }
-
         $query = $log->query()->builder($user);
         if ($log->isRanked() || ! $through instanceof Commit) {
-            return $query->cursorPaginate(20);
+            return $query->cursorPaginate(20, cursor: $cursor);
         }
+
+        $throughAt ??= $through->approved_at ?? $through->created_at;
 
         $retained = (clone $query)
             ->where(fn (CommitBuilder $query): CommitBuilder => $query
-                ->newerThan($through)
+                ->newerThan($through, $throughAt)
                 ->orWhereKey($through->id))
             ->get();
         $perPage = max(20, $retained->count());
         $older = $query
             ->whereRaw(
                 '(coalesce(commits.approved_at, commits.created_at), commits.id) < (?, ?)',
-                [$through->approved_at ?? $through->created_at, $through->id],
+                [$throughAt, $through->id],
             )
             ->limit($perPage - $retained->count() + 1)
             ->get();

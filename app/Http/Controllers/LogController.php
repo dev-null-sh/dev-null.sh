@@ -7,6 +7,7 @@ namespace App\Http\Controllers;
 use App\Actions\UpdateUserLog;
 use App\Enums\Log;
 use App\Http\Requests\ShowLogRequest;
+use App\Http\Resources\ShownStreams;
 use App\Models\Commit;
 use App\Models\User;
 use App\Queries\LatestLogCommitsQuery;
@@ -15,7 +16,6 @@ use App\Queries\SuggestedCommitsQuery;
 use App\Services\PageMetadata;
 use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Pagination\CursorPaginator;
-use Illuminate\Support\Collection;
 use Inertia\Inertia;
 use Inertia\Response;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
@@ -39,25 +39,47 @@ final readonly class LogController
     {
         if (! $user instanceof User) {
             if ($log === Log::Following) {
+                if (app()->isLocal()) {
+                    Inertia::flash('localSignIn', true);
+
+                    return to_route('home');
+                }
+
                 return Inertia::location(route('login'));
             }
-        } elseif ($user->log !== $log) {
+        } elseif ($user->log !== $log && ! $request->prefetch()) {
             $action->handle($user, $log);
         }
 
         return Inertia::render('log/show', [
             'log' => $log,
-            'commits' => Inertia::scroll(fn (): CursorPaginator => $commits->paginate($log, $user, $request->through())),
+            'commits' => Inertia::scroll(function () use ($request, $log, $user, $commits): CursorPaginator {
+                $through = $request->through();
+
+                return ShownStreams::page($commits->paginate($log, $user, $through, $request->cursor($log), $request->throughAt($through)));
+            }),
             'isRanked' => $log->isRanked(),
             'newCommitsCount' => Inertia::optional(function () use ($request, $user, $log, $latest): int {
                 $seen = $request->since();
 
-                return $seen instanceof Commit ? $latest->count($log, $user, $seen, $request->date('since_at')) : 0;
+                return $seen instanceof Commit || $request->boolean('everything')
+                    ? $latest->count($log, $user, $seen, $request->date('since_at'))
+                    : 0;
             }),
             'removedCommitIds' => Inertia::optional(fn (): array => $latest->missing($log, $user, $request->pending())),
-            'suggestions' => fn (): Collection => $user instanceof User && $log === Log::Following && ! $user->following()->exists()
-                ? $suggested->get($user)
-                : new Collection(),
+            'arrivedCommitIds' => Inertia::optional(function () use ($request, $latest, $log, $user): array {
+                $through = $request->through();
+
+                return $latest->arrived($log, $user, $request->arrived(), $through, $request->throughAt($through));
+            }),
+            'windowDigest' => Inertia::optional(function () use ($request, $latest, $log, $user): ?string {
+                $through = $request->through();
+
+                return $latest->window($log, $user, $through, $request->since(), $request->throughAt($through), $request->date('since_at'));
+            }),
+            'suggestions' => fn (): array => $user instanceof User && $log === Log::Following && ! $user->following()->exists()
+                ? ShownStreams::commits($suggested->get($user))
+                : [],
         ]);
     }
 }

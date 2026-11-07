@@ -11,7 +11,7 @@ import {
     updateQuotedCommits,
 } from '@/lib/commit-mutation-options';
 import { isDeliberateHover } from '@/lib/feed-hover';
-import { cn, formatDayLabel, laneColor, localDayKey } from '@/lib/utils';
+import { authorLaneColor, cn, formatDayLabel, localDayKey } from '@/lib/utils';
 import type { Commit, CursorPaginated } from '@/types';
 
 const interludeAfter = 5;
@@ -32,7 +32,10 @@ export function CommitFeed({
 }: {
     commits: CursorPaginated<Commit>;
     empty: ReactNode;
-    end: string;
+    /**
+     * Shown once the feed reached its end, and left out while what follows it is being read again.
+     */
+    end?: string;
     highlightedPeriod?: string | null;
     firstSeenId?: string | null;
     actions?: (commit: Commit) => ReactNode;
@@ -54,6 +57,11 @@ export function CommitFeed({
             : null;
     const isProfileReplies =
         profileUserId !== null && page.props.tab === 'replies';
+    // The organization's Mentions tab lists replies too, whatever handle they mention it with.
+    const mentionedOrganizationId =
+        page.component === 'organization/show'
+            ? (page.props.organization as { id: string }).id
+            : null;
     const [highlightedAuthor, setHighlightedAuthor] = useState<string | null>(
         null,
     );
@@ -144,11 +152,15 @@ export function CommitFeed({
                     const belongsInFeed =
                         (isStarred
                             ? restored.starred === true
-                            : isProfileReplies
-                              ? restored.parent_id !== null
-                              : restored.parent_id === null) &&
+                            : mentionedOrganizationId !== null
+                              ? Object.values(
+                                    restored.organization_mentions ?? {},
+                                ).includes(mentionedOrganizationId)
+                              : isProfileReplies
+                                ? restored.parent_id !== null
+                                : restored.parent_id === null) &&
                         (profileUserId === null ||
-                            (restored.user_id === profileUserId &&
+                            (restored.author.id === profileUserId &&
                                 !restored.is_pinned));
 
                     router.replaceProp('commits.data', (rows: Commit[]) =>
@@ -168,7 +180,14 @@ export function CommitFeed({
                     );
                 }
             }),
-        [profileUserId, isModeration, isProfileReplies, isStarred, isRanked],
+        [
+            profileUserId,
+            isModeration,
+            isProfileReplies,
+            mentionedOrganizationId,
+            isStarred,
+            isRanked,
+        ],
     );
 
     // A ranked commit can move to a later page while the feed scrolls, so each one is only listed once.
@@ -190,7 +209,7 @@ export function CommitFeed({
     const isDimmed = (commit: Commit) =>
         dimsLanes &&
         (highlightedAuthor !== null
-            ? commit.user_id !== highlightedAuthor
+            ? commit.author.id !== highlightedAuthor
             : highlightedCommit !== null && commit.id !== highlightedCommit);
 
     const lastCommit = listed.at(-1) ?? pinnedCommit;
@@ -210,8 +229,9 @@ export function CommitFeed({
             actions={actions?.(commit)}
             threadActions={threadActions?.(commit)}
             isFolded={isFolded}
+            showsParent={isModeration}
             onAuthorHover={(isHovering) =>
-                highlightAuthor(commit.user_id, isHovering)
+                highlightAuthor(commit.author.id, isHovering)
             }
             onHover={(isHovering, event) =>
                 highlightCommit(commit.id, isHovering, event)
@@ -287,7 +307,7 @@ export function CommitFeed({
                             {card(commit)}
                             {index === interludeIndex &&
                                 interlude?.(
-                                    laneColor(commit.user.lane),
+                                    authorLaneColor(commit.author),
                                     isDimmed(commit),
                                 )}
                         </Fragment>
@@ -295,18 +315,20 @@ export function CommitFeed({
                 })}
             </InfiniteScroll>
 
-            {commits.next_cursor === null && lastCommit && (
-                <div className="flex">
-                    <GraphRail
-                        lane={laneColor(lastCommit.user.lane)}
-                        variant="root"
-                        hasTail={false}
-                    />
-                    <p className="pt-[1.3rem] pr-4 pb-10 text-sm text-muted-foreground">
-                        {end}
-                    </p>
-                </div>
-            )}
+            {commits.next_cursor === null &&
+                lastCommit &&
+                end !== undefined && (
+                    <div className="flex">
+                        <GraphRail
+                            lane={authorLaneColor(lastCommit.author)}
+                            variant="root"
+                            hasTail={false}
+                        />
+                        <p className="pt-[1.3rem] pr-4 pb-10 text-sm text-muted-foreground">
+                            {end}
+                        </p>
+                    </div>
+                )}
         </GraphCanvas>
     );
 }

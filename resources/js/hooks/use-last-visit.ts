@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useOwnsCommit } from '@/hooks/use-owns-commit';
 import { readStorage, writeStorage } from '@/lib/storage';
 import type { Commit, Log } from '@/types';
 
@@ -11,6 +12,7 @@ export function useLastVisit(
     commits: Commit[],
 ): string | null {
     const key = keyFor(userId, log);
+    const ownsCommit = useOwnsCommit();
     const [lastVisitAt] = useState(() => readStorage(key));
     const timestamp = (commit: Commit): string => {
         if (log === 'trending') {
@@ -36,7 +38,7 @@ export function useLastVisit(
     );
     const isNewFromOthers = commits
         .slice(0, Math.max(firstSeen, 0))
-        .some((commit) => commit.user_id !== userId);
+        .some((commit) => !ownsCommit(commit));
 
     return isNewFromOthers ? commits[firstSeen].id : null;
 }

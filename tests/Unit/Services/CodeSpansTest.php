@@ -66,6 +66,7 @@ it('highlights a code block in its language', function (): void {
         [
             'type' => 'block',
             'language' => 'php',
+            'filename' => null,
             'html' => '<span class="hl-variable">$name</span> = <span class="hl-value">\'devnull\'</span>;',
         ],
     ]);
@@ -78,7 +79,7 @@ it('drops the line breaks around a code block', function (string $lineBreak): vo
 
     expect($segments)->toBe([
         ['type' => 'text', 'text' => 'before'],
-        ['type' => 'block', 'language' => null, 'html' => "x\ny"],
+        ['type' => 'block', 'language' => null, 'filename' => null, 'html' => "x\ny"],
         ['type' => 'text', 'text' => "after{$lineBreak}{$lineBreak}end"],
     ]);
 })->with([
@@ -92,7 +93,7 @@ it('escapes code in an unknown language or without one', function (?string $lang
     $segments = $codeSpans->highlight("```{$language}\n<script>alert(1)</script>\n```");
 
     expect($segments)->toBe([
-        ['type' => 'block', 'language' => $language, 'html' => '&lt;script&gt;alert(1)&lt;/script&gt;'],
+        ['type' => 'block', 'language' => $language, 'filename' => null, 'html' => '&lt;script&gt;alert(1)&lt;/script&gt;'],
     ]);
 })->with([
     'unknown language' => 'brainfuck',
@@ -111,15 +112,69 @@ it('highlights a language written in any case and keeps the label as written', f
     $codeSpans = resolve(CodeSpans::class);
 
     expect($codeSpans->highlight("```PHP\n\$name;\n```"))->toBe([
-        ['type' => 'block', 'language' => 'PHP', 'html' => '<span class="hl-variable">$name</span>;'],
+        ['type' => 'block', 'language' => 'PHP', 'filename' => null, 'html' => '<span class="hl-variable">$name</span>;'],
     ]);
 });
 
-it('takes the language from the first word of the fence', function (): void {
+it('takes the language from the first word of the fence and the filename from its title', function (string $fence, string $filename): void {
     $codeSpans = resolve(CodeSpans::class);
 
-    expect($codeSpans->highlight("```php title=\"app.php\"\n\$name;\n```"))->toBe([
-        ['type' => 'block', 'language' => 'php', 'html' => '<span class="hl-variable">$name</span>;'],
+    expect($codeSpans->highlight("{$fence}\n\$name;\n```"))->toBe([
+        ['type' => 'block', 'language' => 'php', 'filename' => $filename, 'html' => '<span class="hl-variable">$name</span>;'],
+    ]);
+})->with([
+    'title' => ["``` php\ttitle=\"app/Models/User.php\" \t", 'app/Models/User.php'],
+    'filename' => ['```php filename="app/Models/User.php"', 'app/Models/User.php'],
+    'title and filename' => ['```php filename="a.php" title="b.php"', 'b.php'],
+    'empty title and filename' => ['```php title="" filename="a.php"', 'a.php'],
+    'two titles' => ['```php title="a.php" title="b.php"', 'a.php'],
+    'spaces in the title' => ['```php title="My Model.php"', 'My Model.php'],
+    'other attributes' => ['```php {1, 3} showLineNumbers title="app.php" tab="Pest 4"', 'app.php'],
+    'line range right after the language' => ['```php{1,3} title="app.php"', 'app.php'],
+    'single quotes' => ["```php title='app.php'", 'app.php'],
+    'single-quoted filename' => ["```php filename='app.php'", 'app.php'],
+    'apostrophe in double quotes' => ['```php title="it\'s.php"', "it's.php"],
+    'double quotes in single quotes' => ["```php title='\"a\".php'", '"a".php'],
+]);
+
+it('keeps only the language when the fence has no title', function (string $fence): void {
+    $codeSpans = resolve(CodeSpans::class);
+
+    expect($codeSpans->highlight("{$fence}\n\$name;\n```"))->toBe([
+        ['type' => 'block', 'language' => 'php', 'filename' => null, 'html' => '<span class="hl-variable">$name</span>;'],
+    ]);
+})->with([
+    'path' => '```php app/Models/User.php',
+    'line range' => '```php {1,3}',
+    'unquoted attribute' => '```php tab=Pest',
+    'empty title' => '```php title=""',
+    'unclosed title' => '```php title="app.php',
+    'title inside another attribute' => '```php caption="see title="app.php"',
+    'title inside a line range' => '```php {1 title="app.php"}',
+    'line range right after the language' => '```php{1,3}',
+    'empty single-quoted title' => "```php title=''",
+    'unclosed single-quoted title' => "```php title='app.php",
+]);
+
+it('takes no language from a fence that starts with a title or a line range', function (string $fence, ?string $filename): void {
+    $codeSpans = resolve(CodeSpans::class);
+
+    expect($codeSpans->highlight("{$fence}\n\$name;\n```"))->toBe([
+        ['type' => 'block', 'language' => null, 'filename' => $filename, 'html' => '$name;'],
+    ]);
+})->with([
+    'title' => ['``` title="app.php"', 'app.php'],
+    'title right after the backticks' => ['```title="app.php"', 'app.php'],
+    'single-quoted title' => ["``` title='app.php'", 'app.php'],
+    'line range' => ['```{1,3}', null],
+    'line range and title' => ['``` {1,3} title="app.php"', 'app.php'],
+]);
+
+it('does not separate the language from the rest of the fence with a non-breaking space', function (): void {
+    $codeSpans = resolve(CodeSpans::class);
+
+    expect($codeSpans->highlight("```php\u{a0}title=\"app.php\"\n\$name;\n```"))->toBe([
+        ['type' => 'block', 'language' => "php\u{a0}title=\"app.php\"", 'filename' => null, 'html' => '$name;'],
     ]);
 });
 
@@ -127,7 +182,7 @@ it('keeps an empty code block', function (): void {
     $codeSpans = resolve(CodeSpans::class);
 
     expect($codeSpans->highlight("```\n```"))->toBe([
-        ['type' => 'block', 'language' => null, 'html' => ''],
+        ['type' => 'block', 'language' => null, 'filename' => null, 'html' => ''],
     ]);
 });
 
@@ -136,10 +191,25 @@ it('accepts fences of more than three backticks', function (): void {
 
     expect($codeSpans->highlight("feature:\n````php\n\$login;\n````"))->toBe([
         ['type' => 'text', 'text' => 'feature:'],
-        ['type' => 'block', 'language' => 'php', 'html' => '<span class="hl-variable">$login</span>;'],
+        ['type' => 'block', 'language' => 'php', 'filename' => null, 'html' => '<span class="hl-variable">$login</span>;'],
     ])->and($codeSpans->highlight("```\n// test\n````"))->toBe([
-        ['type' => 'block', 'language' => null, 'html' => '// test'],
+        ['type' => 'block', 'language' => null, 'filename' => null, 'html' => '// test'],
     ]);
+});
+
+it('keeps a shorter fence inside a code block', function (): void {
+    $codeSpans = resolve(CodeSpans::class);
+    $text = "before\n`````\n````markdown\n```\nfence inside fence\n```\n````\n`````\nafter `x`";
+
+    expect($codeSpans->split($text))->toBe([
+        "before\n",
+        "`````\n````markdown\n```\nfence inside fence\n```\n````\n`````",
+        "\nafter ",
+        '`x`',
+        '',
+    ])->and($codeSpans->highlight("````markdown\n```\nfence inside fence\n```\n````")[0]['html'])
+        ->toContain('fence inside fence')
+        ->toContain('```');
 });
 
 it('never lets a code block pick its own CSS classes', function (): void {

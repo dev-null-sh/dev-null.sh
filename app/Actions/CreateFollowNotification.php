@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Enums\NotificationType;
+use App\Enums\UserUpdate;
+use App\Events\UsersUpdated;
 use App\Models\Notification;
 use App\Models\User;
 use Illuminate\Support\Str;
@@ -31,5 +33,7 @@ final readonly class CreateFollowNotification
             'created_at' => now(),
             'updated_at' => now(),
         ]);
+
+        event(new UsersUpdated([$followed->id], UserUpdate::Notifications));
     }
 }

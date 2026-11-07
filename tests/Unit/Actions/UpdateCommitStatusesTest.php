@@ -9,6 +9,7 @@ use App\Enums\CommitStatus;
 use App\Jobs\CheckUserLevel;
 use App\Jobs\ReplyAsTom;
 use App\Models\Commit;
+use App\Models\Headline;
 use App\Models\User;
 use App\Services\TheAlgorithm;
 use Illuminate\Support\Facades\DB;
@@ -31,6 +32,20 @@ it('may approve many commits', function (): void {
     expect($other->refresh()->status)->toBe(CommitStatus::Pending)
         ->and($other->approved_at)->toBeNull();
 });
+
+it('only clears recaps directly linked to rejected sources', function (bool $isReply): void {
+    $headline = Headline::factory()->create(['summary' => 'A recap containing a rejected source.', 'summary_created_at' => now()]);
+    $unrelated = Headline::factory()->create(['summary' => 'An unrelated recap.', 'summary_created_at' => now()]);
+    $root = Commit::factory()->hasAttached($headline)->create();
+    $commit = $isReply ? Commit::factory()->for($root, 'parent')->create() : $root;
+
+    resolve(UpdateCommitStatuses::class)->handle([$commit->id], CommitStatus::Rejected);
+
+    expect($commit->refresh()->status)->toBe(CommitStatus::Rejected)
+        ->and($headline->refresh()->summary)->toBe($isReply ? 'A recap containing a rejected source.' : null)
+        ->and($unrelated->refresh()->summary)->toBe('An unrelated recap.')
+        ->and($unrelated->summary_created_at?->toDateTimeString())->toBe(now()->toDateTimeString());
+})->with(['root' => false, 'reply' => true]);
 
 it('queues direct replies to Tom in bulk without per-reply queries', function (): void {
     config(['ai.providers.opencode.key' => 'test', 'ai.providers.openai.key' => 'test']);
@@ -98,6 +113,17 @@ it('notifies the quoted authors of the approved quotes', function (): void {
 
     expect($quoted->user->notifications()->pluck('commit_id')->all())
         ->toEqualCanonicalizing($quotes->modelKeys());
+});
+
+it("tells the author's followers about their first commit once it is approved", function (): void {
+    $author = User::factory()->create();
+    $follower = User::factory()->create();
+    $author->followers()->attach($follower);
+    $commit = Commit::factory()->for($author)->pending()->create();
+
+    resolve(UpdateCommitStatuses::class)->handle([$commit->id], CommitStatus::Approved);
+
+    expect($follower->notifications()->sole()->commit_id)->toBe($commit->id);
 });
 
 it('lifts the thread when a reply is approved', function (): void {

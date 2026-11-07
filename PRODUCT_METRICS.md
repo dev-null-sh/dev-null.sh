@@ -8,7 +8,7 @@ Status: **implemented** metrics are on the Growth page. **Not yet** metrics are 
 
 ## Principles
 
-- **Store as little as possible.** Most metrics are computed from data the app already has (users, commits, stars, follows) and from Fathom, which is anonymous. Only three things were added for metrics: the last day each person was seen, one anonymous count of active people per day, and two anonymous Fathom events for the conversion rate.
+- **Store as little as possible.** Most metrics are computed from data the app already has (users, commits, stars, follows) and from Fathom, which is anonymous. Only four things were added for metrics: the last day each person was seen, the days each person was seen and the apps they used on them, one anonymous count of active people per day, and anonymous Fathom events, for the conversion rate and for the link guests can ask for by email.
 - **No personal attribution.** Nobody's referrer, landing page or campaign is stored. Where people come from is read from Fathom, in aggregate.
 - **Bots are left out** everywhere: Tom and @world (`User::BOT_GITHUB_IDS`).
 - **Read trends, not thresholds, at first.** With a few days of history, metrics say little on their own. a16z notes that they only become predictive with a few thousand active users and several cohorts past day 30.
@@ -20,8 +20,12 @@ Each answers the three questions of the [data guidelines](.ai/guidelines/data.bl
 | Data | Where | Why the feature needs it | Who sees it | When it is deleted |
 |---|---|---|---|---|
 | The last day a person was seen (a date, no time) | `users.last_seen_at`, hidden | Retention and active users can't be derived from anything else: reading alone leaves no trace. Written at most once a day, without touching `updated_at`. | Admins, only as aggregates on the Growth page; the person in their export | With the account |
+| Each day a person was seen (dates, no time) | `user_active_days` (`user_id`, `seen_at`) | Retention by signup cohort, day by day (active on day 1, 7, 14), comparable with public benchmarks: `last_seen_at` only keeps the latest day, and `active_user_counts` has no user ids. Written with `last_seen_at`, the first time each person is seen in a day. | Admins, only as aggregates; the person in their export (`active_days`) | With the account |
+| Which apps a person used on each of those days (yes or no for each) | `user_active_days` (`web_app`, `native_mobile_app`, `lite_mobile_app`, `mac_app`, `other_app`) | How many people use each app each day: Fathom has no notion of an app and can't see the native apps. Written the first time each app is seen in a day; every other request only checks it. Days before tracking started all say `web_app`, whatever was used. | Admins, only as aggregates; the person in their export (`active_days`) | With the account |
 | The number of people seen each day | `active_user_counts` (`seen_at`, `count`), no user ids | The daily active users history: `last_seen_at` only keeps each person's latest day, so past days can't be recomputed. Incremented the first time each person is seen in a day, so the count is exact. | Admins, on the Growth page | Never: it is an anonymous count |
 | Three anonymous events, `guest-visit`, `signin-click` and `signup` | Fathom | The conversion rate, counted on both sides by the same tool, and where in between visitors give up. No user id is sent. | Admins, through Fathom | Per Fathom's retention |
+| Three anonymous events, `join-link-sent`, `join-link-visit` and `join-link-signup` | Fathom | Whether the link a guest on a phone can ask for by email brings people back: sent when the email is asked for, when the page opens from its link (`#join-link`, then removed from the address), and when that tab then signs up, next to `signup`. Signing up leaves for GitHub, so Fathom sees the signup as a new visit; the tab remembers the link in its session storage instead. Someone who opens the link in one browser and signs up in another counts as any other signup, so it's a floor. | Admins, through Fathom | Per Fathom's retention |
+| A keyed hash of each address a join link was emailed to | The cache, `join-link:{hash}` | Each address gets the email once a month at most, so the form can't fill someone's inbox. The address itself is only in the queued email, encrypted, until it is sent. | Nobody | After 30 days |
 
 **Seen** means signed in and opening a page or doing something (starring, replying, following) on the web or the installed app, or using the API from the mobile app or the terminal. Posts automated with the GitHub Action count too: someone who publishes, even automatically, is active. What a page reads on its own (polling for notifications, partial reloads, prefetches, JSON reads) doesn't count, or a tab left open would keep its owner active forever.
 
@@ -31,7 +35,7 @@ The funnel follows the people who **signed up in the selected range** (the last 
 
 ### Acquisition
 
-- **Visitors**: people **not signed in** who opened dev-null.sh in the range, counted by Fathom: the browser sends a `guest-visit` event once per session to someone not signed in, and Fathom counts the people who sent it (`unique_conversions`).
+- **Visitors**: people **not signed in** who opened dev-null.sh in the range, counted by Fathom: the browser sends a `guest-visit` event once per session to someone not signed in, and Fathom counts the people who sent it (`unique_conversions`). A browser driven by a program (`navigator.webdriver`) doesn't send it.
 - **Signups**: accounts created in the range, from the database. This is the absolute number.
 - **Conversion rate** = people who sent a `signup` event ÷ people who sent a `guest-visit` event, both from Fathom. The browser sends `signup` once, on the page right after an account is created (the server flashes `signedUp`).
 - Why both sides of the rate come from Fathom: Fathom is blocked by uBlock Origin, Brave and Firefox's tracking protection, which developers use a lot. Signups from the database over visitors from Fathom would overstate the rate by an unknown amount. With both from Fathom, ad blockers hide the same share of each, as long as people who sign up block Fathom as often as other visitors.
@@ -42,6 +46,7 @@ The funnel follows the people who **signed up in the selected range** (the last 
   - The events only exist since the release that added them; the rate reads "–" before.
   - Fathom's API doesn't define `unique_conversions` precisely; check on real data that it counts people, not events.
   - A member signed out (another device, an expired session) counts as a visitor.
+  - Fathom filters bots out of pageviews, not out of events. From 2026-10-29 16:00 UTC, a scraper running a real browser sent thousands of `guest-visit` a day, from desktops all over the world, one profile page each, with no taps or signups, and the conversion rate fell to about 1%. Since then, browsers that say they are automated (`navigator.webdriver`) don't send it. A scraper can hide that, so if visitors jump again with no taps, check `guest-visit` in Fathom by hour and by `pathname`: a crawl hits many pages once each.
   - Events may count against Fathom's monthly quota, which is why `guest-visit` is sent once per session, not on every page.
 
 ### Activation
@@ -63,11 +68,20 @@ The funnel follows the people who **signed up in the selected range** (the last 
 
 - **Retained**: seen again **from day 1 after signing up, or later** ("unbounded" retention), as told by `last_seen_at`. Day 1 is temporary, while /dev/null is days old and changes day by day; the goal is day 14.
 - **Retention rate** = retained ÷ signups whose day 1 is over. A signup whose day 1 is today isn't counted yet: they may still come back today.
-- Why `last_seen_at` and not one row per person per day: it is one date per person, overwritten, with no history, which is the least data that answers "is this person still coming back after 14 days?".
+- Why `last_seen_at` and not one row per person per day: it was one date per person, overwritten, with no history, the least data that answers "is this person still coming back after 14 days?". It can't tell someone active on day 7 from someone who came back once on day 60, so `user_active_days` was added on 2026-10-30 (see Decisions). This rate still reads `last_seen_at`; day-N retention below reads the new table.
 - Caveats:
   - Unbounded retention is always higher than the bounded "active on day N" retention that public benchmarks use. Someone who comes back once on day 60 counts as retained at day 1. **Do not compare it with the a16z numbers below.**
   - A cohort's retention keeps rising a little as late visitors come back, so older cohorts look slightly better than recent ones.
   - Deleted accounts disappear from their cohort instead of counting as gone.
+
+### Day-N retention (implemented)
+
+The share of a cohort active **on** day N after signing up, from `user_active_days`: the "bounded" retention public benchmarks use, so it can be compared with the a16z numbers below.
+
+- **Retention by signup day**: a chart of the share of each day's signups active exactly 1 day later, or 7 with the switch, for each signup day whose day N is over, and a dashed line at the share of the whole range. Read it like activation by signup day: a trend over several days, not one bar.
+- **Retention by cohort**: a table of the signups of each week (from Monday), down, and days 1, 3, 7, 14 and 30 after signing up, across. Each cell is the share of the week's signups active on that exact day, among the ones who reached it, so a week still reaching it shows part of the week. Reading down a column tells whether newer cohorts stay better. Below it, a curve pools the cohorts for every day up to day 30, from everyone on day 0: a curve that flattens instead of falling to zero means a core of people stays.
+- **Approximate before 2026-10-30**: the days before were backfilled from what people did (posting, starring, following, reading notifications…), which misses the days someone only read. The backfill found 72–82% of each day's active people from 2026-10-21 to 2026-10-29 (against `active_user_counts`), so retention read from those days is a floor. Bars are striped, cells read "≥", and the curve's points are hollow where most of their days are backfilled.
+- Bots are left out; deleted accounts disappear from their cohort.
 
 ### Changes and the orange highlight
 
@@ -88,6 +102,7 @@ The funnel follows the people who **signed up in the selected range** (the last 
 | Follows, first 24h | Median number of people a newcomer followed themselves in their first 24 hours. Follows imported from GitHub are left out: they are created in the transaction that records the import, so follows made in the 10 seconds before either side's import are taken for imported ones. |
 | Followed back | Share of those follows that were followed back since. |
 | Daily active users | A chart of the people seen each day of the range, from `active_user_counts`, each bar stacked from the bottom: returning users, then that day's signups who activated, didn't, or are under 12 hours old, too young to tell. Each day casts a shadow onto the next, from its total down to the next day's returning users: the drop is the net change, people who stopped coming minus people back after a break, since returning users may have been away for any number of days. It reads the funnel day by day: what makes the audience grow or shrink. Returning is the day's count minus its signups, as every signup is seen on the page it lands on, so it can't be split further, and it is not the retention rate: it grows on its own the day after a spike of signups. An account deleted since still counts in its day but no longer in the signups, so returning reads slightly high. Today's bar is still counting; a dashed line marks the average of the other days. |
+| People by app | A chart of the people who used each app each day of the range, from `user_active_days`, as lines, because someone using two apps in a day counts in both, so the apps of a day can add up to more than its active users. **Web** is anything through a browser, the installed app included. **Mobile** is the NativePHP app, told by the app id of the device that signed the request. **Lite** is the lite mobile app, told by the user agent of its web view and by the app id of its device on the API. **Mac** is the Mac app, told by its user agent. **Other** is everything else counted as seen: the terminal app, the commit script and the GitHub Action. A rule marks the first day any other app shows up, when tracking started. Before it, all activity counts as web, which is why that line is faded, and that first day is itself mixed: people seen earlier that day already had a row saying web. Caveats: phones approved before the app sent its id (`app_id`) count as **other** until they are approved again, so mobile reads low and other high. Approving a device happens in a browser, so it counts as web that day. The Mac app's background checks count it as used on any day it is running, as they count toward active users. Accounts deleted since disappear from it, unlike `active_user_counts`. The lite line reads zero before 2026-11-07, when its internal testers counted as web and other. |
 
 ## Benchmarks
 
@@ -97,7 +112,7 @@ For reference, with how comparable each one is. None of them was validated for a
 |---|---|---|---|
 | DAU/MAU | OK 25%, good 40%, great 50%+ (seed-stage consumer social) | [a16z](https://a16z.com/do-you-have-lightning-in-a-bottle-how-to-benchmark-your-social-app/) | Yes, same definition |
 | Activation rate | Average 34%, median 25% (all products) | [Lenny's Newsletter](https://www.lennysnewsletter.com/p/what-is-a-good-activation-rate) | Partly: each product picks its own milestone, and 12 hours is strict |
-| Retention, d1 / d7 / d30 (bounded) | OK 50/35/20%, good 60/40/25%, great 70/50/30% | [a16z](https://a16z.com/do-you-have-lightning-in-a-bottle-how-to-benchmark-your-social-app/) | **No**: ours is unbounded, and always higher |
+| Retention, d1 / d7 / d30 (bounded) | OK 50/35/20%, good 60/40/25%, great 70/50/30% | [a16z](https://a16z.com/do-you-have-lightning-in-a-bottle-how-to-benchmark-your-social-app/) | Day-N retention, yes. The funnel's retention, **no**: it is unbounded, and always higher |
 | Retention at 6 months, consumer social | ~25% good, ~45% great | [Lenny's Newsletter](https://www.lennysnewsletter.com/p/what-is-good-retention-issue-29) | Later, and only bounded |
 | Monthly user growth | OK 20%, good 35%, great 50%, ideally almost all organic | [a16z](https://a16z.com/do-you-have-lightning-in-a-bottle-how-to-benchmark-your-social-app/) | Yes, not on the page yet |
 | L5+ (share of weekly actives present 5+ days) | OK 30%, good 40%, great 50%+ | [a16z](https://a16z.com/the-power-user-curve-the-best-way-to-understand-your-most-engaged-users/) | Not measurable (see below) |
@@ -147,8 +162,7 @@ A handful of accounts star or follow every newcomer. Leaving out the 5 that reac
 
 | Metric | What it would tell | What it needs |
 |---|---|---|
-| Bounded retention (active on day 1, 7, 30) | A number comparable with public benchmarks | One row per person per active day, which was turned down to store less |
-| Power user curve (L7, L5+) | Whether a daily core forms, cohort after cohort | The same per-day activity |
+| Power user curve (L7, L5+) | Whether a daily core forms, cohort after cohort | `user_active_days`, a few weeks of it |
 | Quick ratio and growth accounting | (new + resurrected) ÷ churned: whether growth hides a leaking bucket ([Social Capital, via](https://davidjaxon.wordpress.com/2016/03/15/a-simple-metric-to-measure-the-quality-of-your-user-growth/)) | A few weeks of history; best with per-day activity |
 | Resurrection rate | Share of people away 14+ days who come back | A few weeks of history |
 | Retention by core action | Whether people come back to post, star or reply, not only to look | Computable from existing data |
@@ -168,6 +182,9 @@ Taken on 2026-10-19, when /dev/null was a few days old, had about 6,000 people a
 - On 2026-10-23, activation was measured against day-1 returns for the first time (see "How activation is defined"). It moved from 3 starred authors to 2, and gained following 10+ people: a wider definition with the same power to tell who comes back.
 - Retention is unbounded, from `last_seen_at`, headline day 14, with a fallback to day 7 and day 1 meanwhile.
 - On 2026-10-20, retention was set to day 1 alone, without the fallback: /dev/null was days old and changed day by day, so the next day is what mattered. Moving to day 14 means bringing back the fallback to day 7 and day 1, from the history of `ProductFunnelQuery`.
+- On 2026-10-30, one row per person per active day (`user_active_days`) was added, reversing the choice to store only the last day. Unbounded retention rose with late returns and couldn't be read day by day for each signup cohort, nor compared with benchmarks. Days before 2026-10-30 can only be backfilled from what left a trace (signing up, posting, starring, voting, following, sending a message, and `last_seen_at` itself): someone who only read on a day left none, so backfilled days are a floor, closer to the truth for authors than for readers.
+- On 2026-11-06, flags for the apps used were added to `user_active_days`, rather than a row per app: it stays one row per person per day, so retention reads it as before. Phones are told by the `app_id` their device already has, with no app release, at the price of counting phones approved before it as other. If other reads too high, the app can say itself in its user agent on each request.
+- On 2026-11-07, a flag for the lite mobile app was added to `user_active_days`, without touching past days, as it only had internal testers. Its web view is told by its user agent, which it declares itself, because only metrics read it. Signing in now records the app of the new device, so a sign-in in the NativePHP app counts as mobile rather than other.
 - No per-person referrer or source: Fathom covers acquisition, anonymously.
 - Signups are counted from the database; the conversion rate is counted entirely by Fathom, so ad blockers cancel out, and only over visitors not signed in.
 - Daily active users come from `last_seen_at`, not from Fathom, which ad blockers hide and which can't see the mobile app.

@@ -9,8 +9,8 @@ use App\Actions\DeleteCommitContent;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\LinkPreview;
+use App\Models\Organization;
 use App\Models\Poll;
-use App\Models\Profile;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 
@@ -74,11 +74,14 @@ it('keeps the images of a commit deleted again within its new undo window', func
     Storage::disk()->assertExists($image->path);
 });
 
-it('erases the content once the undo window has closed', function (): void {
-    $commit = Commit::factory()->create(['body' => 'Hello @taylor and @laravel', 'mentions' => ['taylor'], 'link_preview_id' => LinkPreview::factory()]);
-    resolve(CreateCommitTopics::class)->handle($commit, ['laravel' => Profile::factory()->organization()->create()->id]);
+it('erases the content and only directly linked recaps once the undo window has closed', function (bool $isReply): void {
+    $root = Commit::factory()->create();
+    $commit = Commit::factory()->create(['parent_id' => $isReply ? $root->id : null, 'body' => 'Hello @taylor and @laravel', 'mentions' => ['taylor'], 'link_preview_id' => LinkPreview::factory(), 'headlines_classified_at' => now()]);
+    resolve(CreateCommitTopics::class)->handle($commit, ['laravel' => Organization::factory()->create()->id]);
+    $headline = ($isReply ? $root : $commit)->headlines()->create(['name' => 'Laravel adds a new feature']);
     $poll = Poll::factory()->withOptions('Yes', 'No')->create(['commit_id' => $commit->id]);
     resolve(DeleteCommit::class)->handle($commit);
+    $headline->update(['summary' => 'A recap awaiting final erasure.', 'summary_created_at' => now()]);
     $this->travel(30)->seconds();
 
     resolve(DeleteCommitContent::class)->handle($commit);
@@ -89,10 +92,13 @@ it('erases the content once the undo window has closed', function (): void {
         ->mentions->toBeNull()
         ->organization_mentions->toBeNull()
         ->link_preview_id->toBeNull()
+        ->headlines_classified_at->toBeNull()
         ->user_id->not->toBeNull();
     $this->assertModelMissing($poll);
     $this->assertDatabaseMissing('commit_topics', ['commit_id' => $commit->id]);
-});
+    $this->assertDatabaseMissing('commit_headline', ['commit_id' => $commit->id]);
+    expect($headline->refresh()->summary)->toBe($isReply ? 'A recap awaiting final erasure.' : null);
+})->with(['root' => false, 'reply' => true]);
 
 it('erases the previews of links to the commit, which hold its body', function (): void {
     $commit = Commit::factory()->create();

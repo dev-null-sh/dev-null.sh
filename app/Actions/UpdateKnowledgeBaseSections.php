@@ -4,15 +4,15 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Contracts\Services\EmbeddingProvider;
 use App\Models\KnowledgeBaseSection;
 use App\Services\MarkdownSections;
-use App\Services\OpenAI;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 
 final readonly class UpdateKnowledgeBaseSections
 {
-    public function __construct(private MarkdownSections $markdownSections, private OpenAI $openAI)
+    public function __construct(private MarkdownSections $markdownSections, private EmbeddingProvider $embeddings)
     {
         //
     }
@@ -24,14 +24,21 @@ final readonly class UpdateKnowledgeBaseSections
     {
         $sections = collect($this->markdownSections->split(File::get(base_path($source))));
 
-        $stored = KnowledgeBaseSection::query()->where('source', $source)->get()
-            ->mapWithKeys(fn (KnowledgeBaseSection $section): array => [$this->key($section->headings, $section->content) => $section->embedding]);
+        $stored = KnowledgeBaseSection::query()->where('source', $source)->orderBy('position')->get();
+
+        if ($stored->mapWithKeys(fn (KnowledgeBaseSection $section): array => [
+            $section->position => ['headings' => $section->headings, 'content' => $section->content],
+        ])->all() === $sections->all()) {
+            return 0;
+        }
+
+        $stored = $stored->mapWithKeys(fn (KnowledgeBaseSection $section): array => [$this->key($section->headings, $section->content) => $section->embedding]);
 
         $embeddings = $sections->map(fn (array $section): ?array => $stored->get($this->key($section['headings'], $section['content'])));
         $changed = $sections->filter(fn (array $section, int $position): bool => $embeddings[$position] === null);
 
         foreach ($changed->chunk(100) as $batch) {
-            $embeddings = $embeddings->replace($batch->keys()->combine($this->openAI->embedMany(
+            $embeddings = $embeddings->replace($batch->keys()->combine($this->embeddings->embedMany(
                 array_values($batch->map(fn (array $section): string => mb_trim(implode(' > ', $section['headings'])."\n\n".$section['content']))->all()),
             )));
         }
