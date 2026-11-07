@@ -6,10 +6,12 @@ use App\Actions\CreateCommitReport;
 use App\Actions\CreateCommitTranslation;
 use App\Actions\CreateExport;
 use App\Actions\DeleteUser;
+use App\Actions\UpdateDevicePushToken;
 use App\Contracts\Services\TranslationProvider;
 use App\Enums\ModerationReason;
 use App\Enums\NotificationType;
 use App\Enums\OrganizationRole;
+use App\Enums\PushPlatform;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\CommitReport;
@@ -90,7 +92,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
     $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
 
     expect($data)->toBe([
-        'schema_version' => 6,
+        'schema_version' => 8,
         'exported_at' => now()->toIso8601String(),
         'profile' => [
             'github_id' => $user->github_id,
@@ -116,6 +118,11 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
             'remotes_enabled' => true,
             'remotes_from' => 'following',
             'pull_receipts' => true,
+            'push_follows' => true,
+            'push_replies' => true,
+            'push_mentions' => true,
+            'push_direct_remotes' => true,
+            'push_org_remotes' => true,
             'pinned_commit_id' => null,
             'live_platform' => null,
             'live_url' => null,
@@ -126,7 +133,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
             'created_at' => $user->created_at->toIso8601String(),
             'updated_at' => $user->updated_at->toIso8601String(),
         ],
-        'active_days' => [],
+        'active_days' => [['date' => now()->toDateString(), 'web_app' => true, 'native_mobile_app' => false, 'lite_mobile_app' => false, 'mac_app' => false, 'other_app' => false]],
         'commits' => [],
         'organization_commits' => [],
         'polls' => [],
@@ -144,6 +151,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
         'reports' => [],
         'remote_mutes' => [],
         'remote_pins' => [],
+        'remote_mentions' => [],
         'notifications' => [],
         'ssh_keys' => [],
         'push_subscriptions' => [],
@@ -474,18 +482,22 @@ it('exports the organizations the user is a member of with their role, first joi
     ]);
 });
 
-it('exports the days the user was seen, oldest first, without the days of others', function (): void {
+it('exports the days the user was seen with the apps they used, oldest first, without the days of others', function (): void {
+    $this->travelTo(now()->setDate(2026, 10, 21)->setTime(12, 0));
     $user = User::factory()->create(['last_seen_at' => now()]);
     DB::table('user_active_days')->insert([
-        ['user_id' => $user->id, 'seen_at' => '2026-10-21'],
-        ['user_id' => $user->id, 'seen_at' => '2026-10-19'],
-        ['user_id' => User::factory()->create()->id, 'seen_at' => '2026-10-20'],
+        ['user_id' => $user->id, 'seen_at' => '2026-10-21', 'web_app' => true, 'native_mobile_app' => true, 'lite_mobile_app' => false, 'mac_app' => false, 'other_app' => false],
+        ['user_id' => $user->id, 'seen_at' => '2026-10-19', 'web_app' => false, 'native_mobile_app' => false, 'lite_mobile_app' => true, 'mac_app' => true, 'other_app' => true],
+        ['user_id' => User::factory()->create()->id, 'seen_at' => '2026-10-20', 'web_app' => true, 'native_mobile_app' => false, 'lite_mobile_app' => false, 'mac_app' => false, 'other_app' => false],
     ]);
 
     $response = $this->actingAs($user)->get(route('export'));
     $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
 
-    expect($data['active_days'])->toBe(['2026-10-19', '2026-10-21']);
+    expect($data['active_days'])->toBe([
+        ['date' => '2026-10-19', 'web_app' => false, 'native_mobile_app' => false, 'lite_mobile_app' => true, 'mac_app' => true, 'other_app' => true],
+        ['date' => '2026-10-21', 'web_app' => true, 'native_mobile_app' => true, 'lite_mobile_app' => false, 'mac_app' => false, 'other_app' => false],
+    ]);
 });
 
 it('exports today when the export is the first visit of the day', function (): void {
@@ -496,7 +508,7 @@ it('exports today when the export is the first visit of the day', function (): v
     $response = $this->actingAs($user)->get(route('export'));
     $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
 
-    expect($data['active_days'])->toBe(['2026-10-29', '2026-10-30']);
+    expect(array_column($data['active_days'], 'date'))->toBe(['2026-10-29', '2026-10-30']);
 });
 
 it('exports the organizations the user follows, first follow first', function (): void {
@@ -531,20 +543,22 @@ it('exports the GitHub accounts the user waits to follow', function (): void {
     expect($data['pending_follows'])->toBe(['1', '958072']);
 });
 
-it('exports the devices approved for the app, oldest first', function (): void {
+it('exports the devices approved for the app, oldest first, with what kind of phone a push token is for but not the token', function (): void {
     $user = User::factory()->create();
     $older = Device::factory()->for($user)->create(['name' => 'devnull on iPad', 'approved_at' => now()->subWeek(), 'last_used_at' => now()->subDay()]);
     $newer = Device::factory()->for($user)->create(['name' => 'iPhone', 'app_id' => 'ios:com.nativephp.devnull', 'app_name' => '/dev/null for iOS', 'approved_at' => now()->subDay()]);
+    resolve(UpdateDevicePushToken::class)->handle($newer, 'fcm-token-of-the-iphone', PushPlatform::Ios);
     $other = Device::factory()->create();
 
     $response = $this->actingAs($user)->get(route('export'));
     $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
 
     expect($data['devices'])->toBe([
-        ['name' => 'devnull on iPad', 'app_id' => null, 'app_name' => null, 'fingerprint' => $older->fingerprint, 'approved_at' => now()->subWeek()->toIso8601String(), 'last_used_at' => now()->subDay()->toIso8601String()],
-        ['name' => 'iPhone', 'app_id' => 'ios:com.nativephp.devnull', 'app_name' => '/dev/null for iOS', 'fingerprint' => $newer->fingerprint, 'approved_at' => now()->subDay()->toIso8601String(), 'last_used_at' => null],
+        ['name' => 'devnull on iPad', 'app_id' => null, 'app_name' => null, 'fingerprint' => $older->fingerprint, 'approved_at' => now()->subWeek()->toIso8601String(), 'last_used_at' => now()->subDay()->toIso8601String(), 'push_platform' => null],
+        ['name' => 'iPhone', 'app_id' => 'ios:com.nativephp.devnull', 'app_name' => '/dev/null for iOS', 'fingerprint' => $newer->fingerprint, 'approved_at' => now()->subDay()->toIso8601String(), 'last_used_at' => null, 'push_platform' => 'ios'],
     ])
-        ->and($response->streamedContent())->not->toContain($other->fingerprint);
+        ->and($response->streamedContent())->not->toContain($other->fingerprint)
+        ->not->toContain('fcm-token-of-the-iphone');
 });
 
 it('exports all records across chunk boundaries without omissions or duplicates', function (): void {
@@ -653,6 +667,21 @@ it('exports your remote pins without the pins of other members', function (): vo
     expect($data['remote_pins'])->toBe([
         ['to' => 'alice', 'pinned_at' => now()->toIso8601String()],
         ['to' => 'org: Release crew', 'pinned_at' => now()->toIso8601String()],
+    ]);
+});
+
+it('exports the org mentions the user has not cleared, without the mentions of others', function (): void {
+    $this->freezeSecond();
+    $user = User::factory()->create();
+    [$nuno] = followersOf($user, 1);
+    $org = createOrg($user, [$nuno], 'Release crew');
+    pushToOrg($nuno, $org, "@{$user->handle} can you review?");
+    pushToOrg($user, $org, "@{$nuno->handle} on it");
+
+    $data = json_decode($this->actingAs($user)->get(route('export'))->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
+
+    expect($data['remote_mentions'])->toBe([
+        ['to' => 'org: Release crew', 'created_at' => now()->toIso8601String()],
     ]);
 });
 

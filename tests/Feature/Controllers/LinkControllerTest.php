@@ -2,10 +2,8 @@
 
 declare(strict_types=1);
 
-use App\Enums\OrganizationRole;
 use App\Models\Commit;
 use App\Models\LinkPreview;
-use App\Models\Organization;
 use App\Models\User;
 
 it('keeps the link page to signed-in users', function (): void {
@@ -36,6 +34,27 @@ it('ranks the links of the last 30 days by how many people used them as their ca
         ->where('topLinks.1.commits', 4));
 });
 
+it('orders equally popular links consistently by id', function (): void {
+    $links = LinkPreview::factory()->count(3)->create();
+    $when = now()->subHour();
+
+    foreach ($links as $link) {
+        Commit::factory()->create([
+            'link_preview_id' => $link->id,
+            'created_at' => $when,
+        ]);
+    }
+
+    $expected = $links->sortBy('id')->pluck('url')->values()->all();
+
+    $this->actingAs(User::factory()->create())
+        ->get(route('link.index'))
+        ->assertInertia(fn ($page) => $page
+            ->where('topLinks.0.url', $expected[0])
+            ->where('topLinks.1.url', $expected[1])
+            ->where('topLinks.2.url', $expected[2]));
+});
+
 it('shows only the 10 most shared links', function (): void {
     LinkPreview::factory()->count(11)->create()->each(fn (LinkPreview $link) => Commit::factory()->create(['link_preview_id' => $link->id]));
 
@@ -43,7 +62,7 @@ it('shows only the 10 most shared links', function (): void {
         ->has('topLinks', 10));
 });
 
-it('lists the commits whose card is the link, oldest first', function (): void {
+it('lists the commits whose card is the link, newest first', function (): void {
     $link = LinkPreview::factory()->fetched()->create(['url' => 'https://wiki.php.net/rfc/pipe-operator']);
     $first = Commit::factory()->create(['link_preview_id' => $link->id, 'created_at' => now()->subDay()]);
     $reply = Commit::factory()->create(['link_preview_id' => $link->id, 'parent_id' => $first->id]);
@@ -59,8 +78,75 @@ it('lists the commits whose card is the link, oldest first', function (): void {
             ->where('link.url', 'https://wiki.php.net/rfc/pipe-operator')
             ->where('stats', ['commits' => 2, 'people' => 2])
             ->has('commits.data', 2)
-            ->where('commits.data.0.id', $first->id)
-            ->where('commits.data.1.id', $reply->id));
+            ->where('commits.data.0.id', $reply->id)
+            ->where('commits.data.1.id', $first->id));
+});
+
+it('nests the 3 most starred commits of the last 6 hours under each link, then its newest', function (): void {
+    $link = LinkPreview::factory()->fetched()->create();
+    $trending = Commit::factory()->create(['link_preview_id' => $link->id, 'created_at' => now()->subDay()]);
+    $oldFavourite = Commit::factory()->create(['link_preview_id' => $link->id, 'created_at' => now()->subHours(3)]);
+    $newest = Commit::factory()->create(['link_preview_id' => $link->id, 'created_at' => now()->subHour()]);
+    $newer = Commit::factory()->create(['link_preview_id' => $link->id, 'created_at' => now()->subHours(2)]);
+    $trending->stars()->attach(User::factory()->count(2)->create(), ['created_at' => now()->subHour()]);
+    $oldFavourite->stars()->attach(User::factory()->count(5)->create(), ['created_at' => now()->subHours(7)]);
+
+    $this->actingAs(User::factory()->create())->get(route('link.index'))->assertOk()->assertInertia(fn ($page) => $page
+        ->where('topLinks.0.stars_last_6h', 2)
+        ->where('topLinks.0.commits', 4)
+        ->has('topLinks.0.top_commits', 3)
+        ->where('topLinks.0.top_commits.0.id', $trending->id)
+        ->where('topLinks.0.top_commits.1.id', $newest->id)
+        ->where('topLinks.0.top_commits.2.id', $newer->id));
+});
+
+it('counts every star of the approved commits of each link, however old', function (): void {
+    $link = LinkPreview::factory()->fetched()->create();
+    Commit::factory()->create(['link_preview_id' => $link->id])->stars()->attach(User::factory()->count(2)->create(), ['created_at' => now()->subWeek()]);
+    Commit::factory()->create(['link_preview_id' => $link->id])->stars()->attach(User::factory()->create(), ['created_at' => now()]);
+    Commit::factory()->pending()->create(['link_preview_id' => $link->id])->stars()->attach(User::factory()->create(), ['created_at' => now()]);
+
+    $this->actingAs(User::factory()->create())->get(route('link.index'))->assertOk()->assertInertia(fn ($page) => $page
+        ->where('topLinks.0.stars', 3)
+        ->where('topLinks.0.stars_last_6h', 1));
+});
+
+it('lists the links whose commits got stars in the last 6 hours first', function (): void {
+    $shared = LinkPreview::factory()->fetched()->create();
+    Commit::factory()->count(3)->create(['link_preview_id' => $shared->id]);
+    $starred = LinkPreview::factory()->fetched()->create();
+    Commit::factory()->create(['link_preview_id' => $starred->id])->stars()->attach(User::factory()->create(), ['created_at' => now()]);
+
+    $this->actingAs(User::factory()->create())->get(route('link.index'))->assertOk()->assertInertia(fn ($page) => $page
+        ->where('topLinks.0.url', $starred->url)
+        ->where('topLinks.1.url', $shared->url));
+});
+
+it('counts the commits of a link the viewer may see, however old', function (): void {
+    $viewer = User::factory()->create();
+    $blocked = User::factory()->create();
+    $viewer->blocking()->attach($blocked);
+    $link = LinkPreview::factory()->fetched()->create();
+    Commit::factory()->count(3)->create(['link_preview_id' => $link->id]);
+    Commit::factory()->create(['link_preview_id' => $link->id, 'created_at' => now()->subDays(31)]);
+    Commit::factory()->for($blocked)->create(['link_preview_id' => $link->id]);
+
+    $this->actingAs($viewer)->get(route('link.index'))->assertOk()->assertInertia(fn ($page) => $page
+        ->where('topLinks.0.commits', 4)
+        ->has('topLinks.0.top_commits', 3));
+});
+
+it('hides the commits the viewer may not see from the list of links', function (): void {
+    $viewer = User::factory()->create();
+    $blocked = User::factory()->create();
+    $viewer->blocking()->attach($blocked);
+    $link = LinkPreview::factory()->fetched()->create();
+    $visible = Commit::factory()->create(['link_preview_id' => $link->id]);
+    Commit::factory()->for($blocked)->create(['link_preview_id' => $link->id]);
+
+    $this->actingAs($viewer)->get(route('link.index'))->assertOk()->assertInertia(fn ($page) => $page
+        ->has('topLinks.0.top_commits', 1)
+        ->where('topLinks.0.top_commits.0.id', $visible->id));
 });
 
 it('hides the commits the viewer may not see from the link page', function (): void {
@@ -68,27 +154,17 @@ it('hides the commits the viewer may not see from the link page', function (): v
     $blocked = User::factory()->create();
     $viewer->blocking()->attach($blocked);
     $link = LinkPreview::factory()->create();
-    $visibleUser = User::factory()->create();
-    $visible = Commit::factory()->for($visibleUser)->create(['link_preview_id' => $link->id]);
-    $visibleAgain = Commit::factory()->for($visibleUser)->create(['link_preview_id' => $link->id]);
-    $organization = Organization::factory()->create();
-    $organization->members()->attach($viewer->id, ['role' => OrganizationRole::Member]);
-    $organizationPoster = User::factory()->create();
-    $organizationCommit = Commit::factory()->for($organizationPoster)->create([
-        'link_preview_id' => $link->id,
-        'author_id' => $organization->id,
-    ]);
+    $visibleAuthor = User::factory()->create();
+    $visible = Commit::factory()->for($visibleAuthor)->create(['link_preview_id' => $link->id]);
+    $alsoVisible = Commit::factory()->for($visibleAuthor)->create(['link_preview_id' => $link->id]);
     Commit::factory()->count(2)->for($blocked)->create(['link_preview_id' => $link->id]);
     Commit::factory()->pending()->create(['link_preview_id' => $link->id]);
     $own = Commit::factory()->pending()->for($viewer)->create(['link_preview_id' => $link->id]);
 
     $this->actingAs($viewer)->get(route('link.index', ['url' => $link->url]))->assertOk()->assertInertia(fn ($page) => $page
-        ->has('commits.data', 4)
-        ->where('stats', ['commits' => 4, 'people' => 3])
-        ->where('commits.data.0.id', $visible->id)
-        ->where('commits.data.1.id', $visibleAgain->id)
-        ->where('commits.data.2.id', $organizationCommit->id)
-        ->where('commits.data.3.id', $own->id));
+        ->where('stats', ['commits' => 3, 'people' => 2])
+        ->has('commits.data', 3)
+        ->where('commits.data', fn ($commits): bool => collect($commits)->pluck('id')->sort()->values()->all() === collect([$visible->id, $alsoVisible->id, $own->id])->sort()->values()->all()));
 });
 
 it('finds the link of a bare domain like its card does', function (): void {

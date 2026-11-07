@@ -51,7 +51,7 @@ import type { AppLayoutProps } from '@/types';
 export default function AppLayout({ children }: AppLayoutProps) {
     const {
         component,
-        props: { auth, isMobileApp },
+        props: { auth, isLiteMobileApp },
     } = usePage();
     const { isLayoutOpen } = useNavOpen();
     const [isShowingShortcuts, setIsShowingShortcuts] = useState(false);
@@ -173,7 +173,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
                     )}
                     {!isMessages &&
                         component !== 'app/index' &&
-                        !isMobileApp && <MobileAppSuggestion />}
+                        !isLiteMobileApp && <MobileAppSuggestion />}
                 </MobileNav>
 
                 {deletedPage === null ? (

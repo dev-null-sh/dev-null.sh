@@ -181,7 +181,7 @@ test('ends the chain of search results on a dot below the last one', async () =>
     );
 });
 
-test('draws related commits in a canvas of their own, chained one after the other and ending on a dot below the last one', async () => {
+test('draws related commits in a canvas of their own, each commit ending on its dot as in a feed', async () => {
     const html = await render(() => (
         <RelatedCommitList
             commits={[commit('one', 1), commit('two', 2), commit('three', 3)]}
@@ -190,10 +190,5 @@ test('draws related commits in a canvas of their own, chained one after the othe
 
     assert.equal(html.match(/data-test="graph-canvas"/g)?.length, 1);
     assert.equal(railPiecesLeftShowing(html), 0);
-    assert.equal(html.match(/data-test="rail-end-dot"/g)?.length, 1);
-    // In the last card: past everything the second one shows.
-    assert.ok(
-        html.indexOf('data-test="rail-end-dot"') >
-            html.lastIndexOf('Commit two'),
-    );
+    assert.equal(html.match(/data-test="rail-end-dot"/g)?.length, 3);
 });

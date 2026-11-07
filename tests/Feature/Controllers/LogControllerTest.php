@@ -190,6 +190,18 @@ it('remembers the last visited log', function (Log $log): void {
     expect($user->refresh()->log)->toBe($log);
 })->with(Log::cases());
 
+it('does not remember a log that is only prefetched', function (): void {
+    $user = User::factory()->create(['log' => Log::Latest]);
+
+    $this->actingAs($user)->withHeaders([
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request()),
+        'Purpose' => 'prefetch',
+    ])->get(route('log.show', Log::Following))->assertOk();
+
+    expect($user->refresh()->log)->toBe(Log::Latest);
+});
+
 it('does not update the user when the log is unchanged', function (): void {
     $user = User::factory()->create(['log' => Log::Trending]);
     $updatedAt = $user->updated_at;
@@ -231,6 +243,12 @@ it('sends guests to sign in with GitHub for the following log', function (): voi
     $this->get(route('log.show', Log::Following), ['X-Inertia' => 'true', 'X-Inertia-Version' => (string) resolve(HandleInertiaRequests::class)->version(request())])
         ->assertStatus(409)
         ->assertHeader('X-Inertia-Location', route('login'));
+});
+
+it('keeps the reload a deploy forces apart from the page in the browser cache', function (): void {
+    $this->get(route('log.show', Log::Latest), ['X-Inertia' => 'true', 'X-Inertia-Version' => 'before-the-deploy'])
+        ->assertConflict()
+        ->assertHeader('Vary', 'X-Inertia');
 });
 
 it('does not count newer commits on the trending log', function (?bool $signedIn): void {

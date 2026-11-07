@@ -6,7 +6,6 @@ use App\Enums\Log;
 use App\Enums\ProfileType;
 use App\Http\Controllers\AboutController;
 use App\Http\Controllers\AppController;
-use App\Http\Controllers\AppSessionController;
 use App\Http\Controllers\BanController;
 use App\Http\Controllers\BannedController;
 use App\Http\Controllers\BrandController;
@@ -99,6 +98,7 @@ use App\Http\Controllers\OrgCallController;
 use App\Http\Controllers\OrgCallIceServerController;
 use App\Http\Controllers\OrgController;
 use App\Http\Controllers\OrgMemberController;
+use App\Http\Controllers\OrgMentionController;
 use App\Http\Controllers\OrgMessageController;
 use App\Http\Controllers\OrgMuteController;
 use App\Http\Controllers\OrgPinController;
@@ -201,15 +201,6 @@ Route::middleware('guest')->group(function (): void {
         ->middleware('throttle:join-links')
         ->name('join-link.store');
 });
-
-// Signing in the iOS app POC (temporary, see AppSignIn): the sign-in starts in the system's sheet, signed in to /dev/null or not, and the code it
-// hands back signs in the app's web view, whoever was signed in there...
-Route::get('auth/app', [AppSessionController::class, 'create'])
-    ->middleware('throttle:10,1')
-    ->name('app-session.create');
-Route::get('auth/app/callback', [AppSessionController::class, 'store'])
-    ->middleware('throttle:10,1')
-    ->name('app-session.store');
 
 // Log, where guests read Trending and Latest...
 Route::get('log/everyone', fn () => to_route('log.show', Log::Trending, 301));
@@ -367,7 +358,7 @@ Route::get('search/commits', [CommitSearchController::class, 'index'])
 
 Route::get('headlines/{headline}', [HeadlineController::class, 'show'])
     ->whereUuid('headline')
-    ->middleware(['auth', 'throttle:search'])
+    ->middleware('auth')
     ->name('headline.show');
 
 Route::middleware('auth')->group(function (): void {
@@ -535,6 +526,7 @@ Route::middleware('auth')->group(function (): void {
         Route::delete('remotes/orgs/{org}/call', [OrgCallController::class, 'destroy'])->whereUuid('org')->name('org-call.destroy');
         Route::get('remotes/orgs/{org}/messages', [OrgMessageController::class, 'index'])->whereUuid('org')->name('org-message.index');
         Route::put('remotes/orgs/{org}/read', [OrgReadController::class, 'update'])->whereUuid('org')->name('org-read.update');
+        Route::delete('remotes/orgs/{org}/mentions', [OrgMentionController::class, 'destroy'])->whereUuid('org')->name('org-mention.destroy');
         Route::put('remotes/orgs/{org}/typing', [OrgTypingController::class, 'update'])->whereUuid('org')->name('org-typing.update');
         Route::post('remotes/orgs/{org}/archive', [OrgArchiveController::class, 'store'])->whereUuid('org')->name('org-archive.store');
         Route::delete('remotes/orgs/{org}/archive', [OrgArchiveController::class, 'destroy'])->whereUuid('org')->name('org-archive.destroy');
