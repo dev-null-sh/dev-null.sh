@@ -1,0 +1,21 @@
+{
+    "name": "devnull-mobile",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "sync": "cap sync ios",
+        "ios": "cap open ios",
+        "assets": "bun scripts/icons.ts",
+        "testflight": "./scripts/testflight.sh"
+    },
+    "dependencies": {
+        "@capacitor/core": "^8.6.0",
+        "@capacitor/ios": "^8.6.0"
+    },
+    "devDependencies": {
+        "@capacitor/cli": "^8.6.0",
+        "@types/node": "^26.6.6",
+        "sharp": "^0.35.5",
+        "typescript": "^7.0.2"
+    }
+}

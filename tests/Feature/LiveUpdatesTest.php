@@ -17,7 +17,6 @@ use App\Actions\DeleteOrganization;
 use App\Actions\DeleteUser;
 use App\Actions\UpdateCommitStatuses;
 use App\Actions\UpdateConversationReadThrough;
-use App\Actions\UpdateFeature;
 use App\Actions\UpdateLinkPreview;
 use App\Actions\UpdateOrganizationLane;
 use App\Actions\UpdateOrgCall;
@@ -29,7 +28,6 @@ use App\Contracts\Services\LinkPreviewProvider;
 use App\Dto\AuthorizationCode;
 use App\Enums\CommitStatus;
 use App\Enums\CommitUpdate;
-use App\Enums\Feature;
 use App\Enums\Log;
 use App\Enums\ModerationReason;
 use App\Enums\NotificationType;
@@ -37,7 +35,6 @@ use App\Enums\RemoteStatus;
 use App\Enums\TimeoutDuration;
 use App\Enums\UserUpdate;
 use App\Events\CommitsUpdated;
-use App\Events\FeaturesUpdated;
 use App\Events\ProfilesUpdated;
 use App\Events\UsersUpdated;
 use App\Http\Middleware\HandleInertiaRequests;
@@ -524,16 +521,14 @@ it('tells everyone showing an organization when its color, followers or admins c
         ->and(recipientsOf(usersUpdated(UserUpdate::Relationships)))->toBe([$follower->id]);
 });
 
-it("tells the user's other pages when the log they read, the terms they accepted or a feature changes", function (): void {
-    Event::fake([UsersUpdated::class, FeaturesUpdated::class]);
+it("tells the user's other pages when the log they read or the terms they accepted change", function (): void {
+    Event::fake([UsersUpdated::class]);
     $user = User::factory()->create();
 
     resolve(UpdateUserLog::class)->handle($user, Log::Latest);
     resolve(UpdateUserTermsAcceptance::class)->handle($user);
-    resolve(UpdateFeature::class)->handle(Feature::OrganizationCommits, true);
 
     expect(usersUpdated(UserUpdate::Account))->toHaveCount(2);
-    Event::assertDispatched(FeaturesUpdated::class);
 });
 
 it("refreshes an organization page from its public channel and the viewer's relationship to it from theirs", function (): void {

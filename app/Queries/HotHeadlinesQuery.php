@@ -12,6 +12,8 @@ use Illuminate\Support\Facades\DB;
 
 final readonly class HotHeadlinesQuery
 {
+    public const int WINDOW_HOURS = 12;
+
     public function __construct(private TheAlgorithm $theAlgorithm)
     {
         //
@@ -20,8 +22,11 @@ final readonly class HotHeadlinesQuery
     /**
      * Each author contributes only their strongest recent commit per headline: one, plus its positive hot-score lead
      * over a new, unengaged commit. That lead already measures engagement logarithmically and discounts age, so one
-     * viral thread does not contribute its raw engagement count. The eight-hour window uses posting time, never the
+     * viral thread does not contribute its raw engagement count. The twelve-hour window uses posting time, never the
      * time a backfill linked the headline.
+     * A topic needs multiple root authors or one root with the age-discounted weight of two fresh outside repliers.
+     * Self-only activity adds no weight, but answering outside repliers receives the existing conversation bonus.
+     * Repeated roots cannot combine to meet the cutoff.
      * Ties use author breadth and name, never post count or recency, so repeated weaker posts cannot lift a headline.
      * Rankings are deterministic, without the Trending log's random draw or network adjustments.
      *
@@ -31,13 +36,16 @@ final readonly class HotHeadlinesQuery
     {
         $now = now();
         $baseline = $this->theAlgorithm->score($now, ThreadEngagement::none());
+        $minimumHotScore = $this->theAlgorithm->score($now, new ThreadEngagement(
+            stargazers: 0, quoters: 0, repliers: 2, repliersAnsweredByAuthor: 0,
+        ));
 
         $contributions = Commit::query()
             ->topLevel()
             ->approved()
             ->visibleTo($viewer)
             ->withoutMutedAuthorsFor($viewer)
-            ->whereBetween('commits.created_at', [$now->copy()->subHours(8), $now])
+            ->whereBetween('commits.created_at', [$now->copy()->subHours(self::WINDOW_HOURS), $now])
             ->toBase()
             ->join('commit_headline', 'commit_headline.commit_id', '=', 'commits.id')
             ->select('commit_headline.headline_id')
@@ -51,6 +59,7 @@ final readonly class HotHeadlinesQuery
             ->select('headlines.id', 'headlines.name')
             ->selectRaw('sum(contributions.commits_count)::bigint as commits_count, count(*) as authors_count, sum(1 + greatest(0::float8, contributions.hot_score - ?::float8)) as score', [$baseline])
             ->groupBy('headlines.id', 'headlines.name')
+            ->havingRaw('count(*) > 1 or max(contributions.hot_score) >= ?::float8', [$minimumHotScore])
             ->orderByDesc('score')
             ->orderByDesc('authors_count')
             ->orderBy('headlines.name')

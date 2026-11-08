@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 /**
- * A feature keeps its default until an administrator switches it, so only the switched ones are stored.
+ * A feature is on until an administrator switches it off, so only the switched ones are stored.
  */
 final readonly class Features
 {
@@ -17,7 +17,7 @@ final readonly class Features
 
     public function enabled(Feature $feature): bool
     {
-        return $this->switched()[$feature->value] ?? $feature->isEnabledByDefault();
+        return $this->switched()[$feature->value] ?? true;
     }
 
     /** @return list<array{name: string, enabled: bool}> */

@@ -16,7 +16,7 @@ use Inertia\Inertia;
 use Inertia\Response;
 
 /**
- * A prototype gathering every commit about a link on one page, like the comments under it.
+ * A prototype of topics, a link being one: a page to explore them, and a page for each one with every commit about it.
  */
 final readonly class LinkController
 {
@@ -27,7 +27,7 @@ final readonly class LinkController
         if ($url === null) {
             return Inertia::render('links/index', [
                 'url' => null,
-                'topLinks' => $topLinks->get(),
+                'topLinks' => $topLinks->get($user),
             ]);
         }
 

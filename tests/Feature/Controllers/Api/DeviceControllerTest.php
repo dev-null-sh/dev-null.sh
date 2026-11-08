@@ -13,6 +13,7 @@ use App\Models\SshKey;
 use App\Models\User;
 use Illuminate\Cache\Events\CacheHit;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Testing\TestResponse;
@@ -54,6 +55,22 @@ it('refuses a terms answer that is not a yes or no', function (): void {
 
     expect($this->user->refresh()->terms_accepted_at)->toBeNull();
 });
+
+it('records the app that signs in, told by the id it was approved with', function (?string $appId, string $column): void {
+    $code = resolve(CreateAuthorizationCode::class)->handle($this->user, new MobileAuthorization(
+        $this->keyPair->publicKey->fingerprint(), 'devnull on iPhone', AuthorizationCode::challengeFor($this->verifier), 'state', 'devnull://auth/callback', appId: $appId,
+    ));
+
+    signedApiRequest($this->keyPair, 'POST', route('api-device.store'), ['code' => $code, 'code_verifier' => $this->verifier])->assertOk();
+
+    $day = (array) DB::table('user_active_days')->where('user_id', $this->user->id)->sole(['web_app', 'native_mobile_app', 'lite_mobile_app', 'mac_app', 'other_app']);
+
+    expect(array_keys(array_filter($day)))->toBe([$column]);
+})->with([
+    'lite mobile app' => [MobileAuthorization::LiteMobileAppId, 'lite_mobile_app'],
+    'NativePHP app' => ['ios:com.nativephp.devnull', 'native_mobile_app'],
+    'app without an id' => [null, 'other_app'],
+]);
 
 it('approves the key that redeems the code as a device, and answers like me', function (): void {
     $response = signedApiRequest($this->keyPair, 'POST', route('api-device.store'), ['code' => $this->code, 'code_verifier' => $this->verifier]);
