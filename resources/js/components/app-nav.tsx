@@ -48,14 +48,15 @@ import { useCurrentUrl } from '@/hooks/use-current-url';
 import { useMediaQuery } from '@/hooks/use-media-query';
 import { useNavOpen } from '@/hooks/use-nav-open';
 import { useKeyLabels } from '@/lib/keyboard';
-import { scrollLogToTop } from '@/lib/log-scroll';
-import type { MobileAppTabs as MobileAppTabsState } from '@/lib/mobile-app';
 import {
-    hideMobileAppTabs,
-    setMobileAppTabs,
+    hideLiteMobileAppTabs,
+    setLiteMobileAppTabs,
     useDocumentTheme,
     useIsModalOpen,
-} from '@/lib/mobile-app';
+} from '@/lib/lite-mobile-app';
+import type { LiteMobileAppTabs as LiteMobileAppTabsState } from '@/lib/lite-mobile-app-tabs';
+import { liteMobileAppTabs } from '@/lib/lite-mobile-app-tabs';
+import { scrollLogToTop } from '@/lib/log-scroll';
 import { browserTimeZone, cn, toUrl } from '@/lib/utils';
 import { home, login } from '@/routes';
 import { show } from '@/routes/user';
@@ -530,7 +531,7 @@ export function MobileCommitButton({
             title="Write a commit"
             className={cn(
                 'absolute right-4 bottom-full mb-4 size-14 rounded-lg shadow-lg transition-[opacity,translate] duration-200 [view-transition-name:mobile-commit-button] md:hidden',
-                // In the iOS app POC, while reading down a page shrinks its tab bar (temporary, see `@/lib/mobile-app`)
+                // In the lite mobile app, while reading down a page shrinks its tab bar
                 '[:root[data-tab-bar-collapsed]_&]:pointer-events-none [:root[data-tab-bar-collapsed]_&]:translate-y-[calc(100%+3rem)] [:root[data-tab-bar-collapsed]_&]:opacity-0',
                 { 'pointer-events-none opacity-0': isHidden },
             )}
@@ -545,7 +546,7 @@ export function MobileCommitButton({
  * Shares its real height, safe area included, as `--mobile-nav-height`, so full-screen pages can end right above it.
  */
 export function MobileNav({ children }: { children?: ReactNode }) {
-    const { auth, isMobileApp } = usePage().props;
+    const { auth, isLiteMobileApp } = usePage().props;
     const timeZone = auth.user?.timezone ?? browserTimeZone();
     const {
         changelog,
@@ -594,17 +595,17 @@ export function MobileNav({ children }: { children?: ReactNode }) {
         };
     }, []);
 
-    // The iOS app POC draws the tabs itself (temporary, see `@/lib/mobile-app`). The nav keeps the height of its tab bar, which the app adds to the safe area, so
-    // the commit button floats above the bar and full-screen pages end right above it.
-    if (isMobileApp) {
+    // The lite mobile app draws the tabs itself. The nav keeps the height of its tab bar, which the app adds to the safe
+    // area, so the commit button floats above the bar and full-screen pages end right above it.
+    if (isLiteMobileApp) {
         return (
             <nav
                 ref={nav}
                 aria-label="Main"
-                className="pointer-events-none fixed inset-x-0 bottom-0 z-20 pb-[env(safe-area-inset-bottom)] *:pointer-events-auto md:hidden"
+                className="pointer-events-none fixed inset-x-0 bottom-0 z-20 pb-[env(safe-area-inset-bottom)] *:pointer-events-auto md:hidden [:root[data-keyboard-open]_&]:hidden"
             >
                 {children}
-                <MobileAppTabs items={allItems} />
+                <LiteMobileAppNavTabs items={allItems} />
             </nav>
         );
     }
@@ -727,23 +728,10 @@ export function MobileNav({ children }: { children?: ReactNode }) {
     );
 }
 
-// The rest of the navigation, Profile and Settings included, is in the account menu of the header.
-// The rest of the navigation, Profile and Settings included, is in the account menu of the header.
-const MOBILE_APP_TABS: Record<string, { icon: string; paths: RegExp }> = {
-    Log: { icon: 'commit', paths: /^\/(log(\/|$)|$)/ },
-    Notifications: { icon: 'bell', paths: /^\/notifications(\/|$)/ },
-    Remotes: {
-        icon: 'bubble.left.and.bubble.right',
-        paths: /^\/remotes(\/|$)/,
-    },
-};
-
 /**
- * Hands the main items of the navigation to the iOS app's tab bar (temporary, see `@/lib/mobile-app`). The tab bar
- * only shows in those three sections: elsewhere, a profile, a commit or the settings show over it, as iOS screens
- * pushed over a tab do, and the edge swipe goes back.
+ * Hands the main items of the navigation to the lite mobile app's tab bar.
  */
-function MobileAppTabs({
+function LiteMobileAppNavTabs({
     items,
 }: {
     items: (NavItem & { isActive: boolean })[];
@@ -751,32 +739,27 @@ function MobileAppTabs({
     const { url } = usePage();
     const [appearance, tint] = useDocumentTheme().split(' ');
     const isModalOpen = useIsModalOpen();
-    const path = new URL(url, 'https://dev-null.sh').pathname;
-    const tabs = items.filter((item) => item.title in MOBILE_APP_TABS);
-    const selected = tabs.find((item) =>
-        MOBILE_APP_TABS[item.title].paths.test(path),
+    const key = JSON.stringify(
+        liteMobileAppTabs(
+            items.map((item) => ({
+                title: item.title,
+                url: toUrl(item.href),
+                badge: item.badge,
+            })),
+            new URL(url, 'https://dev-null.sh').pathname,
+            {
+                appearance: appearance === 'light' ? 'light' : 'dark',
+                tint: tint || null,
+                isModalOpen,
+            },
+        ),
     );
-    const state: MobileAppTabsState = {
-        tabs: tabs.map((item) => ({
-            id: item.title.toLowerCase(),
-            title: item.title,
-            icon: MOBILE_APP_TABS[item.title].icon,
-            url: toUrl(item.href),
-            badge: item.badge,
-            dot: item.hasIndicator,
-        })),
-        selected: selected?.title.toLowerCase() ?? null,
-        visible: selected !== undefined && !isModalOpen,
-        appearance: appearance === 'light' ? 'light' : 'dark',
-        tint: tint || null,
-    };
-    const key = JSON.stringify(state);
 
     useEffect(() => {
-        setMobileAppTabs(JSON.parse(key) as MobileAppTabsState);
+        setLiteMobileAppTabs(JSON.parse(key) as LiteMobileAppTabsState);
     }, [key]);
 
-    useEffect(() => hideMobileAppTabs, []);
+    useEffect(() => hideLiteMobileAppTabs, []);
 
     return null;
 }

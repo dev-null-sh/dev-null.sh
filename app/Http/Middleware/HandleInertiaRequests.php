@@ -34,6 +34,7 @@ use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\LiveProp;
 use Inertia\Middleware;
+use Inertia\Support\Header;
 use Symfony\Component\HttpFoundation\Response;
 
 final class HandleInertiaRequests extends Middleware
@@ -56,6 +57,8 @@ final class HandleInertiaRequests extends Middleware
     /**
      * A deploy sends a page built for the previous version back for a full reload. That page already took the flashed
      * data off the session, so it is flashed again for the reload: the composer learns its commit went through.
+     * The reload replaces the response that carried `Vary: X-Inertia`, so it is set again: without it a browser
+     * restoring the tab can serve this empty 409 as the page itself.
      */
     public function onVersionChange(Request $request, Response $response): Response
     {
@@ -63,6 +66,7 @@ final class HandleInertiaRequests extends Middleware
         $page = $response instanceof JsonResponse ? $response->getData(true) : [];
 
         $response = parent::onVersionChange($request, $response);
+        $response->setVary(Header::INERTIA);
 
         if (($page['flash'] ?? []) !== []) {
             Inertia::flash($page['flash']);
@@ -159,8 +163,9 @@ final class HandleInertiaRequests extends Middleware
             // Guests see how many developers are here, next to the sign-in button...
             'developersCount' => fn (): ?int => $user instanceof User ? null : resolve(DevelopersCountQuery::class)->get(),
             'hasUnmoderatedCommits' => $isAdmin ? $live(fn (): bool => Commit::query()->pending()->exists(), UserUpdate::Moderation) : false,
-            // The iOS app POC's web view, which draws its own tab bar (see resources/js/lib/mobile-app.ts)...
-            'isMobileApp' => str_contains((string) $request->userAgent(), 'DevNullCapacitorPOC/'),
+            // The lite mobile app, which draws its own tab bar (see resources/js/lib/lite-mobile-app.ts). Any browser can send this
+            // token, so it only ever changes the UI...
+            'isLiteMobileApp' => str_contains((string) $request->userAgent(), 'DevNullLite/'),
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'showsWhoToFollow' => $showsWhoToFollow,
             ...$user instanceof User && $liveFollowing !== null ? [

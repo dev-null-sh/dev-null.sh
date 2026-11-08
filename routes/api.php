@@ -88,6 +88,7 @@ use App\Http\Controllers\Api\UserSettingsController;
 use App\Http\Controllers\Api\UserTermsController;
 use App\Http\Controllers\Api\UserTimezoneController;
 use App\Http\Controllers\Api\UserTranslationLanguageController;
+use App\Http\Controllers\Api\WebSessionController;
 use App\Http\Controllers\Cli\CommitController;
 use App\Http\Controllers\Cli\KeyLookupController;
 use App\Http\Middleware\AuthenticateSignedRequest;
@@ -95,7 +96,11 @@ use App\Http\Middleware\AuthenticateSshSignature;
 use App\Http\Middleware\PreventPostingInTimeout;
 use App\Http\Middleware\RequireCommitRules;
 use App\Http\Middleware\ThrottleCommits;
+use App\Http\Middleware\UpdateLastSeenAt;
+use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
+use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Session\Middleware\StartSession;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('cli')->group(function (): void {
@@ -189,6 +194,12 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         Route::delete('me/devices/{device}', [DeviceController::class, 'destroy'])
             ->whereUuid('device')
             ->name('api-device.destroy');
+
+        // Web session: the lite mobile app's web view signs in with cookies made for the device. It isn't a visit: the page it loads next is...
+        Route::post('me/web-session', [WebSessionController::class, 'store'])
+            ->withoutMiddleware(UpdateLastSeenAt::class)
+            ->middleware([EncryptCookies::class, AddQueuedCookiesToResponse::class, StartSession::class])
+            ->name('api-web-session.store');
 
         // Push notifications: the token pushes reach the phone that signs the request with, and what the user wants pushed...
         Route::put('me/push-token', [DevicePushTokenController::class, 'update'])->name('api-device-push-token.update');

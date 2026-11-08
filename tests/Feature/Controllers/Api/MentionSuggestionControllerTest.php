@@ -43,8 +43,8 @@ it('suggests matches, people the user follows first, leaving out muted people an
 
 it("only suggests an org's members within it", function (): void {
     [$taylor, $jess] = followersOf($this->user, 2);
-    $taylor->profile->update(['handle' => 'taylor']);
-    $jess->profile->update(['handle' => 'jess']);
+    $taylor->profile->update(['handle' => 'taylor', 'name' => 'Taylor']);
+    $jess->profile->update(['handle' => 'jess', 'name' => 'Jess']);
     User::factory()->create(['handle' => 'taylorotwell']);
     $org = createOrg($this->user, [$taylor, $jess]);
 
