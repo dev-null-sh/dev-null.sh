@@ -240,6 +240,9 @@ function NavTooltip({
     );
 }
 
+/**
+ * Renders the GitHub sign-in action for the sidebar.
+ */
 function SignInButton({ className }: { className?: string }) {
     return (
         <Button asChild className={className}>
@@ -251,6 +254,9 @@ function SignInButton({ className }: { className?: string }) {
     );
 }
 
+/**
+ * Renders a navigation icon with its unread badge or moderation indicator.
+ */
 function NavIcon({
     item,
     indicatorClassName,
@@ -286,6 +292,9 @@ function NavIcon({
     );
 }
 
+/**
+ * Renders the desktop navigation rail and its account actions.
+ */
 export function AppNav({
     onSearch,
     onCompose,
@@ -468,6 +477,9 @@ export function AppNav({
     );
 }
 
+/**
+ * Renders the compact mobile header with search and account controls.
+ */
 export function MobileHeader({ onSearch }: { onSearch: () => void }) {
     const { auth } = usePage().props;
 
@@ -519,6 +531,9 @@ export function MobileHeader({ onSearch }: { onSearch: () => void }) {
     );
 }
 
+/**
+ * Renders the compose action in the dock or as a floating action for the lite mobile app.
+ */
 export function MobileCommitButton({
     isFloating = false,
     isHidden,
@@ -660,7 +675,7 @@ export function MobileNav({ children }: { children?: ReactNode }) {
         const element = nav.current;
         const surface = dock.current;
 
-        if (element === null || surface === null) {
+        if (element === null) {
             return;
         }
 
@@ -672,9 +687,13 @@ export function MobileNav({ children }: { children?: ReactNode }) {
             if (height > 0) {
                 root.style.setProperty('--mobile-nav-height', `${height}px`);
 
-                const width = surface.getBoundingClientRect().width;
+                if (surface !== null) {
+                    const width = surface.getBoundingClientRect().width;
 
-                if (width > 0) {
+                    if (width <= 0) {
+                        return;
+                    }
+
                     // Leave room for 44px targets, including compose, on narrow screens.
                     const compactWidth = Math.min(
                         width,
@@ -706,6 +725,9 @@ export function MobileNav({ children }: { children?: ReactNode }) {
     }, [itemCount]);
 
     // Only the surface scales. Fixed-size controls translate between evenly spaced slots.
+    /**
+     * Positions a dock control before or after the dock contracts.
+     */
     const itemPosition = (index: number, offset = 0) => ({
         transform: isCompact
             ? `translate(calc(var(--dock-inset, 0px) * ${(itemCount - 1 - 2 * index) / itemCount} + ${offset}px), 2px)`
