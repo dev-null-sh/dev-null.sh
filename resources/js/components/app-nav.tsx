@@ -14,6 +14,7 @@ import {
     SquarePen,
     UserRound,
 } from 'lucide-react';
+import { Children, isValidElement } from 'react';
 import type { ReactElement, ReactNode } from 'react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import ConversationController from '@/actions/App/Http/Controllers/ConversationController';
@@ -519,9 +520,11 @@ export function MobileHeader({ onSearch }: { onSearch: () => void }) {
 }
 
 export function MobileCommitButton({
+    isFloating = false,
     isHidden,
     onCompose,
 }: {
+    isFloating?: boolean;
     isHidden: boolean;
     onCompose: () => void;
 }) {
@@ -535,7 +538,9 @@ export function MobileCommitButton({
             aria-label="Write a commit"
             title="Write a commit"
             className={cn(
-                'group pointer-events-auto absolute inset-0 size-11 rounded-full text-muted-foreground transition-colors [view-transition-name:mobile-commit-button] hover:bg-transparent hover:text-foreground motion-reduce:transition-none md:hidden',
+                isFloating
+                    ? 'group pointer-events-auto absolute right-4 bottom-full mb-4 size-14 rounded-full bg-primary text-primary-foreground shadow-lg transition-colors hover:bg-primary/90 motion-reduce:transition-none md:hidden'
+                    : 'group pointer-events-auto absolute inset-0 size-11 rounded-full text-muted-foreground transition-colors [view-transition-name:mobile-commit-button] hover:bg-transparent hover:text-foreground motion-reduce:transition-none md:hidden',
                 // In the lite mobile app, while reading down a page shrinks its tab bar
                 '[:root[data-tab-bar-collapsed]_&]:pointer-events-none [:root[data-tab-bar-collapsed]_&]:translate-y-[calc(100%+3rem)] [:root[data-tab-bar-collapsed]_&]:opacity-0',
                 { 'pointer-events-none opacity-0': isHidden },
@@ -573,8 +578,16 @@ export function MobileNav({ children }: { children?: ReactNode }) {
             item.title !== 'Starred' &&
             !menuItems.some((menuItem) => menuItem.title === item.title),
     );
+    const renderedChildren = Children.toArray(children);
+    const dockChild = renderedChildren.find(
+        (child) => isValidElement(child) && child.type === MobileCommitButton,
+    );
+    const auxiliaryChildren = renderedChildren.filter(
+        (child) => child !== dockChild,
+    );
+    const hasDockChild = dockChild !== undefined;
     const isMenuActive = menuItems.some((item) => item.isActive);
-    const itemCount = items.length + 1 + (children ? 1 : 0);
+    const itemCount = items.length + 1 + (hasDockChild ? 1 : 0);
     const nav = useRef<HTMLElement>(null);
     const dock = useRef<HTMLDivElement>(null);
     const [isCompact, setIsCompact] = useState(false);
@@ -709,7 +722,7 @@ export function MobileNav({ children }: { children?: ReactNode }) {
                 aria-label="Main"
                 className="pointer-events-none fixed inset-x-0 bottom-0 z-20 pb-[env(safe-area-inset-bottom)] *:pointer-events-auto md:hidden [:root[data-keyboard-open]_&]:hidden"
             >
-                {children}
+                {renderedChildren}
                 <LiteMobileAppNavTabs items={allItems} />
             </nav>
         );
@@ -774,7 +787,7 @@ export function MobileNav({ children }: { children?: ReactNode }) {
                         </NavLink>
                     </div>
                 ))}
-                {children && (
+                {hasDockChild && (
                     <div
                         className={cn(
                             'pointer-events-none relative size-11 before:absolute before:inset-y-3 before:-left-1.5 before:w-px before:bg-border max-[360px]:before:hidden',
@@ -782,7 +795,7 @@ export function MobileNav({ children }: { children?: ReactNode }) {
                         )}
                         style={itemPosition(items.length)}
                     >
-                        {children}
+                        {dockChild}
                     </div>
                 )}
                 <DropdownMenu>
@@ -867,6 +880,11 @@ export function MobileNav({ children }: { children?: ReactNode }) {
                     </DropdownMenuContent>
                 </DropdownMenu>
             </div>
+            {auxiliaryChildren.length > 0 && (
+                <div className="pointer-events-auto">
+                    {auxiliaryChildren}
+                </div>
+            )}
             <ChangelogDialog
                 open={isChangelogOpen}
                 onOpenChange={setIsChangelogOpen}

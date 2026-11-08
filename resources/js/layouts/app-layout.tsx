@@ -167,6 +167,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
                 <MobileNav>
                     {!isMessages && (
                         <MobileCommitButton
+                            isFloating={isLiteMobileApp}
                             isHidden={hasComposer && isComposerInView}
                             onCompose={compose}
                         />
