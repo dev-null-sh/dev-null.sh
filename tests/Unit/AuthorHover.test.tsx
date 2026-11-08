@@ -179,6 +179,31 @@ test('profile preview stays open when its menu is dismissed under the mouse', ()
     assert.ok(!stateChanges.includes(false));
 });
 
+test('organization author previews the organization', () => {
+    showPreview = true;
+    const preview = UserPreview({
+        user: {
+            type: 'organization',
+            id: 'laravel',
+            handle: 'laravel',
+            name: 'Laravel',
+            avatar_url: null,
+            bio: null,
+            location: null,
+            website: null,
+            lane: null,
+        },
+        children: 'Laravel',
+    });
+    showPreview = false;
+
+    const panel = React.Children.toArray(preview.props.children)[1] as
+        | ReactElement<HTMLAttributes<HTMLElement>>
+        | undefined;
+
+    assert.equal(panel?.props['aria-label'], 'About @laravel');
+});
+
 test('suggested user row wraps the author in a user preview anchored to their avatar', () => {
     const user = {
         id: 'author',
