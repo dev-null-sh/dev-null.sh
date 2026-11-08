@@ -595,9 +595,13 @@ export function MobileNav({ children }: { children?: ReactNode }) {
                 return;
             }
 
+            // Clamp elastic overscroll so iOS bounce does not reverse the dock.
             const y = Math.max(
                 0,
-                Math.min(window.scrollY, root.scrollHeight - window.innerHeight),
+                Math.min(
+                    window.scrollY,
+                    root.scrollHeight - window.innerHeight,
+                ),
             );
             const nextDirection = Math.sign(y - previousY);
 
@@ -632,69 +636,6 @@ export function MobileNav({ children }: { children?: ReactNode }) {
         window.addEventListener('scroll', onScroll, { passive: true });
         mobile.addEventListener('change', onScroll);
 
-        return () => {
-            window.cancelAnimationFrame(frame);
-            window.removeEventListener('scroll', onScroll);
-            mobile.removeEventListener('change', onScroll);
-        };
-    }, []);
-
-    useLayoutEffect(() => {
-        const element = nav.current;
-        const surface = dock.current;
-
-        if (element === null || surface === null) {
-            return;
-        }
-
-        const root = document.documentElement;
-        // Hidden while the keyboard is open, it keeps its height, so toasts above it do not drop onto it on the way back.
-        const updateHeight = () => {
-            const { height } = element.getBoundingClientRect();
-
-            if (height > 0) {
-                root.style.setProperty('--mobile-nav-height', `${height}px`);
-                const width = surface.getBoundingClientRect().width;
-
-                if (width > 0) {
-                    const compactWidth = Math.min(
-                        width,
-                        Math.max(
-                            itemCount * 44 + 18,
-                            Math.min(width - 24, 296),
-                        ),
-                    );
-                    surface.style.setProperty(
-                        '--dock-scale',
-                        `${compactWidth / width}`,
-                    );
-                    surface.style.setProperty(
-                        '--dock-inset',
-                        `${(width - compactWidth) / 2}px`,
-                    );
-                }
-            }
-        };
-        const observer = new ResizeObserver(updateHeight);
-
-        updateHeight();
-        observer.observe(element, { box: 'border-box' });
-
-        return () => {
-            observer.disconnect();
-            root.style.removeProperty('--mobile-nav-height');
-        };
-    }, [itemCount]);
-
-    const itemPosition = (index: number, offset = 0) => ({
-        transform: isCompact
-            ? `translate(calc(var(--dock-inset, 0px) * ${(itemCount - 1 - 2 * index) / itemCount} + ${offset}px), 2px)`
-            : `translate(${offset}px, 0px)`,
-    });
-
-    // The lite mobile app draws the tabs itself. The nav keeps the height of its tab bar, which the app adds to the safe
-    // area, so the commit button floats above the bar and full-screen pages end right above it.
-    if (isLiteMobileApp) {
         return () => {
             window.cancelAnimationFrame(frame);
             window.removeEventListener('scroll', onScroll);
@@ -758,6 +699,21 @@ export function MobileNav({ children }: { children?: ReactNode }) {
             : `translate(${offset}px, 0px)`,
     });
 
+
+    // The lite mobile app draws the tabs itself. The nav keeps the height of its tab bar, which the app adds to the safe
+    // area, so the commit button floats above the bar and full-screen pages end right above it.
+    if (isLiteMobileApp) {
+        return (
+            <nav
+                ref={nav}
+                aria-label="Main"
+                className="pointer-events-none fixed inset-x-0 bottom-0 z-20 pb-[env(safe-area-inset-bottom)] *:pointer-events-auto md:hidden [:root[data-keyboard-open]_&]:hidden"
+            >
+                {children}
+                <LiteMobileAppNavTabs items={allItems} />
+            </nav>
+        );
+    }
     return (
         <nav
             ref={nav}
