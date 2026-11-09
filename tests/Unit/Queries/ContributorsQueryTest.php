@@ -164,7 +164,7 @@ it('keeps the last list while GitHub is unreachable, and asks again a minute lat
     $github = $this->mock(GitHubProvider::class);
     $github->shouldReceive('contributors')->andReturnUsing(
         fn (): array => [gitHubContributor('xHeaven', 187)],
-        fn () => throw new ConnectionException('timeout'),
+        fn (): never => throw new ConnectionException('timeout'),
         fn (): array => [gitHubContributor('xHeaven', 188)],
     );
     $contributor = User::factory()->create(['github_id' => (string) crc32('xHeaven')]);
@@ -190,7 +190,7 @@ it('forgets the last list after a week without an answer from GitHub', function 
     $github = $this->mock(GitHubProvider::class);
     $github->shouldReceive('contributors')->andReturnUsing(
         fn (): array => [gitHubContributor('xHeaven', 187)],
-        fn () => throw new ConnectionException('timeout'),
+        fn (): never => throw new ConnectionException('timeout'),
     );
 
     resolve(ContributorsQuery::class)->get();
