@@ -8,6 +8,7 @@ use App\Actions\DeleteUser;
 use App\Actions\UpdateCommitHotScores;
 use App\Dto\ThreadEngagement;
 use App\Models\Commit;
+use App\Models\User;
 use App\Services\TheAlgorithm;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 
@@ -22,7 +23,7 @@ it('restores a commit within its undo window', function (): void {
 });
 
 it('does not restore a recommit when a replacement is already active', function (): void {
-    $user = App\Models\User::factory()->create();
+    $user = User::factory()->create();
     $source = Commit::factory()->create();
     $original = Commit::factory()->for($user)->create(['quoted_commit_id' => $source->id, 'body' => '']);
     $deleted = resolve(DeleteCommit::class)->handle($original);
@@ -34,7 +35,7 @@ it('does not restore a recommit when a replacement is already active', function 
 });
 
 it('restores a recommit when there is no active replacement', function (): void {
-    $user = App\Models\User::factory()->create();
+    $user = User::factory()->create();
     $source = Commit::factory()->create();
     $original = Commit::factory()->for($user)->create(['quoted_commit_id' => $source->id, 'body' => '']);
     $deleted = resolve(DeleteCommit::class)->handle($original);
