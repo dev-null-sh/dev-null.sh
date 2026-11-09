@@ -74,7 +74,14 @@ final readonly class CommitController
                     'commits' => ShownStreams::commits($around['commits']),
                 ];
             }),
-        ])->withViewData(['preview' => $preview]);
+        ])->withViewData([
+            'preview' => $preview,
+            // A link from the embed dialog points oEmbed consumers to its card. Its raw query is kept as is, in the
+            // order it was signed in.
+            'oembedUrl' => $request->has(['embed', 'signature']) && ! $request->inertia()
+                ? route('oembed.show', ['url' => $request->getSchemeAndHttpHost().$request->getRequestUri(), 'format' => 'json'])
+                : null,
+        ]);
     }
 
     public function store(CreateCommitRequest $request, #[CurrentUser] User $user, CreateCommit $action, UserAchievementsQuery $achievements): RedirectResponse
