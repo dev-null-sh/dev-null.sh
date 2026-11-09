@@ -36,6 +36,7 @@ import {
 import { HiddenLinkPreviewContext } from '@/components/hidden-link-preview-context';
 import { LinkPreview } from '@/components/link-preview';
 import { LiveStreamTrigger } from '@/components/live-stream-card';
+import { OrganizationBadge } from '@/components/organization-badge';
 import { QuotedCommit } from '@/components/quoted-commit';
 import {
     ThreadPositionBadge,
@@ -375,6 +376,11 @@ export function CommitCard({
                                         @{commit.author.handle}
                                     </Link>
                                 </UserPreview>
+                                {commit.author.type === 'organization' && (
+                                    <OrganizationBadge
+                                        handle={commit.author.handle}
+                                    />
+                                )}
                                 <span
                                     aria-hidden
                                     className="text-muted-foreground"
