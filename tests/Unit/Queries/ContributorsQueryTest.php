@@ -228,9 +228,17 @@ it('includes a user by their GitHub account, not their handle', function (): voi
     $github->shouldHaveReceived('contributors')->times(1);
 });
 
-it('includes nobody while GitHub is unreachable', function (): void {
+it("includes nobody while GitHub is unreachable, and doesn't ask it again meanwhile", function (): void {
     $github = $this->mock(GitHubProvider::class);
     $github->shouldReceive('contributors')->andThrow(new ConnectionException('timeout'));
+    $user = User::factory()->create();
 
-    expect(resolve(ContributorsQuery::class)->includes(User::factory()->create()))->toBeFalse();
+    expect(resolve(ContributorsQuery::class)->includes($user))->toBeFalse();
+
+    resolve(DeferredCallbackCollection::class)->invoke();
+
+    expect(Cache::get('about:contributor-accounts:'.config()->string('services.github.repository')))->toBeFalse()
+        ->and(resolve(ContributorsQuery::class)->includes($user))->toBeFalse();
+    resolve(DeferredCallbackCollection::class)->invoke();
+    $github->shouldHaveReceived('contributors')->once();
 });
