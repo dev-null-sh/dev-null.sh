@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { CommitCard } from '@/components/commit-card';
 import { CommitSkeleton, EmptyFeed } from '@/components/commit-feed';
 import { GraphCanvas } from '@/components/graph-canvas';
+import { authorLaneColor } from '@/lib/utils';
 import type { Commit } from '@/types';
 
 export type SearchResultSet = { term: string; commits: Commit[] };
