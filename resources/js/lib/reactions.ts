@@ -87,19 +87,20 @@ export function summarizeReactions(
     const byEmoji = new Map<string, ReactionSummary>();
 
     for (const reaction of reactions ?? []) {
-        const summary = byEmoji.get(reaction.emoji) ?? {
-            emoji: reaction.emoji,
-            count: 0,
-            isMine: false,
-            userIds: [],
-        };
+        const summary = byEmoji.get(reaction.emoji);
 
-        byEmoji.set(reaction.emoji, {
-            ...summary,
-            count: summary.count + 1,
-            isMine: summary.isMine || reaction.user_id === userId,
-            userIds: [...summary.userIds, reaction.user_id],
-        });
+        if (summary) {
+            summary.count++;
+            summary.isMine ||= reaction.user_id === userId;
+            summary.userIds.push(reaction.user_id);
+        } else {
+            byEmoji.set(reaction.emoji, {
+                emoji: reaction.emoji,
+                count: 1,
+                isMine: reaction.user_id === userId,
+                userIds: [reaction.user_id],
+            });
+        }
     }
 
     return [...byEmoji.values()];
@@ -122,6 +123,7 @@ const doubleTapDistance = 24;
 export function isDoubleTap(previous: Tap | null, tap: Tap): boolean {
     return (
         previous !== null &&
+        tap.time >= previous.time &&
         tap.time - previous.time <= doubleTapWithin &&
         Math.hypot(tap.x - previous.x, tap.y - previous.y) <= doubleTapDistance
     );

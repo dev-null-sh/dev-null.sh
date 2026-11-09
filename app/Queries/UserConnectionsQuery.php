@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Queries;
 
+use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -26,5 +27,21 @@ final readonly class UserConnectionsQuery
             ])
             ->latest('follows.created_at')
             ->latest('users.id');
+    }
+
+    /**
+     * Which of a list a page loaded, as a digest of the sorted ids of as many as it loaded from the start, so a page
+     * that may have missed follows changing can tell whether its loaded pages still hold the same, even when as many
+     * left as arrived. An empty page asks about one, as anyone at all is news to it.
+     *
+     * @param  BelongsToMany<User, User>|BelongsToMany<Organization, User>  $connections
+     */
+    public function loadedDigest(BelongsToMany $connections, int $loaded): string
+    {
+        /** @var list<string> $ids */
+        $ids = $connections->limit(max($loaded, 1))->pluck($connections->getRelated()->getQualifiedKeyName())->all();
+        sort($ids, SORT_STRING);
+
+        return hash('sha256', implode(',', $ids));
     }
 }

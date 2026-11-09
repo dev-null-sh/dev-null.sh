@@ -44,6 +44,8 @@ import {
     UserModerationStatus,
 } from '@/components/user-moderation-menu';
 import { useIsMuting, UserSafetyMenu } from '@/components/user-safety-menu';
+import { useLiveStream } from '@/hooks/use-live-stream';
+import { useProfileCommits } from '@/hooks/use-profile-commits';
 import { refreshSharedState, useSharedState } from '@/hooks/use-shared-state';
 import AppLayout from '@/layouts/app-layout';
 import { commitStateKey } from '@/lib/commit-state';
@@ -101,6 +103,7 @@ export default function Show({
     const { auth } = usePage().props;
     const isCurrentUser = auth.user?.id === user.id;
     const lane = laneColor(user.lane);
+    const stream = useLiveStream(user);
     const [highlightedPeriod, setHighlightedPeriod] = useState<string | null>(
         null,
     );
@@ -111,6 +114,7 @@ export default function Show({
     const [isHeaderVisible, setIsHeaderVisible] = useState(false);
     const [isFollowingNow] = useIsFollowing(user, isFollowing);
     const [isMutingNow] = useIsMuting(user, isMuting);
+    const shownCommits = useProfileCommits(user.id, commits, pinnedCommit);
     const followersCount =
         user.followers_count + Number(isFollowingNow) - Number(isFollowing);
     const [pasteisCount] = useSharedState(
@@ -224,17 +228,17 @@ export default function Show({
                     }
                     data-test="profile-avatar"
                 >
-                    {user.live ? (
+                    {stream ? (
                         <LiveStreamTrigger
                             user={user}
                             showProfile={false}
                             className="flex"
                         >
                             <a
-                                href={user.live.url}
+                                href={stream.url}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                aria-label={`Watch ${user.name} live on ${user.live.url.includes('twitch.tv') ? 'Twitch' : 'YouTube'}`}
+                                aria-label={`Watch ${user.name} live on ${stream.url.includes('twitch.tv') ? 'Twitch' : 'YouTube'}`}
                                 className="relative flex rounded-full"
                                 data-test="profile-live-avatar"
                             >
@@ -449,7 +453,7 @@ export default function Show({
                     </li>
                 </ul>
 
-                <dl className="mt-4 flex gap-5 text-sm">
+                <dl className="mt-4 flex flex-wrap gap-x-5 gap-y-1 text-sm">
                     {[
                         {
                             count: user.commits_count,
@@ -589,7 +593,7 @@ export default function Show({
                 ) : (
                     <CommitFeed
                         key={`${user.id}:${tab}`}
-                        commits={commits}
+                        commits={tab === 'commits' ? shownCommits : commits}
                         pinnedCommit={tab === 'commits' ? pinnedCommit : null}
                         threadActions={
                             isCurrentUser && tab === 'commits'

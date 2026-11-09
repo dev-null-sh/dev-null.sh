@@ -146,7 +146,7 @@ it('discards a partial list after a later page fails and recovers when the failu
     $github = $this->mock(GitHubProvider::class);
     $github->shouldReceive('contributors')->andReturnUsing(
         fn (): array => $firstPage,
-        fn () => throw new RequestException(new Response(new Psr7Response(503))),
+        fn (): never => throw new RequestException(new Response(new Psr7Response(503))),
         fn (): array => [gitHubContributor('recovered', 12)],
     );
 

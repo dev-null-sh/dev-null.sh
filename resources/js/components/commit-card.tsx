@@ -88,6 +88,7 @@ export function CommitCard({
     exceptReplyId,
     threadPosition,
     graphAfter,
+    showsParent = false,
 }: {
     commit: Commit;
     previousLane?: string;
@@ -112,6 +113,7 @@ export function CommitCard({
     hasRailTail?: boolean;
     exceptReplyId?: string;
     threadPosition?: ThreadPosition;
+    showsParent?: boolean;
 }) {
     const {
         props: { auth },
@@ -446,6 +448,14 @@ export function CommitCard({
                                     replying to @{commit.parent.author.handle}
                                 </Link>
                             )}
+                            {showsParent &&
+                                commit.parent &&
+                                !isDeleted(commit.parent) && (
+                                    <QuotedCommit
+                                        commit={commit.parent}
+                                        label="Replying to"
+                                    />
+                                )}
                             <div ref={bodyRef} style={translation.bodyStyle}>
                                 <FoldedCommitBody
                                     segments={translation.segments}
@@ -488,6 +498,7 @@ export function CommitCard({
                                             commit.id,
                                         )}
                                         preview={commit.link_preview}
+                                        source={{ commitId: commit.id }}
                                     />
                                 )}
                             {isFocused && (

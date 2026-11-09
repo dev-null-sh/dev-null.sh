@@ -16,6 +16,7 @@ import MessageReactionController from '@/actions/App/Http/Controllers/MessageRea
 import OrgArchiveController from '@/actions/App/Http/Controllers/OrgArchiveController';
 import OrgController from '@/actions/App/Http/Controllers/OrgController';
 import OrgMemberController from '@/actions/App/Http/Controllers/OrgMemberController';
+import OrgMentionController from '@/actions/App/Http/Controllers/OrgMentionController';
 import OrgMessageController from '@/actions/App/Http/Controllers/OrgMessageController';
 import OrgMuteController from '@/actions/App/Http/Controllers/OrgMuteController';
 import OrgPinController from '@/actions/App/Http/Controllers/OrgPinController';
@@ -37,6 +38,14 @@ import {
 import type { PinnedMessages } from '@/lib/pinned-messages';
 import type { ReactionUsage } from '@/lib/reactions';
 import { withReactionUse } from '@/lib/reactions';
+import {
+    coalesce,
+    isListening,
+    listen,
+    liveTransport,
+    onRealtimeChange,
+    userChannel,
+} from '@/lib/realtime';
 import {
     createRemoteAlerts,
     isRemoteMuted,
@@ -113,6 +122,16 @@ export type ThreadState = {
      * The reactions version the pinned messages are current with, which only moves when a list of them is taken.
      */
     pinnedMessagesVersion: number | null;
+    /**
+     * The org messages that mentioned the user, latest first, until they open or clear them, and how many there are.
+     */
+    mentions: Message[];
+    mentions_count: number;
+    /**
+     * The mentions being cleared, and when clearing last finished: until then, reads keep the mentions the bell shows.
+     */
+    clearingMentions: number[];
+    mentionsClearedAt: number | null;
     is_archived: boolean;
     pinned_at: string | null;
     muted_until_at: string | null;
@@ -167,6 +186,19 @@ const busyInboxPoll = 6_000;
 const hiddenInboxPoll = 60_000;
 const activeWindow = 60_000;
 const typingPing = 3_000;
+/**
+ * While live updates are heard, polls only back them up, in case one was lost.
+ */
+const listeningPoll = 30_000;
+const listeningInboxPoll = 60_000;
+/**
+ * Typing is only announced when it starts, so an indicator is read again once it would have expired on the server.
+ */
+const typingRecheck = 5_500;
+/**
+ * The most messages one read after a message brings: a full one means there may be more.
+ */
+const catchUpPage = 100;
 
 const listOf = {
     open: 'conversations',
@@ -199,6 +231,10 @@ const reactionsInFlight = new Map<number, number>();
 const reactionsSettledAt = new Map<number, number>();
 const messagePinsInFlight = new Map<string, number>();
 /**
+ * The last clear of each org's mentions, which the next one waits for, so the server answers them in order.
+ */
+const mentionClears = new Map<string, Promise<unknown>>();
+/**
  * The newest pinned messages a pin request handed back while others in the org were still in flight.
  */
 const newestPinnedMessages = new Map<
@@ -213,11 +249,26 @@ let remoteAlerts: ReturnType<typeof createRemoteAlerts> | null = null;
  * Whether this tab is the one of the user's tabs that keeps polling for alerts while hidden.
  */
 let isAlertingTab = false;
-let isFetchingInbox = false;
+/**
+ * The inbox poll on its way, so one that comes back for remotes no longer watched never ends a newer one.
+ */
+let fetchingInbox: object | null = null;
 let pendingInboxPush: ReturnType<typeof createRemoteAlerts> | null = null;
 let muteVersion = 0;
 let pinVersion = 0;
 let inboxRevision = 0;
+let remotesUserId: string | null = null;
+let remotesOwner: string | null = null;
+/**
+ * Moves on whenever another account's remotes replace what was shown, so work started before can't touch them.
+ */
+let remotesResets = 0;
+/**
+ * Moves on whenever the remotes stop being watched for someone, so a read still on its way for them is dropped.
+ */
+let remotesGeneration = 0;
+const threadRefreshes = new Map<string, ReturnType<typeof coalesce>>();
+const typingRechecks = new Map<string, number>();
 const invalidatedInboxTabs = new Set<InboxTab>();
 
 export function targetKey(target: ChatTarget): string {
@@ -398,21 +449,57 @@ export class ChatRequestError extends Error {
 }
 
 /**
+ * A response that came back for remotes no longer watched, as after signing out or in as someone else: dropped before
+ * anything is written or shown, whether it succeeded or failed, and never applied to, nor retried for, whoever is
+ * watching now.
+ */
+class StaleRemotesError extends Error {}
+
+function isStaleRemotes(error: unknown): boolean {
+    return error instanceof StaleRemotesError;
+}
+
+/**
+ * Whether the remotes are still watched for the same account as when it was called.
+ */
+function ownership(): () => boolean {
+    const generation = remotesGeneration;
+    const owner = remotesOwner;
+
+    return () => generation === remotesGeneration && owner === remotesOwner;
+}
+
+/**
  * Sends JSON, or a form when there are files in it, which gets longer to upload.
  */
 export async function request<T>(
     url: string,
     method: 'GET' | 'POST' | 'PUT' | 'DELETE' = 'GET',
     body?: object | FormData,
+    isCurrent: () => boolean = () => true,
 ): Promise<T> {
     const isForm = body instanceof FormData;
-    const response = await fetch(url, {
+    const socket = liveTransport.socketId?.() ?? null;
+    // Every outcome is checked against who asked, before it is told, shown or applied.
+    const owned = <V>(value: V): V => {
+        if (!isCurrent()) {
+            throw new StaleRemotesError();
+        }
+
+        return value;
+    };
+    const failed = (error: unknown): never => {
+        throw isCurrent() ? error : new StaleRemotesError();
+    };
+    const fetched = fetch(url, {
         method,
         headers: {
             Accept: 'application/json',
             ...(isForm ? {} : { 'Content-Type': 'application/json' }),
             'X-Requested-With': 'XMLHttpRequest',
             'X-XSRF-TOKEN': xsrfToken(),
+            // So what this tab did is announced to the user's other tabs and devices, not back to itself.
+            ...(socket === null ? {} : { 'X-Socket-ID': socket }),
         },
         ...(body === undefined
             ? {}
@@ -421,12 +508,15 @@ export async function request<T>(
         credentials: 'same-origin',
         signal: AbortSignal.timeout(isForm ? 60_000 : 10_000),
     });
+    const response = owned(await fetched.catch(failed));
 
     if (!response.ok) {
-        const body = (await response.json().catch(() => ({}))) as {
-            message?: string;
-            banned?: boolean;
-        };
+        const body = owned(
+            (await response.json().catch(() => ({}))) as {
+                message?: string;
+                banned?: boolean;
+            },
+        );
         const timeout = timeoutFrom(response.status, body);
 
         // A timeout or a ban stops every remote the same way, so the user is told wherever they tried...
@@ -439,7 +529,17 @@ export async function request<T>(
         throw new ChatRequestError(response.status, body);
     }
 
-    return (response.status === 204 ? null : await response.json()) as T;
+    return owned(
+        (response.status === 204
+            ? null
+            : await response.json().catch(failed)) as T,
+    );
+}
+
+async function remotesRequest<T>(
+    ...args: Parameters<typeof request>
+): Promise<T> {
+    return request<T>(args[0], args[1], args[2], ownership());
 }
 
 function mergeMessages(current: Message[], incoming: Message[]): Message[] {
@@ -616,7 +716,7 @@ async function fetchInbox(
 > {
     const version = ++muteVersion;
     const pinsVersion = ++pinVersion;
-    const page = await request<
+    const page = await remotesRequest<
         InboxPage & {
             unread: number;
             requests: number;
@@ -698,8 +798,10 @@ export async function loadTab(tab: InboxTab): Promise<void> {
             hasMore: { ...state.hasMore, [tab]: page.has_more },
             requests: page.requests,
         });
-    } catch {
-        update({ [listOf[tab]]: state[listOf[tab]] ?? [] });
+    } catch (error) {
+        if (!(error instanceof StaleRemotesError)) {
+            update({ [listOf[tab]]: state[listOf[tab]] ?? [] });
+        }
     }
 }
 
@@ -820,6 +922,10 @@ function emptyThread(target: ChatTarget): ThreadState {
         role: null,
         pinned: [],
         pinnedMessagesVersion: null,
+        mentions: [],
+        mentions_count: 0,
+        clearingMentions: [],
+        mentionsClearedAt: null,
         is_archived: false,
         pinned_at: null,
         muted_until_at: null,
@@ -832,6 +938,22 @@ function emptyThread(target: ChatTarget): ThreadState {
         isLoaded: false,
         isLoadingOlder: false,
     };
+}
+
+/**
+ * The mentions a read handed over, unless it was sent before the user finished clearing some.
+ */
+function mentionsFrom(
+    current: ThreadState,
+    thread: Thread | OrgThread,
+    sentAt: number,
+): Pick<ThreadState, 'mentions' | 'mentions_count'> {
+    return !('mentions' in thread) ||
+        current.clearingMentions.length > 0 ||
+        (current.mentionsClearedAt !== null &&
+            current.mentionsClearedAt >= sentAt)
+        ? { mentions: current.mentions, mentions_count: current.mentions_count }
+        : { mentions: thread.mentions, mentions_count: thread.mentions_count };
 }
 
 function fromServer(thread: Thread | OrgThread): Partial<ThreadState> {
@@ -874,6 +996,8 @@ export function seedThread(
             [key]: {
                 ...current,
                 ...fromServer(thread),
+                // A page doesn't say when it was read, so once the user cleared mentions, polls bring them instead.
+                ...mentionsFrom(current, thread, -Infinity),
                 target,
                 messages: mergeMessages(current.messages, thread.messages),
                 ...pinnedMessagesFrom(
@@ -929,13 +1053,17 @@ async function pollInbox(fromPush = false): Promise<void> {
         return;
     }
 
-    if (isFetchingInbox) {
+    if (fetchingInbox !== null) {
         if (fromPush) pendingInboxPush = remoteAlerts;
         return;
     }
 
-    isFetchingInbox = true;
-    const revision = inboxRevision;
+    const fetching = {};
+    fetchingInbox = fetching;
+    const isCurrent = ownership();
+    let revision = inboxRevision;
+    // Every step after a wait, as much as the first, is for whoever asked and the inbox as it was then.
+    const isStillCurrent = () => revision === inboxRevision && isCurrent();
 
     try {
         const alerts = remoteAlerts;
@@ -952,7 +1080,7 @@ async function pollInbox(fromPush = false): Promise<void> {
             alerts?.needsBaseline(),
             alerts !== null,
         );
-        if (revision !== inboxRevision) {
+        if (!isStillCurrent()) {
             return;
         }
         const notifications = notification_conversations ?? conversations;
@@ -980,6 +1108,7 @@ async function pollInbox(fromPush = false): Promise<void> {
         }
         if (pinsChanged) {
             invalidateConversationPages();
+            revision = inboxRevision;
         }
         const reconcileOpen = invalidatedInboxTabs.has('open');
         await Promise.all(
@@ -987,6 +1116,11 @@ async function pollInbox(fromPush = false): Promise<void> {
                 refreshConversationPages(tab),
             ),
         );
+
+        if (!isStillCurrent()) {
+            return;
+        }
+
         const requestsChanged =
             state.requests !== null && requests !== state.requests;
         const watched = conversations.filter(isReading);
@@ -1014,7 +1148,10 @@ async function pollInbox(fromPush = false): Promise<void> {
     } catch {
         // Keep the last known inbox until the next poll.
     } finally {
-        isFetchingInbox = false;
+        if (fetchingInbox === fetching) {
+            fetchingInbox = null;
+        }
+
         const pending = pendingInboxPush;
         pendingInboxPush = null;
         if (pending !== null && pending === remoteAlerts) {
@@ -1189,12 +1326,243 @@ function scheduleInbox(): void {
 
     inboxTimer = window.setTimeout(
         () => void pollInbox().finally(scheduleInbox),
-        document.hidden
-            ? hiddenInboxPoll
-            : threadWatchers.size > 0
-              ? busyInboxPoll
-              : inboxPoll,
+        isHearingRemotes()
+            ? listeningInboxPoll
+            : document.hidden
+              ? hiddenInboxPoll
+              : threadWatchers.size > 0
+                ? busyInboxPoll
+                : inboxPoll,
     );
+}
+
+/**
+ * Whether the user's private updates are being heard, so polling can slow down to a safety net.
+ */
+function isHearingRemotes(): boolean {
+    return remotesUserId !== null && isListening(userChannel(remotesUserId));
+}
+
+/**
+ * Calls back when live updates start or stop being heard, and not for every other channel coming and going.
+ */
+function onHearingChange(callback: () => void): () => void {
+    let isHeard = isHearingRemotes();
+
+    return onRealtimeChange(() => {
+        if (isHearingRemotes() !== isHeard) {
+            isHeard = !isHeard;
+            callback();
+        }
+    });
+}
+
+const inboxRefresh = coalesce(() => pollInbox(document.hidden), 150);
+
+/**
+ * A hidden tab reads the inbox on an update only when it is the one alerting and no push does it already: the
+ * others catch up once they are shown.
+ */
+function refreshInbox(): void {
+    if (
+        inboxWatchers === 0 ||
+        (document.hidden && (!isAlertingTab || remotePushEnabled()))
+    ) {
+        return;
+    }
+
+    inboxRefresh.request();
+}
+
+/**
+ * Reads a shown conversation again, once for a burst of updates, through the same incremental read a poll makes.
+ */
+function refreshThread(target: ChatTarget): void {
+    const key = targetKey(target);
+
+    if (!isWatching(key) || document.hidden) {
+        return;
+    }
+
+    let refresh = threadRefreshes.get(key);
+
+    if (refresh === undefined) {
+        refresh = coalesce(
+            () => pollThread(state.threads[key]?.target ?? target),
+            100,
+        );
+        threadRefreshes.set(key, refresh);
+    }
+
+    refresh.request();
+}
+
+/**
+ * The shown conversations an update is about. A direct conversation is known by its partner, so its id is matched
+ * through the inbox, and every shown direct conversation is read again when the inbox doesn't have it.
+ */
+function watchedTargets(payload: unknown): ChatTarget[] {
+    const id =
+        typeof payload === 'object' &&
+        payload !== null &&
+        'conversation' in payload &&
+        typeof payload.conversation === 'string'
+            ? payload.conversation
+            : null;
+    const summary =
+        id === null
+            ? undefined
+            : [
+                  ...(state.conversations ?? []),
+                  ...(state.fetched ?? []),
+                  ...(state.archived ?? []),
+              ].find((conversation) => conversation.id === id);
+
+    return [...threadWatchers.keys()]
+        .filter(
+            (key) =>
+                id === null ||
+                key === `org:${id}` ||
+                (summary === undefined
+                    ? !key.startsWith('org:')
+                    : summaryKey(summary) === key),
+        )
+        .flatMap((key) => state.threads[key]?.target ?? []);
+}
+
+/**
+ * Listens for what changed in the user's remotes, wherever it was changed from: new messages refresh the inbox and
+ * the conversations shown, and changes to a conversation only those. Joining the channel, at first and after a
+ * dropped connection, reads everything shown again, draining whatever arrived in between. Returns the function that
+ * stops listening.
+ */
+export function watchRemoteUpdates(userId: string): () => void {
+    // Another account's remotes, kept from before signing in as someone else, are never shown to this one.
+    if (remotesOwner !== null && remotesOwner !== userId) {
+        state = emptyChat;
+        remotesResets++;
+        invalidatedInboxTabs.clear();
+        listeners.forEach((listener) => listener());
+    } else {
+        // What was still loading when the remotes stopped being watched was dropped, so it isn't loading any more,
+        // and loads again from here.
+        olderLoads.clear();
+        fetchingInbox = null;
+        const threads = Object.fromEntries(
+            Object.entries(state.threads).map(([key, thread]) => [
+                key,
+                thread.isLoadingOlder
+                    ? { ...thread, isLoadingOlder: false }
+                    : thread,
+            ]),
+        );
+
+        update({ isLoadingMore: emptyChat.isLoadingMore, threads });
+    }
+
+    remotesOwner = userId;
+    remotesUserId = userId;
+
+    const refreshWatched = (payload: unknown) =>
+        watchedTargets(payload).forEach(refreshThread);
+    // Requests and the stash can change without their counts changing, so their loaded pages are read again.
+    const invalidateLoadedTabs = () => {
+        for (const tab of ['fetched', 'stashed'] as const) {
+            if (state[listOf[tab]] !== null) {
+                invalidatedInboxTabs.add(tab);
+            }
+        }
+    };
+
+    const stopListening = listen(
+        userChannel(userId),
+        {
+            'remotes.messages': (payload) => {
+                refreshInbox();
+                refreshWatched(payload);
+            },
+            'remotes.conversation': (payload) => {
+                // A partner's read also shows in the inbox, as how far they pulled.
+                if (
+                    typeof payload === 'object' &&
+                    payload !== null &&
+                    'read' in payload
+                ) {
+                    refreshInbox();
+                }
+
+                refreshWatched(payload);
+            },
+            'remotes.inbox': (payload) => {
+                invalidateLoadedTabs();
+                forgetUnwatched(payload);
+                refreshInbox();
+                refreshWatched(payload);
+            },
+        },
+        // Joining, at first or again after the connection dropped, may follow changes nobody heard, so the loaded tabs
+        // are read again whatever their counts say.
+        () => {
+            invalidateLoadedTabs();
+            refreshInbox();
+            refreshWatched(null);
+        },
+    );
+    const stopPacing = onHearingChange(scheduleInbox);
+
+    return () => {
+        stopListening();
+        stopPacing();
+        remotesGeneration++;
+        inboxRevision++;
+        threadRefreshes.forEach((refresh) => refresh.cancel());
+        threadRefreshes.clear();
+        typingRechecks.forEach((timer) => window.clearTimeout(timer));
+        typingRechecks.clear();
+
+        if (remotesUserId === userId) {
+            remotesUserId = null;
+        }
+    };
+}
+
+/**
+ * Access to a conversation changed, as when it was blocked or someone left an org: the ones kept from earlier but not
+ * shown right now are forgotten, so opening them again reads them, and finds out whether they still can be.
+ */
+function forgetUnwatched(payload: unknown): void {
+    const id =
+        typeof payload === 'object' &&
+        payload !== null &&
+        'conversation' in payload &&
+        typeof payload.conversation === 'string'
+            ? payload.conversation
+            : null;
+    const summary = [
+        ...(state.conversations ?? []),
+        ...(state.fetched ?? []),
+        ...(state.archived ?? []),
+    ].find((conversation) => conversation.id === id);
+    const forgotten = Object.keys(state.threads).filter(
+        (key) =>
+            !isWatching(key) &&
+            state.threads[key].pending.length === 0 &&
+            (id === null ||
+                key === `org:${id}` ||
+                (summary === undefined
+                    ? !key.startsWith('org:')
+                    : summaryKey(summary) === key)),
+    );
+
+    if (forgotten.length > 0) {
+        update({
+            threads: Object.fromEntries(
+                Object.entries(state.threads).filter(
+                    ([key]) => !forgotten.includes(key),
+                ),
+            ),
+        });
+    }
 }
 
 function isWatching(key: string): boolean {
@@ -1250,23 +1618,40 @@ async function pollThread(target: ChatTarget): Promise<void> {
     const polledAt = performance.now();
     const version = ++muteVersion;
     const pinsVersion = ++pinVersion;
+    const generation = remotesGeneration;
 
-    const fresh = await request<
-        (Thread & { partner: User }) | (OrgThread & { org: OrgRef })
-    >(
-        urls(target).index(
-            after === null
-                ? undefined
-                : {
-                      after,
-                      ...(reactionsAfter === null
-                          ? {}
-                          : { reactions_after: reactionsAfter }),
-                  },
-        ),
-    );
+    let fresh: (Thread & { partner: User }) | (OrgThread & { org: OrgRef });
 
-    if (threadPollVersions.get(key) !== pollVersion) {
+    try {
+        fresh = await remotesRequest(
+            urls(target).index(
+                after === null
+                    ? undefined
+                    : {
+                          after,
+                          ...(reactionsAfter === null
+                              ? {}
+                              : { reactions_after: reactionsAfter }),
+                      },
+            ),
+        );
+    } catch (error) {
+        if (
+            error instanceof ChatRequestError &&
+            [403, 404].includes(error.status) &&
+            threadPollVersions.get(key) === pollVersion &&
+            generation === remotesGeneration
+        ) {
+            revokeThread(target);
+        }
+
+        throw error;
+    }
+
+    if (
+        threadPollVersions.get(key) !== pollVersion ||
+        generation !== remotesGeneration
+    ) {
         return;
     }
 
@@ -1292,6 +1677,7 @@ async function pollThread(target: ChatTarget): Promise<void> {
             [key]: {
                 ...current,
                 ...fromServer(fresh),
+                ...mentionsFrom(current, fresh, polledAt),
                 target:
                     'org' in fresh
                         ? { kind: 'org', org: fresh.org }
@@ -1344,6 +1730,49 @@ async function pollThread(target: ChatTarget): Promise<void> {
             },
         },
     });
+
+    recheckTyping(target, isTyping);
+
+    // A read after a message only brings so many, so whoever was away for longer keeps reading until caught up.
+    if (after !== null && fresh.messages.length >= catchUpPage) {
+        await pollThread(target);
+    }
+}
+
+/**
+ * A conversation the user can no longer read, as after being removed from an org or blocked, no longer shows what
+ * it showed them: the messages go, and nothing can be sent. Messages already delivered to the browser can't be
+ * recalled, only no longer shown.
+ */
+function revokeThread(target: ChatTarget): void {
+    const key = targetKey(target);
+
+    update({
+        threads: {
+            ...state.threads,
+            [key]: { ...emptyThread(target), isLoaded: true, access: 'closed' },
+        },
+        conversations: withoutKey(state.conversations, key),
+        fetched: withoutKey(state.fetched, key),
+        archived: withoutKey(state.archived, key),
+    });
+}
+
+function recheckTyping(target: ChatTarget, isTyping: boolean): void {
+    const key = targetKey(target);
+
+    window.clearTimeout(typingRechecks.get(key));
+    typingRechecks.delete(key);
+
+    if (isTyping && isHearingRemotes()) {
+        typingRechecks.set(
+            key,
+            window.setTimeout(() => {
+                typingRechecks.delete(key);
+                refreshThread(target);
+            }, typingRecheck),
+        );
+    }
 }
 
 /**
@@ -1387,12 +1816,22 @@ export function watchThread(target: ChatTarget): () => void {
             return;
         }
 
+        schedule();
+    };
+
+    const schedule = () => {
+        window.clearTimeout(timer);
+
         const isActive =
             Date.now() - (lastActivity.get(key) ?? 0) < activeWindow;
 
         timer = window.setTimeout(
             () => void tick(),
-            isActive ? activePoll : idlePoll,
+            isHearingRemotes()
+                ? listeningPoll
+                : isActive
+                  ? activePoll
+                  : idlePoll,
         );
     };
 
@@ -1403,6 +1842,12 @@ export function watchThread(target: ChatTarget): () => void {
     };
 
     document.addEventListener('visibilitychange', onVisible);
+    // Losing the live updates brings back the quick polls straight away, instead of after the slow one.
+    const stopPacing = onHearingChange(() => {
+        if (!isStopped) {
+            schedule();
+        }
+    });
     void tick();
     scheduleInbox();
     void loadReactionUsage();
@@ -1410,6 +1855,7 @@ export function watchThread(target: ChatTarget): () => void {
     return () => {
         isStopped = true;
         window.clearTimeout(timer);
+        stopPacing();
         document.removeEventListener('visibilitychange', onVisible);
 
         const watchers = (threadWatchers.get(key) ?? 1) - 1;
@@ -1473,7 +1919,7 @@ async function deliver(
     const key = targetKey(target);
 
     try {
-        const { message } = await request<{ message: Message }>(
+        const { message } = await remotesRequest<{ message: Message }>(
             urls(target).store,
             'POST',
             payloadOf(pending),
@@ -1494,7 +1940,11 @@ async function deliver(
             head: Math.max(thread.head, message.id),
         }));
         touchInbox(target, message);
-    } catch {
+    } catch (error) {
+        if (error instanceof StaleRemotesError) {
+            return;
+        }
+
         updateThread(key, (thread) => ({
             pending: thread.pending.map((item) =>
                 item.client_id === pending.client_id
@@ -1577,10 +2027,22 @@ export function sendMessage(target: ChatTarget, draft: MessageDraft): void {
  */
 export async function sendPing(target: ChatTarget): Promise<void> {
     const key = targetKey(target);
-    const { message } = await request<{ message: Message }>(
+    const sent = await remotesRequest<{ message: Message }>(
         urls(target).ping,
         'POST',
-    );
+    ).catch((error: unknown) => {
+        if (isStaleRemotes(error)) {
+            return null;
+        }
+
+        throw error;
+    });
+
+    if (sent === null) {
+        return;
+    }
+
+    const { message } = sent;
 
     lastActivity.set(key, Date.now());
     updateThread(key, (thread) => ({
@@ -1599,7 +2061,7 @@ async function loadReactionUsage(): Promise<void> {
     isLoadingReactionUsage = true;
 
     try {
-        const { usage } = await request<{ usage: ReactionUsage[] }>(
+        const { usage } = await remotesRequest<{ usage: ReactionUsage[] }>(
             MessageReactionController.index.url(),
         );
 
@@ -1698,7 +2160,9 @@ export async function toggleReaction(
     countReactionUse(emoji, isRemoving ? -1 : 1);
 
     try {
-        const { reactions } = await request<{ reactions: MessageReaction[] }>(
+        const { reactions } = await remotesRequest<{
+            reactions: MessageReaction[];
+        }>(
             isRemoving
                 ? MessageReactionController.destroy.url({ message: messageId })
                 : MessageReactionController.store.url({ message: messageId }),
@@ -1711,12 +2175,117 @@ export async function toggleReaction(
         }
 
         return true;
-    } catch {
+    } catch (error) {
         settle();
+
+        if (error instanceof StaleRemotesError) {
+            return false;
+        }
+
         setReactions(key, messageId, isRemoving ? add : remove);
         countReactionUse(emoji, isRemoving ? 1 : -1);
 
         return false;
+    }
+}
+
+/**
+ * Clears the mentions the user opened or saw, or every mention in the org, at once. The server answers with the
+ * mentions left, and when it refuses, the cleared ones come back and the thread is read again.
+ */
+export async function clearMentions(
+    org: OrgRef,
+    messageIds?: number[],
+): Promise<void> {
+    const isCurrent = ownership();
+    const resets = remotesResets;
+    const target: ChatTarget = { kind: 'org', org };
+    const key = targetKey(target);
+    const thread = state.threads[key];
+    const cleared = (thread?.mentions ?? []).filter(
+        (message) =>
+            messageIds === undefined || messageIds.includes(message.id),
+    );
+    const clearedCount =
+        messageIds === undefined
+            ? (thread?.mentions_count ?? 0)
+            : cleared.length;
+    const ids = cleared.map((message) => message.id);
+    const stillClearing = (current: ThreadState) =>
+        current.clearingMentions.filter((id) => !ids.includes(id));
+
+    if (cleared.length === 0) {
+        return;
+    }
+
+    updateThread(key, (current) => ({
+        mentions: current.mentions.filter(
+            (message) => !ids.includes(message.id),
+        ),
+        mentions_count: Math.max(0, current.mentions_count - clearedCount),
+        clearingMentions: [...current.clearingMentions, ...ids],
+    }));
+
+    const clearing = (mentionClears.get(key) ?? Promise.resolve())
+        .catch(() => undefined)
+        .then(() => {
+            // Waiting its turn may outlast the account that asked.
+            if (!isCurrent()) {
+                throw new StaleRemotesError();
+            }
+
+            return request<Pick<OrgThread, 'mentions' | 'mentions_count'>>(
+                OrgMentionController.destroy.url({ org: org.id }),
+                'DELETE',
+                messageIds === undefined ? undefined : { message_ids: ids },
+                isCurrent,
+            );
+        });
+    mentionClears.set(key, clearing);
+
+    try {
+        const left = await clearing;
+
+        updateThread(key, (current) => {
+            const clearing = stillClearing(current);
+            const mentions = left.mentions.filter(
+                (message) => !clearing.includes(message.id),
+            );
+
+            return {
+                mentions,
+                mentions_count:
+                    left.mentions_count -
+                    (left.mentions.length - mentions.length),
+                clearingMentions: clearing,
+                mentionsClearedAt: performance.now(),
+            };
+        });
+    } catch (error) {
+        if (error instanceof StaleRemotesError) {
+            // Watching the same account again keeps its threads, which must not wait for this clear any more.
+            if (remotesResets === resets) {
+                updateThread(key, (current) => ({
+                    clearingMentions: stillClearing(current),
+                }));
+            }
+
+            return;
+        }
+
+        updateThread(key, (current) => ({
+            mentions: [
+                ...current.mentions.filter(
+                    (message) => !ids.includes(message.id),
+                ),
+                ...cleared,
+            ].sort((a, b) => b.id - a.id),
+            mentions_count: current.mentions_count + clearedCount,
+            clearingMentions: stillClearing(current),
+        }));
+        refreshThread(target);
+
+        throw error;
     }
 }
 
@@ -1730,6 +2299,7 @@ export async function setMessagePinned(
     message: Message,
     isPinned: boolean,
 ): Promise<void> {
+    const isCurrent = ownership();
     const key = targetKey(target);
     const shown = state.threads[key]?.pinned ?? [];
     const index = shown.findIndex((item) => item.id === message.id);
@@ -1747,7 +2317,7 @@ export async function setMessagePinned(
     }));
 
     try {
-        const { pinned, reactions_version: version } = await request<{
+        const { pinned, reactions_version: version } = await remotesRequest<{
             pinned: Message[];
             reactions_version: number;
         }>(
@@ -1766,6 +2336,10 @@ export async function setMessagePinned(
             throw new Error('Another pin took the last place first.');
         }
     } catch (error) {
+        if (error instanceof StaleRemotesError) {
+            return;
+        }
+
         updateThread(key, (thread) => ({
             pinned: isPinned
                 ? withoutPinnedMessage(thread.pinned, message)
@@ -1783,7 +2357,7 @@ export async function setMessagePinned(
             messagePinsInFlight.delete(key);
             newestPinnedMessages.delete(key);
 
-            if (newest !== undefined) {
+            if (newest !== undefined && isCurrent()) {
                 updateThread(key, (thread) =>
                     pinnedMessagesFrom(
                         key,
@@ -1848,7 +2422,7 @@ export function markThreadRead(target: ChatTarget): void {
 
     update({ conversations, unread: unreadOf(conversations) });
 
-    void request(urls(target).read, 'PUT', { through: latest }).catch(
+    void remotesRequest(urls(target).read, 'PUT', { through: latest }).catch(
         () => undefined,
     );
 }
@@ -1862,7 +2436,7 @@ export function pingTyping(target: ChatTarget): void {
     }
 
     lastTypingPing.set(key, now);
-    void request(urls(target).typing, 'PUT').catch(() => undefined);
+    void remotesRequest(urls(target).typing, 'PUT').catch(() => undefined);
 }
 
 const olderLoads = new Map<string, Promise<void>>();
@@ -1891,7 +2465,7 @@ export async function loadOlderMessages(target: ChatTarget): Promise<void> {
 
     const load = (async () => {
         try {
-            const older = await request<Thread | OrgThread>(
+            const older = await remotesRequest<Thread | OrgThread>(
                 urls(target).index({ before: oldest }),
             );
 
@@ -1900,8 +2474,10 @@ export async function loadOlderMessages(target: ChatTarget): Promise<void> {
                 has_older: older.has_older,
                 isLoadingOlder: false,
             }));
-        } catch {
-            updateThread(key, () => ({ isLoadingOlder: false }));
+        } catch (error) {
+            if (!(error instanceof StaleRemotesError)) {
+                updateThread(key, () => ({ isLoadingOlder: false }));
+            }
         }
     })();
     olderLoads.set(key, load);
@@ -1909,7 +2485,9 @@ export async function loadOlderMessages(target: ChatTarget): Promise<void> {
     try {
         await load;
     } finally {
-        olderLoads.delete(key);
+        if (olderLoads.get(key) === load) {
+            olderLoads.delete(key);
+        }
     }
 }
 
@@ -1956,16 +2534,32 @@ export async function searchConversations(
 ): Promise<ConversationSummary[]> {
     const version = ++muteVersion;
     const pinsVersion = ++pinVersion;
+    const isCurrent = ownership();
     const response = await fetch(
         InboxController.index.url({ query: { q: term, tab } }),
         { headers: { Accept: 'application/json' }, cache: 'no-store', signal },
-    );
+    ).catch((error: unknown) => {
+        if (!isCurrent()) {
+            return null;
+        }
+
+        throw error;
+    });
+
+    if (response === null || !isCurrent()) {
+        return [];
+    }
 
     if (!response.ok) {
         throw new Error(`Conversation search failed: ${response.status}`);
     }
 
     const { conversations } = (await response.json()) as InboxPage;
+
+    if (!isCurrent()) {
+        return [];
+    }
+
     update({
         pinPreferences: withPinPreferences(
             conversations.map((item) => [summaryKey(item), item.pinned_at]),
@@ -1991,18 +2585,23 @@ export async function searchCandidates(
     scope: { for: 'remote' | 'org' | 'share' } | { org: string },
     signal: AbortSignal,
 ): Promise<Candidate[]> {
+    const isCurrent = ownership();
     const response = await fetch(
         RemoteCandidateController.index.url({ query: { q: term, ...scope } }),
         { headers: { Accept: 'application/json' }, cache: 'no-store', signal },
     );
 
-    if (!response.ok) {
+    if (!response.ok || !isCurrent()) {
         return [];
     }
 
     const { candidates } = (await response.json()) as {
         candidates: Candidate[];
     };
+
+    if (!isCurrent()) {
+        return [];
+    }
 
     return candidates.toSorted(
         (a, b) => Number(a.reason !== null) - Number(b.reason !== null),
@@ -2044,7 +2643,7 @@ export async function settleRequest(
     updateThread(key, () => ({ access: isMerging ? 'open' : 'waiting' }));
 
     try {
-        await request(
+        await remotesRequest(
             isMerging
                 ? ConversationMergeController.store.url({ partner: key })
                 : ConversationDropController.store.url({ partner: key }),
@@ -2052,7 +2651,11 @@ export async function settleRequest(
         );
 
         return true;
-    } catch {
+    } catch (error) {
+        if (error instanceof StaleRemotesError) {
+            return false;
+        }
+
         update(previous);
         updateThread(key, () => ({ access: previousAccess }));
 
@@ -2108,13 +2711,17 @@ export async function setConversationArchived(
     updateThread(key, () => ({ is_archived: isArchived }));
 
     try {
-        await request(
+        await remotesRequest(
             isArchived ? urls(target).stash : urls(target).pop,
             isArchived ? 'POST' : 'DELETE',
         );
 
         return true;
-    } catch {
+    } catch (error) {
+        if (error instanceof StaleRemotesError) {
+            return false;
+        }
+
         update(previous);
         updateThread(key, () => ({ is_archived: !isArchived }));
 
@@ -2153,15 +2760,23 @@ export async function setConversationPinned(
 
     applyConversationPin(key, pinned ? new Date().toISOString() : null);
 
-    const preference = await request<{ pinned_at: string | null }>(
+    const preference = await remotesRequest<{ pinned_at: string | null }>(
         urls(target).pin,
         'PUT',
         { pinned },
     ).catch((error: unknown) => {
+        if (isStaleRemotes(error)) {
+            return null;
+        }
+
         applyConversationPin(key, previous);
 
         throw error;
     });
+
+    if (preference === null) {
+        return;
+    }
 
     invalidateConversationPages();
     applyConversationPin(key, preference.pinned_at);
@@ -2204,17 +2819,23 @@ export async function setConversationMute(
 
     applyConversationMute(key, duration === 'off' ? null : mutedUntilAnswered);
 
-    const preference = await request<{ muted_until_at: string | null }>(
+    const preference = await remotesRequest<{ muted_until_at: string | null }>(
         urls(target).mute,
         'PUT',
         { duration },
     ).catch((error: unknown) => {
+        if (isStaleRemotes(error)) {
+            return null;
+        }
+
         applyConversationMute(key, previous);
 
         throw error;
     });
 
-    applyConversationMute(key, preference.muted_until_at);
+    if (preference !== null) {
+        applyConversationMute(key, preference.muted_until_at);
+    }
 }
 
 /**
@@ -2222,6 +2843,7 @@ export async function setConversationMute(
  * that conversation no longer exists for either of them.
  */
 export async function blockPartner(partner: User): Promise<boolean> {
+    const isCurrent = ownership();
     const response = await fetch(UserBlockController.store.url(partner), {
         method: 'POST',
         headers: {
@@ -2234,6 +2856,7 @@ export async function blockPartner(partner: User): Promise<boolean> {
 
     if (
         response === null ||
+        !isCurrent() ||
         (response.type !== 'opaqueredirect' && !response.ok)
     ) {
         return false;
@@ -2258,13 +2881,24 @@ export async function blockPartner(partner: User): Promise<boolean> {
 export async function createOrg(
     name: string,
     members: string[],
-): Promise<OrgRef> {
-    const { org } = await request<{ org: { id: string } }>(
+): Promise<OrgRef | null> {
+    const created = await remotesRequest<{ org: { id: string } }>(
         OrgController.store.url(),
         'POST',
         { name, members },
-    );
+    ).catch((error: unknown) => {
+        if (isStaleRemotes(error)) {
+            return null;
+        }
 
+        throw error;
+    });
+
+    if (created === null) {
+        return null;
+    }
+
+    const { org } = created;
     void pollInbox();
 
     return { id: org.id, name: name.trim() || null };
@@ -2281,15 +2915,26 @@ export async function renameOrg(org: OrgRef, name: string): Promise<void> {
 
     updateThread(key, () => ({ target: { kind: 'org', org: renamed } }));
 
-    await request(OrgController.update.url({ org: org.id }), 'PUT', {
-        name,
-    }).catch((error: unknown) => {
-        updateThread(key, () => ({ target: { kind: 'org', org } }));
+    const isRenamed = await remotesRequest(
+        OrgController.update.url({ org: org.id }),
+        'PUT',
+        { name },
+    ).then(
+        () => true,
+        (error: unknown) => {
+            if (isStaleRemotes(error)) {
+                return false;
+            }
 
-        throw error;
-    });
+            updateThread(key, () => ({ target: { kind: 'org', org } }));
 
-    await refreshOrg(renamed);
+            throw error;
+        },
+    );
+
+    if (isRenamed) {
+        await refreshOrg(renamed);
+    }
 }
 
 async function changeOrgMembers(
@@ -2302,13 +2947,22 @@ async function changeOrgMembers(
 
     updateThread(key, (thread) => ({ members: change(thread.members) }));
 
-    await save().catch((error: unknown) => {
-        updateThread(key, () => ({ members: previous }));
+    const isSaved = await save().then(
+        () => true,
+        (error: unknown) => {
+            if (isStaleRemotes(error)) {
+                return false;
+            }
 
-        throw error;
-    });
+            updateThread(key, () => ({ members: previous }));
 
-    await refreshOrg(org);
+            throw error;
+        },
+    );
+
+    if (isSaved) {
+        await refreshOrg(org);
+    }
 }
 
 export async function addOrgMembers(
@@ -2316,11 +2970,27 @@ export async function addOrgMembers(
     members: string[],
     sharesHistory: boolean,
 ): Promise<void> {
-    await request(OrgMemberController.store.url({ org: org.id }), 'POST', {
-        members,
-        share_history: sharesHistory,
-    });
-    await refreshOrg(org);
+    const isAdded = await remotesRequest(
+        OrgMemberController.store.url({ org: org.id }),
+        'POST',
+        {
+            members,
+            share_history: sharesHistory,
+        },
+    ).then(
+        () => true,
+        (error: unknown) => {
+            if (isStaleRemotes(error)) {
+                return false;
+            }
+
+            throw error;
+        },
+    );
+
+    if (isAdded) {
+        await refreshOrg(org);
+    }
 }
 
 export async function setOrgMemberRole(
@@ -2335,7 +3005,7 @@ export async function setOrgMemberRole(
                 item.user.id === member.id ? { ...item, role } : item,
             ),
         () =>
-            request(
+            remotesRequest(
                 OrgMemberController.update.url({
                     org: org.id,
                     member: member.handle,
@@ -2355,7 +3025,7 @@ export async function removeOrgMember(
     isLeaving: boolean,
 ): Promise<void> {
     const remove = () =>
-        request(
+        remotesRequest(
             OrgMemberController.destroy.url({
                 org: org.id,
                 member: member.handle,
@@ -2373,7 +3043,20 @@ export async function removeOrgMember(
         return;
     }
 
-    await remove();
+    const isRemoved = await remove().then(
+        () => true,
+        (error: unknown) => {
+            if (isStaleRemotes(error)) {
+                return false;
+            }
+
+            throw error;
+        },
+    );
+
+    if (!isRemoved) {
+        return;
+    }
 
     const key = targetKey({ kind: 'org', org });
     const threads = { ...state.threads };

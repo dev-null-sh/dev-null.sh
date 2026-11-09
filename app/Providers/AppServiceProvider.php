@@ -208,6 +208,13 @@ final class AppServiceProvider extends ServiceProvider
         // GitHub fetches every README image through a few proxy addresses, so each graph gets its own budget...
         RateLimiter::for('activity-graph', fn (Request $request): Limit => Limit::perMinute(60)->by("{$request->ip()}|{$request->path()}"));
 
+        // Live updates: joining a channel and catching up after missing updates have budgets of their own, so pages
+        // listening never spend the one for reading and giving...
+        RateLimiter::for('broadcast-authorizations', fn (Request $request): Limit => Limit::perMinute(60)->by($this->userId($request)));
+        RateLimiter::for('live-streams', fn (Request $request): Limit => Limit::perMinute(120)->by($request->user()->id ?? (string) $request->ip()));
+        RateLimiter::for('commit-changes', fn (Request $request): Limit => Limit::perMinute(120)->by($request->user()->id ?? (string) $request->ip()));
+        RateLimiter::for('live-reads', fn (Request $request): Limit => Limit::perMinute(60)->by($request->user()->id ?? (string) $request->ip()));
+
         // Commit actions: rapid j/k with a star on most commits stays well under these...
         RateLimiter::for('stars', fn (Request $request): Limit => Limit::perMinute(60)->by($this->userId($request)));
         RateLimiter::for('pins', fn (Request $request): Limit => Limit::perMinute(20)->by($this->userId($request)));
@@ -241,25 +248,13 @@ final class AppServiceProvider extends ServiceProvider
         ]);
 
         // Every commit search pays for an embedding and a relevance verdict, so it gets a budget of its own...
-        RateLimiter::for('search', function (Request $request): Limit {
-            if ($request->routeIs('headline.show') && $request->header('X-Inertia-Partial-Component') === 'headline/show') {
-                $only = collect(explode(',', $request->header('X-Inertia-Partial-Data', '')))->filter();
-                $except = explode(',', $request->header('X-Inertia-Partial-Except', ''));
-
-                if (($only->isNotEmpty() && $only->doesntContain(fn (string $prop): bool => $prop === 'commits' || str_starts_with($prop, 'commits.')))
-                    || in_array('commits', $except, true)) {
-                    return Limit::none();
-                }
-            }
-
-            return Limit::perMinute(15)
-                ->by($this->userId($request))
-                ->response(fn (Request $request, array $headers): JsonResponse => response()->json(
-                    ['message' => 'Slow down: too many searches. Give it a few seconds.'],
-                    429,
-                    $headers,
-                ));
-        });
+        RateLimiter::for('search', fn (Request $request): Limit => Limit::perMinute(15)
+            ->by($this->userId($request))
+            ->response(fn (Request $request, array $headers): JsonResponse => response()->json(
+                ['message' => 'Slow down: too many searches. Give it a few seconds.'],
+                429,
+                $headers,
+            )));
 
         // Every commit page asks for its related commits, using the stored vector and a relevance verdict...
         RateLimiter::for('related-commits', fn (Request $request): Limit => Limit::perMinute(60)->by(
