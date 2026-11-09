@@ -5,6 +5,7 @@ import { useCallback, useContext, useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import CommitLinkPreviewController from '@/actions/App/Http/Controllers/CommitLinkPreviewController';
 import { FoldedCommitBody } from '@/components/commit-body';
+import { CommitHeader } from '@/components/commit-header';
 import { CommitImages } from '@/components/commit-images';
 import { CommitPastelButton } from '@/components/commit-pastel-button';
 import { CommitPoll } from '@/components/commit-poll';
@@ -37,11 +38,9 @@ import { HiddenLinkPreviewContext } from '@/components/hidden-link-preview-conte
 import { LinkPreview } from '@/components/link-preview';
 import { LiveStreamTrigger } from '@/components/live-stream-card';
 import { QuotedCommit } from '@/components/quoted-commit';
-import {
-    ThreadPositionBadge,
-    type ThreadPosition,
-} from '@/components/thread-position-badge';
+import { type ThreadPosition } from '@/components/thread-position-badge';
 import { TimestampTooltip } from '@/components/timestamp-tooltip';
+import { TombstoneLine } from '@/components/tombstone-line';
 import { Button } from '@/components/ui/button';
 import { UserPreview } from '@/components/user-preview';
 import {
@@ -352,82 +351,42 @@ export function CommitCard({
                         })}
                     >
                         <div className="min-w-0 flex-1">
-                            <div className="flex items-baseline gap-1.5 text-[15px]">
-                                <UserPreview
-                                    user={commit.author}
-                                    anchor={nodeRef}
-                                    className="flex min-w-0 items-baseline gap-1.5"
-                                    onHoverChange={onAuthorHover}
-                                >
-                                    <Link
-                                        prefetch
-                                        href={show(commit.author)}
-                                        className="truncate font-semibold hover:underline"
+                            <CommitHeader
+                                commit={commit}
+                                href={permalink.url}
+                                profileHref={show.url(commit.author)}
+                                date={formatRelativeTime(
+                                    commit.created_at,
+                                    now,
+                                )}
+                                threadPosition={threadPosition}
+                                hasHash
+                                isFocused={isFocused}
+                                wrapAuthor={(author, className) => (
+                                    <UserPreview
+                                        user={commit.author}
+                                        anchor={nodeRef}
+                                        className={className}
+                                        onHoverChange={onAuthorHover}
                                     >
-                                        {commit.author.name}
-                                    </Link>
-                                    <Link
-                                        prefetch
-                                        href={show(commit.author)}
-                                        tabIndex={-1}
-                                        className="shrink-4 truncate font-mono text-[13px] text-muted-foreground"
+                                        {author}
+                                    </UserPreview>
+                                )}
+                                wrapDate={(link) => (
+                                    <TimestampTooltip
+                                        date={commit.created_at}
+                                        author={
+                                            commit.author.type === 'user'
+                                                ? commit.author
+                                                : undefined
+                                        }
                                     >
-                                        @{commit.author.handle}
-                                    </Link>
-                                </UserPreview>
-                                <span
-                                    aria-hidden
-                                    className="text-muted-foreground"
-                                >
-                                    ·
-                                </span>
-                                <TimestampTooltip
-                                    date={commit.created_at}
-                                    author={
-                                        commit.author.type === 'user'
-                                            ? commit.author
-                                            : undefined
-                                    }
-                                >
-                                    <Link
-                                        prefetch
-                                        href={permalink}
-                                        className="shrink-0 font-mono text-[13px] text-muted-foreground hover:underline"
-                                        data-test="commit-permalink"
-                                    >
-                                        <time dateTime={commit.created_at}>
-                                            {formatRelativeTime(
-                                                commit.created_at,
-                                                now,
-                                            )}
-                                        </time>
-                                    </Link>
-                                </TimestampTooltip>
-
-                                <ThreadPositionBadge
-                                    threadPosition={threadPosition}
-                                />
-
+                                        {link}
+                                    </TimestampTooltip>
+                                )}
+                            >
                                 <CommitStatusBadge commit={commit} />
-
-                                <span
-                                    data-commit-hash
-                                    className="relative ml-auto flex shrink-0 items-center self-center"
-                                >
-                                    <Link
-                                        prefetch
-                                        href={permalink}
-                                        tabIndex={-1}
-                                        className={cn(
-                                            'hidden font-mono text-[13px] text-muted-foreground transition-opacity hover:text-foreground sm:inline',
-                                            { 'sm:hidden': isFocused },
-                                        )}
-                                        title={`Commit ${commit.id}`}
-                                    >
-                                        {hash}
-                                    </Link>
-                                </span>
-                            </div>
+                            </CommitHeader>
 
                             {commit.parent && isDeleted(commit.parent) && (
                                 <p className="mt-0.5 flex w-fit items-center gap-1 font-mono text-xs text-muted-foreground">
@@ -725,10 +684,7 @@ export function CommitTombstone({
             />
 
             <div className="flex min-w-0 flex-1 items-center gap-3 border-b py-3 pr-4">
-                <p className="flex items-baseline gap-1.5 text-[15px] text-muted-foreground">
-                    <span className="font-mono text-[13px]">[deleted]</span>
-                    This commit was deleted.
-                </p>
+                <TombstoneLine className="items-baseline" />
             </div>
         </article>
     );

@@ -1,10 +1,10 @@
-import {wayfinder} from '@laravel/vite-plugin-wayfinder';
+import { wayfinder } from '@laravel/vite-plugin-wayfinder';
 import babel from '@rolldown/plugin-babel';
 import tailwindcss from '@tailwindcss/vite';
-import react, {reactCompilerPreset} from '@vitejs/plugin-react';
+import react, { reactCompilerPreset } from '@vitejs/plugin-react';
 import laravel from 'laravel-vite-plugin';
-import {bunny} from 'laravel-vite-plugin/fonts';
-import {defineConfig} from 'vite-plus';
+import { bunny } from 'laravel-vite-plugin/fonts';
+import { defineConfig } from 'vite-plus';
 
 export default defineConfig({
     lint: {
@@ -59,7 +59,11 @@ export default defineConfig({
     },
     plugins: [
         laravel({
-            input: ['resources/css/app.css', 'resources/js/app.tsx'],
+            input: [
+                'resources/css/app.css',
+                'resources/js/app.tsx',
+                'resources/js/embed.tsx',
+            ],
             ssr: 'resources/js/ssr.tsx',
             refresh: true,
             fonts: [

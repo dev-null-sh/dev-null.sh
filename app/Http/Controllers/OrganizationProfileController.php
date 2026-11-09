@@ -20,6 +20,7 @@ final readonly class OrganizationProfileController
         return Inertia::render('organization-profile/edit', [
             'organization' => $organization,
             'role' => OrganizationRole::Admin,
+            'allowsEmbeds' => $organization->allows_embeds,
         ]);
     }
 }

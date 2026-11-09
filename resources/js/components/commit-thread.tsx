@@ -6,7 +6,13 @@ import {
     MessageSquareReply,
     Trash2,
 } from 'lucide-react';
-import type { CSSProperties, FormEvent, KeyboardEvent, ReactNode } from 'react';
+import type {
+    CSSProperties,
+    FormEvent,
+    KeyboardEvent,
+    ReactNode,
+    Ref,
+} from 'react';
 import {
     useCallback,
     useContext,
@@ -24,6 +30,7 @@ import { AuthorAvatar } from '@/components/author-avatar';
 import { AuthorSwitcher } from '@/components/author-switcher';
 import { BodyCounter } from '@/components/body-counter';
 import { FoldedCommitBody } from '@/components/commit-body';
+import { CommitHeader } from '@/components/commit-header';
 import {
     ImageDropOverlay,
     ImagePickerButton,
@@ -62,6 +69,7 @@ import { ReplyRecipientPicker } from '@/components/reply-recipient-picker';
 import { StashLabel } from '@/components/stash-label';
 import { showTimeout, timeoutFrom } from '@/components/timeout-dialog';
 import { TimestampTooltip } from '@/components/timestamp-tooltip';
+import { TombstoneLine } from '@/components/tombstone-line';
 import { Button } from '@/components/ui/button';
 import {
     Tooltip,
@@ -132,7 +140,7 @@ const afterVisits =
         ? visitsSettled((event, listener) => router.on(event, listener))
         : () => Promise.resolve();
 
-const maxIndentDepth = 3;
+export const maxIndentDepth = 3;
 
 const maxRepliesPerRequest = 50;
 
@@ -171,7 +179,7 @@ function useCommitsCountUpdate(): (change: number) => void {
 
     return (change) => setCommitsCount((count) => count + change);
 }
-const threadLayouts = {
+export const threadLayouts = {
     // Root replies line up with the commit text, and their elbow branches off the rail.
     root: '[--indent:0px] [--spine:-32px] sm:[--spine:-36px]',
     nested: '[--indent:32px] [--spine:12px] sm:[--indent:38px] sm:[--spine:14px]',
@@ -906,15 +914,82 @@ export function ShowThreadLink({ thread }: { thread: Thread }) {
     }
 
     return (
-        <Link
-            prefetch
+        <ThreadLink
             href={CommitController.show({ profile: commit.author, commit })}
-            className="mt-2 -ml-2 flex w-fit items-center gap-1 rounded-md px-2 py-0.5 text-[13px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-            aria-label={`Show thread by @${commit.author.handle}`}
-            data-test="show-thread-link"
-        >
+            handle={commit.author.handle}
+        />
+    );
+}
+
+const repliesToggleClassName =
+    'flex items-center gap-1 rounded-md px-2 py-0.5 font-medium text-primary transition-colors hover:bg-primary-soft';
+
+function RepliesToggleContent({
+    count,
+    isOpen,
+}: {
+    count: number;
+    isOpen: boolean;
+}) {
+    return (
+        <>
+            <ChevronDown
+                className={cn('size-4 transition-transform', {
+                    '-rotate-90': !isOpen,
+                })}
+            />
+            {isOpen
+                ? 'Hide replies'
+                : `${formatCount(count)} ${count === 1 ? 'reply' : 'replies'}`}
+        </>
+    );
+}
+
+/**
+ * The actions row's link to replies a commit embed leaves out: it looks like the toggle, and opens them on /dev/null.
+ */
+export function RepliesLink({ count, href }: { count: number; href: string }) {
+    return (
+        <a href={href} className={repliesToggleClassName}>
+            <RepliesToggleContent count={count} isOpen={false} />
+        </a>
+    );
+}
+
+const threadLinkClassName =
+    'mt-2 -ml-2 flex w-fit items-center gap-1 rounded-md px-2 py-0.5 text-[13px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground';
+
+/**
+ * The log's link to a commit's thread. On another site, like a commit embed, it's a plain link to /dev/null.
+ */
+export function ThreadLink({
+    href,
+    handle,
+    isEmbedded = false,
+}: {
+    href: string | { url: string; method: 'get' };
+    handle: string;
+    isEmbedded?: boolean;
+}) {
+    const content = (
+        <>
             <ListTree className="size-4" aria-hidden />
             Show thread
+        </>
+    );
+    const props = {
+        className: threadLinkClassName,
+        'aria-label': `Show thread by @${handle}`,
+        'data-test': 'show-thread-link',
+    };
+
+    return isEmbedded ? (
+        <a href={typeof href === 'string' ? href : href.url} {...props}>
+            {content}
+        </a>
+    ) : (
+        <Link prefetch href={href} {...props}>
+            {content}
         </Link>
     );
 }
@@ -1003,20 +1078,13 @@ export function ThreadActions({
                                 aria-keyshortcuts={
                                     hasKeyboardShortcuts ? 'o' : undefined
                                 }
-                                className="flex items-center gap-1 rounded-md px-2 py-0.5 font-medium text-primary transition-colors hover:bg-primary-soft"
+                                className={repliesToggleClassName}
                                 data-test="toggle-replies-button"
                             >
-                                <ChevronDown
-                                    className={cn(
-                                        'size-4 transition-transform',
-                                        {
-                                            '-rotate-90': !thread.isOpen,
-                                        },
-                                    )}
+                                <RepliesToggleContent
+                                    count={thread.count}
+                                    isOpen={thread.isOpen}
                                 />
-                                {thread.isOpen
-                                    ? 'Hide replies'
-                                    : `${formatCount(thread.count)} ${thread.count === 1 ? 'reply' : 'replies'}`}
                             </button>
                         </ActionTooltip>
                     )}
@@ -1061,6 +1129,17 @@ export function ThreadSpine({
         return null;
     }
 
+    return <ReplySpine lane={laneOf(thread.commit)} className={className} />;
+}
+
+/** The dashed column down from a reply's avatar to its own replies, until the graph canvas draws it. */
+export function ReplySpine({
+    lane,
+    className,
+}: {
+    lane: string;
+    className?: string;
+}) {
     return (
         <WithoutGraph>
             <span
@@ -1069,9 +1148,7 @@ export function ThreadSpine({
                     'absolute bottom-0 left-1/2 w-0.5 -translate-x-1/2',
                     className,
                 )}
-                style={laneStrokeStyle(laneOf(thread.commit), {
-                    dash: graphDash,
-                })}
+                style={laneStrokeStyle(lane, { dash: graphDash })}
                 data-test="thread-spine"
             />
         </WithoutGraph>
@@ -1081,7 +1158,7 @@ export function ThreadSpine({
 /**
  * A piece of the parent's column, in its lane, as the graph canvas draws it on from one reply's corner to the next.
  */
-function ThreadColumn({ className }: { className: string }) {
+export function ThreadColumn({ className }: { className: string }) {
     return (
         <span
             aria-hidden
@@ -1096,7 +1173,7 @@ function ThreadColumn({ className }: { className: string }) {
  * A reply's branch off its parent: an elbow to the reply, and the column on below it when another reply follows. A
  * trunk going on below the replies is their column already, so they only turn off it.
  */
-function ReplyBranch({
+export function ReplyBranch({
     isOnTrunk,
     hasNext,
 }: {
@@ -1113,7 +1190,7 @@ function ReplyBranch({
     );
 }
 
-function ThreadElbow({
+export function ThreadElbow({
     isOnTrunk,
     className,
 }: {
@@ -1274,18 +1351,79 @@ function ReplySkeleton() {
     );
 }
 
-function moreRepliesLabel(thread: Thread): string {
-    if (thread.remaining > thread.perPage) {
-        return `Show ${thread.perPage} more`;
+function moreRepliesLabel(
+    remaining: number,
+    perPage: number = Number.POSITIVE_INFINITY,
+): string {
+    if (remaining > perPage) {
+        return `Show ${perPage} more`;
     }
 
-    if (thread.remaining === 1) {
+    if (remaining === 1) {
         return 'Show the last reply';
     }
 
-    return thread.remaining > 1
-        ? `Show the last ${formatCount(thread.remaining)}`
+    return remaining > 1
+        ? `Show the last ${formatCount(remaining)}`
         : 'Show more';
+}
+
+const moreRepliesClassName =
+    '-ml-2 flex min-w-0 items-center gap-2 rounded-md px-2 py-0.5 transition-colors [overflow-anchor:none] hover:bg-accent hover:text-foreground aria-disabled:pointer-events-none sm:gap-2.5';
+
+/** The hollow node "Show the last N" sits on, in the rail's muted lane. */
+function MoreRepliesDot({ dotRef }: { dotRef?: Ref<HTMLSpanElement> }) {
+    return (
+        <span
+            aria-hidden
+            className="relative flex size-6 shrink-0 items-center justify-center [--lane:var(--muted-foreground)] sm:size-7"
+        >
+            <span ref={dotRef} className="flex">
+                <RailDot />
+            </span>
+        </span>
+    );
+}
+
+/**
+ * "Show the last N" for replies a commit embed cuts: it looks like the log's, and opens them on /dev/null. Like the
+ * log's, its dot is a node of the surrounding graph canvas, which draws the line to it.
+ */
+export function MoreRepliesLink({
+    remaining,
+    href,
+    parentId,
+    graph,
+}: {
+    remaining: number;
+    href: string;
+    /** The commit whose replies it leads to, which names its node. */
+    parentId: string;
+    graph: ReplyGraph;
+}) {
+    const dotRef = useGraphNode({
+        id: useGraphNodeId()(`${parentId}:more`),
+        lane: 'var(--muted-foreground)',
+        dashed: true,
+        dimmed: useGraphDimmed(),
+        ring: railDotRing,
+        ...graph,
+    });
+
+    return (
+        <div className="flex max-w-full items-center gap-0.5 text-[13px] text-muted-foreground">
+            <a
+                href={href}
+                className={moreRepliesClassName}
+                data-test="more-replies-button"
+            >
+                <MoreRepliesDot dotRef={dotRef} />
+                <span className="truncate tabular-nums">
+                    {moreRepliesLabel(remaining)}
+                </span>
+            </a>
+        </div>
+    );
 }
 
 function MoreRepliesButton({
@@ -1312,22 +1450,15 @@ function MoreRepliesButton({
                 type="button"
                 onClick={thread.loadMore}
                 aria-disabled={thread.isLoading}
-                className="-ml-2 flex min-w-0 items-center gap-2 rounded-md px-2 py-0.5 transition-colors [overflow-anchor:none] hover:bg-accent hover:text-foreground aria-disabled:pointer-events-none sm:gap-2.5"
+                className={moreRepliesClassName}
                 data-test="more-replies-button"
             >
-                <span
-                    aria-hidden
-                    className="relative flex size-6 shrink-0 items-center justify-center [--lane:var(--muted-foreground)] sm:size-7"
-                >
-                    <span ref={dotRef} className="flex">
-                        <RailDot />
-                    </span>
-                </span>
+                <MoreRepliesDot dotRef={dotRef} />
                 {thread.isLoading ? (
                     <span role="status">Loading replies…</span>
                 ) : (
                     <span className="truncate tabular-nums">
-                        {moreRepliesLabel(thread)}
+                        {moreRepliesLabel(thread.remaining, thread.perPage)}
                         {isFlattened && !isDeleted(thread.commit) && (
                             <>
                                 {' to '}
@@ -1360,10 +1491,10 @@ function MoreRepliesButton({
     );
 }
 
-type ReplyGraph = { parent?: string };
+export type ReplyGraph = { parent?: string };
 
 /** A reply avatar's ring is a 2px ring, 2px away from the picture. */
-const replyRing = 4;
+export const replyRing = 4;
 
 function ReplyItem({
     reply,
@@ -1413,10 +1544,10 @@ function ReplyItem({
                         )}
                     </div>
                     <div className="min-w-0 flex-1">
-                        <p className="flex min-h-6 items-center gap-1.5 text-sm text-muted-foreground sm:min-h-7">
-                            <span className="font-mono text-xs">[deleted]</span>
-                            This commit was deleted.
-                        </p>
+                        <TombstoneLine
+                            size="reply"
+                            className="min-h-6 items-center sm:min-h-7"
+                        />
                         <ThreadActions thread={thread} />
                     </div>
                 </div>
@@ -1563,59 +1694,35 @@ function CommitReply({
                         'opacity-50': wasDeleted,
                     })}
                 >
-                    <div className="flex items-baseline gap-1.5 text-sm">
-                        <UserPreview
-                            user={reply.author}
-                            anchor={avatarRef}
-                            className="flex min-w-0 items-baseline gap-1.5"
-                        >
-                            <Link
-                                prefetch
-                                href={show(reply.author)}
-                                className="truncate font-semibold hover:underline"
+                    <CommitHeader
+                        commit={reply}
+                        href={permalink.url}
+                        profileHref={show.url(reply.author)}
+                        date={formatRelativeTime(reply.created_at, now)}
+                        size="reply"
+                        isQuote={isQuote}
+                        wrapAuthor={(author, className) => (
+                            <UserPreview
+                                user={reply.author}
+                                anchor={avatarRef}
+                                className={className}
                             >
-                                {reply.author.name}
-                            </Link>
-                            <Link
-                                prefetch
-                                href={show(reply.author)}
-                                tabIndex={-1}
-                                className="hidden truncate font-mono text-xs text-muted-foreground sm:inline"
-                            >
-                                @{reply.author.handle}
-                            </Link>
-                        </UserPreview>
-                        {isQuote && (
-                            <Link
-                                prefetch
-                                href={permalink}
-                                className="shrink-0 font-mono text-xs text-primary hover:underline"
-                                data-test="quote-reply-label"
-                            >
-                                quoted
-                            </Link>
+                                {author}
+                            </UserPreview>
                         )}
-                        <span aria-hidden className="text-muted-foreground">
-                            ·
-                        </span>
-                        <TimestampTooltip
-                            date={reply.created_at}
-                            author={
-                                reply.author.type === 'user'
-                                    ? reply.author
-                                    : undefined
-                            }
-                        >
-                            <Link
-                                prefetch
-                                href={permalink}
-                                className="shrink-0 font-mono text-xs text-muted-foreground hover:underline"
+                        wrapDate={(link) => (
+                            <TimestampTooltip
+                                date={reply.created_at}
+                                author={
+                                    reply.author.type === 'user'
+                                        ? reply.author
+                                        : undefined
+                                }
                             >
-                                <time dateTime={reply.created_at}>
-                                    {formatRelativeTime(reply.created_at, now)}
-                                </time>
-                            </Link>
-                        </TimestampTooltip>
+                                {link}
+                            </TimestampTooltip>
+                        )}
+                    >
                         <CommitStatusBadge commit={reply} size="small" />
                         {isOwn && (
                             <Tooltip>
@@ -1632,7 +1739,7 @@ function CommitReply({
                                 <TooltipContent>Delete reply</TooltipContent>
                             </Tooltip>
                         )}
-                    </div>
+                    </CommitHeader>
 
                     {isFlattened && (
                         <p className="flex min-w-0 items-center gap-1 font-mono text-xs text-muted-foreground">

@@ -205,6 +205,15 @@ final class AppServiceProvider extends ServiceProvider
         // Approving the devnull app on the web hands out a code each time...
         RateLimiter::for('mobile-authorizations', fn (Request $request): Limit => Limit::perMinute(10)->by($this->userId($request)));
 
+        // Commit embeds load for every reader of the page that frames them: each card gets its own budget per address, so
+        // a page with several cards still loads, and one address can't walk every commit...
+        RateLimiter::for('embeds', fn (Request $request): array => [
+            Limit::perMinute(120)->by("embed:{$request->ip()}|{$request->route()?->originalParameter('commit')}"),
+            Limit::perMinute(600)->by("embeds:{$request->ip()}"),
+        ]);
+        // oEmbed consumers fetch a link once and keep what they get...
+        RateLimiter::for('oembed', fn (Request $request): Limit => Limit::perMinute(60)->by("oembed:{$request->ip()}"));
+
         // GitHub fetches every README image through a few proxy addresses, so each graph gets its own budget...
         RateLimiter::for('activity-graph', fn (Request $request): Limit => Limit::perMinute(60)->by("{$request->ip()}|{$request->path()}"));
 

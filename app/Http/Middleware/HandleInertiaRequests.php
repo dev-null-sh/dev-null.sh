@@ -134,6 +134,7 @@ final class HandleInertiaRequests extends Middleware
                     ->all() : [], UserUpdate::Account),
                 'isAdmin' => $isAdmin,
                 'automaticTranslation' => $live(fn (): bool => $user->automatic_translation ?? true, UserUpdate::Account),
+                'allowsEmbeds' => $live(fn (): bool => $user->allows_embeds ?? true, UserUpdate::Account),
                 // The language translations are read in, saved or from the browser, so a change saved elsewhere reaches
                 // the translations already shown.
                 'translationLanguage' => $live(fn (): string => resolve(CommitTranslations::class)->language(), UserUpdate::Account),

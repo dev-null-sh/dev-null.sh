@@ -107,6 +107,7 @@ final readonly class CreateExport
                 'push_mentions' => $user->push_mentions,
                 'push_direct_remotes' => $user->push_direct_remotes,
                 'push_org_remotes' => $user->push_org_remotes,
+                'allows_embeds' => $user->allows_embeds,
                 'pinned_commit_id' => $user->pinned_commit_id,
                 'live_platform' => $user->live_platform?->value,
                 'live_url' => $user->live_url,

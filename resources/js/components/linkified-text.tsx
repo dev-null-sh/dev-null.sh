@@ -8,6 +8,7 @@ import AppLogoIcon from '@/components/app-logo-icon';
 import AppWordmark from '@/components/app-wordmark';
 import { CertificateText } from '@/components/certificate-text';
 import { CodebergIcon } from '@/components/codeberg-icon';
+import { useIsEmbedded } from '@/components/embedded-context';
 import { GitHubIcon } from '@/components/github-icon';
 import { GitLabIcon } from '@/components/gitlab-icon';
 import { UserPreview } from '@/components/user-preview';
@@ -228,15 +229,71 @@ function CommitLink({
     }
 
     return (
-        <Link
-            prefetch
-            href={CommitController.show({ profile: handle, commit })}
+        <BodyLink
+            href={CommitController.show.url({ profile: handle, commit })}
             title={url}
             aria-label={`@${handle}’s commit ${hash}`}
             className="text-primary hover:underline"
         >
             {label}
+        </BodyLink>
+    );
+}
+
+/**
+ * A link of the body to a page of /dev/null, prefetched on hover; in a commit embed, a plain one that asks nothing of
+ * /dev/null until followed.
+ */
+function BodyLink({
+    href,
+    children,
+    ...props
+}: {
+    href: string;
+    className: string;
+    title?: string;
+    rel?: string;
+    'aria-label'?: string;
+    'data-test'?: string;
+    children: ReactNode;
+}) {
+    return useIsEmbedded() ? (
+        <a href={href} {...props}>
+            {children}
+        </a>
+    ) : (
+        <Link prefetch href={href} {...props}>
+            {children}
         </Link>
+    );
+}
+
+/** A mention of a member, previewed on hover; in a commit embed, a plain link. */
+function UserMention({
+    userId,
+    handle,
+    label,
+}: {
+    userId: string;
+    handle: string;
+    label: string;
+}) {
+    const link = (
+        <BodyLink
+            href={show.url(userId)}
+            className="font-medium text-primary hover:underline"
+            data-test="mention"
+        >
+            {label}
+        </BodyLink>
+    );
+
+    return useIsEmbedded() ? (
+        link
+    ) : (
+        <UserPreview user={{ handle }} userId={userId}>
+            {link}
+        </UserPreview>
     );
 }
 
@@ -635,14 +692,13 @@ function Hashtag({ hashtag }: { hashtag: string }) {
     }
 
     return (
-        <Link
-            prefetch
-            href={SearchController.index({ query: { q: hashtag } })}
+        <BodyLink
+            href={SearchController.index.url({ query: { q: hashtag } })}
             className="font-medium text-primary hover:underline"
             data-test="hashtag"
         >
             {hashtag}
-        </Link>
+        </BodyLink>
     );
 }
 
@@ -773,30 +829,21 @@ function withMentions(
             isStatic ? (
                 match[0]
             ) : userId ? (
-                <UserPreview
+                <UserMention
                     key={`mention-${offset + match.index}`}
-                    user={{ handle: match[1] }}
                     userId={userId}
-                >
-                    <Link
-                        prefetch
-                        href={show(userId)}
-                        className="font-medium text-primary hover:underline"
-                        data-test="mention"
-                    >
-                        {match[0]}
-                    </Link>
-                </UserPreview>
+                    handle={match[1]}
+                    label={match[0]}
+                />
             ) : organizationId ? (
-                <Link
-                    prefetch
+                <BodyLink
                     key={`mention-${offset + match.index}`}
-                    href={showOrganizationMention(organizationId)}
+                    href={showOrganizationMention.url(organizationId)}
                     className="font-medium text-primary hover:underline"
                     data-test="organization-mention"
                 >
                     {match[0]}
-                </Link>
+                </BodyLink>
             ) : !linksEveryMention ? (
                 match[0]
             ) : (

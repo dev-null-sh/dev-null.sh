@@ -117,6 +117,8 @@ export type Commit = {
     quoted_commit_id: string | null;
     quoted_commit?: QuotedCommit | DeletedCommit | null;
     images?: CommitImage[];
+    // Whether members can embed it: approved, and its author allows embeds. Only the web sends it.
+    embeddable?: boolean;
     ai_decision?: Exclude<CommitStatus, 'pending'> | null;
     ai_categories?: string[] | null;
     // Who posted an organization's commit, which only moderators get: null once that account is deleted.

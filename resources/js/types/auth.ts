@@ -54,6 +54,10 @@ export type Auth = {
     isAdmin: boolean;
     automaticTranslation: boolean;
     /**
+     * Whether others may embed the user's commits on their sites.
+     */
+    allowsEmbeds: boolean;
+    /**
      * The language the reader reads translations in, saved or from the browser.
      */
     translationLanguage?: string;

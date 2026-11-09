@@ -66,12 +66,17 @@ export function CommitPoll({
     commit,
     poll: initialPoll,
     isStatic = false,
+    voteUrl,
 }: {
     commit: Pick<Commit, 'id' | 'status'> & {
         author: Pick<Commit['author'], 'id'>;
     } & Partial<Pick<Commit, 'mentions'>>;
     poll: Poll;
     isStatic?: boolean;
+    /**
+     * Where to vote, for a poll shown on another site: its options lead there, and it isn't read again from the page.
+     */
+    voteUrl?: string;
 }) {
     const { auth, now: serverNow } = usePage().props;
     const ownsCommit = useOwnsCommit();
@@ -112,7 +117,7 @@ export function CommitPoll({
     // Someone else voting changes the results the viewer may see, and closing shows the final ones to everyone, even
     // when nobody votes again. Choosing an option and not voting yet is kept either way.
     useEffect(() => {
-        if (!isApproved) {
+        if (!isApproved || voteUrl !== undefined) {
             return;
         }
 
@@ -143,7 +148,7 @@ export function CommitPoll({
             window.clearTimeout(closing);
             controller.abort();
         };
-    }, [commit.id, isApproved, closesAt]);
+    }, [commit.id, isApproved, closesAt, voteUrl]);
 
     const hasExpired =
         poll.is_closed ||
@@ -206,20 +211,36 @@ export function CommitPoll({
                 <div role="group" aria-label="Poll options">
                     <ul className="space-y-2">
                         {poll.options.map((option) => (
-                            <li
-                                key={option.id}
-                                className="rounded-md border px-3 py-2 text-[15px] wrap-anywhere"
-                            >
-                                <OptionLabel
-                                    label={option.label}
-                                    mentions={commit.mentions ?? null}
-                                    isStatic
-                                />
+                            <li key={option.id}>
+                                {voteUrl === undefined ? (
+                                    <span className="block rounded-md border px-3 py-2 text-[15px] wrap-anywhere">
+                                        <OptionLabel
+                                            label={option.label}
+                                            mentions={commit.mentions ?? null}
+                                            isStatic
+                                        />
+                                    </span>
+                                ) : (
+                                    <a
+                                        href={voteUrl}
+                                        className="block rounded-md border px-3 py-2 text-[15px] wrap-anywhere transition-colors hover:bg-accent"
+                                    >
+                                        <OptionLabel
+                                            label={option.label}
+                                            mentions={commit.mentions ?? null}
+                                            isStatic
+                                        />
+                                    </a>
+                                )}
                             </li>
                         ))}
                     </ul>
                     <p className="mt-2 font-mono text-[13px] text-muted-foreground">
-                        {status}
+                        {voteUrl !== undefined &&
+                        poll.closes_at !== null &&
+                        !hasExpired
+                            ? `Vote on /dev/null · ${status}`
+                            : status}
                     </p>
                 </div>
             ) : poll.total_votes === null ? (

@@ -18,6 +18,8 @@ use App\Http\Controllers\CommitApprovalController;
 use App\Http\Controllers\CommitChangeController;
 use App\Http\Controllers\CommitContinuationController;
 use App\Http\Controllers\CommitController;
+use App\Http\Controllers\CommitEmbedController;
+use App\Http\Controllers\CommitEmbedLinkController;
 use App\Http\Controllers\CommitImageController;
 use App\Http\Controllers\CommitLinkPreviewController;
 use App\Http\Controllers\CommitOpenGraphImageController;
@@ -82,11 +84,13 @@ use App\Http\Controllers\ModerationController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\NotificationGroupController;
 use App\Http\Controllers\NotificationReadAtController;
+use App\Http\Controllers\OEmbedController;
 use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\OperationsController;
 use App\Http\Controllers\OperationsEventController;
 use App\Http\Controllers\OrganizationAdminController;
 use App\Http\Controllers\OrganizationController;
+use App\Http\Controllers\OrganizationEmbedsController;
 use App\Http\Controllers\OrganizationFollowController;
 use App\Http\Controllers\OrganizationLaneController;
 use App\Http\Controllers\OrganizationMemberController;
@@ -137,6 +141,7 @@ use App\Http\Controllers\UserAutomaticTranslationController;
 use App\Http\Controllers\UserBanController;
 use App\Http\Controllers\UserBlockController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\UserEmbedsController;
 use App\Http\Controllers\UserFeedController;
 use App\Http\Controllers\UserFollowController;
 use App\Http\Controllers\UserFollowersController;
@@ -284,6 +289,18 @@ Route::withoutMiddleware('web')->middleware('cache.headers:public;max_age=3600;e
         ->name('commit-sitemap.show');
 });
 
+// Commit embeds, framed by other sites and loaded by their readers: no session or cookie, so every card is what a guest
+// sees, and a signed URL, which only the embed dialog hands out...
+Route::get('embed/{commit}', [CommitEmbedController::class, 'show'])
+    ->withoutMiddleware('web')
+    ->middleware(['throttle:embeds', 'signed:relative'])
+    ->whereUuid('commit')
+    ->name('commit-embed.show');
+Route::get('oembed', [OEmbedController::class, 'show'])
+    ->withoutMiddleware('web')
+    ->middleware('throttle:oembed')
+    ->name('oembed.show');
+
 // User...
 Route::get('mentions/{user}', [MentionController::class, 'show'])
     ->whereUuid('user')
@@ -420,6 +437,9 @@ Route::middleware('auth')->group(function (): void {
     Route::put('organizations/{organization}/settings/lane', [OrganizationLaneController::class, 'update'])
         ->whereUuid('organization')
         ->name('organization-lane.update');
+    Route::put('organizations/{organization}/settings/embeds', [OrganizationEmbedsController::class, 'update'])
+        ->whereUuid('organization')
+        ->name('organization-embeds.update');
 
     // Followers the viewer knows...
     Route::get('@{user:handle}/followers-you-know', [UserFollowersYouKnowController::class, 'index'])
@@ -663,6 +683,14 @@ Route::middleware('auth')->group(function (): void {
     Route::put('settings/pasteis-mode', [UserPasteisModeController::class, 'update'])->name('user-pasteis-mode.update');
 
     Route::put('settings/remotes', [UserRemotesController::class, 'update'])->name('user-remotes.update');
+
+    Route::put('settings/embeds', [UserEmbedsController::class, 'update'])->name('user-embeds.update');
+
+    // The signed links of a commit's card, which the embed dialog asks for as its settings change...
+    Route::get('commits/{commit}/embed-link', [CommitEmbedLinkController::class, 'show'])
+        ->whereUuid('commit')
+        ->middleware('throttle:60,1')
+        ->name('commit-embed-link.show');
 
     // User Live...
     Route::put('settings/live', [UserLiveController::class, 'update'])

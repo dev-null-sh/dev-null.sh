@@ -30,6 +30,69 @@ function starLabel(starred: boolean, count: number): string {
     return `${verb} commit, ${formatExactCount(count)} ${noun}`;
 }
 
+function starClassName(starred: boolean): string {
+    return cn(
+        'group/star inline-flex items-center gap-1 rounded-md px-1.5 py-1 font-mono text-[13px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
+        starred && 'text-primary hover:text-primary',
+    );
+}
+
+function StarContent({
+    count,
+    starred,
+    isAnimating = false,
+    onAnimationEnd,
+}: {
+    count: number;
+    starred: boolean;
+    isAnimating?: boolean;
+    onAnimationEnd?: () => void;
+}) {
+    return (
+        <>
+            <Star
+                onAnimationEnd={onAnimationEnd}
+                className={cn(
+                    'size-4 transition-transform group-hover/star:scale-110 active:scale-95',
+                    starred && 'fill-current',
+                    isAnimating && 'motion-safe:animate-star-pop',
+                )}
+            />
+            {count > 0 && (
+                <span
+                    data-test="star-count"
+                    className="min-w-[1ch] text-left tabular-nums"
+                >
+                    {formatCount(count)}
+                </span>
+            )}
+        </>
+    );
+}
+
+/**
+ * The star of a commit shown on another site: it looks like the star button, and leads to /dev/null to star it.
+ */
+export function CommitStarLink({
+    count,
+    href,
+    className,
+}: {
+    count: number;
+    href: string;
+    className?: string;
+}) {
+    return (
+        <a
+            href={href}
+            aria-label={`Star commit on /dev/null${count > 0 ? `, ${formatExactCount(count)} ${count === 1 ? 'star' : 'stars'}` : ''}`}
+            className={cn(starClassName(false), className)}
+        >
+            <StarContent count={count} starred={false} />
+        </a>
+    );
+}
+
 export function CommitStarButton({
     commit,
     keyShortcut,
@@ -168,29 +231,15 @@ export function CommitStarButton({
                 aria-pressed={starred}
                 aria-keyshortcuts={keyShortcut}
                 aria-label={starLabel(starred, count)}
-                className={cn(
-                    'group/star inline-flex items-center gap-1 rounded-md px-1.5 py-1 font-mono text-[13px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
-                    starred && 'text-primary hover:text-primary',
-                    className,
-                )}
+                className={cn(starClassName(starred), className)}
                 data-test="star-commit-button"
             >
-                <Star
+                <StarContent
+                    count={count}
+                    starred={starred}
+                    isAnimating={isAnimating}
                     onAnimationEnd={() => setIsAnimating(false)}
-                    className={cn(
-                        'size-4 transition-transform group-hover/star:scale-110 active:scale-95',
-                        starred && 'fill-current',
-                        isAnimating && 'motion-safe:animate-star-pop',
-                    )}
                 />
-                {count > 0 && (
-                    <span
-                        data-test="star-count"
-                        className="min-w-[1ch] text-left tabular-nums"
-                    >
-                        {formatCount(count)}
-                    </span>
-                )}
             </button>
         </ActionTooltip>
     );
