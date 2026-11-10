@@ -323,7 +323,7 @@ export function AppNav({
 
             <nav
                 aria-label="Main"
-                className="-m-1 flex min-h-0 flex-1 scrollbar-none flex-col gap-1 overflow-y-auto p-1 [&>*]:shrink-0"
+                className="-mx-1 -mt-1 flex min-h-0 flex-1 scroll-py-1 scrollbar-none flex-col gap-1 overflow-y-auto p-1 [&>*]:shrink-0"
             >
                 {items.map((item) => (
                     <NavLink
