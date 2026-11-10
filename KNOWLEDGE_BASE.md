@@ -586,7 +586,7 @@ A signed request sees what the web shows you, such as your own pending commits a
 - read who to follow, also as it is suggested beside a profile or a commit, and mark a suggestion not interested;
 - star or unstar, and list who starred your own commit, newest first, 20 a page;
 - create polls on commits that are neither replies nor quotes, and vote on polls;
-- change Remotes settings, read and send messages with images, link cards, and voice notes in conversations and orgs, mark them pulled, react to messages and list your reactions, pin and unpin org messages as a maintainer, find people, and start orgs;
+- change Remotes settings, read and send messages with images, link cards, and voice notes in conversations and orgs, mark them pulled, clear your mentions in an org, react to messages and list your reactions, pin and unpin org messages as a maintainer, find people, and start orgs;
 - rename orgs, add people to them, change their roles, remove them, and leave an org, with the same maintainer rules as the web;
 - stash or reopen conversations and orgs, pin and mute them, merge or drop message requests, and send typing indicators;
 - switch Pastéis mode and give pastéis;
