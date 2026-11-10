@@ -17,14 +17,15 @@ enum RepliesPerPage: int
     case TwentyFive = 25;
 
     /**
-     * Kept in a cookie, like the theme, so guests can pick it too. API clients page on from the newest reply alone.
+     * Kept in a cookie, like the theme, so guests can pick it too. API clients ask with ?replies_per_page= and
+     * otherwise page on from the newest reply alone.
      */
     public static function of(Request $request): self
     {
-        if ($request->is('api/*')) {
-            return self::One;
-        }
+        [$picked, $default] = $request->is('api/*')
+            ? [$request->query('replies_per_page'), self::One]
+            : [$request->cookie('replies_per_page'), self::Three];
 
-        return array_find(self::cases(), fn (self $count): bool => (string) $count->value === $request->cookie('replies_per_page')) ?? self::Three;
+        return array_find(self::cases(), fn (self $count): bool => (string) $count->value === $picked) ?? $default;
     }
 }
