@@ -160,7 +160,64 @@ final readonly class CodeSpans
             'type' => 'block',
             'language' => $language,
             'filename' => $attributes['title'] ?? $attributes['filename'] ?? null,
-            'html' => $this->highlighter->parse(implode("\n", array_slice($lines, 1, -1)), $language === null ? null : mb_strtolower($language)),
+            'html' => $language !== null && mb_strtolower($language) === 'ansi'
+                ? $this->ansi(implode("\n", array_slice($lines, 1, -1)))
+                : $this->highlighter->parse(implode("\n", array_slice($lines, 1, -1)), $language === null ? null : mb_strtolower($language)),
         ];
+    }
+
+    /**
+     * Renders an ANSI colored block the way Discord does: ESC[<codes>m runs set the style until ESC[0m resets it.
+     * Only the classic codes are supported (bold, underline, the 30-37 foreground and 40-47 background colors), which
+     * the reference reserves for this. Anything else, including a stray escape, is dropped so no control character
+     * reaches the page. Every span class comes from this fixed list, never from the code itself.
+     */
+    private function ansi(string $code): string
+    {
+        $parts = preg_split('/\x1b\[([0-9;]*)m/', str_replace("\r\n", "\n", $code), -1, PREG_SPLIT_DELIM_CAPTURE) ?: [];
+        $html = '';
+        $open = false;
+        $classes = [];
+
+        foreach ($parts as $index => $part) {
+            if ($index % 2 === 1) {
+                if ($open) {
+                    $html .= '</span>';
+                    $open = false;
+                }
+
+                foreach (explode(';', $part) as $value) {
+                    $classes = match ($value) {
+                        '', '0' => [],
+                        '1' => [...array_diff($classes, ['ansi-1']), 'ansi-1'],
+                        '4' => [...array_diff($classes, ['ansi-4']), 'ansi-4'],
+                        '30', '31', '32', '33', '34', '35', '36', '37' => [
+                            ...array_filter($classes, static fn (string $class): bool => ! str_starts_with($class, 'ansi-3')),
+                            "ansi-{$value}",
+                        ],
+                        '40', '41', '42', '43', '44', '45', '46', '47' => [
+                            ...array_filter($classes, static fn (string $class): bool => preg_match('/^ansi-4\d$/', $class) !== 1),
+                            "ansi-{$value}",
+                        ],
+                        default => $classes,
+                    };
+                }
+
+                if ($classes !== []) {
+                    $html .= '<span class="'.implode(' ', $classes).'">';
+                    $open = true;
+                }
+
+                continue;
+            }
+
+            $text = str_replace("\x1b", '', $part);
+
+            if ($text !== '') {
+                $html .= htmlspecialchars($text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+            }
+        }
+
+        return $open ? $html.'</span>' : $html;
     }
 }

@@ -222,3 +222,44 @@ it('never lets a code block pick its own CSS classes', function (): void {
         ->toContain('evil.example')
         ->toContain('class="hl-operator"');
 });
+
+it('renders ANSI colors the way Discord does', function (): void {
+    $codeSpans = resolve(CodeSpans::class);
+
+    expect($codeSpans->highlight("```ansi\n\x1b[1;32mBold green\x1b[0m plain\n```"))->toBe([
+        [
+            'type' => 'block',
+            'language' => 'ansi',
+            'filename' => null,
+            'html' => '<span class="ansi-1 ansi-32">Bold green</span> plain',
+        ],
+    ])->and($codeSpans->highlight("```ANSI\n\x1b[4;41;33mW\x1b[0m\n```"))->toBe([
+        [
+            'type' => 'block',
+            'language' => 'ANSI',
+            'filename' => null,
+            'html' => '<span class="ansi-4 ansi-41 ansi-33">W</span>',
+        ],
+    ]);
+});
+
+it('closes an ANSI style at the next sequence and at the end of the block', function (): void {
+    $codeSpans = resolve(CodeSpans::class);
+
+    expect($codeSpans->highlight("```ansi\n\x1b[31mR\x1b[32mG\n```"))->toBe([
+        [
+            'type' => 'block',
+            'language' => 'ansi',
+            'filename' => null,
+            'html' => '<span class="ansi-31">R</span><span class="ansi-32">G</span>',
+        ],
+    ]);
+});
+
+it('escapes HTML inside ANSI code and drops unknown codes and stray escapes', function (): void {
+    $codeSpans = resolve(CodeSpans::class);
+
+    $html = $codeSpans->highlight("```ansi\n<b>\x1b[999mX\x1b\n```")[0]['html'];
+
+    expect($html)->toBe('&lt;b&gt;X');
+});

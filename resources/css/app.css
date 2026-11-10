@@ -990,6 +990,79 @@ html body[data-scroll-locked] {
         color: var(--destructive);
     }
 
+    /* ANSI colored code blocks, the classic Discord codes only. */
+    .ansi-1 {
+        font-weight: 700;
+    }
+
+    .ansi-4 {
+        text-decoration: underline;
+    }
+
+    .ansi-30 {
+        color: var(--foreground);
+    }
+
+    .ansi-31 {
+        color: var(--destructive);
+    }
+
+    .ansi-32 {
+        color: var(--lane-1);
+    }
+
+    .ansi-33 {
+        color: var(--lane-5);
+    }
+
+    .ansi-34 {
+        color: var(--primary);
+    }
+
+    .ansi-35 {
+        color: var(--lane-4);
+    }
+
+    .ansi-36 {
+        color: var(--lane-3);
+    }
+
+    .ansi-37 {
+        color: var(--muted-foreground);
+    }
+
+    .ansi-40 {
+        background-color: color-mix(in srgb, var(--foreground) 22%, transparent);
+    }
+
+    .ansi-41 {
+        background-color: color-mix(in srgb, var(--destructive) 22%, transparent);
+    }
+
+    .ansi-42 {
+        background-color: color-mix(in srgb, var(--lane-1) 22%, transparent);
+    }
+
+    .ansi-43 {
+        background-color: color-mix(in srgb, var(--lane-5) 22%, transparent);
+    }
+
+    .ansi-44 {
+        background-color: color-mix(in srgb, var(--primary) 22%, transparent);
+    }
+
+    .ansi-45 {
+        background-color: color-mix(in srgb, var(--lane-4) 22%, transparent);
+    }
+
+    .ansi-46 {
+        background-color: color-mix(in srgb, var(--lane-3) 22%, transparent);
+    }
+
+    .ansi-47 {
+        background-color: color-mix(in srgb, var(--muted-foreground) 22%, transparent);
+    }
+
     /* A GitHub profile README, sanitized on the server: it keeps GitHub's layout without GitHub's stylesheet. */
     .readme {
         overflow-wrap: anywhere;
