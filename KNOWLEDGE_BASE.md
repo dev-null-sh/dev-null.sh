@@ -600,6 +600,8 @@ A signed request sees what the web shows you, such as your own pending commits a
 - list your devices and revoke them;
 - delete your account.
 
+Signed lists show each commit with its newest reply or quote. Add `?replies_per_page=` with 3, 5, 10, 15, 20, or 25 to show that many replies and quotes, like the replies choice in Settings → Appearance.
+
 Signed request bodies are JSON, or multipart when they carry images or a voice note, so app commits can have images with descriptions or a poll but no link-card choice. Before your first app submission, accept the [commit rules](#moderation) through the web composer. Signed requests are limited to **120 requests per minute per user**. Settings → Devices lists your approved devices, with the app's name when it gave one and when each was last used, and revokes them.
 
 Sources: [signed requests](app/Services/SignedRequests.php), [sign-in page](app/Http/Controllers/MobileAuthorizationController.php), [devices settings](resources/js/pages/device/index.tsx), [API routes](routes/api.php).
