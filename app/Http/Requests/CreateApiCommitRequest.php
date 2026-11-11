@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Queries\MentionedUsersQuery;
 use App\Rules\OrganizationToPostAs;
 use App\Rules\VisibleCommit;
+use App\Services\Urls;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\UploadedFile;
@@ -50,6 +51,7 @@ final class CreateApiCommitRequest extends FormRequest
     {
         $user = $this->user();
         assert($user instanceof User);
+        $body = $this->input('body');
         $attachmentRules = CreateCommitRequest::attachmentRules();
 
         return [
@@ -59,6 +61,7 @@ final class CreateApiCommitRequest extends FormRequest
             'reply_recipients' => ['sometimes', 'list', 'max:'.CreateCommitReplyRequest::MAX_REPLY_RECIPIENTS],
             'reply_recipients.*' => ['required', 'string', 'distinct', Rule::in(array_values($this->parentMentions()))],
             'quoted_commit_id' => ['bail', 'nullable', 'uuid', 'prohibits:parent_id', new VisibleCommit($user, __('That commit is no longer available to quote.'))],
+            'link_preview_url' => ['nullable', 'string', Rule::in(is_string($body) ? resolve(Urls::class)->all($body) : [])],
             'poll' => [...$attachmentRules['poll'], 'prohibits:quoted_commit_id'],
             'poll.options' => $attachmentRules['poll.options'],
             'poll.options.*' => $attachmentRules['poll.options.*'],
@@ -99,6 +102,28 @@ final class CreateApiCommitRequest extends FormRequest
         return [
             'image_descriptions.*' => 'image description',
         ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return [
+            'link_preview_url.in' => 'The link card must be one of the links in the body.',
+        ];
+    }
+
+    /**
+     * The first link in the body gets the link card, unless the user chose another link or none at all.
+     */
+    public function linkPreview(): bool|string
+    {
+        if (! $this->has('link_preview_url')) {
+            return true;
+        }
+
+        return $this->filled('link_preview_url') ? $this->string('link_preview_url')->value() : false;
     }
 
     /**
