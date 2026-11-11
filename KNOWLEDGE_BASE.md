@@ -583,7 +583,7 @@ A signed request sees what the web shows you, such as your own pending commits a
 - commit, reply, and quote, with images, and delete your commits, with the same undo window as the web;
 - preview commit drafts without publishing them;
 - follow or unfollow people and organizations, mute or unmute, and block or unblock, and list who you muted and blocked;
-- list a developer's followers and the people they follow, with the profiles each bio mentions linked as on their profile;
+- list a developer's followers, the people they follow, their mutuals, and the followers you know, with the profiles each bio mentions linked as on their profile;
 - read who to follow, also as it is suggested beside a profile or a commit, and mark a suggestion not interested;
 - star or unstar, and list who starred your own commit, newest first, 20 a page;
 - create polls on commits that are neither replies nor quotes, and vote on polls;
