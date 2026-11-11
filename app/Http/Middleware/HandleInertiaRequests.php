@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Middleware;
 
+use App\Contracts\Services\HumanVerificationProvider;
 use App\Dto\ReaderClock;
 use App\Enums\EventTheme;
 use App\Enums\Log;
@@ -123,6 +124,7 @@ final class HandleInertiaRequests extends Middleware
             ...parent::share($request),
             'name' => config('app.name'),
             'repository' => config('services.github.repository'),
+            'humanVerificationSiteKey' => fn (): string => resolve(HumanVerificationProvider::class)->siteKey(),
             'auth' => [
                 // What the user saved anywhere, from their profile to their preferences, shows on every page they have open.
                 'user' => $live(fn (): ?array => ShownStreams::user($request->user()?->loadCounts()), UserUpdate::Account),

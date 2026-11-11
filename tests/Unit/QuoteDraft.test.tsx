@@ -111,6 +111,7 @@ test('quotes submit restored images and clear the complete draft only on success
             body: draft.body,
             quoted_commit_id: commit.id,
             commit_rules_accepted: true,
+            human_verification_token: '',
             images: [image],
             image_descriptions: ['A restored screenshot'],
         },
