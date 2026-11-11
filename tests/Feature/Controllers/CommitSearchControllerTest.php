@@ -6,6 +6,7 @@ use App\Contracts\Services\EmbeddingProvider;
 use App\Contracts\Services\RelevanceProvider;
 use App\Models\Commit;
 use App\Models\User;
+use Illuminate\Support\Facades\Exceptions;
 
 beforeEach(function (): void {
     $this->actingAs(User::factory()->create());
@@ -82,4 +83,16 @@ it('asks people to slow down after 15 searches a minute', function (): void {
         ->assertTooManyRequests()
         ->assertHeader('Retry-After', '60')
         ->assertExactJson(['message' => 'Slow down: too many searches. Give it a few seconds.']);
+});
+
+it('says the search is down, rather than that nothing matched, when OpenAI cannot read the query', function (): void {
+    Exceptions::fake();
+    $this->mock(EmbeddingProvider::class)->shouldReceive('embed')->andThrow(new RuntimeException('OpenAI is down'));
+    Commit::factory()->create(['embedding' => embeddingVector(0)]);
+
+    $this->getJson('/search/commits?q=feature')
+        ->assertServiceUnavailable()
+        ->assertExactJson(['message' => 'Commit search is unavailable right now. Try again in a moment.']);
+
+    Exceptions::assertReported(RuntimeException::class);
 });

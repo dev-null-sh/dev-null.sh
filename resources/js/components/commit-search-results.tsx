@@ -4,7 +4,11 @@ import { CommitSkeleton, EmptyFeed } from '@/components/commit-feed';
 import { GraphCanvas } from '@/components/graph-canvas';
 import type { Commit } from '@/types';
 
-export type SearchResultSet = { term: string; commits: Commit[] };
+export type SearchResultSet = {
+    term: string;
+    commits: Commit[];
+    isUnavailable?: boolean;
+};
 
 export function SearchResults({
     results,
@@ -40,12 +44,21 @@ export function SearchResults({
                 <h2 id="search-results" className="font-semibold">
                     {heading}
                 </h2>
-                <span className="font-mono text-xs text-muted-foreground tabular-nums">
-                    {results.commits.length}{' '}
-                    {results.commits.length === 1 ? 'match' : 'matches'}
-                </span>
+                {!results.isUnavailable && (
+                    <span className="font-mono text-xs text-muted-foreground tabular-nums">
+                        {results.commits.length}{' '}
+                        {results.commits.length === 1 ? 'match' : 'matches'}
+                    </span>
+                )}
             </div>
-            {results.commits.length === 0 ? (
+            {results.isUnavailable ? (
+                <div className="px-6 py-16 text-center sm:px-12">
+                    <EmptyFeed command="error: commit search is down">
+                        It can't read your search right now. Try again in a
+                        moment.
+                    </EmptyFeed>
+                </div>
+            ) : results.commits.length === 0 ? (
                 <div className="px-6 py-16 text-center sm:px-12">
                     <EmptyFeed
                         command={`fatal: nothing close to '${results.term}'`}

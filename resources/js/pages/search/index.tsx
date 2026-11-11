@@ -8,7 +8,7 @@ import { SearchResults } from '@/components/commit-search-results';
 import { HotTopics } from '@/components/hot-topics';
 import { rememberSearch, useRecentSearches } from '@/hooks/use-recent-searches';
 import AppLayout from '@/layouts/app-layout';
-import { searchCommits } from '@/lib/commit-search';
+import { SearchUnavailable, searchCommits } from '@/lib/commit-search';
 import { CommitSearchResults } from '@/lib/commit-search-results';
 
 const skeletonDelay = 300;
@@ -161,9 +161,13 @@ function useCommitSearch(query: string) {
                 const relevant = new CommitSearchResults(query, commits);
                 setResults({ relevant, latest: relevant.latest() });
             })
-            .catch(() => {
+            .catch((error: unknown) => {
                 if (!controller.signal.aborted) {
-                    const relevant = new CommitSearchResults(query, []);
+                    const relevant = new CommitSearchResults(
+                        query,
+                        [],
+                        error instanceof SearchUnavailable,
+                    );
                     setResults({ relevant, latest: relevant.latest() });
                 }
             })
