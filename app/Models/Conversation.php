@@ -26,6 +26,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
  * @property-read Collection<int, ConversationParticipant> $participants
+ * @property-read Collection<int, ConversationParticipant> $members
  * @property-read Collection<int, Message> $messages
  * @property-read Message|null $lastMessage
  * @property-read Message|null $lastIncomingMessage
@@ -130,6 +131,22 @@ final class Conversation extends Model
     public function participants(): HasMany
     {
         return $this->hasMany(ConversationParticipant::class);
+    }
+
+    /**
+     * An org's participants as people see them listed: maintainers first, then everyone by name.
+     *
+     * @return HasMany<ConversationParticipant, $this>
+     */
+    public function members(): HasMany
+    {
+        return $this->participants()
+            ->select('conversation_participants.*')
+            ->join('users', 'users.id', '=', 'conversation_participants.user_id')
+            ->join('profiles', 'profiles.github_id', '=', 'users.github_id')
+            ->orderByRaw('CASE WHEN conversation_participants.role = ? THEN 0 ELSE 1 END', [OrgRole::Maintainer->value])
+            ->orderBy('profiles.name')
+            ->orderBy('conversation_participants.id');
     }
 
     /**
