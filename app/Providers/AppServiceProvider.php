@@ -9,6 +9,7 @@ use App\Contracts\Services\EmailDraftProvider;
 use App\Contracts\Services\EmbeddingProvider;
 use App\Contracts\Services\GitHubProvider;
 use App\Contracts\Services\HeadlineProvider;
+use App\Contracts\Services\HumanVerificationProvider;
 use App\Contracts\Services\LinkPreviewProvider;
 use App\Contracts\Services\ModerationProvider;
 use App\Contracts\Services\PushNotificationProvider;
@@ -27,9 +28,10 @@ use App\Services\EmailDraftProviders\OpenCodeEmailDraftProvider;
 use App\Services\EmbeddingProviders\NullEmbeddingProvider;
 use App\Services\EmbeddingProviders\OpenAIEmbeddingProvider;
 use App\Services\GitHubProviders\HttpGitHubProvider;
-use App\Services\GitHubProviders\NullGitHubProvider;
 use App\Services\HeadlineProviders\NullHeadlineProvider;
 use App\Services\HeadlineProviders\OpenAIHeadlineProvider;
+use App\Services\HumanVerificationProviders\CloudflareHumanVerificationProvider;
+use App\Services\HumanVerificationProviders\LocalHumanVerificationProvider;
 use App\Services\LinkPreviewProviders\HttpLinkPreviewProvider;
 use App\Services\LinkPreviewProviders\NullLinkPreviewProvider;
 use App\Services\ModerationProviders\NullModerationProvider;
@@ -68,6 +70,7 @@ final class AppServiceProvider extends ServiceProvider
         EmbeddingProvider::class => OpenAIEmbeddingProvider::class,
         GitHubProvider::class => HttpGitHubProvider::class,
         HeadlineProvider::class => OpenAIHeadlineProvider::class,
+        HumanVerificationProvider::class => CloudflareHumanVerificationProvider::class,
         LinkPreviewProvider::class => HttpLinkPreviewProvider::class,
         ModerationProvider::class => OpenAIModerationProvider::class,
         PushNotificationProvider::class => WebPushNotificationProvider::class,
@@ -86,8 +89,9 @@ final class AppServiceProvider extends ServiceProvider
         AnalyticsProvider::class => NullAnalyticsProvider::class,
         EmailDraftProvider::class => NullEmailDraftProvider::class,
         EmbeddingProvider::class => NullEmbeddingProvider::class,
-        GitHubProvider::class => NullGitHubProvider::class,
+        GitHubProvider::class => HttpGitHubProvider::class,
         HeadlineProvider::class => NullHeadlineProvider::class,
+        HumanVerificationProvider::class => LocalHumanVerificationProvider::class,
         LinkPreviewProvider::class => NullLinkPreviewProvider::class,
         ModerationProvider::class => NullModerationProvider::class,
         PushNotificationProvider::class => NullPushNotificationProvider::class,
@@ -248,25 +252,13 @@ final class AppServiceProvider extends ServiceProvider
         ]);
 
         // Every commit search pays for an embedding and a relevance verdict, so it gets a budget of its own...
-        RateLimiter::for('search', function (Request $request): Limit {
-            if ($request->routeIs('headline.show') && $request->header('X-Inertia-Partial-Component') === 'headline/show') {
-                $only = collect(explode(',', $request->header('X-Inertia-Partial-Data', '')))->filter();
-                $except = explode(',', $request->header('X-Inertia-Partial-Except', ''));
-
-                if (($only->isNotEmpty() && $only->doesntContain(fn (string $prop): bool => $prop === 'commits' || str_starts_with($prop, 'commits.')))
-                    || in_array('commits', $except, true)) {
-                    return Limit::none();
-                }
-            }
-
-            return Limit::perMinute(15)
-                ->by($this->userId($request))
-                ->response(fn (Request $request, array $headers): JsonResponse => response()->json(
-                    ['message' => 'Slow down: too many searches. Give it a few seconds.'],
-                    429,
-                    $headers,
-                ));
-        });
+        RateLimiter::for('search', fn (Request $request): Limit => Limit::perMinute(15)
+            ->by($this->userId($request))
+            ->response(fn (Request $request, array $headers): JsonResponse => response()->json(
+                ['message' => 'Slow down: too many searches. Give it a few seconds.'],
+                429,
+                $headers,
+            )));
 
         // Every commit page asks for its related commits, using the stored vector and a relevance verdict...
         RateLimiter::for('related-commits', fn (Request $request): Limit => Limit::perMinute(60)->by(

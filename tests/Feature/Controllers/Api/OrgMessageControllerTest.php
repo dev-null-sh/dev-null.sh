@@ -83,6 +83,19 @@ it('hands over the pinned messages as the thread shows them, until they are unch
         ->toHaveKey('pinned', null);
 });
 
+it('hands over the messages that mention the user as the thread shows them', function (): void {
+    [$nuno] = followersOf($this->user, 1);
+    $org = createOrg($this->user, [$nuno]);
+    $message = pushToOrg($nuno, $org, "@{$this->user->handle} can you review?");
+
+    signedApiRequest($this->keyPair, 'GET', route('api-org-message.index', $org))
+        ->assertOk()
+        ->assertJsonPath('data.mentions.0.id', $message->id)
+        ->assertJsonPath('data.mentions.0.body', "@{$this->user->handle} can you review?")
+        ->assertJsonPath('data.mentions.0.user.lane', $nuno->lane())
+        ->assertJsonPath('data.mentions.0.created_at', $message->created_at->toIso8601ZuluString());
+});
+
 it('keeps people out of orgs they are not in', function (): void {
     $maintainer = User::factory()->withRemotes()->create();
     [$nuno] = followersOf($maintainer, 1);

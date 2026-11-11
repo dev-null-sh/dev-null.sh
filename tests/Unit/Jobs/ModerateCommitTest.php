@@ -43,6 +43,24 @@ it('stores that the ai would approve a commit it does not flag', function (): vo
         ->status->toBe(CommitStatus::Approved);
 });
 
+it('checks decoded contents before approving an encoded post', function (string $body): void {
+    $moderation = $this->mock(ModerationProvider::class);
+    $moderation->shouldReceive('moderate')->andReturnUsing(fn (string $text): array => str_contains(mb_strtolower($text), 'hi') ? ['harassment' => 0.99] : []);
+    $moderation->shouldReceive('isHarmful')->andReturnFalse();
+    $commit = Commit::factory()->pending()->create(['body' => $body]);
+
+    dispatch_sync(new ModerateCommit($commit));
+
+    expect($commit->refresh())
+        ->ai_categories->toBe(['harassment'])
+        ->status->toBe(CommitStatus::Rejected)
+        ->body->toBe($body);
+})->with([
+    'binary' => '01001000 01001001',
+    'Morse' => '.... ..',
+    'Morse with repeated separators' => '.... .. .-.-.- '.str_repeat('/', 3000),
+]);
+
 it('auto-approves clean commits without requiring approved history', function (CommitStatus $previousStatus, bool $sameAuthor, bool $deleted, bool $anonymous, CommitStatus $expected): void {
     $moderation = $this->mock(ModerationProvider::class);
     $moderation->shouldReceive('moderate')->andReturn([]);

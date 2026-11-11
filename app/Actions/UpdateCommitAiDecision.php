@@ -9,6 +9,7 @@ use App\Enums\CommitStatus;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\PollOption;
+use App\Services\EncodedText;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Image;
 use Illuminate\Support\Facades\Storage;
@@ -29,6 +30,7 @@ final readonly class UpdateCommitAiDecision
     public function __construct(
         private ModerationProvider $moderation,
         private UpdateCommitStatuses $updateCommitStatuses,
+        private EncodedText $encodedText,
     ) {
         //
     }
@@ -78,7 +80,7 @@ final readonly class UpdateCommitAiDecision
      */
     private function text(Commit $commit): string
     {
-        return collect([$commit->body])
+        return collect([$commit->body, $this->encodedText->decode($commit->body)['body'] ?? null])
             ->merge($commit->images->map(fn (CommitImage $image): ?string => $image->description))
             ->merge($commit->poll?->options->map(fn (PollOption $option): string => $option->label) ?? [])
             ->filter(fn (?string $part): bool => $part !== null && $part !== '')

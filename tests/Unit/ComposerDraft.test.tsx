@@ -175,6 +175,7 @@ test('preserves restored images and link cards and allows scheduling them', () =
     assert.deepEqual(form.props.transform(data), {
         ...data,
         commit_rules_accepted: true,
+        human_verification_token: '',
         images: [image],
         image_descriptions: ['A restored screenshot'],
     });
@@ -321,6 +322,7 @@ test('removing restored images enables polls and successful posting resets the p
         assert.deepEqual(view.form.props.transform(data), {
             ...data,
             commit_rules_accepted: true,
+            human_verification_token: '',
         });
         view.form.props.onSuccess({
             flash: { toast: { type: 'error', message: 'Slow down' } },
@@ -409,6 +411,7 @@ test('schedules in UTC with pasted images and the chosen link card', () => {
     assert.deepEqual(view.form.props.transform({ body: draft.body }), {
         body: draft.body,
         commit_rules_accepted: true,
+        human_verification_token: '',
         scheduled_at: scheduledAt,
     });
     assert.equal(
@@ -444,6 +447,7 @@ test('schedules in UTC with pasted images and the chosen link card', () => {
     assert.deepEqual(view.form.props.transform(data), {
         ...data,
         commit_rules_accepted: true,
+        human_verification_token: '',
         images: [image],
         image_descriptions: [''],
         scheduled_at: scheduledAt,
@@ -464,6 +468,7 @@ test('submits token-shaped text and restored images without secret approval', ()
     assert.deepEqual(form.props.transform({ body: draft.body }), {
         body: draft.body,
         commit_rules_accepted: true,
+        human_verification_token: '',
         images: [image],
         image_descriptions: ['A restored screenshot'],
     });
@@ -499,6 +504,7 @@ test('previews restored images and descriptions while keeping them attached when
     assert.deepEqual(view.form.props.transform({ body: draft.body }), {
         body: draft.body,
         commit_rules_accepted: true,
+        human_verification_token: '',
         images: [image],
         image_descriptions: ['A restored screenshot'],
     });
@@ -535,6 +541,7 @@ test('picking a gif clears attached images and any poll and submits the gif fiel
         assert.deepEqual(view.form.props.transform({ body: draft.body }), {
             body: draft.body,
             commit_rules_accepted: true,
+            human_verification_token: '',
             gif_provider: 'giphy',
             gif_id: 'xT9IgzoKnwFNmISR8I',
             gif_url:
@@ -587,6 +594,7 @@ test('attaching images clears a stashed gif only once they are read', async () =
     assert.deepEqual(view.form.props.transform({ body: draft.body }), {
         body: draft.body,
         commit_rules_accepted: true,
+        human_verification_token: '',
         images: [image],
         image_descriptions: [''],
     });
@@ -602,7 +610,8 @@ test('a stashed gif never survives alongside restored images', () => {
     assert.equal(draft.gif, null);
     assert.deepEqual(view.form.props.transform({ body: draft.body }), {
         body: draft.body,
-            commit_rules_accepted: true,
+        commit_rules_accepted: true,
+        human_verification_token: '',
         images: [image],
         image_descriptions: ['A restored screenshot'],
     });
@@ -632,7 +641,8 @@ test('a gif stashed while scheduling blocks submit and never reaches the transfo
     );
     assert.deepEqual(view.form.props.transform({ body: draft.body }), {
         body: draft.body,
-            commit_rules_accepted: true,
+        commit_rules_accepted: true,
+        human_verification_token: '',
         scheduled_at: new Date(date)
             .toISOString()
             .replace(/\.\d{3}Z$/, '+00:00'),
@@ -962,6 +972,7 @@ test('schedules as the organization picked from the avatar', () => {
     assert.deepEqual(render().form.props.transform({ body: draft.body }), {
         body: draft.body,
         commit_rules_accepted: true,
+        human_verification_token: '',
         author: 'laravel',
         scheduled_at: new Date('2026-10-17T10:30')
             .toISOString()
@@ -994,6 +1005,7 @@ test('turning scheduling off clears the chosen time and commits now', () => {
     assert.deepEqual(render().form.props.transform({ body: draft.body }), {
         body: draft.body,
         commit_rules_accepted: true,
+        human_verification_token: '',
     });
 
     (find('aria-controls', 'body-schedule')!.props.onClick as () => void)();

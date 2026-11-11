@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Enums\PushPlatform;
 use Carbon\CarbonInterface;
 use Database\Factories\DeviceFactory;
 use Illuminate\Database\Eloquent\Attributes\Visible;
@@ -24,6 +25,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property-read string|null $app_name
  * @property-read CarbonInterface $approved_at
  * @property-read CarbonInterface|null $last_used_at
+ * @property-read string|null $push_token_hash
+ * @property-read string|null $push_token
+ * @property-read PushPlatform|null $push_platform
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
  * @property-read User $user
@@ -44,6 +48,11 @@ final class Device extends Model
     use HasUuids;
 
     /**
+     * Where a web session made for a device keeps its id, so that it ends with the device.
+     */
+    public const string SessionKey = 'device_id';
+
+    /**
      * @return array<string, string>
      */
     public function casts(): array
@@ -57,6 +66,9 @@ final class Device extends Model
             'app_name' => 'string',
             'approved_at' => 'datetime',
             'last_used_at' => 'datetime',
+            'push_token_hash' => 'string',
+            'push_token' => 'encrypted',
+            'push_platform' => PushPlatform::class,
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
         ];

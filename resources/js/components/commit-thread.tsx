@@ -1793,6 +1793,7 @@ function ReplyComposer({
             gif_username?: string;
             gif_width?: number;
             gif_height?: number;
+            human_verification_token?: string;
         },
         CreatedReply
     >({
@@ -1882,6 +1883,7 @@ function ReplyComposer({
                 )
                 .map(({ id }) => id),
             commit_rules_accepted: commitRules.hasAccepted(),
+            human_verification_token: commitRules.humanVerificationToken(),
             ...(linkCard.isChosen
                 ? { link_preview_url: linkCard.link ?? '' }
                 : {}),

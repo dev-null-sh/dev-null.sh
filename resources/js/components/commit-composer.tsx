@@ -778,6 +778,7 @@ export function CommitComposer({
             transform={(data) => ({
                 ...data,
                 commit_rules_accepted: commitRules.hasAccepted(),
+                human_verification_token: commitRules.humanVerificationToken(),
                 ...(author !== null && { author: author.handle }),
                 ...(hasImages && {
                     images: attachments.images,

@@ -5,35 +5,33 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Dto\NewPoll;
-use App\Enums\Feature;
 use App\Enums\PollDuration;
 use App\Enums\UserUpdate;
 use App\Events\UsersUpdated;
 use App\Models\ScheduledCommit;
-use App\Services\Features;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Support\Facades\DB;
 
 final readonly class UpdateScheduledCommitSubmittedAt
 {
-    public function __construct(private CreateCommit $createCommit, private DeleteScheduledCommit $deleteScheduledCommit, private Features $features)
+    public function __construct(private CreateCommit $createCommit, private DeleteScheduledCommit $deleteScheduledCommit)
     {
         //
     }
 
     /**
      * The author can commit it now, before its scheduled time. One scheduled as an organization its user is no longer
-     * a member of, or while posting as organizations is switched off, is canceled instead, as a ban cancels it.
+     * a member of is canceled instead, as a ban cancels it.
      */
     public function handle(string $id, bool $early = false): bool
     {
         return DB::transaction(function () use ($id, $early): bool {
             $postable = fn (Builder $query): Builder => $query->whereNull('author_id')
-                ->when($this->features->enabled(Feature::OrganizationCommits), fn (Builder $query): Builder => $query->orWhereExists(fn (QueryBuilder $members): QueryBuilder => $members
+                ->orWhereExists(fn (QueryBuilder $members): QueryBuilder => $members
                     ->from('organization_members')
                     ->whereColumn('organization_members.organization_id', 'scheduled_commits.author_id')
-                    ->whereColumn('organization_members.user_id', 'scheduled_commits.user_id')));
+                    ->whereColumn('organization_members.user_id', 'scheduled_commits.user_id'));
 
             // Claim with a conditional write before reading.
             // Creation and the claim roll back together if either operation fails.
