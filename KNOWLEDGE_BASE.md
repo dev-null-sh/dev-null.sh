@@ -582,6 +582,7 @@ A signed request sees what the web shows you, such as your own pending commits a
 - read your account, logs, replies, notifications (including grouped activity), and starred commits;
 - commit, reply, and quote, with images, and delete your commits, with the same undo window as the web;
 - preview commit drafts without publishing them;
+- request a feature or report a bug as `/feature` and `/bug` do, with the same limit of 10 opened issues a day;
 - follow or unfollow people and organizations, mute or unmute, and block or unblock, and list who you muted and blocked;
 - read who to follow, also as it is suggested beside a profile or a commit, and mark a suggestion not interested;
 - read the hot topics, and each one's commits from the past week with its recap;
@@ -641,9 +642,9 @@ Start a fresh commit draft with **`/bug `** or **`/feature `** to switch it into
 
 Empty issue drafts show a short Markdown template: steps and expected versus actual behavior for bugs, or the problem and proposal for features. The first top-level `# Heading` becomes the issue title and is removed from the body; the remaining Markdown is preserved. Without a heading, the first line is used as the title and the full draft remains in the body.
 
-Successful issue creation is limited to **ten issues per day per user**. Rejected drafts and failed requests do not use that allowance. If GitHub or the connection fails, the draft stays available. Check upstream before retrying an uncertain submission to avoid duplicates. Use a commit's Report control instead when reporting abusive content.
+Successful issue creation is limited to **ten issues per day per user**, shared between the web and the apps. Rejected drafts and failed requests do not use that allowance. If GitHub or the connection fails, the draft stays available. Check upstream before retrying an uncertain submission to avoid duplicates. Use a commit's Report control instead when reporting abusive content.
 
-Sources: [issue command UI](resources/js/components/issue-command.tsx), [issue validation](app/Http/Requests/CreateIssueRequest.php), [issue controller](app/Http/Controllers/IssueController.php).
+Sources: [issue command UI](resources/js/components/issue-command.tsx), [issue validation](app/Http/Requests/CreateIssueRequest.php), [issue controller](app/Http/Controllers/IssueController.php), [daily limit](app/Http/Middleware/ThrottleIssues.php), [API issue controller](app/Http/Controllers/Api/IssueController.php).
 
 ### Exporting your data
 
