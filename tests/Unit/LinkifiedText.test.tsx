@@ -1093,3 +1093,72 @@ test('renders headings, subtext and lists as blocks', () => {
     assert.ok(markup.includes('<li>'));
     assert.ok(markup.includes('<strong>bold</strong>'));
 });
+
+test('leaves math, globs and kwargs markers alone', () => {
+    for (const text of [
+        '2 * 3 * 4',
+        'update *.php and *.js',
+        'pass **kwargs and **opts',
+    ]) {
+        const markup = renderToStaticMarkup(
+            <LinkifiedText text={text} mentions={null} />,
+        );
+
+        assert.ok(!markup.includes('<em>'), text);
+        assert.ok(!markup.includes('<strong>'), text);
+        assert.ok(markup.includes(text), text);
+    }
+});
+
+test('keeps links in separate slices distinct', () => {
+    const markup = renderToStaticMarkup(
+        <LinkifiedText
+            text="**x** https://example.com/a **y** https://example.com/b"
+            mentions={null}
+        />,
+    );
+
+    assert.ok(markup.includes('href="https://example.com/a"'));
+    assert.ok(markup.includes('href="https://example.com/b"'));
+});
+
+test('never nests links inside masked labels', () => {
+    const markup = renderToStaticMarkup(
+        <LinkifiedText
+            text="[see https://example.com/a](https://example.com/b)"
+            mentions={null}
+        />,
+    );
+
+    assert.strictEqual(markup.match(/<a /g)?.length ?? 0, 1);
+    assert.ok(markup.includes('href="https://example.com/b"'));
+});
+
+test('separates subtext from surrounding paragraphs', () => {
+    const markup = renderPage(
+        <BodySegments
+            segments={[{ type: 'text', text: 'before\n-# mid\nafter' }]}
+            mentions={null}
+        />,
+    );
+
+    assert.ok(markup.includes('block text-sm text-muted-foreground'));
+});
+
+test('words future timestamps as upcoming', () => {
+    const markup = renderToStaticMarkup(
+        <LinkifiedText text="At <t:9999999999:R> o clock" mentions={null} />,
+    );
+
+    assert.ok(markup.includes('data-test="timestamp"'));
+    assert.ok(markup.includes('in '));
+});
+
+test('keeps linked children inside hidden spoilers', () => {
+    const markup = renderToStaticMarkup(
+        <LinkifiedText text="||[x](https://example.com)||" mentions={null} />,
+    );
+
+    assert.ok(markup.includes('data-test="spoiler"'));
+    assert.ok(markup.includes('href="https://example.com"'));
+});

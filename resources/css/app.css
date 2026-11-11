@@ -1005,6 +1005,11 @@ html body[data-scroll-locked] {
         color: transparent;
     }
 
+    /* Colored children like links would shine through, so hide the whole subtree. */
+    .spoiler:not([data-revealed='true']) * {
+        visibility: hidden;
+    }
+
     .spoiler[data-revealed='true'] {
         background-color: color-mix(
             in srgb,

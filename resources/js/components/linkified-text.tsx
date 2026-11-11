@@ -21,7 +21,13 @@ import {
     urlPattern,
     withoutTrailingPunctuation,
 } from '@/lib/urls';
-import { cn, formatRelativeTime, shortHash } from '@/lib/utils';
+import {
+    cn,
+    dateLocale,
+    formatRelativeTime,
+    readerClock,
+    shortHash,
+} from '@/lib/utils';
 import { show } from '@/routes/mention';
 import { show as showOrganizationMention } from '@/routes/organization-mention';
 import type { BodySegment, Commit } from '@/types';
@@ -844,7 +850,7 @@ type InlineOptions = {
 // pieces recurse through the same pass, so mentions and links still resolve inside bold or spoilers. Plain
 // `code` passes through untouched.
 const richInlinePattern =
-    /(?<code>`[^`\n]*`)|(?<masked>\[(?<maskedLabel>[^\]\n]+)\]\((?<maskedUrl>https?:\/\/[^)\s]+)\))|(?<timestamp><t:(?<timestampAt>\d+)(?::(?<timestampFormat>[tTdDfFR]))?>)|(?<spoiler>\|\|(?<spoilerContent>[\s\S]+?)\|\|)|(?<bold>\*\*(?<boldContent>[^*\n]+?)\*\*)|(?<underline>__(?<underlineContent>[^_\n]+?)__)|(?<strike>~~(?<strikeContent>[^~\n]+?)~~)|(?<italicStar>\*(?<italicStarContent>[^*\n]+?)\*)|(?<italicUnder>_(?<italicUnderContent>[^_\n]+?)_)/g;
+    /(?<code>`[^`\n]*`)|(?<masked>\[(?<maskedLabel>[^\]\n]+)\]\((?<maskedUrl>https?:\/\/[^)\s]+)\))|(?<timestamp><t:(?<timestampAt>\d+)(?::(?<timestampFormat>[tTdDfFR]))?>)|(?<spoiler>\|\|(?<spoilerContent>[\s\S]+?)\|\|)|(?<bold>\*\*(?<boldContent>[^\s*](?:[^*\n]*?[^\s*])?)\*\*)|(?<underline>__(?<underlineContent>[^\s_](?:[^_\n]*?[^\s_])?)__)|(?<strike>~~(?<strikeContent>[^\s~](?:[^~\n]*?[^\s~])?)~~)|(?<italicStar>\*(?<italicStarContent>[^\s*](?:[^*\n]*?[^\s*])?)\*)|(?<italicUnder>_(?<italicUnderContent>[^\s_](?:[^_\n]*?[^\s_])?)_)/g;
 
 function isWordCharacter(character: string | undefined): boolean {
     return character !== undefined && /[\p{L}\p{M}\p{N}_]/u.test(character);
@@ -904,33 +910,59 @@ const timestampFormats: Record<string, Intl.DateTimeFormatOptions> = {
 
 function TimestampText({ at, format }: { at: string; format: string }) {
     const date = new Date(Number(at) * 1000);
+    const timeZone = readerClock().timeZone;
 
     if (Number.isNaN(date.getTime())) {
         return `<t:${at}${format === 'f' ? '' : `:${format}`}>`;
     }
 
+    const absolute = (options: Intl.DateTimeFormatOptions): string =>
+        new Intl.DateTimeFormat(dateLocale, { timeZone, ...options }).format(
+            date,
+        );
+
     if (format === 'R') {
+        const title = absolute({ dateStyle: 'full', timeStyle: 'long' });
+        const ahead = Math.round((date.getTime() - Date.now()) / 1000);
+
+        if (ahead >= 60) {
+            return (
+                <span title={title} data-test="timestamp">
+                    in {formatFuture(ahead)}
+                </span>
+            );
+        }
+
         return (
-            <span
-                title={new Intl.DateTimeFormat(undefined, {
-                    dateStyle: 'full',
-                    timeStyle: 'long',
-                }).format(date)}
-                data-test="timestamp"
-            >
+            <span title={title} data-test="timestamp">
                 {formatRelativeTime(date.toISOString())}
             </span>
         );
     }
 
     return (
-        <span data-test="timestamp">
-            {new Intl.DateTimeFormat(
-                undefined,
-                timestampFormats[format],
-            ).format(date)}
-        </span>
+        <span data-test="timestamp">{absolute(timestampFormats[format])}</span>
     );
+}
+
+function formatFuture(totalSeconds: number): string {
+    if (totalSeconds < 3600) {
+        return `${Math.floor(totalSeconds / 60)}m`;
+    }
+
+    if (totalSeconds < 86400) {
+        return `${Math.floor(totalSeconds / 3600)}h`;
+    }
+
+    if (totalSeconds < 604800) {
+        return `${Math.floor(totalSeconds / 86400)}d`;
+    }
+
+    return new Intl.DateTimeFormat(dateLocale, {
+        timeZone: readerClock().timeZone,
+        month: 'short',
+        day: 'numeric',
+    }).format(new Date(Date.now() + totalSeconds * 1000));
 }
 
 function withRichInline(
@@ -980,12 +1012,16 @@ function withRichInline(
         position = index + match[0].length;
 
         const key = `${keyPrefix}-${offset + index}`;
-        const nested = (inner: string, shift: number): ReactNode[] =>
+        const nested = (
+            inner: string,
+            shift: number,
+            nestedOptions: InlineOptions = options,
+        ): ReactNode[] =>
             withRichInline(
                 inner,
                 offset + index + shift,
                 `${keyPrefix}-nested`,
-                options,
+                nestedOptions,
             );
 
         if (groups.code !== undefined) {
@@ -998,7 +1034,10 @@ function withRichInline(
             } else if (options.isStatic) {
                 parts.push(
                     <Fragment key={key}>
-                        {nested(groups.maskedLabel, 1)}
+                        {nested(groups.maskedLabel, 1, {
+                            ...options,
+                            isStatic: true,
+                        })}
                     </Fragment>,
                 );
             } else {
@@ -1011,7 +1050,10 @@ function withRichInline(
                         title={href}
                         className="wrap-anywhere text-primary hover:underline"
                     >
-                        {nested(groups.maskedLabel, 1)}
+                        {nested(groups.maskedLabel, 1, {
+                            ...options,
+                            isStatic: true,
+                        })}
                     </a>,
                 );
             }
@@ -1141,7 +1183,7 @@ function withLinksAndMentions(
             ),
             commitLink ? (
                 <CommitLink
-                    key={`${keyPrefix}-link-${match.index}`}
+                    key={`${keyPrefix}-link-${offset + match.index}`}
                     url={linkText}
                     handle={commitLink[1]}
                     commit={commitLink[2].toLowerCase()}
@@ -1149,7 +1191,7 @@ function withLinksAndMentions(
                 />
             ) : forgeLink ? (
                 <ForgeLink
-                    key={`${keyPrefix}-link-${match.index}`}
+                    key={`${keyPrefix}-link-${offset + match.index}`}
                     url={linkText}
                     href={href}
                     target={forgeLink}
@@ -1159,7 +1201,7 @@ function withLinksAndMentions(
                 linkText
             ) : (
                 <a
-                    key={`${keyPrefix}-link-${match.index}`}
+                    key={`${keyPrefix}-link-${offset + match.index}`}
                     href={href}
                     target="_blank"
                     rel="noopener noreferrer nofollow ugc"

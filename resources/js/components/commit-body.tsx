@@ -201,7 +201,7 @@ function BodyTextBlocks({
                     return (
                         <span
                             key={key}
-                            className="text-sm text-muted-foreground"
+                            className="block text-sm text-muted-foreground"
                         >
                             <LinkifiedText
                                 key={key}
