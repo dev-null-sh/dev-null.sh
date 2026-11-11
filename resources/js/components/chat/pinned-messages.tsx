@@ -294,6 +294,7 @@ export function PinnedBanner({
                             'group absolute inset-x-0 top-0 flex h-9 items-center gap-2 border-b bg-card/90 text-left backdrop-blur-md transition-colors hover:bg-accent/90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-inset data-[state=open]:bg-card',
                             isCompact ? 'px-3' : 'px-4',
                         )}
+                        data-pinned-banner
                         data-test="pinned-banner"
                     >
                         <Pin

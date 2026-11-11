@@ -209,6 +209,19 @@ it('erases the mutes, blocks and dismissed suggestions of a deleted user in both
 
 });
 
+it('erases the org mentions of a deleted user and the ones their messages made', function (): void {
+    $user = User::factory()->create();
+    [$nuno, $taylor] = followersOf($user, 2);
+    $org = createOrg($user, [$nuno, $taylor]);
+    pushToOrg($nuno, $org, "@{$user->handle} review?");
+    pushToOrg($user, $org, "@{$taylor->handle} ship it");
+    pushToOrg($taylor, $org, "@{$nuno->handle} done");
+
+    resolve(DeleteUser::class)->handle($user);
+
+    expect(DB::table('message_mentions')->pluck('user_id')->all())->toBe([$nuno->id]);
+});
+
 it('erases authored polls and the users votes while keeping other polls and voters', function (): void {
     $user = User::factory()->create();
     $poll = Poll::factory()->for(Commit::factory()->for($user))->withOptions('Tabs', 'Spaces')->create();

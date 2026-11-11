@@ -12,6 +12,11 @@ namespace App\Dto;
  */
 final readonly class MobileAuthorization
 {
+    /**
+     * The lite mobile app in apps/mobile, the one app whose device may get a web session for its web view.
+     */
+    public const string LiteMobileAppId = 'ios:sh.devnull.app';
+
     public function __construct(
         public string $fingerprint,
         public string $deviceName,

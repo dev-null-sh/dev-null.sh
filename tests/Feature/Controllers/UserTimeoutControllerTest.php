@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Actions\UpdateScheduledCommitSubmittedAt;
 use App\Contracts\Services\GitHubProvider;
 use App\Enums\ModerationReason;
+use App\Http\Requests\CreateHumanVerificationRequest;
 use App\Models\Ban;
 use App\Models\Commit;
 use App\Models\Conversation;
@@ -338,7 +339,7 @@ it('keeps the timeouts of a deleted account, so signing up again neither ends on
     $github = $this->mock(GitHubProvider::class);
     $github->shouldReceive('hasSponsorsListing')->andReturnFalse();
 
-    $this->get(route('login.store'))->assertRedirect();
+    $this->withSession([CreateHumanVerificationRequest::SessionKey => true])->get(route('login.store'))->assertRedirect();
 
     $again = User::query()->where('github_id', '583231')->sole();
 

@@ -1,41 +1,26 @@
+import type { Page, SharedPageProps } from '@inertiajs/core';
+import { http, HttpResponseError } from '@inertiajs/core';
 import { router } from '@inertiajs/react';
 import { useSyncExternalStore } from 'react';
+import { signIn } from '@/lib/auth';
+import { isRefusedBySession } from '@/lib/lite-mobile-app-session';
+import type { LiteMobileAppTabs } from '@/lib/lite-mobile-app-tabs';
+import { liteMobileAppTabTarget } from '@/lib/lite-mobile-app-tabs';
+import { scrollLogToTop } from '@/lib/log-scroll';
+import { login } from '@/routes';
 
 /**
- * The bridge to the iOS app POC: a Capacitor shell whose web view loads the site, with an iOS tab bar and sign-in. The
- * app injects its plugins into the page, so the site bundles none of them, only the types of what it calls. The server
- * tells the app's web view apart by its user agent (`isMobileApp`).
- *
- * Temporary: the proof of concept of a mobile app wrapping the site, to be reverted.
- *
- * Signing in needs nothing here: the app catches every visit to /login itself, see `App\Services\AppSignIn`.
+ * The bridge to the lite mobile app in apps/mobile: a Capacitor shell whose web view loads the site, with an iOS tab bar.
+ * The app injects its plugins into the page, so the site bundles none of them, only the types of what it calls. The
+ * server tells the app's web view apart by its user agent (`isLiteMobileApp`). Not the NativePHP app, see `mobile-apps.ts`.
  */
 
 interface Listener {
     remove(): Promise<void>;
 }
 
-export interface MobileAppTab {
-    id: string;
-    title: string;
-    /** An SF Symbol, or `commit` for the Log's icon. */
-    icon: string;
-    url: string;
-    badge?: number;
-    dot?: boolean;
-}
-
-export interface MobileAppTabs {
-    tabs: MobileAppTab[];
-    selected: string | null;
-    visible: boolean;
-    appearance: 'light' | 'dark';
-    /** The color of the selected tab, as `#rrggbb`. */
-    tint: string | null;
-}
-
 interface TabsPlugin {
-    set(tabs: MobileAppTabs): Promise<void>;
+    set(tabs: LiteMobileAppTabs): Promise<void>;
     /** The color under the status bar, as `#rrggbb`. */
     setTopColor(options: { color: string }): Promise<void>;
     addListener(
@@ -52,9 +37,14 @@ interface TabsPlugin {
     ): Promise<Listener>;
 }
 
+interface SessionPlugin {
+    /** Asks for a new web session. The app decides what happens, and the page never sees the answer. */
+    renew(): Promise<void>;
+}
+
 interface Capacitor {
     isNativePlatform(): boolean;
-    Plugins: { Tabs?: TabsPlugin };
+    Plugins: { Tabs?: TabsPlugin; Session?: SessionPlugin };
 }
 
 declare global {
@@ -69,10 +59,10 @@ function tabsPlugin(): TabsPlugin | null {
         : null;
 }
 
-let shownTabs: MobileAppTabs | null = null;
+let shownTabs: LiteMobileAppTabs | null = null;
 let pendingHide: number | null = null;
 
-export function setMobileAppTabs(tabs: MobileAppTabs): void {
+export function setLiteMobileAppTabs(tabs: LiteMobileAppTabs): void {
     if (pendingHide !== null) {
         cancelAnimationFrame(pendingHide);
         pendingHide = null;
@@ -86,7 +76,7 @@ export function setMobileAppTabs(tabs: MobileAppTabs): void {
  * Pages without the nav, such as the onboarding, hide the tab bar: the same tabs are sent, hidden, so the app keeps
  * them for the next page. A frame later, so a page that mounts the nav again doesn't make the bar blink.
  */
-export function hideMobileAppTabs(): void {
+export function hideLiteMobileAppTabs(): void {
     if (shownTabs === null || pendingHide !== null) {
         return;
     }
@@ -95,24 +85,9 @@ export function hideMobileAppTabs(): void {
         pendingHide = null;
 
         if (shownTabs !== null) {
-            setMobileAppTabs({ ...shownTabs, visible: false });
+            setLiteMobileAppTabs({ ...shownTabs, visible: false });
         }
     });
-}
-
-/**
- * Signing in leaves for GitHub, which the app catches on a full page load only, not on an Inertia visit.
- */
-function visit(url: string): void {
-    const target = new URL(url, window.location.href);
-
-    if (target.pathname === '/login') {
-        window.location.assign(target);
-
-        return;
-    }
-
-    router.visit(target.pathname + target.search + target.hash);
 }
 
 let isStarted = false;
@@ -121,7 +96,7 @@ let isStarted = false;
  * Follows the taps on the app's tabs: a tab is a visit, and tapping the tab already shown scrolls back to its top, as
  * in any iOS app.
  */
-export function startMobileApp(): void {
+export function startLiteMobileApp(): void {
     const tabs = tabsPlugin();
 
     if (tabs === null || isStarted) {
@@ -130,16 +105,43 @@ export function startMobileApp(): void {
 
     isStarted = true;
 
-    void tabs.addListener('select', ({ url, reselected }) => {
-        const target = new URL(url, window.location.href);
+    // The app moves to the tapped tab right away: a visit that doesn't change the page must move it back
+    const showCurrentTab = () => {
+        if (shownTabs !== null) {
+            void tabs.set(shownTabs);
+        }
+    };
 
-        if (reselected && target.pathname === window.location.pathname) {
-            window.scrollTo({ top: 0, behavior: 'smooth' });
+    void tabs.addListener('select', ({ id, url, reselected }) => {
+        const target = liteMobileAppTabTarget(url, window.location.href);
+
+        if (target === null) {
+            showCurrentTab();
 
             return;
         }
 
-        visit(url);
+        if (reselected && target.pathname === window.location.pathname) {
+            if (id === 'log') {
+                scrollLogToTop();
+            } else {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+
+            return;
+        }
+
+        // A guest's tabs lead to signing in, which an Inertia visit cannot follow to GitHub
+        if (target.pathname === login().url) {
+            showCurrentTab();
+            signIn();
+
+            return;
+        }
+
+        router.visit(target.pathname + target.search + target.hash, {
+            onFinish: showCurrentTab,
+        });
     });
 
     // Reading down a page shrinks the tab bar, and the compose button steps aside meanwhile, see `MobileCommitButton`
@@ -151,6 +153,50 @@ export function startMobileApp(): void {
     });
 
     followTopColor(tabs);
+    renewExpiredSessions();
+}
+
+/**
+ * The app makes the web view's sessions, so one that ended is the app's to replace: a page shown signed out, or a
+ * request refused for its session or its CSRF token. It reloads the page afterwards. `navigate` covers loading a page
+ * and going through history, and `success` the visits that stay on their URL, such as being sent back after an expired
+ * token. Visits and `useHttp` go through Inertia's HTTP client, and everything else through `fetch`.
+ */
+function renewExpiredSessions(): void {
+    const session = window.Capacitor?.Plugins.Session;
+
+    if (session === undefined) {
+        return;
+    }
+
+    const renewIfSignedOut = (page: Page<SharedPageProps>) => {
+        if (page.props.auth.user === null) {
+            void session.renew();
+        }
+    };
+    const renewIfRefused = (status: number, url: string) => {
+        if (isRefusedBySession(status, url, window.location.origin)) {
+            void session.renew();
+        }
+    };
+    const fetchFromPage = window.fetch.bind(window);
+
+    router.on('navigate', (event) =>
+        renewIfSignedOut(event.detail.page as Page<SharedPageProps>),
+    );
+    router.on('success', (event) => renewIfSignedOut(event.detail.page));
+    http.onError((error) => {
+        if (error instanceof HttpResponseError) {
+            renewIfRefused(error.response.status, error.url ?? '');
+        }
+    });
+    window.fetch = async (...request) => {
+        const response = await fetchFromPage(...request);
+
+        renewIfRefused(response.status, response.url);
+
+        return response;
+    };
 }
 
 /**
@@ -175,10 +221,11 @@ function followTopColor(tabs: TabsPlugin): void {
     const measure = () => {
         frame ??= requestAnimationFrame(send);
     };
-    // Dialogs fade their dimming in and out...
+    // Dialogs fade their dimming in and out, and view transitions cover the page until they end...
     const measureAfterTransitions = () => {
         measure();
         setTimeout(measure, 250);
+        setTimeout(measure, 600);
     };
 
     measure();
@@ -280,8 +327,7 @@ function subscribeToModals(onChange: () => void): () => void {
 }
 
 /**
- * Whether a modal dialog is open: Radix locks the page's scrolling meanwhile. The tab bar hides under it, as an iOS
- * sheet covers the tab bar, or it would hide the dialog's last buttons.
+ * Whether a modal dialog is open: Radix locks the page's scrolling meanwhile.
  */
 export function useIsModalOpen(): boolean {
     return useSyncExternalStore(

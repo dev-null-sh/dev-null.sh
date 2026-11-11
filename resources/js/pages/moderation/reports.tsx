@@ -251,6 +251,7 @@ export default function Reports({
                                 commit={report.commit}
                                 endsWithDot
                                 canDelete={false}
+                                showsParent
                                 actions={
                                     <div className="mt-3 grid gap-2 border-t pt-3">
                                         <p className="text-sm font-medium">

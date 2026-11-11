@@ -96,6 +96,7 @@ function setup(
     };
     vi.stubGlobal('window', {
         matchMedia: () => ({ matches: reducedMotion }),
+        clearTimeout,
         addEventListener: vi.fn(),
         removeEventListener: vi.fn(),
     });
@@ -111,6 +112,13 @@ function setup(
             constructor(callback: () => void) {
                 onResize = callback;
             }
+            observe() {}
+            disconnect() {}
+        },
+    );
+    vi.stubGlobal(
+        'MutationObserver',
+        class {
             observe() {}
             disconnect() {}
         },
