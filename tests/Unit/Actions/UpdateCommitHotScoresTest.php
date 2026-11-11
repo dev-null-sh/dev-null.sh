@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Actions\UpdateCommitHotScores;
 use App\Dto\ThreadEngagement;
 use App\Models\Commit;
+use App\Models\Organization;
 use App\Models\User;
 use App\Services\TheAlgorithm;
 
@@ -116,6 +117,52 @@ it('counts the developers replying whom the author answers', function (): void {
 
     expect($commit->fresh()->hot_score)
         ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, new ThreadEngagement(stargazers: 0, quoters: 0, repliers: 2, repliersAnsweredByAuthor: 1)), 1e-9);
+});
+
+it('excludes each threads own author without excluding their engagement in another thread', function (): void {
+    $author = User::factory()->create();
+    $own = Commit::factory()->for($author)->create();
+    $other = Commit::factory()->create();
+
+    foreach ([$own, $other] as $commit) {
+        $commit->stars()->attach($author);
+        Commit::factory()->for($author)->for($commit, 'parent')->create();
+        Commit::factory()->for($author)->for($commit, 'quotedCommit')->create();
+    }
+
+    resolve(UpdateCommitHotScores::class)->handle([$own->id, $other->id]);
+
+    expect($own->fresh()->hot_score)->toEqualWithDelta(resolve(TheAlgorithm::class)->score($own->created_at, ThreadEngagement::none()), 1e-9)
+        ->and($other->fresh()->hot_score)->toEqualWithDelta(resolve(TheAlgorithm::class)->score($other->created_at, new ThreadEngagement(stargazers: 1, quoters: 1, repliers: 1, repliersAnsweredByAuthor: 0)), 1e-9);
+});
+
+it('counts engagement in an authorless thread but not replies or quotes without an author', function (): void {
+    $commit = Commit::factory()->create(['author_id' => null]);
+    $commit->stars()->attach($commit->user);
+    Commit::factory()->for($commit->user)->for($commit, 'parent')->create();
+    Commit::factory()->for($commit->user)->for($commit, 'quotedCommit')->create();
+    Commit::factory()->for($commit, 'parent')->create(['author_id' => null]);
+    Commit::factory()->for($commit, 'quotedCommit')->create(['author_id' => null]);
+
+    resolve(UpdateCommitHotScores::class)->handle([$commit->id]);
+
+    expect($commit->fresh()->hot_score)
+        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, new ThreadEngagement(stargazers: 1, quoters: 1, repliers: 1, repliersAnsweredByAuthor: 0)), 1e-9);
+});
+
+it('excludes the organization author while counting the member who posted its thread', function (): void {
+    $organization = Organization::factory()->create();
+    $commit = Commit::factory()->create(['author_id' => $organization->id]);
+    $commit->stars()->attach($commit->user);
+    $reply = Commit::factory()->for($commit->user)->for($commit, 'parent')->create();
+    Commit::factory()->for($reply, 'parent')->create(['author_id' => $organization->id]);
+    Commit::factory()->for($commit->user)->for($commit, 'quotedCommit')->create();
+    Commit::factory()->for($commit, 'quotedCommit')->create(['author_id' => $organization->id]);
+
+    resolve(UpdateCommitHotScores::class)->handle([$commit->id]);
+
+    expect($commit->fresh()->hot_score)
+        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, new ThreadEngagement(stargazers: 1, quoters: 1, repliers: 1, repliersAnsweredByAuthor: 1)), 1e-9);
 });
 
 it('leaves deleted threads as they are', function (): void {
