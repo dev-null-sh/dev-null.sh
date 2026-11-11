@@ -31,6 +31,7 @@ use App\Http\Controllers\Api\ConversationTypingController;
 use App\Http\Controllers\Api\CurrentUserController;
 use App\Http\Controllers\Api\DeviceController;
 use App\Http\Controllers\Api\DevicePushTokenController;
+use App\Http\Controllers\Api\HeadlineController;
 use App\Http\Controllers\Api\IssueSuggestionController;
 use App\Http\Controllers\Api\LiveFollowingController;
 use App\Http\Controllers\Api\LogController;
@@ -225,6 +226,12 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         Route::get('search/commits', [CommitSearchController::class, 'index'])
             ->middleware('throttle:search')
             ->name('api-commit-search.index');
+
+        // Hot topics: the headlines the web's aside shows, and each one's page with its recap...
+        Route::get('headlines', [HeadlineController::class, 'index'])->name('api-headline.index');
+        Route::get('headlines/{headline}', [HeadlineController::class, 'show'])
+            ->whereUuid('headline')
+            ->name('api-headline.show');
 
         // Composer suggestions: people to mention and /dev/null issues to reference, as the web's composer suggests them...
         Route::get('search/mentions', [MentionSuggestionController::class, 'index'])
