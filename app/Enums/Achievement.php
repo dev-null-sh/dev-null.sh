@@ -22,6 +22,7 @@ enum Achievement: string
     case ShellShocked = 'shell_shocked';
     case SuperSaiyan = 'super_saiyan';
     case Whoopsie = 'whoopsie';
+    case GitBlame = 'git_blame';
 
     public function label(): string
     {
@@ -42,6 +43,7 @@ enum Achievement: string
             self::ShellShocked => 'shell shocked',
             self::SuperSaiyan => 'super-saiyan',
             self::Whoopsie => 'whoopsie',
+            self::GitBlame => 'git blame',
         };
     }
 
@@ -64,6 +66,7 @@ enum Achievement: string
             self::ShellShocked => "Survived the php2shell downtime of Oct '26. Earns 100 XP.",
             self::SuperSaiyan => 'Y—your follower count. It... it’s over 9000!!!1!',
             self::Whoopsie => 'Nuked production at least once.',
+            self::GitBlame => 'Landed a commit in the /dev/null repo itself. git blame now points at you.',
         };
     }
 
@@ -86,6 +89,7 @@ enum Achievement: string
             self::ShellShocked => 'bomb',
             self::SuperSaiyan => 'dragon-ball',
             self::Whoopsie => 'mushroom-cloud',
+            self::GitBlame => 'git-commit-horizontal',
         };
     }
 
@@ -108,6 +112,7 @@ enum Achievement: string
             self::ShellShocked => 1,
             self::SuperSaiyan => 9000,
             self::Whoopsie => 1,
+            self::GitBlame => 1,
         };
     }
 }

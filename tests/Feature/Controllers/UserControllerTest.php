@@ -729,6 +729,7 @@ it('shows the github profile readme on the readme tab, without looking for commi
     Commit::factory()->for($user)->create();
 
     $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('contributors')->andReturn([]);
     $github->shouldReceive('login')->with($user->github_id)->andReturn('octocat');
     $github->shouldReceive('readme')->with('octocat')->andReturn('<div id="readme"><article class="markdown-body"><h2>Hi there</h2></article></div>');
 
@@ -743,6 +744,7 @@ it('tells the readme tab when github did not answer', function (): void {
     $user = User::factory()->create(['handle' => 'octocat']);
 
     $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('contributors')->andReturn([]);
     $github->shouldReceive('login')->andThrow(new ConnectionException('timed out'));
 
     $this->get(route('user.show', ['user' => $user, 'tab' => 'readme']))->assertOk()->assertInertia(fn ($page) => $page
@@ -751,6 +753,7 @@ it('tells the readme tab when github did not answer', function (): void {
 
 it('does not ask github for the readme on the other tabs', function (string $tab): void {
     $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('contributors')->andReturn([]);
     $github->shouldNotReceive('login', 'readme');
 
     $user = User::factory()->create(['handle' => 'octocat']);

@@ -6,6 +6,7 @@ import {
     ChevronRight,
     FileCode,
     Flame,
+    GitCommitHorizontal,
     GitMerge,
     Key,
     Server,
@@ -53,6 +54,7 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
     bomb: Bomb,
     'dragon-ball': DragonBallIcon,
     'mushroom-cloud': MushroomCloudIcon,
+    'git-commit-horizontal': GitCommitHorizontal,
 };
 
 export function AchievementsShelf({
