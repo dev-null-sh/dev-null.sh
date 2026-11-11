@@ -9,6 +9,7 @@ use App\Actions\DeleteDevice;
 use App\Actions\DeletePushSubscription;
 use App\Actions\UpdateOrCreateUser;
 use App\Dto\MobileAuthorization;
+use App\Http\Requests\CreateHumanVerificationRequest;
 use App\Jobs\ImportGitHubFollowsJob;
 use App\Jobs\LookUpUserOrganizations;
 use App\Jobs\SyncGitHubSshKeysJob;
@@ -61,6 +62,12 @@ final readonly class SessionController
 
         if ($refusal !== null) {
             return $this->failed($refusal);
+        }
+
+        $isSigningUp = User::query()->where('github_id', (string) $githubUser->getId())->doesntExist();
+
+        if ($isSigningUp && $request->session()->pull(CreateHumanVerificationRequest::SessionKey) !== true) {
+            return to_route('human-verification.show');
         }
 
         $user = $action->handle($githubUser);

@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Enums\Log;
 use App\Enums\NotificationType;
 use App\Http\Controllers\SessionController;
+use App\Http\Requests\CreateHumanVerificationRequest;
 use App\Models\User;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Routing\Router;
@@ -61,6 +62,7 @@ it('takes a signed-out following reader home instead of looping through local lo
 
 it('creates a user for a new handle and signs them in', function (): void {
     registerRoutes('local');
+    session()->put(CreateHumanVerificationRequest::SessionKey, true);
 
     $this->post(route('local-login.store'), ['_token' => session()->token(), 'handle' => 'octocat'])
         ->assertRedirectToRoute('log.show', Log::Following);
@@ -72,6 +74,26 @@ it('creates a user for a new handle and signs them in', function (): void {
         ->name->toBe('octocat');
 
     $this->assertAuthenticatedAs($user);
+});
+
+it('sends a new handle to the human check before it creates the user', function (): void {
+    registerRoutes('local');
+
+    $this->post(route('local-login.store'), ['_token' => session()->token(), 'handle' => 'octocat'], ['X-Inertia' => 'true'])
+        ->assertConflict()
+        ->assertHeader('X-Inertia-Location', route('human-verification.show'));
+
+    expect(User::query()->whereRelation('profile', 'handle', 'octocat')->exists())->toBeFalse();
+    $this->assertGuest();
+});
+
+it('opens the sign in modal on the home page once the human check passed', function (): void {
+    registerRoutes('local');
+    session()->put(CreateHumanVerificationRequest::SessionKey, true);
+
+    $this->get(route('login'))
+        ->assertRedirectToRoute('home')
+        ->assertInertiaFlash('localSignIn', true);
 });
 
 it('signs in as the existing user of a handle', function (): void {
@@ -106,6 +128,7 @@ it('signs in as the seeded local developer', function (): void {
 
 it('seeds activity for a local developer who already signed in', function (): void {
     registerRoutes('local');
+    session()->put(CreateHumanVerificationRequest::SessionKey, true);
 
     $this->post(route('local-login.store'), ['_token' => session()->token(), 'handle' => 'local-dev'])
         ->assertSessionHasNoErrors();
@@ -128,6 +151,7 @@ it('seeds activity for a local developer who already signed in', function (): vo
 
 it('loads the signed in page in full, as signing in with GitHub does', function (): void {
     registerRoutes('local');
+    session()->put(CreateHumanVerificationRequest::SessionKey, true);
 
     $this->post(route('local-login.store'), ['_token' => session()->token(), 'handle' => 'octocat'], ['X-Inertia' => 'true'])
         ->assertConflict()
@@ -136,6 +160,7 @@ it('loads the signed in page in full, as signing in with GitHub does', function 
 
 it('keeps the sign in redirect secure only behind a configured proxy', function (?string $proxies, string $remoteAddress, string $scheme): void {
     registerRoutes('local');
+    session()->put(CreateHumanVerificationRequest::SessionKey, true);
 
     $environment = Env::getRepository();
     $original = $environment->get('TRUSTED_PROXIES');
@@ -170,6 +195,7 @@ it('keeps the sign in redirect secure only behind a configured proxy', function 
 
 it('returns to the page the guest was reading', function (): void {
     registerRoutes('local');
+    session()->put(CreateHumanVerificationRequest::SessionKey, true);
 
     $user = User::factory()->create();
 

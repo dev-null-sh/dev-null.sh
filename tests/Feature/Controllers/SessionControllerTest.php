@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Contracts\Services\GitHubProvider;
 use App\Dto\MobileAuthorization;
 use App\Enums\Log;
+use App\Http\Requests\CreateHumanVerificationRequest;
 use App\Jobs\ImportGitHubFollowsJob;
 use App\Jobs\LookUpUserOrganizations;
 use App\Jobs\SyncGitHubSshKeysJob;
@@ -43,7 +44,7 @@ it('creates a user and logs them in', function (): void {
         'company' => '@github',
     ]));
 
-    $response = $this->get(route('login.store'));
+    $response = $this->withSession([CreateHumanVerificationRequest::SessionKey => true])->get(route('login.store'));
 
     $response->assertRedirectToRoute('onboarding.show')
         ->assertInertiaFlash('signedUp', true);
@@ -62,6 +63,24 @@ it('creates a user and logs them in', function (): void {
         ->has_sponsors_listing->toBeTrue();
 
     $this->assertAuthenticatedAs($user);
+});
+
+it('sends a new signup to the human check before it creates the account', function (): void {
+    Socialite::fake('github', GitHubUser::fake(['id' => '583231', 'nickname' => 'octocat']));
+
+    $this->get(route('login.store'))->assertRedirectToRoute('human-verification.show');
+
+    expect(User::query()->where('github_id', '583231')->exists())->toBeFalse();
+    $this->assertGuest();
+});
+
+it('uses a passed human check for one signup only', function (): void {
+    Socialite::fake('github', GitHubUser::fake(['id' => '583231', 'nickname' => 'octocat']));
+
+    $this->withSession([CreateHumanVerificationRequest::SessionKey => true])
+        ->get(route('login.store'))
+        ->assertRedirectToRoute('onboarding.show')
+        ->assertSessionMissing(CreateHumanVerificationRequest::SessionKey);
 });
 
 it('refuses a new signup from an account that fails the screening', function (): void {
@@ -180,7 +199,7 @@ it('queues a sync of the ssh keys of the user on login', function (): void {
         'nickname' => 'octocat',
     ]));
 
-    $this->get(route('login.store'));
+    $this->withSession([CreateHumanVerificationRequest::SessionKey => true])->get(route('login.store'));
 
     $user = User::query()->where('github_id', '583231')->sole();
 
@@ -197,7 +216,7 @@ it('queues a lookup of the organizations the bio of the user mentions on login',
         'company' => '@github',
     ]));
 
-    $this->get(route('login.store'));
+    $this->withSession([CreateHumanVerificationRequest::SessionKey => true])->get(route('login.store'));
 
     $user = User::query()->where('github_id', '583231')->sole();
 
@@ -217,7 +236,7 @@ it('queues an import of the github follows of the user on login, notifying only 
         'nickname' => 'octocat',
     ]));
 
-    $this->get(route('login.store'));
+    $this->withSession([CreateHumanVerificationRequest::SessionKey => true])->get(route('login.store'));
 
     $user = User::query()->where('github_id', '583231')->sole();
 
@@ -374,7 +393,7 @@ it('makes tom the first friend of a new user, but not of a returning one', funct
 
     Socialite::fake('github', GitHubUser::fake(['id' => '583231', 'nickname' => 'octocat', 'name' => 'The Octocat']));
 
-    $this->get(route('login.store'));
+    $this->withSession([CreateHumanVerificationRequest::SessionKey => true])->get(route('login.store'));
 
     $user = User::query()->where('github_id', '583231')->sole();
     $tom = User::query()->whereRelation('profile', 'handle', 'tom')->sole();

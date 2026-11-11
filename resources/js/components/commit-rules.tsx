@@ -1,7 +1,8 @@
 import { Link, usePage } from '@inertiajs/react';
 import type { RefObject } from 'react';
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import TermsController from '@/actions/App/Http/Controllers/TermsController';
+import { HumanVerification } from '@/components/human-verification';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -12,7 +13,6 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { WordmarkText } from '@/components/wordmark-text';
-import { loadTurnstile } from '@/lib/turnstile';
 
 const rules = [
     [
@@ -173,46 +173,5 @@ function CommitRulesContent({
                 </Button>
             </DialogFooter>
         </>
-    );
-}
-
-function HumanVerification({ onToken }: { onToken: (token: string) => void }) {
-    const { humanVerificationSiteKey } = usePage().props;
-    const container = useRef<HTMLDivElement>(null);
-
-    useEffect(() => {
-        const element = container.current;
-
-        if (element === null) {
-            return;
-        }
-
-        const widget = loadTurnstile().then((turnstile) => ({
-            turnstile,
-            widgetId: turnstile.render(element, {
-                sitekey: humanVerificationSiteKey,
-                size: 'flexible',
-                theme: document.documentElement.classList.contains('dark')
-                    ? 'dark'
-                    : 'light',
-                callback: onToken,
-                'expired-callback': () => onToken(''),
-                'error-callback': () => onToken(''),
-            }),
-        }));
-
-        return () => {
-            void widget.then(({ turnstile, widgetId }) =>
-                turnstile.remove(widgetId),
-            );
-        };
-    }, [humanVerificationSiteKey, onToken]);
-
-    return (
-        <div
-            ref={container}
-            className="h-[65px]"
-            data-test="human-verification"
-        />
     );
 }
