@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Models\Commit;
 use App\Models\Profile;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -79,4 +80,18 @@ it('shows how many members wait to follow them, and members the ones they follow
             ->where('waitingCount', 3)
             ->where('isWaiting', true)
             ->where('waitingYouFollow', [$followed->only(['id', 'handle', 'name', 'avatar_url'])]));
+});
+
+it('counts the approved commits that mention them, but not mentions in code or of a longer handle', function (): void {
+    Profile::factory()->create(['handle' => 'octocat']);
+    Commit::factory()->create(['body' => 'Thanks @octocat!']);
+    Commit::factory()->create(['body' => 'Paired with @OctoCat and @hubot today']);
+    Commit::factory()->create(['body' => 'Found @octocat-fan in the wild']);
+    Commit::factory()->create(['body' => 'Use `@octocat` in your config']);
+    Commit::factory()->pending()->create(['body' => 'Waiting on @octocat']);
+
+    $this->get('/@octocat')
+        ->assertInertia(fn ($page) => $page
+            ->missing('mentionCount')
+            ->loadDeferredProps(fn ($reload) => $reload->where('mentionCount', 2)));
 });

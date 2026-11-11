@@ -149,7 +149,9 @@ A developer who isn't here yet gets a page with their GitHub avatar, name, handl
 
 Its page shows how many members are waiting to follow them: the members who followed them on GitHub when they were looked up, and the ones who clicked **Follow** on their page, which then reads **Waiting** and can be clicked again to stop waiting. Members also see the people they follow among them. When the developer signs up, everyone waiting follows them, and their notifications show those follows like any others. Who you wait to follow is in your data export, and goes when you delete your account. If you delete your account, your page doesn't come back as one of these, until you sign in again.
 
-Sources: [looking handles up](app/Http/Controllers/ProfileLookupController.php), [lookup page](resources/js/pages/profile/lookup.tsx), [developer page](resources/js/pages/profile/unclaimed.tsx), [GitHub lookups](app/Actions/CreateGitHubProfile.php).
+Its page also says how many commits mention them, like **12 commits mention them**, counting approved commits that mention `@handle` outside code, refreshed within the hour. The commits themselves aren't shown there, since they can't answer what's said about them: the count links to search with `@handle` filled in, for members.
+
+Sources: [looking handles up](app/Http/Controllers/ProfileLookupController.php), [lookup page](resources/js/pages/profile/lookup.tsx), [developer page](resources/js/pages/profile/unclaimed.tsx), [GitHub lookups](app/Actions/CreateGitHubProfile.php), [mention count](app/Queries/UnclaimedProfileMentionCountQuery.php).
 
 ### Going live
 

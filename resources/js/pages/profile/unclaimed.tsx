@@ -1,7 +1,8 @@
-import { Head, router, usePage } from '@inertiajs/react';
-import { Clock } from 'lucide-react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
+import { AtSign, Clock } from 'lucide-react';
 import { useState } from 'react';
 import PendingFollowController from '@/actions/App/Http/Controllers/PendingFollowController';
+import SearchController from '@/actions/App/Http/Controllers/SearchController';
 import { show } from '@/actions/App/Http/Controllers/UserController';
 import { BioText } from '@/components/bio-text';
 import { useFollowHover } from '@/components/follow-button';
@@ -25,15 +26,18 @@ type UnclaimedProfile = {
 
 /**
  * A developer looked up from GitHub who isn't on /dev/null yet. Signing in as them makes the page theirs. Where they
- * are is left out, even when GitHub shows it: they never chose to share it here.
+ * are is left out, even when GitHub shows it: they never chose to share it here. So are the commits that mention them,
+ * which they can't answer: the page only counts them, and links to a search for "@handle".
  */
 export default function UnclaimedProfile({
     profile,
+    mentionCount,
     waitingCount,
     isWaiting,
     waitingYouFollow,
 }: {
     profile: UnclaimedProfile;
+    mentionCount?: number;
     waitingCount: number;
     isWaiting: boolean;
     waitingYouFollow: Pick<User, 'id' | 'handle' | 'name' | 'avatar_url'>[];
@@ -114,6 +118,28 @@ export default function UnclaimedProfile({
                             github.com/{profile.handle}
                         </a>
                     </li>
+                    {mentionCount !== undefined && mentionCount > 0 && (
+                        <li className="flex items-center gap-1.5">
+                            <AtSign className="size-4" />
+                            <Link
+                                href={SearchController.index.url({
+                                    query: { q: `@${profile.handle}` },
+                                })}
+                                className="text-primary hover:underline"
+                                data-test="mention-count"
+                            >
+                                <span
+                                    className="tabular-nums"
+                                    title={exactCountTitle(mentionCount)}
+                                >
+                                    {formatCount(mentionCount)}
+                                </span>{' '}
+                                {mentionCount === 1
+                                    ? 'commit mentions them'
+                                    : 'commits mention them'}
+                            </Link>
+                        </li>
+                    )}
                 </ul>
 
                 {shownWaitingCount > 0 && (
