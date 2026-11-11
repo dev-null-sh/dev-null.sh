@@ -63,11 +63,14 @@ export function CommitFeed({
         page.component === 'organization/show'
             ? (page.props.organization as { id: string }).id
             : null;
-    // A developer who isn't here yet has a Mentions tab like an organization's, which lists replies too.
-    const mentionedDeveloperHandle =
-        page.component === 'profile/unclaimed' && page.props.tab === 'mentions'
+    // A developer who isn't here yet has a Mentions tab like an organization's, which lists replies too, and a
+    // Commits tab that stays empty until they sign up.
+    const unclaimedHandle =
+        page.component === 'profile/unclaimed'
             ? (page.props.profile as { handle: string }).handle.toLowerCase()
             : null;
+    const isUnclaimedMentions =
+        unclaimedHandle !== null && page.props.tab === 'mentions';
     const [highlightedAuthor, setHighlightedAuthor] = useState<string | null>(
         null,
     );
@@ -158,11 +161,12 @@ export function CommitFeed({
                     const belongsInFeed =
                         (isStarred
                             ? restored.starred === true
-                            : mentionedDeveloperHandle !== null
-                              ? Array.from(
+                            : unclaimedHandle !== null
+                              ? isUnclaimedMentions &&
+                                Array.from(
                                     restored.body.matchAll(mentionPattern),
                                     ([, handle]) => handle.toLowerCase(),
-                                ).includes(mentionedDeveloperHandle)
+                                ).includes(unclaimedHandle)
                               : mentionedOrganizationId !== null
                                 ? Object.values(
                                       restored.organization_mentions ?? {},
@@ -194,7 +198,8 @@ export function CommitFeed({
             isModeration,
             isProfileReplies,
             mentionedOrganizationId,
-            mentionedDeveloperHandle,
+            unclaimedHandle,
+            isUnclaimedMentions,
             isStarred,
             isRanked,
         ],

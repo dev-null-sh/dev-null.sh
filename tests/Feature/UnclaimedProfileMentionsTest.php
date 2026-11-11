@@ -88,6 +88,23 @@ it('looks up the earlier mentions of a developer once they get a page, and at th
     Queue::assertPushed(LinkUnclaimedProfileTopics::class, 2);
 });
 
+it('leaves the earlier mentions of a handle to whoever had its page here before', function (): void {
+    Queue::fake([LinkUnclaimedProfileTopics::class]);
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('accountByLogin')->with('octocat')->andReturn(['login' => 'octocat', 'id' => 583231, 'type' => 'User', 'name' => 'The Octocat', 'avatar_url' => null, 'bio' => null, 'location' => null, 'blog' => '', 'company' => null]);
+    $github->shouldReceive('followerIds')->andReturn([]);
+    $previous = Profile::factory()->create(['github_id' => '1', 'handle' => 'octocat']);
+    $commit = Commit::factory()->create(['body' => 'Thanks @octocat', 'mentions' => []]);
+    resolve(CreateCommitTopics::class)->handle($commit, [], ['octocat' => $previous->id]);
+
+    resolve(CreateGitHubProfile::class)->handle('octocat');
+
+    $this->assertModelMissing($previous);
+    expect(Profile::query()->where('handle', 'octocat')->sole()->github_id)->toBe('583231')
+        ->and(developerTopics())->toBe([]);
+    Queue::assertNotPushed(LinkUnclaimedProfileTopics::class);
+});
+
 it('links the earlier mentions in the queue', function (): void {
     $profile = Profile::factory()->create(['handle' => 'octocat']);
     $commit = Commit::factory()->create(['body' => 'Thanks @octocat', 'mentions' => []]);

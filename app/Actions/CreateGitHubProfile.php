@@ -27,7 +27,7 @@ final readonly class CreateGitHubProfile
     /**
      * Gives the handle a page from its GitHub account: an organization's, or an unclaimed developer's, which keeps only
      * what the page shows, with the members following them on GitHub waiting to follow them here, and the commits that
-     * mentioned them linked to it. A user here who
+     * mentioned them linked to it, unless the handle was another page's here. A user here who
      * renamed on GitHub moves to the handle. A handle that is no GitHub account, or the account of someone who deleted
      * theirs here, is remembered for a day, so the page says so without asking GitHub again.
      */
@@ -58,6 +58,10 @@ final readonly class CreateGitHubProfile
             : $this->github->followerIds($profile->handle, CreateUserGitHubFollows::MaxPages);
 
         DB::transaction(function () use ($profile, $githubId, $followerIds): void {
+            // Read before the stale handles move, as the earlier mentions of a handle that was someone else's page
+            // here were meant for them...
+            $wasAnothersHandle = Profile::query()->where('handle', $profile->handle)->where('github_id', '!=', $githubId)->exists();
+
             $this->updateStaleHandles->handle($profile->handle, $githubId);
 
             $existing = Profile::query()->where('type', ProfileType::User)->firstWhere('github_id', $githubId);
@@ -77,8 +81,9 @@ final readonly class CreateGitHubProfile
                 'github_synced_at' => now(),
             ]);
 
-            // The commits that mentioned them before are linked to their page, at its new handle too...
-            if ($unclaimed->wasRecentlyCreated || $unclaimed->wasChanged('handle')) {
+            // The commits that mentioned them before are linked to their page, at its new handle too, unless they
+            // meant whoever had the handle here before...
+            if (! $wasAnothersHandle && ($unclaimed->wasRecentlyCreated || $unclaimed->wasChanged('handle'))) {
                 dispatch(new LinkUnclaimedProfileTopics($unclaimed))->afterCommit();
             }
 
