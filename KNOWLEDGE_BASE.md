@@ -299,7 +299,7 @@ Sources: [image picker](resources/js/components/commit-image-picker.tsx), [image
 
 Each link in a commit or reply counts as at most **23 characters** toward the 4,000-character allowance; shorter links count at their actual length. This also applies to quotes, scheduled commits, previews, and terminal and app submissions. The full URL is stored and followed directly, not through a redirect service. Prose URLs longer than **2,048 characters** are rejected, including the inferred `https://` scheme for bare domains. Code still counts literally toward the 4,000-character allowance. Bodies are additionally capped at 40,000 raw characters to bound storage and processing. Private messages and issue drafts keep their existing literal character limits.
 
-URLs and bare domains in commits and replies become clickable links. Long URLs are shortened visually; hover reveals the full destination. GitHub repository links show as `owner/repo`, and issue or pull request links as `owner/repo#123`, with the GitHub mark. Links to /dev/null commits show as the author's username and a short hash. Code keeps its literal text. The first link normally gets a preview card with available title, description, and image. In the commit, reply, and quote composers, choose another link from the body or choose no card; terminal commits and app commits always use the first link. Missing site metadata may leave a link without a rich preview.
+URLs and bare domains in commits and replies become clickable links. Long URLs are shortened visually; hover reveals the full destination. GitHub repository links show as `owner/repo`, and issue or pull request links as `owner/repo#123`, with the GitHub mark. Links to /dev/null commits show as the author's username and a short hash. Code keeps its literal text. The first link normally gets a preview card with available title, description, and image. In the commit, reply, and quote composers, and in apps, choose another link from the body or choose no card; terminal commits always use the first link. Missing site metadata may leave a link without a rich preview.
 
 Supported links can also show click-to-play embedded players: YouTube, Vimeo, Loom, Twitch, Spotify, SoundCloud, Apple Music, Suno, CodePen, and asciinema. Only the link that gets the card can show a player, so choosing no card means no player. Embeds depend on server configuration and the linked URL being supported. Third-party player content loads only after you press play; those providers have their own privacy policies. This is embedding a link, not uploading a video or audio file to /dev/null.
 
@@ -584,7 +584,7 @@ A signed request sees what the web shows you, such as your own pending commits a
 
 - read your account, logs, replies, notifications (including grouped activity), and starred commits;
 - read the organizations you are a member of, your role in each, and whether posting as an organization is switched on;
-- commit, reply, and quote, with images, and delete your commits, with the same undo window as the web;
+- commit, reply, and quote, with images and the link card of your choice, read a commit's link card again while it loads, and delete your commits, with the same undo window as the web;
 - preview commit drafts without publishing them;
 - request a feature or report a bug as `/feature` and `/bug` do, with the same limit of 10 opened issues a day;
 - follow or unfollow people and organizations, mute or unmute, and block or unblock, and list who you muted and blocked;
