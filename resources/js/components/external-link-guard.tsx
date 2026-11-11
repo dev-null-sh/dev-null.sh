@@ -30,6 +30,7 @@ export function ExternalLinkGuard() {
         link: ExternalLink;
         anchor: HTMLAnchorElement;
     } | null>(null);
+    const [shownLink, setShownLink] = useState<ExternalLink | null>(null);
     const [trustChecked, setTrustChecked] = useState(false);
 
     useEffect(() => {
@@ -75,6 +76,7 @@ export function ExternalLinkGuard() {
 
             event.preventDefault();
             setTrustChecked(false);
+            setShownLink(external);
             setPending({ link: external, anchor });
         };
 
@@ -121,14 +123,14 @@ export function ExternalLinkGuard() {
         >
             <DialogContent data-test="external-link-guard">
                 <DialogHeader>
-                    <DialogTitle>Head to {pending?.link.domain}?</DialogTitle>
+                    <DialogTitle>Head to {shownLink?.domain}?</DialogTitle>
                     <DialogDescription>
                         This link takes you to an external site. Addresses can
                         be disguised, so check it before you continue.
                     </DialogDescription>
                 </DialogHeader>
-                <p className="rounded-md bg-muted px-3 py-2 font-mono text-xs wrap-anywhere">
-                    {pending?.link.url}
+                <p className="wrap-anywhere rounded-md bg-muted px-3 py-2 font-mono text-xs">
+                    {shownLink?.url}
                 </p>
                 <label className="flex cursor-pointer items-center gap-2 text-sm">
                     <Checkbox
@@ -138,8 +140,7 @@ export function ExternalLinkGuard() {
                         }
                         data-test="external-link-trust"
                     />
-                    Don&apos;t warn me about links to {pending?.link.domain}{' '}
-                    again
+                    Don&apos;t warn me about links to {shownLink?.domain} again
                 </label>
                 <DialogFooter>
                     <Button
