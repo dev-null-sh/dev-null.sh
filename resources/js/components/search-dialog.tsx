@@ -147,7 +147,7 @@ export function SearchDialog({
             ? visibleOrganizations.slice(0, 2)
             : visibleOrganizations,
         visibleCommits,
-        commitQuery !== '' || (!isPicking && offersCommitSearch(term)),
+        !isPicking && offersCommitSearch(term),
         !isMember,
         onAction && !isPicking ? searchActions(term, { isLive }) : [],
     );
