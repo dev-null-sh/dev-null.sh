@@ -28,7 +28,6 @@ use App\Services\EmailDraftProviders\OpenCodeEmailDraftProvider;
 use App\Services\EmbeddingProviders\NullEmbeddingProvider;
 use App\Services\EmbeddingProviders\OpenAIEmbeddingProvider;
 use App\Services\GitHubProviders\HttpGitHubProvider;
-use App\Services\GitHubProviders\NullGitHubProvider;
 use App\Services\HeadlineProviders\NullHeadlineProvider;
 use App\Services\HeadlineProviders\OpenAIHeadlineProvider;
 use App\Services\HumanVerificationProviders\CloudflareHumanVerificationProvider;
@@ -90,7 +89,7 @@ final class AppServiceProvider extends ServiceProvider
         AnalyticsProvider::class => NullAnalyticsProvider::class,
         EmailDraftProvider::class => NullEmailDraftProvider::class,
         EmbeddingProvider::class => NullEmbeddingProvider::class,
-        GitHubProvider::class => NullGitHubProvider::class,
+        GitHubProvider::class => HttpGitHubProvider::class,
         HeadlineProvider::class => NullHeadlineProvider::class,
         HumanVerificationProvider::class => LocalHumanVerificationProvider::class,
         LinkPreviewProvider::class => NullLinkPreviewProvider::class,

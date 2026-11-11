@@ -46,6 +46,11 @@ final readonly class NullGitHubProvider implements GitHubProvider
         return null;
     }
 
+    public function publicSponsors(string $organization): array
+    {
+        return [];
+    }
+
     public function followingIds(string $login, int $maxPages): array
     {
         return ['users' => [], 'organizations' => []];

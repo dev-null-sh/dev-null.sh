@@ -42,6 +42,7 @@ return [
         'client_id' => env('GITHUB_CLIENT_ID'),
         'client_secret' => env('GITHUB_CLIENT_SECRET'),
         'redirect' => env('GITHUB_REDIRECT_URI', '/auth/github/callback'),
+        'sponsors_token' => env('GITHUB_SPONSORS_TOKEN'),
     ],
 
     'github_app' => [
