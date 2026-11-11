@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -18,7 +18,16 @@ import {
 } from '@/lib/external-links';
 
 function trustedStorage(): Storage | undefined {
-    return typeof window === 'undefined' ? undefined : window.localStorage;
+    if (typeof window === 'undefined') {
+        return undefined;
+    }
+
+    try {
+        return window.localStorage;
+    } catch {
+        // Blocked storage must not break the warning flow.
+        return undefined;
+    }
 }
 
 /**
@@ -32,6 +41,8 @@ export function ExternalLinkGuard() {
     } | null>(null);
     const [shownLink, setShownLink] = useState<ExternalLink | null>(null);
     const [trustChecked, setTrustChecked] = useState(false);
+    // One-use pass for the anchor the visitor just confirmed, consumed on that click.
+    const confirmedAnchor = useRef<HTMLAnchorElement | null>(null);
 
     useEffect(() => {
         const onClick = (event: MouseEvent): void => {
@@ -56,9 +67,15 @@ export function ExternalLinkGuard() {
                 return;
             }
 
+            if (confirmedAnchor.current === anchor) {
+                confirmedAnchor.current = null;
+
+                return;
+            }
+
             const external = parseExternalLink(
                 anchor.getAttribute('href') ?? '',
-                window.location.host,
+                window.location.href,
             );
 
             if (external === null) {
@@ -104,10 +121,12 @@ export function ExternalLinkGuard() {
 
         const { link, anchor } = pending;
         setPending(null);
+        confirmedAnchor.current = anchor;
 
         if (anchor.isConnected) {
             anchor.click();
         } else {
+            confirmedAnchor.current = null;
             window.open(link.url, '_blank', 'noopener,noreferrer');
         }
     };
@@ -129,7 +148,7 @@ export function ExternalLinkGuard() {
                         be disguised, so check it before you continue.
                     </DialogDescription>
                 </DialogHeader>
-                <p className="wrap-anywhere rounded-md bg-muted px-3 py-2 font-mono text-xs">
+                <p className="rounded-md bg-muted px-3 py-2 font-mono text-xs wrap-anywhere">
                     {shownLink?.url}
                 </p>
                 <label className="flex cursor-pointer items-center gap-2 text-sm">

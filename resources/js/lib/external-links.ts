@@ -6,20 +6,29 @@ export type ExternalLink = {
 };
 
 /**
- * The link details when href points outside host, null for internal, relative and invalid links.
+ * The link details when href points outside the current site, null for internal, relative and
+ * non-HTTP(S) links. Protocol-relative links resolve against the page, so //evil.example counts.
  */
 export function parseExternalLink(
     href: string,
-    host: string,
+    base: string,
 ): ExternalLink | null {
-    if (!/^\s*https?:\/\//i.test(href)) {
+    let url: URL;
+
+    try {
+        url = new URL(href, base);
+    } catch {
         return null;
     }
 
-    let url: URL | null = null;
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+        return null;
+    }
+
+    let host: string;
 
     try {
-        url = new URL(href.trim());
+        host = new URL(base).host;
     } catch {
         return null;
     }
