@@ -217,6 +217,8 @@ function QuoteComposer({
                 transform={(data) => ({
                     ...data,
                     commit_rules_accepted: commitRules.hasAccepted(),
+                    human_verification_token:
+                        commitRules.humanVerificationToken(),
                     ...(images.length > 0 && {
                         images,
                         image_descriptions: descriptions,

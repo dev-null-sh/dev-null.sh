@@ -6,7 +6,6 @@ use App\Enums\Log;
 use App\Enums\ProfileType;
 use App\Http\Controllers\AboutController;
 use App\Http\Controllers\AppController;
-use App\Http\Controllers\AppSessionController;
 use App\Http\Controllers\BanController;
 use App\Http\Controllers\BannedController;
 use App\Http\Controllers\BrandController;
@@ -62,6 +61,7 @@ use App\Http\Controllers\FailedJobsController;
 use App\Http\Controllers\FeatureController;
 use App\Http\Controllers\ForecastController;
 use App\Http\Controllers\HeadlineController;
+use App\Http\Controllers\HumanVerificationController;
 use App\Http\Controllers\InboxController;
 use App\Http\Controllers\IssueController;
 use App\Http\Controllers\IssueSuggestionController;
@@ -99,6 +99,7 @@ use App\Http\Controllers\OrgCallController;
 use App\Http\Controllers\OrgCallIceServerController;
 use App\Http\Controllers\OrgController;
 use App\Http\Controllers\OrgMemberController;
+use App\Http\Controllers\OrgMentionController;
 use App\Http\Controllers\OrgMessageController;
 use App\Http\Controllers\OrgMuteController;
 use App\Http\Controllers\OrgPinController;
@@ -163,6 +164,7 @@ use App\Http\Middleware\RequireCommitRules;
 use App\Http\Middleware\SerializePushSessions;
 use App\Http\Middleware\SerializePushSubscriptions;
 use App\Http\Middleware\ThrottleCommits;
+use App\Http\Middleware\ThrottleIssues;
 use App\Models\Profile;
 use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
 use Illuminate\Http\Request;
@@ -196,20 +198,16 @@ Route::middleware('guest')->group(function (): void {
         ->middleware('throttle:10,1')
         ->name('login.store');
 
+    Route::get('human-verification', [HumanVerificationController::class, 'show'])->name('human-verification.show');
+    Route::post('human-verification', [HumanVerificationController::class, 'store'])
+        ->middleware('throttle:10,1')
+        ->name('human-verification.store');
+
     // A link by email, for a guest on a phone who'd rather join from their computer...
     Route::post('join-links', [JoinLinkController::class, 'store'])
         ->middleware('throttle:join-links')
         ->name('join-link.store');
 });
-
-// Signing in the iOS app POC (temporary, see AppSignIn): the sign-in starts in the system's sheet, signed in to /dev/null or not, and the code it
-// hands back signs in the app's web view, whoever was signed in there...
-Route::get('auth/app', [AppSessionController::class, 'create'])
-    ->middleware('throttle:10,1')
-    ->name('app-session.create');
-Route::get('auth/app/callback', [AppSessionController::class, 'store'])
-    ->middleware('throttle:10,1')
-    ->name('app-session.store');
 
 // Log, where guests read Trending and Latest...
 Route::get('log/everyone', fn () => to_route('log.show', Log::Trending, 301));
@@ -367,12 +365,12 @@ Route::get('search/commits', [CommitSearchController::class, 'index'])
 
 Route::get('headlines/{headline}', [HeadlineController::class, 'show'])
     ->whereUuid('headline')
-    ->middleware(['auth', 'throttle:search'])
+    ->middleware('auth')
     ->name('headline.show');
 
 Route::middleware('auth')->group(function (): void {
     Route::post('issues', [IssueController::class, 'store'])
-        ->middleware([PreventPostingInTimeout::class, 'throttle:10,1'])
+        ->middleware([PreventPostingInTimeout::class, 'throttle:10,1', ThrottleIssues::class])
         ->name('issue.store');
 
     // Session...
@@ -535,6 +533,7 @@ Route::middleware('auth')->group(function (): void {
         Route::delete('remotes/orgs/{org}/call', [OrgCallController::class, 'destroy'])->whereUuid('org')->name('org-call.destroy');
         Route::get('remotes/orgs/{org}/messages', [OrgMessageController::class, 'index'])->whereUuid('org')->name('org-message.index');
         Route::put('remotes/orgs/{org}/read', [OrgReadController::class, 'update'])->whereUuid('org')->name('org-read.update');
+        Route::delete('remotes/orgs/{org}/mentions', [OrgMentionController::class, 'destroy'])->whereUuid('org')->name('org-mention.destroy');
         Route::put('remotes/orgs/{org}/typing', [OrgTypingController::class, 'update'])->whereUuid('org')->name('org-typing.update');
         Route::post('remotes/orgs/{org}/archive', [OrgArchiveController::class, 'store'])->whereUuid('org')->name('org-archive.store');
         Route::delete('remotes/orgs/{org}/archive', [OrgArchiveController::class, 'destroy'])->whereUuid('org')->name('org-archive.destroy');

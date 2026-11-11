@@ -23,6 +23,8 @@ enum ApiErrorCode: string
     case TimedOut = 'timed_out';
     case Banned = 'banned';
     case CommitRulesRequired = 'commit_rules_required';
+    case GitHubIssueRefused = 'github_issue_refused';
+    case GitHubIssueUnanswered = 'github_issue_unanswered';
 
     public function status(): int
     {
@@ -33,6 +35,7 @@ enum ApiErrorCode: string
             self::CommitUnavailable => 404,
             self::PasteisExhausted => 422,
             self::RateLimited => 429,
+            self::GitHubIssueRefused, self::GitHubIssueUnanswered => 502,
             self::GitHubSyncFailed => 503,
         };
     }

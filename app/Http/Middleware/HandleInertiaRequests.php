@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Http\Middleware;
 
+use App\Contracts\Services\HumanVerificationProvider;
 use App\Dto\ReaderClock;
 use App\Enums\EventTheme;
-use App\Enums\Feature;
 use App\Enums\Log;
 use App\Enums\RepliesPerPage;
 use App\Enums\UserUpdate;
@@ -18,13 +18,11 @@ use App\Models\User;
 use App\Queries\BioProfilesQuery;
 use App\Queries\ConversationsQuery;
 use App\Queries\DevelopersCountQuery;
-use App\Queries\HeadlineSummaryQuery;
-use App\Queries\HotHeadlinesQuery;
+use App\Queries\HotTopicsQuery;
 use App\Queries\LiveFollowingQuery;
 use App\Queries\NotificationGroupsQuery;
 use App\Queries\SuggestedUsersQuery;
 use App\Services\CommitTranslations;
-use App\Services\Features;
 use Carbon\CarbonInterface;
 use Closure;
 use Illuminate\Broadcasting\Channel;
@@ -34,6 +32,7 @@ use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\LiveProp;
 use Inertia\Middleware;
+use Inertia\Support\Header;
 use Symfony\Component\HttpFoundation\Response;
 
 final class HandleInertiaRequests extends Middleware
@@ -56,6 +55,8 @@ final class HandleInertiaRequests extends Middleware
     /**
      * A deploy sends a page built for the previous version back for a full reload. That page already took the flashed
      * data off the session, so it is flashed again for the reload: the composer learns its commit went through.
+     * The reload replaces the response that carried `Vary: X-Inertia`, so it is set again: without it a browser
+     * restoring the tab can serve this empty 409 as the page itself.
      */
     public function onVersionChange(Request $request, Response $response): Response
     {
@@ -63,6 +64,7 @@ final class HandleInertiaRequests extends Middleware
         $page = $response instanceof JsonResponse ? $response->getData(true) : [];
 
         $response = parent::onVersionChange($request, $response);
+        $response->setVary(Header::INERTIA);
 
         if (($page['flash'] ?? []) !== []) {
             Inertia::flash($page['flash']);
@@ -121,19 +123,16 @@ final class HandleInertiaRequests extends Middleware
             ...parent::share($request),
             'name' => config('app.name'),
             'repository' => config('services.github.repository'),
+            'humanVerificationSiteKey' => fn (): string => resolve(HumanVerificationProvider::class)->siteKey(),
             'auth' => [
                 // What the user saved anywhere, from their profile to their preferences, shows on every page they have open.
                 'user' => $live(fn (): ?array => ShownStreams::user($request->user()?->loadCounts()), UserUpdate::Account),
                 'bioProfiles' => $live(fn (): array => $user instanceof User ? resolve(BioProfilesQuery::class)->get($user) : [], UserUpdate::Account),
                 // The organizations the user is a member of, shown like the commits they author: theirs too, and who they
-                // can post as once the feature is on.
+                // can post as.
                 'organizations' => $live(fn (): array => $user instanceof User ? $user->organizations()->get()
                     ->map(fn (Organization $organization): array => ['type' => 'organization', ...$organization->toArray()])
                     ->all() : [], UserUpdate::Account),
-                // Guests post nothing, so only members follow the feature being switched.
-                'canPostAsOrganization' => $user instanceof User
-                    ? Inertia::live(fn (): bool => resolve(Features::class)->enabled(Feature::OrganizationCommits), 'features', new Channel('features'))
-                    : false,
                 'isAdmin' => $isAdmin,
                 'automaticTranslation' => $live(fn (): bool => $user->automatic_translation ?? true, UserUpdate::Account),
                 // The language translations are read in, saved or from the browser, so a change saved elsewhere reaches
@@ -159,23 +158,15 @@ final class HandleInertiaRequests extends Middleware
             // Guests see how many developers are here, next to the sign-in button...
             'developersCount' => fn (): ?int => $user instanceof User ? null : resolve(DevelopersCountQuery::class)->get(),
             'hasUnmoderatedCommits' => $isAdmin ? $live(fn (): bool => Commit::query()->pending()->exists(), UserUpdate::Moderation) : false,
-            // The iOS app POC's web view, which draws its own tab bar (see resources/js/lib/mobile-app.ts)...
-            'isMobileApp' => str_contains((string) $request->userAgent(), 'DevNullCapacitorPOC/'),
+            // The lite mobile app, which draws its own tab bar (see resources/js/lib/lite-mobile-app.ts). Any browser can send this
+            // token, so it only ever changes the UI...
+            'isLiteMobileApp' => str_contains((string) $request->userAgent(), 'DevNullLite/'),
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'showsWhoToFollow' => $showsWhoToFollow,
             ...$user instanceof User && $liveFollowing !== null ? [
                 // Drawn again when someone followed goes live or stops, never on its own, so it doesn't reshuffle.
                 'liveFollowing' => $liveFollowing,
-                'hotTopics' => Inertia::once(function () use ($user): array {
-                    $topics = resolve(HotHeadlinesQuery::class)->get($user);
-                    $summaries = resolve(HeadlineSummaryQuery::class)->getMany(array_column($topics, 'id'), $user);
-
-                    return array_map(fn (array $headline): array => [
-                        'id' => $headline['id'],
-                        'name' => $headline['name'],
-                        'summary' => $summaries->get($headline['id']),
-                    ], $topics);
-                })->until(60)
+                'hotTopics' => Inertia::once(fn (): array => resolve(HotTopicsQuery::class)->get($user))->until(60)
                     // Read again at most once a minute however busy the headlines get, since everyone listens.
                     ->live('headlines', new Channel('headlines'), throttle: 60_000),
             ] : [],
