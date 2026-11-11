@@ -6,7 +6,6 @@ namespace App\Http\Middleware;
 
 use App\Dto\ReaderClock;
 use App\Enums\EventTheme;
-use App\Enums\Feature;
 use App\Enums\Log;
 use App\Enums\RepliesPerPage;
 use App\Enums\UserUpdate;
@@ -24,7 +23,6 @@ use App\Queries\LiveFollowingQuery;
 use App\Queries\NotificationGroupsQuery;
 use App\Queries\SuggestedUsersQuery;
 use App\Services\CommitTranslations;
-use App\Services\Features;
 use Carbon\CarbonInterface;
 use Closure;
 use Illuminate\Broadcasting\Channel;
@@ -130,14 +128,10 @@ final class HandleInertiaRequests extends Middleware
                 'user' => $live(fn (): ?array => ShownStreams::user($request->user()?->loadCounts()), UserUpdate::Account),
                 'bioProfiles' => $live(fn (): array => $user instanceof User ? resolve(BioProfilesQuery::class)->get($user) : [], UserUpdate::Account),
                 // The organizations the user is a member of, shown like the commits they author: theirs too, and who they
-                // can post as once the feature is on.
+                // can post as.
                 'organizations' => $live(fn (): array => $user instanceof User ? $user->organizations()->get()
                     ->map(fn (Organization $organization): array => ['type' => 'organization', ...$organization->toArray()])
                     ->all() : [], UserUpdate::Account),
-                // Guests post nothing, so only members follow the feature being switched.
-                'canPostAsOrganization' => $user instanceof User
-                    ? Inertia::live(fn (): bool => resolve(Features::class)->enabled(Feature::OrganizationCommits), 'features', new Channel('features'))
-                    : false,
                 'isAdmin' => $isAdmin,
                 'automaticTranslation' => $live(fn (): bool => $user->automatic_translation ?? true, UserUpdate::Account),
                 // The language translations are read in, saved or from the browser, so a change saved elsewhere reaches
