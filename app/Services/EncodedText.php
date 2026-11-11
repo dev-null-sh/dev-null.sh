@@ -78,7 +78,7 @@ final readonly class EncodedText
         }
 
         // Morse has no letter case; use sentence case rather than shouting or guessing proper names.
-        $body = (string) preg_replace_callback('/(?:\A|[.!?]\s+|\n)[^a-z]*\K[a-z]/', fn (array $match): string => mb_strtoupper($match[0]), mb_strtolower($body));
+        $body = preg_replace_callback('/(?:\A|[.!?]\s+|\n)[^a-z]*\K[a-z]/', fn (array $match): string => mb_strtoupper($match[0]), mb_strtolower($body)) ?? $body;
 
         return ['source_language' => 'morse', 'body' => $body];
     }

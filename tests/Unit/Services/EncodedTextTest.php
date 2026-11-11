@@ -20,6 +20,19 @@ it('decodes whole binary and Morse posts', function (string $text, string $sourc
     'Morse comma within a sentence' => ['.... .. --..-- / - .... . .-. .', 'morse', 'Hi, there'],
 ]);
 
+it('preserves decoded Morse text when sentence casing exceeds the regex backtrack limit', function (): void {
+    $limit = ini_set('pcre.backtrack_limit', '10000');
+
+    try {
+        $decoded = new EncodedText()->decode('-. --- / ... . -.-. .-. . - ... .-.-.- '.str_repeat('/', 3000));
+
+        expect($decoded['source_language'])->toBe('morse');
+        expect(mb_strtolower($decoded['body']))->toBe('no secrets.'.str_repeat(' ', 3000));
+    } finally {
+        ini_set('pcre.backtrack_limit', $limit);
+    }
+});
+
 it('leaves non-text bytes, malformed encodings and ambiguous punctuation alone', function (string $text): void {
     expect(new EncodedText()->decode($text))->toBeNull();
 })->with([

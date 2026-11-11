@@ -48,7 +48,11 @@ it('checks decoded contents before approving an encoded post', function (string 
         ->ai_categories->toBe(['harassment'])
         ->status->toBe(CommitStatus::Rejected)
         ->body->toBe($body);
-})->with(['binary' => '01001000 01001001', 'Morse' => '.... ..']);
+})->with([
+    'binary' => '01001000 01001001',
+    'Morse' => '.... ..',
+    'Morse with repeated separators' => '.... .. .-.-.- '.str_repeat('/', 3000),
+]);
 
 it('auto-approves clean commits without requiring approved history', function (CommitStatus $previousStatus, bool $sameAuthor, bool $deleted, bool $anonymous, CommitStatus $expected): void {
     $moderation = $this->mock(ModerationProvider::class);

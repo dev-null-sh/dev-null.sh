@@ -103,7 +103,13 @@ it('still decodes binary when its contents have no natural language', function (
         ->assertJsonPath('translation.translated.body_segments.0.text', '😀');
 
     expect(resolve(CommitTranslations::class)->cached($commit)['translations']['en'])->toBe('😀');
-})->with(['empty response' => '', 'whitespace response' => '   ', 'oversized whitespace response' => str_repeat(' ', 16001)]);
+})->with([
+    'empty response' => '',
+    'whitespace response' => '   ',
+    'oversized whitespace response' => str_repeat(' ', 16001),
+    'Unicode whitespace response' => "\u{00A0}\u{2003}\u{3000}",
+    'oversized Unicode whitespace response' => str_repeat("\u{00A0}", 16001),
+]);
 
 it('does not translate or cache unsafe decoded content', function (string $text, string $decoded, bool $flagged): void {
     Exceptions::fake();

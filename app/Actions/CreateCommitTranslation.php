@@ -62,7 +62,7 @@ final readonly class CreateCommitTranslation
                 $reason = match (true) {
                     preg_match('/^[a-z]{2,3}\z/', $source) !== 1 => 'unsupported_source_language',
                     $language !== null && $source !== 'und' && blank($body) => 'empty_translation',
-                    $language !== null && ($source !== 'und' || ($encoded !== null && filled($body))) && mb_strlen($body) > 16000 => 'translation_too_long',
+                    $language !== null && ($source !== 'und' || ($encoded !== null && mb_trim($body) !== '')) && mb_strlen($body) > 16000 => 'translation_too_long',
                     default => null,
                 };
 
@@ -77,7 +77,7 @@ final readonly class CreateCommitTranslation
 
             if ($encoded !== null) {
                 // Decoding is useful even when the decoded text already matches the reader's language or is just emoji.
-                $body = $source === 'und' && blank($body) ? $encoded['body'] : $body;
+                $body = $source === 'und' && mb_trim($body) === '' ? $encoded['body'] : $body;
                 $source = $encoded['source_language'];
             }
 
