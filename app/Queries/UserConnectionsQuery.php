@@ -8,11 +8,12 @@ use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Query\Builder as QueryBuilder;
 
 final readonly class UserConnectionsQuery
 {
     /**
-     * A user's followers, or the people they follow, as the web lists them: the newest follow first, with whether the
+     * Any of a user's connection lists, as the web lists them: the newest follow first, with whether the
      * viewer follows each one, and whether each one follows them.
      *
      * @param  BelongsToMany<User, User>  $connections
@@ -27,6 +28,19 @@ final readonly class UserConnectionsQuery
             ])
             ->latest('follows.created_at')
             ->latest('users.id');
+    }
+
+    /**
+     * The people a user follows who follow them back.
+     *
+     * @return BelongsToMany<User, User>
+     */
+    public function mutuals(User $user): BelongsToMany
+    {
+        return $user->following()
+            ->whereExists(fn (QueryBuilder $query): QueryBuilder => $query->from('follows', 'follows_back')
+                ->whereColumn('follows_back.follower_id', 'users.id')
+                ->where('follows_back.followed_id', $user->id));
     }
 
     /**
