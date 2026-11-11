@@ -75,9 +75,9 @@ it('detects encoded posts locally and translates them even into their decoded la
     'Morse' => ['.... . .-.. .-.. --- / .-- --- .-. .-.. -..', 'morse', 'Morse code', 'Hello world'],
 ]);
 
-it('translates decoded text into the requested language while retaining its encoding label', function (string $text, string $decoded, string $source): void {
+it('translates decoded text into the requested language while retaining its encoding label', function (string $text, string $decoded, string $source, string $detected): void {
     $this->mock(TranslationProvider::class)->shouldReceive('translate')->once()->with($decoded, 'nl')
-        ->andReturn(['source_language' => 'en', 'body' => 'Hallo wereld']);
+        ->andReturn(['source_language' => $detected, 'body' => 'Hallo wereld']);
     $commit = Commit::factory()->create(['body' => $text]);
 
     $this->actingAs(User::factory()->create())
@@ -85,21 +85,25 @@ it('translates decoded text into the requested language while retaining its enco
         ->assertOk()->assertJsonPath('translation.source_language', $source)
         ->assertJsonPath('translation.language', 'nl')
         ->assertJsonPath('translation.translated.body_segments.0.text', 'Hallo wereld');
+
+    expect(resolve(CommitTranslations::class)->cached($commit)['translations']['nl'])->toBe('Hallo wereld');
 })->with([
     'binary' => ['01001000 01101001', 'Hi', 'binary'],
     'Morse' => ['.... ..', 'Hi', 'morse'],
-]);
+])->with(['detected language' => 'en', 'undetermined language' => 'und']);
 
-it('still decodes binary when its contents have no natural language', function (): void {
+it('still decodes binary when its contents have no natural language', function (string $body): void {
     $this->mock(TranslationProvider::class)->shouldReceive('translate')->once()->with('😀', 'en')
-        ->andReturn(['source_language' => 'und', 'body' => '']);
+        ->andReturn(['source_language' => 'und', 'body' => $body]);
     $commit = Commit::factory()->create(['body' => '11110000 10011111 10011000 10000000']);
 
     $this->actingAs(User::factory()->create())
         ->postJson(route('commit-translation.store', $commit), ['language' => 'en'])
         ->assertOk()->assertJsonPath('translation.available', true)
         ->assertJsonPath('translation.translated.body_segments.0.text', '😀');
-});
+
+    expect(resolve(CommitTranslations::class)->cached($commit)['translations']['en'])->toBe('😀');
+})->with(['empty response' => '', 'whitespace response' => '   ', 'oversized whitespace response' => str_repeat(' ', 16001)]);
 
 it('does not translate or cache unsafe decoded content', function (string $text, string $decoded, bool $flagged): void {
     Exceptions::fake();
@@ -440,10 +444,10 @@ it('holds the translation lock throughout a slow provider retry', function (): v
     expect(Cache::lock($key, 90)->get())->toBeTrue();
 });
 
-it('reports why provider answers are rejected without logging their contents', function (Closure $answer, string $reason, string $message = 'Could not translate this commit. Try again.'): void {
+it('reports why provider answers are rejected without logging their contents', function (Closure $answer, string $reason, string $message = 'Could not translate this commit. Try again.', string $text = 'Guten morgen'): void {
     Exceptions::fake();
     $this->mock(TranslationProvider::class)->shouldReceive('translate')->once()->andReturnUsing($answer);
-    $commit = Commit::factory()->create(['body' => 'Guten morgen']);
+    $commit = Commit::factory()->create(['body' => $text]);
 
     $this->actingAs(User::factory()->create())
         ->postJson(route('commit-translation.store', $commit), ['language' => 'en'])
@@ -461,6 +465,7 @@ it('reports why provider answers are rejected without logging their contents', f
     'language code with a trailing newline' => [fn (): array => ['source_language' => "de\n", 'body' => 'Sensitive translation'], 'unsupported_source_language', 'The translation service returned an unsupported source language. Try again.'],
     'blank translation' => [fn (): array => ['source_language' => 'de', 'body' => '   '], 'empty_translation'],
     'oversized translation' => [fn (): array => ['source_language' => 'de', 'body' => str_repeat('x', 16001)], 'translation_too_long'],
+    'oversized undetermined encoded translation' => [fn (): array => ['source_language' => 'und', 'body' => str_repeat('x', 16001)], 'translation_too_long', 'Could not translate this commit. Try again.', '.... ..'],
 ]);
 
 it('retries language detection after a malformed answer and accepts an empty detection body', function (): void {
