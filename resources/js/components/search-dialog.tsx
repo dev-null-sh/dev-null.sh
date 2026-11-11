@@ -38,6 +38,7 @@ import type { SearchAction } from '@/lib/search-actions';
 import { searchActions } from '@/lib/search-actions';
 import {
     awaitsDeveloperName,
+    offersCommitSearch,
     searchesCommits,
     searchIntent,
 } from '@/lib/search-intent';
@@ -146,7 +147,7 @@ export function SearchDialog({
             ? visibleOrganizations.slice(0, 2)
             : visibleOrganizations,
         visibleCommits,
-        commitQuery,
+        commitQuery !== '' || (!isPicking && offersCommitSearch(term)),
         !isMember,
         onAction && !isPicking ? searchActions(term, { isLive }) : [],
     );
@@ -542,7 +543,7 @@ function optionsFor(
     developers: FoundDeveloper[],
     organizations: FoundOrganization[],
     commits: Commit[],
-    commitTerm: string,
+    offersAllCommits: boolean,
     needsSignIn: boolean,
     actions: SearchAction[],
 ): Option[] {
@@ -569,8 +570,9 @@ function optionsFor(
         id: `commit-${commit.id}`,
         commit,
     }));
-    const seeAll: Option[] =
-        commitTerm === '' ? [] : [{ kind: 'all', id: 'all', needsSignIn }];
+    const seeAll: Option[] = offersAllCommits
+        ? [{ kind: 'all', id: 'all', needsSignIn }]
+        : [];
 
     if (intent === 'topic') {
         return [
