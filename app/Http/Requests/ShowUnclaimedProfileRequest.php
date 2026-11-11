@@ -18,11 +18,21 @@ final class ShowUnclaimedProfileRequest extends FormRequest
     }
 
     /**
-     * @return array{}
+     * @return array<string, array<int, string>>
      */
     public function rules(): array
     {
-        return [];
+        return [
+            'tab' => ['nullable', 'string', 'in:commits,mentions'],
+        ];
+    }
+
+    /**
+     * Their own commits first, which wait for them to sign up, then the commits that mention them.
+     */
+    public function tab(): string
+    {
+        return $this->string('tab')->value() === 'mentions' ? 'mentions' : 'commits';
     }
 
     /**

@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use App\Actions\CreateCommitTopics;
+use App\Models\Commit;
 use App\Models\Profile;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -79,4 +81,77 @@ it('shows how many members wait to follow them, and members the ones they follow
             ->where('waitingCount', 3)
             ->where('isWaiting', true)
             ->where('waitingYouFollow', [$followed->only(['id', 'handle', 'name', 'avatar_url'])]));
+});
+
+it('opens on their own commits, which wait for them to sign up', function (): void {
+    $profile = Profile::factory()->create(['handle' => 'octocat']);
+    $commit = Commit::factory()->create(['body' => 'Thanks @octocat']);
+    resolve(CreateCommitTopics::class)->handle($commit, [], ['octocat' => $profile->id]);
+
+    $this->get('/@octocat')
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('profile/unclaimed')
+            ->where('tab', 'commits')
+            ->has('commits.data', 0)
+            ->where('commits.next_page_url', null));
+});
+
+it('lists the commits and replies that mention them, newest first, to guests too', function (): void {
+    $profile = Profile::factory()->create(['handle' => 'octocat']);
+    $other = Profile::factory()->create(['handle' => 'monalisa']);
+    $mention = fn (Commit $commit, ?Profile $mentioned = null): Commit => tap($commit, fn () => resolve(CreateCommitTopics::class)->handle($commit, [], [($mentioned ?? $profile)->handle => ($mentioned ?? $profile)->id]));
+
+    $older = $mention(Commit::factory()->create(['body' => 'Thanks @octocat', 'created_at' => now()->subHour()]));
+    $parent = Commit::factory()->create(['body' => 'Who made this?', 'created_at' => now()->subMinutes(30)]);
+    $reply = $mention(Commit::factory()->for($parent, 'parent')->create(['body' => '@octocat did']));
+    $mention(Commit::factory()->pending()->create(['body' => 'Pending @octocat']));
+    $mention(Commit::factory()->create(['body' => 'Deleted @octocat']))->delete();
+    $mention(Commit::factory()->create(['body' => 'Thanks @monalisa']), $other);
+
+    $this->get('/@octocat?tab=mentions')
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('profile/unclaimed')
+            ->where('tab', 'mentions')
+            ->has('commits.data', 2)
+            ->where('commits.data.0.id', $reply->id)
+            ->where('commits.data.0.parent.id', $parent->id)
+            ->where('commits.data.1.id', $older->id));
+});
+
+it('lists their mentions as the viewer may see them, without their muted authors', function (): void {
+    $viewer = User::factory()->create();
+    $muted = User::factory()->create();
+    $blocked = User::factory()->create();
+    $viewer->muting()->attach($muted);
+    $viewer->blocking()->attach($blocked);
+    $profile = Profile::factory()->create(['handle' => 'octocat']);
+    $mention = fn (Commit $commit): Commit => tap($commit, fn () => resolve(CreateCommitTopics::class)->handle($commit, [], ['octocat' => $profile->id]));
+
+    $pending = $mention(Commit::factory()->for($viewer)->pending()->create(['body' => 'Pending @octocat']));
+    $hiddenParent = $mention(Commit::factory()->for(Commit::factory()->pending(), 'parent')->create(['body' => '@octocat', 'created_at' => now()->subMinute()]));
+    $mention(Commit::factory()->for($muted)->create(['body' => 'Muted @octocat']));
+    $mention(Commit::factory()->for($blocked)->create(['body' => 'Blocked @octocat']));
+
+    $this->actingAs($viewer)->get('/@octocat?tab=mentions')
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->has('commits.data', 2)
+            ->where('commits.data.0.id', $pending->id)
+            ->where('commits.data.1.id', $hiddenParent->id)
+            ->where('commits.data.1.parent', null));
+});
+
+it('pages through their mentions with the tab in the link to the next page', function (): void {
+    $profile = Profile::factory()->create(['handle' => 'octocat']);
+
+    Commit::factory()->count(21)->sequence(fn ($sequence): array => ['created_at' => now()->subMinutes($sequence->index)])->create(['body' => 'Thanks @octocat'])
+        ->each(fn (Commit $commit) => resolve(CreateCommitTopics::class)->handle($commit, [], ['octocat' => $profile->id]));
+
+    $this->get('/@octocat?tab=mentions')
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->has('commits.data', 20)
+            ->where('commits.next_page_url', fn (string $url): bool => str_contains($url, 'tab=mentions')));
 });

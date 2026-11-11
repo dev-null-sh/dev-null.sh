@@ -11,18 +11,25 @@ use Illuminate\Support\Facades\DB;
 final readonly class CreateCommitTopics
 {
     /**
-     * Links the commit to the organizations it mentions, by the lowercase handle written in its body. A reference the
-     * commit is already linked by keeps what it was linked to. A handle of digits only is still a string reference.
+     * Links the commit to the organizations it mentions, and to the developers it mentions who aren't on /dev/null
+     * yet, by the lowercase handle written in its body. A reference the commit is already linked by keeps what it was
+     * linked to. A handle of digits only is still a string reference.
      *
      * @param  array<string, string>  $organizations
+     * @param  array<string, string>  $developers
      */
-    public function handle(Commit $commit, array $organizations): void
+    public function handle(Commit $commit, array $organizations, array $developers = []): void
     {
-        DB::table('commit_topics')->insertOrIgnore(array_map(fn (int|string $reference, string $id): array => [
+        $topics = fn (array $topics, TopicType $type): array => array_map(fn (int|string $reference, string $id): array => [
             'commit_id' => $commit->id,
             'reference' => (string) $reference,
-            'topic_type' => TopicType::Organization->value,
+            'topic_type' => $type->value,
             'topic_id' => $id,
-        ], array_keys($organizations), $organizations));
+        ], array_keys($topics), $topics);
+
+        DB::table('commit_topics')->insertOrIgnore([
+            ...$topics($organizations, TopicType::Organization),
+            ...$topics($developers, TopicType::Developer),
+        ]);
     }
 }

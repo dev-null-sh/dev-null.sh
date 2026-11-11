@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace App\Queries;
 
 use App\Enums\CommitStatus;
+use App\Enums\ProfileType;
 use App\Enums\RepliesPerPage;
 use App\Enums\TopicType;
 use App\Models\Commit;
 use App\Models\Organization;
+use App\Models\Profile;
 use App\Models\User;
 use App\Services\CommitTranslations;
 use Illuminate\Contracts\Database\Query\Expression;
@@ -217,15 +219,16 @@ final class CommitBuilder extends Builder
     }
 
     /**
-     * The commits linked to the organization by a mention, whatever handle it had when they were written.
+     * The commits linked by a mention to the organization, or to the developer who wasn't on /dev/null yet when they
+     * were written, whatever handle it had then.
      */
-    public function mentioning(Organization $organization): self
+    public function mentioning(Organization|Profile $mentioned): self
     {
         return $this->whereExists(fn (QueryBuilder $query): QueryBuilder => $query
             ->from('commit_topics')
             ->whereColumn('commit_topics.commit_id', $this->qualifyColumn('id'))
-            ->where('commit_topics.topic_type', TopicType::Organization)
-            ->where('commit_topics.topic_id', $organization->id));
+            ->where('commit_topics.topic_type', $mentioned instanceof Organization || $mentioned->type === ProfileType::Organization ? TopicType::Organization : TopicType::Developer)
+            ->where('commit_topics.topic_id', $mentioned->id));
     }
 
     /**

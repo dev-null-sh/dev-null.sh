@@ -4,8 +4,10 @@ import { useState } from 'react';
 import PendingFollowController from '@/actions/App/Http/Controllers/PendingFollowController';
 import { show } from '@/actions/App/Http/Controllers/UserController';
 import { BioText } from '@/components/bio-text';
+import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
 import { useFollowHover } from '@/components/follow-button';
 import { GitHubIcon } from '@/components/github-icon';
+import { PageTabs } from '@/components/page-tabs';
 import { ProfileShareButton } from '@/components/profile-share-button';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
@@ -13,7 +15,7 @@ import AppLayout from '@/layouts/app-layout';
 import { exactCountTitle, formatCount } from '@/lib/numbers';
 import { toastWhenThrottled } from '@/lib/throttle';
 import { login } from '@/routes';
-import type { User } from '@/types';
+import type { Commit, CursorPaginated, User } from '@/types';
 
 type UnclaimedProfile = {
     id: string;
@@ -24,16 +26,20 @@ type UnclaimedProfile = {
 };
 
 /**
- * A developer looked up from GitHub who isn't on /dev/null yet. Signing in as them makes the page theirs. Where they
- * are is left out, even when GitHub shows it: they never chose to share it here.
+ * A developer looked up from GitHub who isn't on /dev/null yet, with the commits that mention them. Signing in as them
+ * makes the page theirs. Where they are is left out, even when GitHub shows it: they never chose to share it here.
  */
 export default function UnclaimedProfile({
     profile,
+    tab,
+    commits,
     waitingCount,
     isWaiting,
     waitingYouFollow,
 }: {
     profile: UnclaimedProfile;
+    tab: 'commits' | 'mentions';
+    commits: CursorPaginated<Commit>;
     waitingCount: number;
     isWaiting: boolean;
     waitingYouFollow: Pick<User, 'id' | 'handle' | 'name' | 'avatar_url'>[];
@@ -155,14 +161,51 @@ export default function UnclaimedProfile({
                 )}
             </header>
 
-            <div className="min-h-dvh px-4 py-10 text-center sm:px-6">
-                <p className="font-mono text-sm text-muted-foreground">
-                    $ git log --author={profile.handle}
-                </p>
-                <p className="mt-1.5 text-[15px] text-pretty text-muted-foreground">
-                    @{profile.handle} hasn't committed here yet. When they sign
-                    in with GitHub, this page becomes theirs.
-                </p>
+            <div className="min-h-dvh">
+                <PageTabs
+                    label="Developer feed"
+                    preserveScroll
+                    only={['tab', 'commits']}
+                    reset={['commits']}
+                    tabs={[
+                        {
+                            title: 'Commits',
+                            href: show(profile.handle),
+                            isActive: tab === 'commits',
+                        },
+                        {
+                            title: 'Mentions',
+                            href: show(profile.handle, {
+                                query: { tab: 'mentions' },
+                            }),
+                            isActive: tab === 'mentions',
+                        },
+                    ]}
+                />
+
+                <CommitFeed
+                    key={`${profile.handle}:${tab}`}
+                    commits={commits}
+                    end={`That's the first commit mentioning @${profile.handle}.`}
+                    empty={
+                        tab === 'mentions' ? (
+                            <EmptyFeed
+                                command={`$ git log --grep=@${profile.handle}`}
+                            >
+                                Nobody has mentioned @{profile.handle} yet.
+                                Mention them in a commit and it shows up here.
+                            </EmptyFeed>
+                        ) : (
+                            <EmptyFeed
+                                command={`$ git log --author=${profile.handle}`}
+                            >
+                                @{profile.handle} hasn't committed here yet.
+                                When they sign in with GitHub, this page becomes
+                                theirs.
+                            </EmptyFeed>
+                        )
+                    }
+                />
             </div>
         </>
     );

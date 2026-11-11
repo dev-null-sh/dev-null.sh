@@ -11,6 +11,7 @@ import {
     updateQuotedCommits,
 } from '@/lib/commit-mutation-options';
 import { isDeliberateHover } from '@/lib/feed-hover';
+import { mentionPattern } from '@/lib/mentions';
 import { authorLaneColor, cn, formatDayLabel, localDayKey } from '@/lib/utils';
 import type { Commit, CursorPaginated } from '@/types';
 
@@ -61,6 +62,11 @@ export function CommitFeed({
     const mentionedOrganizationId =
         page.component === 'organization/show'
             ? (page.props.organization as { id: string }).id
+            : null;
+    // A developer who isn't here yet has a Mentions tab like an organization's, which lists replies too.
+    const mentionedDeveloperHandle =
+        page.component === 'profile/unclaimed' && page.props.tab === 'mentions'
+            ? (page.props.profile as { handle: string }).handle.toLowerCase()
             : null;
     const [highlightedAuthor, setHighlightedAuthor] = useState<string | null>(
         null,
@@ -152,13 +158,18 @@ export function CommitFeed({
                     const belongsInFeed =
                         (isStarred
                             ? restored.starred === true
-                            : mentionedOrganizationId !== null
-                              ? Object.values(
-                                    restored.organization_mentions ?? {},
-                                ).includes(mentionedOrganizationId)
-                              : isProfileReplies
-                                ? restored.parent_id !== null
-                                : restored.parent_id === null) &&
+                            : mentionedDeveloperHandle !== null
+                              ? Array.from(
+                                    restored.body.matchAll(mentionPattern),
+                                    ([, handle]) => handle.toLowerCase(),
+                                ).includes(mentionedDeveloperHandle)
+                              : mentionedOrganizationId !== null
+                                ? Object.values(
+                                      restored.organization_mentions ?? {},
+                                  ).includes(mentionedOrganizationId)
+                                : isProfileReplies
+                                  ? restored.parent_id !== null
+                                  : restored.parent_id === null) &&
                         (profileUserId === null ||
                             (restored.author.id === profileUserId &&
                                 !restored.is_pinned));
@@ -183,6 +194,7 @@ export function CommitFeed({
             isModeration,
             isProfileReplies,
             mentionedOrganizationId,
+            mentionedDeveloperHandle,
             isStarred,
             isRanked,
         ],

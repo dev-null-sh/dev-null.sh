@@ -6,6 +6,7 @@ namespace App\Actions;
 
 use App\Enums\CommitUpdate;
 use App\Enums\ConversationKind;
+use App\Enums\TopicType;
 use App\Enums\UserUpdate;
 use App\Events\CommitsUpdated;
 use App\Events\UsersUpdated;
@@ -76,6 +77,8 @@ final readonly class DeleteUser
             resolve(DeleteStoredFiles::class)->retain($imagePaths);
 
             DB::table('commit_topics')->whereIn('commit_id', $this->touchedCommits($user)->select('id'))->delete();
+            // What mentioned them before they signed up was linked to their profile, which goes...
+            DB::table('commit_topics')->where('topic_type', TopicType::Developer)->where('topic_id', $user->id)->delete();
             Headline::query()->whereIn('id', DB::table('commit_headline')->select('headline_id')
                 ->whereIn('commit_id', $this->touchedCommits($user)->select('id')))
                 ->update(['summary' => null, 'summary_created_at' => null]);

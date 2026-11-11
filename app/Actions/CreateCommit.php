@@ -25,6 +25,7 @@ use App\Models\Organization;
 use App\Models\User;
 use App\Queries\AdminsQuery;
 use App\Queries\MentionedOrganizationsQuery;
+use App\Queries\MentionedUnclaimedProfilesQuery;
 use App\Queries\MentionedUsersQuery;
 use App\Queries\TomQuery;
 use App\Services\EmojiShortcodes;
@@ -48,6 +49,7 @@ final readonly class CreateCommit
         private Urls $urls,
         private MentionedUsersQuery $mentionedUsers,
         private MentionedOrganizationsQuery $mentionedOrganizations,
+        private MentionedUnclaimedProfilesQuery $mentionedUnclaimedProfiles,
         private CreateCommitTopics $createCommitTopics,
         private TomQuery $tomQuery,
         private AdminsQuery $admins,
@@ -90,7 +92,7 @@ final readonly class CreateCommit
                 'created_at' => $createdAt,
             ]);
 
-            $this->createCommitTopics->handle($commit, $this->mentionedOrganizations->get($body, $mentions));
+            $this->createCommitTopics->handle($commit, $this->mentionedOrganizations->get($body, $mentions), $this->mentionedUnclaimedProfiles->get($body, $mentions));
             $this->createCommitImages->handle($commit, $images, $imageDescriptions);
 
             if ($poll instanceof NewPoll) {

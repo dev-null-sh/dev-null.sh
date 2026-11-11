@@ -6,6 +6,7 @@ namespace App\Actions;
 
 use App\Models\Commit;
 use App\Queries\MentionedOrganizationsQuery;
+use App\Queries\MentionedUnclaimedProfilesQuery;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 
@@ -14,15 +15,16 @@ final readonly class UpdateCommitTopics
     public function __construct(
         private UpdateMentionedOrganizations $updateMentionedOrganizations,
         private MentionedOrganizationsQuery $mentionedOrganizations,
+        private MentionedUnclaimedProfilesQuery $mentionedUnclaimedProfiles,
         private CreateCommitTopics $createCommitTopics,
     ) {
         //
     }
 
     /**
-     * Looks the organizations the commit mentions up, then links the commit to them. The links come from the commit as
-     * it is after the lookups, locked, so a commit erased in the meantime gets none. Returns when to try again if the
-     * rate limit cut the lookups short.
+     * Looks the organizations the commit mentions up, then links the commit to them, and to the developers it mentions
+     * who have a page but aren't on /dev/null yet. The links come from the commit as it is after the lookups, locked,
+     * so a commit erased in the meantime gets none. Returns when to try again if the rate limit cut the lookups short.
      */
     public function handle(Commit $commit): ?CarbonImmutable
     {
@@ -38,7 +40,11 @@ final readonly class UpdateCommitTopics
             $commit = Commit::withTrashed()->lockForUpdate()->find($commit->id);
 
             if ($commit instanceof Commit) {
-                $this->createCommitTopics->handle($commit, $this->mentionedOrganizations->get($commit->body, $commit->mentions ?? []));
+                $this->createCommitTopics->handle(
+                    $commit,
+                    $this->mentionedOrganizations->get($commit->body, $commit->mentions ?? []),
+                    $this->mentionedUnclaimedProfiles->get($commit->body, $commit->mentions ?? []),
+                );
             }
         });
 

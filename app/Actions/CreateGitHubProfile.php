@@ -7,6 +7,7 @@ namespace App\Actions;
 use App\Contracts\Services\GitHubProvider;
 use App\Dto\GitHubProfile;
 use App\Enums\ProfileType;
+use App\Jobs\LinkUnclaimedProfileTopics;
 use App\Models\Profile;
 use App\Models\User;
 use Illuminate\Support\Arr;
@@ -25,7 +26,8 @@ final readonly class CreateGitHubProfile
 
     /**
      * Gives the handle a page from its GitHub account: an organization's, or an unclaimed developer's, which keeps only
-     * what the page shows, with the members following them on GitHub waiting to follow them here. A user here who
+     * what the page shows, with the members following them on GitHub waiting to follow them here, and the commits that
+     * mentioned them linked to it. A user here who
      * renamed on GitHub moves to the handle. A handle that is no GitHub account, or the account of someone who deleted
      * theirs here, is remembered for a day, so the page says so without asking GitHub again.
      */
@@ -67,13 +69,18 @@ final readonly class CreateGitHubProfile
                 return;
             }
 
-            Profile::query()->updateOrCreate(['github_id' => $githubId, 'type' => ProfileType::User], [
+            $unclaimed = Profile::query()->updateOrCreate(['github_id' => $githubId, 'type' => ProfileType::User], [
                 'handle' => $profile->handle,
                 'name' => $profile->name,
                 'avatar_url' => $profile->avatarUrl,
                 'bio' => $profile->bio,
                 'github_synced_at' => now(),
             ]);
+
+            // The commits that mentioned them before are linked to their page, at its new handle too...
+            if ($unclaimed->wasRecentlyCreated || $unclaimed->wasChanged('handle')) {
+                dispatch(new LinkUnclaimedProfileTopics($unclaimed))->afterCommit();
+            }
 
             // Those still waiting from before the profile last went are kept...
             DB::table('pending_follows')->insertOrIgnoreUsing(
