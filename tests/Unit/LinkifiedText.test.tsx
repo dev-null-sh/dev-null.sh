@@ -150,7 +150,7 @@ test('leaves organization mentions as plain text in static bodies', () => {
         />,
     );
 
-    assert.equal(html, 'Thanks @laravel!');
+    assert.equal(html, 'Thanks <span dir="ltr">@laravel</span>!');
 });
 
 test('links mentions of anyone else to their page, which looks them up on GitHub', () => {
@@ -160,7 +160,7 @@ test('links mentions of anyone else to their page, which looks them up on GitHub
 
     assert.equal(
         html,
-        'Thanks <a rel="nofollow" class="font-medium text-primary hover:underline" data-test="handle-mention" href="/@Original">@Original</a>!',
+        'Thanks <a rel="nofollow" dir="ltr" class="font-medium text-primary hover:underline" data-test="handle-mention" href="/@Original">@Original</a>!',
     );
 });
 
@@ -173,7 +173,36 @@ test('leaves mentions of anyone else as text where only captured ones link, as i
         />,
     );
 
-    assert.equal(html, 'Thanks @Original!');
+    assert.equal(html, 'Thanks <span dir="ltr">@Original</span>!');
+});
+
+test('reads Arabic and Hebrew bodies right to left while mentions, links, code and the wordmark stay left to right', () => {
+    const id = '019a2b3c-4d5e-7f60-8a9b-0c1d2e3f4a5b';
+    const html = renderPage(
+        <CommitBody
+            segments={[
+                {
+                    type: 'text',
+                    text: 'שלום @original! ראו https://example.com/docs ב /dev/null ',
+                },
+                { type: 'code', code: 'php artisan' },
+                {
+                    type: 'block',
+                    language: 'php',
+                    filename: null,
+                    html: '<span class="hl-keyword">echo</span>',
+                },
+            ]}
+            mentions={{ original: id }}
+        />,
+    );
+
+    assert.match(html, /^<div data-commit-body="true" dir="auto"/);
+    assert.match(html, /<a[^>]*dir="ltr"[^>]*data-test="mention"/);
+    assert.ok(html.includes('dir="ltr" title="https://example.com/docs"'));
+    assert.ok(html.includes('dir="ltr" title="/dev/null"'));
+    assert.ok(html.includes('<code dir="ltr"'));
+    assert.match(html, /<div dir="ltr" class="relative isolate my-2/);
 });
 
 test('keeps captured mention identities in regular bodies alongside highlighted code', () => {

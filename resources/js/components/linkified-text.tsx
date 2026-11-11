@@ -221,7 +221,7 @@ function CommitLink({
 
     if (isStatic) {
         return (
-            <span title={url} className="text-primary">
+            <span dir="ltr" title={url} className="text-primary">
                 {label}
             </span>
         );
@@ -231,6 +231,7 @@ function CommitLink({
         <Link
             prefetch
             href={CommitController.show({ profile: handle, commit })}
+            dir="ltr"
             title={url}
             aria-label={`@${handle}’s commit ${hash}`}
             className="text-primary hover:underline"
@@ -555,7 +556,7 @@ function ForgeLink({
 
     if (isStatic) {
         return (
-            <span title={href} className="text-primary">
+            <span dir="ltr" title={href} className="text-primary">
                 {label}
             </span>
         );
@@ -566,6 +567,7 @@ function ForgeLink({
             href={href}
             target="_blank"
             rel="noopener noreferrer nofollow ugc"
+            dir="ltr"
             title={href}
             aria-label={`${name}${item ? ` ${item.description}` : ''} on ${forge.name}`}
             className="text-primary hover:underline"
@@ -618,6 +620,7 @@ function withWordmarks(
             ) : (
                 <span
                     key={`wordmark-${offset}-${index}`}
+                    dir="ltr"
                     title={part}
                     className="font-semibold tracking-tight whitespace-nowrap"
                 >
@@ -771,7 +774,9 @@ function withMentions(
                 pasteisMode,
             ),
             isStatic ? (
-                match[0]
+                <span key={`mention-${offset + match.index}`} dir="ltr">
+                    {match[0]}
+                </span>
             ) : userId ? (
                 <UserPreview
                     key={`mention-${offset + match.index}`}
@@ -781,6 +786,7 @@ function withMentions(
                     <Link
                         prefetch
                         href={show(userId)}
+                        dir="ltr"
                         className="font-medium text-primary hover:underline"
                         data-test="mention"
                     >
@@ -792,13 +798,16 @@ function withMentions(
                     prefetch
                     key={`mention-${offset + match.index}`}
                     href={showOrganizationMention(organizationId)}
+                    dir="ltr"
                     className="font-medium text-primary hover:underline"
                     data-test="organization-mention"
                 >
                     {match[0]}
                 </Link>
             ) : !linksEveryMention ? (
-                match[0]
+                <span key={`mention-${offset + match.index}`} dir="ltr">
+                    {match[0]}
+                </span>
             ) : (
                 // Anyone else may be on GitHub: their page looks them up for members. Guests and crawlers get a
                 // missing page, so it isn't followed, nor prefetched, which would ask for it on every hover of a feed...
@@ -806,6 +815,7 @@ function withMentions(
                     key={`mention-${offset + match.index}`}
                     href={showProfile(match[1])}
                     rel="nofollow"
+                    dir="ltr"
                     className="font-medium text-primary hover:underline"
                     data-test="handle-mention"
                 >
@@ -895,13 +905,16 @@ export function LinkifiedText({
                     isStatic={isStatic}
                 />
             ) : isStatic ? (
-                linkText
+                <span key={match.index} dir="ltr">
+                    {linkText}
+                </span>
             ) : (
                 <a
                     key={match.index}
                     href={href}
                     target="_blank"
                     rel="noopener noreferrer nofollow ugc"
+                    dir="ltr"
                     title={href}
                     className="wrap-anywhere text-primary hover:underline"
                 >
