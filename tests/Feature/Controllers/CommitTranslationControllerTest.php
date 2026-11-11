@@ -72,7 +72,7 @@ it('detects encoded posts locally and translates them even into their decoded la
     expect($commit->refresh()->body)->toBe($text);
 })->with([
     'binary' => ['01001000 01100101 01101100 01101100 01101111 00100000 01010111 01101111 01110010 01101100 01100100', 'binary', 'Binary', 'Hello World'],
-    'Morse' => ['.... . .-.. .-.. --- / .-- --- .-. .-.. -..', 'morse', 'Morse code', 'HELLO WORLD'],
+    'Morse' => ['.... . .-.. .-.. --- / .-- --- .-. .-.. -..', 'morse', 'Morse code', 'Hello world'],
 ]);
 
 it('translates decoded text into the requested language while retaining its encoding label', function (string $text, string $decoded, string $source): void {
@@ -87,7 +87,7 @@ it('translates decoded text into the requested language while retaining its enco
         ->assertJsonPath('translation.translated.body_segments.0.text', 'Hallo wereld');
 })->with([
     'binary' => ['01001000 01101001', 'Hi', 'binary'],
-    'Morse' => ['.... ..', 'HI', 'morse'],
+    'Morse' => ['.... ..', 'Hi', 'morse'],
 ]);
 
 it('still decodes binary when its contents have no natural language', function (): void {
@@ -101,14 +101,14 @@ it('still decodes binary when its contents have no natural language', function (
         ->assertJsonPath('translation.translated.body_segments.0.text', '😀');
 });
 
-it('does not translate or cache unsafe decoded content', function (string $text, bool $flagged): void {
+it('does not translate or cache unsafe decoded content', function (string $text, string $decoded, bool $flagged): void {
     Exceptions::fake();
     $this->mock(TranslationProvider::class)->shouldNotReceive('translate');
     $moderation = $this->mock(ModerationProvider::class);
-    $moderation->shouldReceive('moderate')->once()->with('HI')->andReturn($flagged ? ['harassment' => 0.9] : []);
+    $moderation->shouldReceive('moderate')->once()->with($decoded)->andReturn($flagged ? ['harassment' => 0.9] : []);
 
     if (! $flagged) {
-        $moderation->shouldReceive('isHarmful')->once()->with('HI')->andReturnTrue();
+        $moderation->shouldReceive('isHarmful')->once()->with($decoded)->andReturnTrue();
     }
 
     $commit = Commit::factory()->create(['body' => $text]);
@@ -118,7 +118,7 @@ it('does not translate or cache unsafe decoded content', function (string $text,
         ->assertServiceUnavailable()->assertJsonPath('message', 'Could not translate this commit. Try again.');
 
     expect(resolve(CommitTranslations::class)->cached($commit))->toBeNull();
-})->with(['binary' => '01001000 01001001', 'Morse' => '.... ..'])->with([true, false]);
+})->with(['binary' => ['01001000 01001001', 'HI'], 'Morse' => ['.... ..', 'Hi']])->with([true, false]);
 
 it('fails closed when decoded content cannot be moderated', function (): void {
     Exceptions::fake();

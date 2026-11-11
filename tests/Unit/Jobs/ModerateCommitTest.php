@@ -38,7 +38,7 @@ it('stores that the ai would approve a commit it does not flag', function (): vo
 
 it('checks decoded contents before approving an encoded post', function (string $body): void {
     $moderation = $this->mock(ModerationProvider::class);
-    $moderation->shouldReceive('moderate')->andReturnUsing(fn (string $text): array => str_contains($text, 'HI') ? ['harassment' => 0.99] : []);
+    $moderation->shouldReceive('moderate')->andReturnUsing(fn (string $text): array => str_contains(mb_strtolower($text), 'hi') ? ['harassment' => 0.99] : []);
     $moderation->shouldReceive('isHarmful')->andReturnFalse();
     $commit = Commit::factory()->pending()->create(['body' => $body]);
 

@@ -73,6 +73,13 @@ final readonly class EncodedText
 
         $body = implode("\n", $lines);
 
-        return $letters >= 2 && preg_match('/[A-Z0-9]/', $body) === 1 ? ['source_language' => 'morse', 'body' => $body] : null;
+        if ($letters < 2 || preg_match('/[A-Z0-9]/', $body) !== 1) {
+            return null;
+        }
+
+        // Morse has no letter case; use sentence case rather than shouting or guessing proper names.
+        $body = (string) preg_replace_callback('/(?:\A|[.!?]\s+|\n)[^a-z]*\K[a-z]/', fn (array $match): string => mb_strtoupper($match[0]), mb_strtolower($body));
+
+        return ['source_language' => 'morse', 'body' => $body];
     }
 }

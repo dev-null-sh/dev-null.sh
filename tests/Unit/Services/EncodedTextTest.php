@@ -12,10 +12,12 @@ it('decodes whole binary and Morse posts', function (string $text, string $sourc
     'UTF-8 bytes' => ['01000011 01100001 01100110 11000011 10101001 00100000 11110000 10011111 10011000 10000000', 'binary', 'Café 😀'],
     'joined emoji' => ['11110000 10011111 10010001 10101001 11100010 10000000 10001101 11110000 10011111 10010010 10111011', 'binary', '👩‍💻'],
     'encoded line break' => ["01000001\t00001010\n01000010", 'binary', "A\nB"],
-    'Morse words' => ['.... . .-.. .-.. --- / .-- --- .-. .-.. -..', 'morse', 'HELLO WORLD'],
-    'Morse word spacing' => ['.... ..   - .... . .-. .', 'morse', 'HI THERE'],
-    'Unicode Morse' => ['··· −−− ···', 'morse', 'SOS'],
-    'Morse numbers, punctuation and lines' => ["... --- ...\n.---- ..--- ...-- -.-.--", 'morse', "SOS\n123!"],
+    'Morse words' => ['.... . .-.. .-.. --- / .-- --- .-. .-.. -..', 'morse', 'Hello world'],
+    'Morse word spacing' => ['.... ..   - .... . .-. .', 'morse', 'Hi there'],
+    'Unicode Morse' => ['··· −−− ···', 'morse', 'Sos'],
+    'Morse numbers, punctuation and lines' => ["... --- ...\n.---- ..--- ...-- -.-.--", 'morse', "Sos\n123!"],
+    'Morse sentence case' => [".... .. -.-.-- / .... --- .-- / .- .-. . / -.-- --- ..- ..--.. / ..-. .. -. . .-.-.-\n.---- ..--- ...-- / .- -... -.-.", 'morse', "Hi! How are you? Fine.\n123 Abc"],
+    'Morse comma within a sentence' => ['.... .. --..-- / - .... . .-. .', 'morse', 'Hi, there'],
 ]);
 
 it('leaves non-text bytes, malformed encodings and ambiguous punctuation alone', function (string $text): void {

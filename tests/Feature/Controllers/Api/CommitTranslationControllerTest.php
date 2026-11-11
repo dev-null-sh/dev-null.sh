@@ -33,7 +33,7 @@ it('translates a commit into the language asked for', function (string $body, st
 })->with([
     'natural language' => ['Guten morgen', 'Guten morgen', 'de', 'German', 'Good morning'],
     'binary' => ['01001000 01101001', 'Hi', 'en', 'Binary', 'Hi'],
-    'Morse' => ['.... ..', 'HI', 'en', 'Morse code', 'HI'],
+    'Morse' => ['.... ..', 'Hi', 'en', 'Morse code', 'Hi'],
 ]);
 
 it('translates a pending commit for an admin', function (): void {
