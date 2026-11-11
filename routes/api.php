@@ -6,6 +6,7 @@ use App\Exceptions\ApiException;
 use App\Http\Controllers\Api\BroadcastAuthorizationController;
 use App\Http\Controllers\Api\CallController;
 use App\Http\Controllers\Api\CommitController as ApiCommitController;
+use App\Http\Controllers\Api\CommitLinkPreviewController;
 use App\Http\Controllers\Api\CommitPastelController;
 use App\Http\Controllers\Api\CommitPinController;
 use App\Http\Controllers\Api\CommitPollVoteController;
@@ -124,6 +125,8 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             ->name('api-user-commit.index');
         Route::get('commits/{commit}', [ApiCommitController::class, 'show'])
             ->name('api-commit.show');
+        Route::get('commits/{commit}/link-preview', [CommitLinkPreviewController::class, 'show'])
+            ->name('api-commit-link-preview.show');
         Route::get('commits/{commit}/related', [RelatedCommitController::class, 'index'])
             ->name('api-related-commit.index');
         Route::get('organizations/{handle}', [OrganizationController::class, 'show'])
