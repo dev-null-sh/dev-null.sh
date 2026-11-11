@@ -1,5 +1,5 @@
 import { Link, usePage } from '@inertiajs/react';
-import { Fragment } from 'react';
+import { Fragment, useState } from 'react';
 import type { ReactNode, SVGAttributes } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import SearchController from '@/actions/App/Http/Controllers/SearchController';
@@ -21,7 +21,7 @@ import {
     urlPattern,
     withoutTrailingPunctuation,
 } from '@/lib/urls';
-import { cn, shortHash } from '@/lib/utils';
+import { cn, formatRelativeTime, shortHash } from '@/lib/utils';
 import { show } from '@/routes/mention';
 import { show as showOrganizationMention } from '@/routes/organization-mention';
 import type { BodySegment, Commit } from '@/types';
@@ -830,6 +830,236 @@ function withMentions(
     return parts;
 }
 
+type InlineOptions = {
+    mentions: Commit['mentions'];
+    organizationMentions: Commit['organization_mentions'];
+    colors: Color[];
+    hashtags: RegExpExecArray[];
+    pasteisMode: boolean;
+    isStatic: boolean;
+    linksEveryMention: boolean;
+};
+
+// Discord-style inline markdown, matched before links and mentions so markers never leak into them. Styled
+// pieces recurse through the same pass, so mentions and links still resolve inside bold or spoilers. Plain
+// `code` passes through untouched.
+const richInlinePattern =
+    /(?<code>`[^`\n]*`)|(?<masked>\[(?<maskedLabel>[^\]\n]+)\]\((?<maskedUrl>https?:\/\/[^)\s]+)\))|(?<timestamp><t:(?<timestampAt>\d+)(?::(?<timestampFormat>[tTdDfFR]))?>)|(?<spoiler>\|\|(?<spoilerContent>[\s\S]+?)\|\|)|(?<bold>\*\*(?<boldContent>[^*\n]+?)\*\*)|(?<underline>__(?<underlineContent>[^_\n]+?)__)|(?<strike>~~(?<strikeContent>[^~\n]+?)~~)|(?<italicStar>\*(?<italicStarContent>[^*\n]+?)\*)|(?<italicUnder>_(?<italicUnderContent>[^_\n]+?)_)/g;
+
+function isWordCharacter(character: string | undefined): boolean {
+    return character !== undefined && /[\p{L}\p{M}\p{N}_]/u.test(character);
+}
+
+function SpoilerText({
+    children,
+    isStatic,
+}: {
+    children: ReactNode;
+    isStatic: boolean;
+}) {
+    const [revealed, setRevealed] = useState(false);
+
+    if (isStatic) {
+        return (
+            <span className="spoiler" data-revealed="true">
+                {children}
+            </span>
+        );
+    }
+
+    return (
+        <button
+            type="button"
+            onClick={() => setRevealed((previous) => !previous)}
+            data-revealed={revealed}
+            data-test="spoiler"
+            className="spoiler cursor-pointer"
+        >
+            {children}
+        </button>
+    );
+}
+
+const timestampFormats: Record<string, Intl.DateTimeFormatOptions> = {
+    t: { hour: 'numeric', minute: '2-digit' },
+    T: { hour: 'numeric', minute: '2-digit', second: '2-digit' },
+    d: { day: '2-digit', month: '2-digit', year: 'numeric' },
+    D: { day: 'numeric', month: 'long', year: 'numeric' },
+    f: {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+    },
+    F: {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+    },
+};
+
+function TimestampText({ at, format }: { at: string; format: string }) {
+    const date = new Date(Number(at) * 1000);
+
+    if (Number.isNaN(date.getTime())) {
+        return `<t:${at}${format === 'f' ? '' : `:${format}`}>`;
+    }
+
+    if (format === 'R') {
+        return (
+            <span
+                title={new Intl.DateTimeFormat(undefined, {
+                    dateStyle: 'full',
+                    timeStyle: 'long',
+                }).format(date)}
+                data-test="timestamp"
+            >
+                {formatRelativeTime(date.toISOString())}
+            </span>
+        );
+    }
+
+    return (
+        <span data-test="timestamp">
+            {new Intl.DateTimeFormat(
+                undefined,
+                timestampFormats[format],
+            ).format(date)}
+        </span>
+    );
+}
+
+function withRichInline(
+    text: string,
+    offset: number,
+    keyPrefix: string,
+    options: InlineOptions,
+): ReactNode[] {
+    const parts: ReactNode[] = [];
+    let position = 0;
+    // Links resolve after this pass, so markers inside a URL are left alone for the link pass.
+    const linkRanges = [...text.matchAll(urlPattern)].map((link) => [
+        link.index,
+        link.index + withoutTrailingPunctuation(link[0]).length,
+    ]);
+
+    for (const match of text.matchAll(richInlinePattern)) {
+        const groups = match.groups ?? {};
+        const index = match.index;
+
+        if (
+            linkRanges.some(
+                ([start, end]) =>
+                    index >= start && index + match[0].length <= end,
+            )
+        ) {
+            continue;
+        }
+
+        // Underscore italics only stand alone, so snake_case words keep their underscores.
+        if (
+            groups.italicUnderContent !== undefined &&
+            (isWordCharacter(text[index - 1]) ||
+                isWordCharacter(text[index + match[0].length]))
+        ) {
+            continue;
+        }
+
+        parts.push(
+            ...withLinksAndMentions(
+                text.slice(position, index),
+                offset + position,
+                keyPrefix,
+                options,
+            ),
+        );
+        position = index + match[0].length;
+
+        const key = `${keyPrefix}-${offset + index}`;
+        const nested = (inner: string, shift: number): ReactNode[] =>
+            withRichInline(
+                inner,
+                offset + index + shift,
+                `${keyPrefix}-nested`,
+                options,
+            );
+
+        if (groups.code !== undefined) {
+            parts.push(match[0]);
+        } else if (groups.maskedLabel !== undefined) {
+            const href = hrefFor(groups.maskedUrl);
+
+            if (href === null) {
+                parts.push(match[0]);
+            } else if (options.isStatic) {
+                parts.push(
+                    <Fragment key={key}>
+                        {nested(groups.maskedLabel, 1)}
+                    </Fragment>,
+                );
+            } else {
+                parts.push(
+                    <a
+                        key={key}
+                        href={href}
+                        target="_blank"
+                        rel="noopener noreferrer nofollow ugc"
+                        title={href}
+                        className="wrap-anywhere text-primary hover:underline"
+                    >
+                        {nested(groups.maskedLabel, 1)}
+                    </a>,
+                );
+            }
+        } else if (groups.timestampAt !== undefined) {
+            parts.push(
+                <TimestampText
+                    key={key}
+                    at={groups.timestampAt}
+                    format={groups.timestampFormat ?? 'f'}
+                />,
+            );
+        } else if (groups.spoilerContent !== undefined) {
+            parts.push(
+                <SpoilerText key={key} isStatic={options.isStatic}>
+                    {nested(groups.spoilerContent, 2)}
+                </SpoilerText>,
+            );
+        } else if (groups.boldContent !== undefined) {
+            parts.push(
+                <strong key={key}>{nested(groups.boldContent, 2)}</strong>,
+            );
+        } else if (groups.underlineContent !== undefined) {
+            parts.push(<u key={key}>{nested(groups.underlineContent, 2)}</u>);
+        } else if (groups.strikeContent !== undefined) {
+            parts.push(<s key={key}>{nested(groups.strikeContent, 2)}</s>);
+        } else if (groups.italicStarContent !== undefined) {
+            parts.push(
+                <em key={key}>{nested(groups.italicStarContent, 1)}</em>,
+            );
+        } else if (groups.italicUnderContent !== undefined) {
+            parts.push(
+                <em key={key}>{nested(groups.italicUnderContent, 1)}</em>,
+            );
+        }
+    }
+
+    parts.push(
+        ...withLinksAndMentions(
+            text.slice(position),
+            offset + position,
+            keyPrefix,
+            options,
+        ),
+    );
+
+    return parts;
+}
+
 export function LinkifiedText({
     text,
     mentions,
@@ -848,11 +1078,42 @@ export function LinkifiedText({
     // Whether the text is a whole body, so its start is the start of a line.
     startsText?: boolean;
 }) {
-    const parts: ReactNode[] = [];
     // Colors are found in the prose only, for callers that pass a whole body, code included.
     const prose = withoutCode(text);
     const colors = colorsIn(prose, startsText);
     const hashtags = isStatic ? [] : [...prose.matchAll(hashtagPattern)];
+
+    return (
+        <>
+            {withRichInline(text, 0, 'rich', {
+                mentions,
+                organizationMentions,
+                colors,
+                hashtags,
+                pasteisMode,
+                isStatic,
+                linksEveryMention,
+            })}
+        </>
+    );
+}
+
+function withLinksAndMentions(
+    text: string,
+    offset: number,
+    keyPrefix: string,
+    options: InlineOptions,
+): ReactNode[] {
+    const {
+        mentions,
+        organizationMentions,
+        colors,
+        hashtags,
+        pasteisMode,
+        isStatic,
+        linksEveryMention,
+    } = options;
+    const parts: ReactNode[] = [];
     let position = 0;
 
     for (const match of text.matchAll(urlPattern)) {
@@ -869,7 +1130,7 @@ export function LinkifiedText({
         parts.push(
             ...withMentions(
                 text.slice(position, match.index),
-                position,
+                offset + position,
                 mentions,
                 organizationMentions,
                 colors,
@@ -880,7 +1141,7 @@ export function LinkifiedText({
             ),
             commitLink ? (
                 <CommitLink
-                    key={match.index}
+                    key={`${keyPrefix}-link-${match.index}`}
                     url={linkText}
                     handle={commitLink[1]}
                     commit={commitLink[2].toLowerCase()}
@@ -888,7 +1149,7 @@ export function LinkifiedText({
                 />
             ) : forgeLink ? (
                 <ForgeLink
-                    key={match.index}
+                    key={`${keyPrefix}-link-${match.index}`}
                     url={linkText}
                     href={href}
                     target={forgeLink}
@@ -898,7 +1159,7 @@ export function LinkifiedText({
                 linkText
             ) : (
                 <a
-                    key={match.index}
+                    key={`${keyPrefix}-link-${match.index}`}
                     href={href}
                     target="_blank"
                     rel="noopener noreferrer nofollow ugc"
@@ -916,7 +1177,7 @@ export function LinkifiedText({
     parts.push(
         ...withMentions(
             text.slice(position),
-            position,
+            offset + position,
             mentions,
             organizationMentions,
             colors,
@@ -927,5 +1188,5 @@ export function LinkifiedText({
         ),
     );
 
-    return <>{parts}</>;
+    return parts;
 }

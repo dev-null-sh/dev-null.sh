@@ -156,13 +156,19 @@ final readonly class CodeSpans
             }
         }
 
+        $code = implode("\n", array_slice($lines, 1, -1));
+
         return [
             'type' => 'block',
             'language' => $language,
             'filename' => $attributes['title'] ?? $attributes['filename'] ?? null,
-            'html' => $language !== null && mb_strtolower($language) === 'ansi'
-                ? $this->ansi(implode("\n", array_slice($lines, 1, -1)))
-                : $this->highlighter->parse(implode("\n", array_slice($lines, 1, -1)), $language === null ? null : mb_strtolower($language)),
+            'html' => match (mb_strtolower($language ?? '')) {
+                'ansi' => $this->ansi($code),
+                // Tempest has no Fix grammar, but Discord colors these blocks yellow, so keep the escape-only
+                // rendering and paint it the same way.
+                'fix' => '<span class="hl-fix">'.htmlspecialchars(str_replace("\r\n", "\n", $code), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8').'</span>',
+                default => $this->highlighter->parse($code, $language === null ? null : mb_strtolower($language)),
+            },
         ];
     }
 

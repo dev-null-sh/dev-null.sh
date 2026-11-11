@@ -63,6 +63,185 @@ export function CommitBody({
     );
 }
 
+/**
+ * The block structure of a text segment: headings, subtext and lists render as blocks the way Discord does,
+ * anything else stays a paragraph with the usual inline rendering.
+ */
+const headingPattern = /^(#{1,3}) (.+)$/;
+const subtextPattern = /^-# (.+)$/;
+const listItemPattern = /^([-*]|\d+\.) (.+)$/;
+
+type TextBlock =
+    | { kind: 'paragraph'; text: string }
+    | { kind: 'heading'; level: number; text: string }
+    | { kind: 'subtext'; text: string }
+    | { kind: 'list'; ordered: boolean; start: number; items: string[] };
+
+function splitTextBlocks(text: string): TextBlock[] {
+    const blocks: TextBlock[] = [];
+    let paragraph: string[] = [];
+    let list: TextBlock | null = null;
+
+    const flushParagraph = (): void => {
+        if (paragraph.length > 0) {
+            blocks.push({ kind: 'paragraph', text: paragraph.join('\n') });
+            paragraph = [];
+        }
+    };
+
+    const flushList = (): void => {
+        if (list !== null) {
+            blocks.push(list);
+            list = null;
+        }
+    };
+
+    for (const line of text.split('\n')) {
+        const heading = headingPattern.exec(line);
+        const subtext = subtextPattern.exec(line);
+        const item = listItemPattern.exec(line);
+
+        if (heading !== null) {
+            flushParagraph();
+            flushList();
+            blocks.push({
+                kind: 'heading',
+                level: heading[1].length,
+                text: heading[2],
+            });
+        } else if (subtext !== null) {
+            flushParagraph();
+            flushList();
+            blocks.push({ kind: 'subtext', text: subtext[1] });
+        } else if (item !== null) {
+            flushParagraph();
+            const ordered = /^\d/.test(item[1]);
+
+            if (
+                list === null ||
+                list.kind !== 'list' ||
+                list.ordered !== ordered
+            ) {
+                flushList();
+                list = {
+                    kind: 'list',
+                    ordered,
+                    start: ordered ? Number.parseInt(item[1], 10) : 1,
+                    items: [],
+                };
+            }
+
+            (list as { items: string[] }).items.push(item[2]);
+        } else {
+            flushList();
+            paragraph.push(line);
+        }
+    }
+
+    flushParagraph();
+    flushList();
+
+    return blocks;
+}
+
+function BodyTextBlocks({
+    segmentKey,
+    text,
+    mentions,
+    organizationMentions = null,
+    pasteisMode,
+    isStatic,
+    linksEveryMention,
+}: {
+    segmentKey: number;
+    text: string;
+    mentions: Commit['mentions'];
+    organizationMentions?: Commit['organization_mentions'];
+    pasteisMode: boolean;
+    isStatic: boolean;
+    linksEveryMention: boolean;
+}) {
+    const shared = {
+        mentions,
+        organizationMentions,
+        pasteisMode,
+        isStatic,
+        linksEveryMention,
+    };
+
+    return (
+        <>
+            {splitTextBlocks(text).map((block, index) => {
+                const key = `block-${segmentKey}-${index}`;
+
+                if (block.kind === 'heading') {
+                    const Heading = `h${block.level}` as 'h1' | 'h2' | 'h3';
+
+                    return (
+                        <Heading
+                            key={key}
+                            className={
+                                block.level === 1
+                                    ? 'text-lg font-semibold'
+                                    : block.level === 2
+                                      ? 'text-base font-semibold'
+                                      : 'text-sm font-semibold'
+                            }
+                        >
+                            <LinkifiedText
+                                key={key}
+                                text={block.text}
+                                {...shared}
+                            />
+                        </Heading>
+                    );
+                }
+
+                if (block.kind === 'subtext') {
+                    return (
+                        <span
+                            key={key}
+                            className="text-sm text-muted-foreground"
+                        >
+                            <LinkifiedText
+                                key={key}
+                                text={block.text}
+                                {...shared}
+                            />
+                        </span>
+                    );
+                }
+
+                if (block.kind === 'list') {
+                    const items = block.items.map((item, itemIndex) => (
+                        <li key={`${key}-${itemIndex}`}>
+                            <LinkifiedText key={key} text={item} {...shared} />
+                        </li>
+                    ));
+
+                    return block.ordered ? (
+                        <ol
+                            key={key}
+                            start={block.start}
+                            className="list-decimal pl-5"
+                        >
+                            {items}
+                        </ol>
+                    ) : (
+                        <ul key={key} className="list-disc pl-5">
+                            {items}
+                        </ul>
+                    );
+                }
+
+                return (
+                    <LinkifiedText key={key} text={block.text} {...shared} />
+                );
+            })}
+        </>
+    );
+}
+
 export function BodySegments({
     segments,
     mentions,
@@ -84,8 +263,9 @@ export function BodySegments({
                 switch (segment.type) {
                     case 'text':
                         return (
-                            <LinkifiedText
+                            <BodyTextBlocks
                                 key={index}
+                                segmentKey={index}
                                 text={emojify(segment.text)}
                                 mentions={mentions}
                                 organizationMentions={organizationMentions}

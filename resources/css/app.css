@@ -990,6 +990,30 @@ html body[data-scroll-locked] {
         color: var(--destructive);
     }
 
+    .hl-fix {
+        color: var(--lane-5);
+    }
+
+    /* Spoilers hide their text until tapped. */
+    .spoiler {
+        border-radius: 0.25rem;
+        background-color: color-mix(
+            in srgb,
+            var(--foreground) 85%,
+            transparent
+        );
+        color: transparent;
+    }
+
+    .spoiler[data-revealed='true'] {
+        background-color: color-mix(
+            in srgb,
+            var(--foreground) 12%,
+            transparent
+        );
+        color: inherit;
+    }
+
     /* ANSI colored code blocks, the classic Discord codes only. */
     .ansi-1 {
         font-weight: 700;
@@ -1032,11 +1056,19 @@ html body[data-scroll-locked] {
     }
 
     .ansi-40 {
-        background-color: color-mix(in srgb, var(--foreground) 22%, transparent);
+        background-color: color-mix(
+            in srgb,
+            var(--foreground) 22%,
+            transparent
+        );
     }
 
     .ansi-41 {
-        background-color: color-mix(in srgb, var(--destructive) 22%, transparent);
+        background-color: color-mix(
+            in srgb,
+            var(--destructive) 22%,
+            transparent
+        );
     }
 
     .ansi-42 {
@@ -1060,7 +1092,11 @@ html body[data-scroll-locked] {
     }
 
     .ansi-47 {
-        background-color: color-mix(in srgb, var(--muted-foreground) 22%, transparent);
+        background-color: color-mix(
+            in srgb,
+            var(--muted-foreground) 22%,
+            transparent
+        );
     }
 
     /* A GitHub profile README, sanitized on the server: it keeps GitHub's layout without GitHub's stylesheet. */

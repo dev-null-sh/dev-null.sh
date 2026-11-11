@@ -7,7 +7,10 @@ import { test } from 'vite-plus/test';
 import { BodyCounter } from '../../resources/js/components/body-counter';
 import { ConversationList } from '../../resources/js/components/chat/conversation-list';
 import { MessageText } from '../../resources/js/components/chat/message-parts';
-import { CommitBody } from '../../resources/js/components/commit-body';
+import {
+    BodySegments,
+    CommitBody,
+} from '../../resources/js/components/commit-body';
 import {
     LinkifiedText,
     typedLinks,
@@ -988,3 +991,105 @@ for (const link of [
         assert.ok(markup.includes(`href="${link}"`));
     });
 }
+
+test('renders Discord inline styles and leaves snake_case alone', () => {
+    const markup = renderToStaticMarkup(
+        <LinkifiedText
+            text="**bold** *star* _under_ __line__ ~~gone~~ but not foo_bar_baz"
+            mentions={null}
+        />,
+    );
+
+    assert.ok(markup.includes('<strong>bold</strong>'));
+    assert.ok(markup.includes('<em>star</em>'));
+    assert.ok(markup.includes('<em>under</em>'));
+    assert.ok(markup.includes('<u>line</u>'));
+    assert.ok(markup.includes('<s>gone</s>'));
+    assert.ok(markup.includes('foo_bar_baz'));
+    assert.ok(!markup.includes('<em>bar</em>'));
+});
+
+test('keeps inline code free of styling', () => {
+    const markup = renderToStaticMarkup(
+        <LinkifiedText text="` **not bold** `" mentions={null} />,
+    );
+
+    assert.ok(markup.includes('**not bold**'));
+    assert.ok(!markup.includes('<strong>'));
+});
+
+test('renders masked links with their label and keeps invalid ones raw', () => {
+    const markup = renderToStaticMarkup(
+        <LinkifiedText
+            text="[the docs](https://example.com/docs) and [nope](not a url)"
+            mentions={null}
+        />,
+    );
+
+    assert.ok(markup.includes('href="https://example.com/docs"'));
+    assert.ok(markup.includes('>the docs</a>'));
+    assert.ok(markup.includes('[nope](not a url)'));
+});
+
+test('resolves mentions inside bold text', () => {
+    const id = '019a2b3c-4d5e-7f60-8a9b-0c1d2e3f4a5b';
+    const markup = renderToStaticMarkup(
+        <LinkifiedText
+            text="Hello **@original**!"
+            mentions={{ original: id }}
+        />,
+    );
+
+    assert.ok(markup.includes('<strong>'));
+    assert.ok(markup.includes(`href="/mentions/${id}"`));
+});
+
+test('renders timestamps as local times and relative times', () => {
+    const absolute = renderToStaticMarkup(
+        <LinkifiedText text="At <t:1700000000> o clock" mentions={null} />,
+    );
+    const relative = renderToStaticMarkup(
+        <LinkifiedText text="At <t:1700000000:R> o clock" mentions={null} />,
+    );
+
+    for (const markup of [absolute, relative]) {
+        assert.ok(markup.includes('data-test="timestamp"'));
+        assert.ok(!markup.includes('<t:'));
+    }
+
+    assert.ok(absolute.includes('2023'));
+    assert.ok(relative.includes('title='));
+});
+
+test('hides spoilers until tapped and leaves unbalanced markers raw', () => {
+    const markup = renderToStaticMarkup(
+        <LinkifiedText text="||secret|| and ||half" mentions={null} />,
+    );
+
+    assert.ok(markup.includes('data-test="spoiler"'));
+    assert.ok(markup.includes('data-revealed="false"'));
+    assert.ok(markup.includes('secret'));
+    assert.ok(markup.includes('||half'));
+});
+
+test('renders headings, subtext and lists as blocks', () => {
+    const markup = renderPage(
+        <BodySegments
+            segments={[
+                {
+                    type: 'text',
+                    text: '## Title\n-# quiet\n- one\n- two\n1. first\nplain **bold** tail',
+                },
+            ]}
+            mentions={null}
+        />,
+    );
+
+    assert.ok(markup.includes('<h2'));
+    assert.ok(markup.includes('Title'));
+    assert.ok(markup.includes('text-muted-foreground'));
+    assert.ok(markup.includes('<ul'));
+    assert.ok(markup.includes('<ol'));
+    assert.ok(markup.includes('<li>'));
+    assert.ok(markup.includes('<strong>bold</strong>'));
+});

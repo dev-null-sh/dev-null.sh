@@ -263,3 +263,16 @@ it('escapes HTML inside ANSI code and drops unknown codes and stray escapes', fu
 
     expect($html)->toBe('&lt;b&gt;X');
 });
+
+it('paints fix blocks yellow the way Discord does', function (): void {
+    $codeSpans = resolve(CodeSpans::class);
+
+    expect($codeSpans->highlight("```fix\n[x] <b>\n```"))->toBe([
+        [
+            'type' => 'block',
+            'language' => 'fix',
+            'filename' => null,
+            'html' => '<span class="hl-fix">[x] &lt;b&gt;</span>',
+        ],
+    ]);
+});
