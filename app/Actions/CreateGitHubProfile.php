@@ -13,6 +13,7 @@ use App\Models\User;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 final readonly class CreateGitHubProfile
 {
@@ -83,7 +84,7 @@ final readonly class CreateGitHubProfile
 
             // The commits that mentioned them before are linked to their page, at its new handle too, unless they
             // meant whoever had the handle here before...
-            if (! $wasAnothersHandle && ($unclaimed->wasRecentlyCreated || $unclaimed->wasChanged('handle'))) {
+            if (! $wasAnothersHandle && ($unclaimed->wasRecentlyCreated || $this->movedHandle($unclaimed))) {
                 dispatch(new LinkUnclaimedProfileTopics($unclaimed))->afterCommit();
             }
 
@@ -93,5 +94,16 @@ final readonly class CreateGitHubProfile
                 User::query()->whereIn('github_id', $followerIds)->select('id')->selectRaw('?, ?', [$githubId, now()]),
             );
         });
+    }
+
+    /**
+     * A handle is one whatever its case, so only a new one moves the page: a change of case leaves its mentions as
+     * they are.
+     */
+    private function movedHandle(Profile $profile): bool
+    {
+        $previous = $profile->getPrevious()['handle'] ?? null;
+
+        return is_string($previous) && Str::lower($previous) !== Str::lower($profile->handle);
     }
 }

@@ -88,6 +88,19 @@ it('looks up the earlier mentions of a developer once they get a page, and at th
     Queue::assertPushed(LinkUnclaimedProfileTopics::class, 2);
 });
 
+it('reads the commits again for a new handle, not a change of case', function (): void {
+    Queue::fake([LinkUnclaimedProfileTopics::class]);
+    $account = ['login' => 'OctoCat', 'id' => 583231, 'type' => 'User', 'name' => 'The Octocat', 'avatar_url' => null, 'bio' => null, 'location' => null, 'blog' => '', 'company' => null];
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('accountByLogin')->with('octocat')->andReturn($account);
+    Profile::factory()->create(['github_id' => '583231', 'handle' => 'octocat']);
+
+    resolve(CreateGitHubProfile::class)->handle('octocat');
+
+    expect(Profile::query()->sole()->handle)->toBe('OctoCat');
+    Queue::assertNotPushed(LinkUnclaimedProfileTopics::class);
+});
+
 it('leaves the earlier mentions of a handle to whoever had its page here before', function (): void {
     Queue::fake([LinkUnclaimedProfileTopics::class]);
     $github = $this->mock(GitHubProvider::class);

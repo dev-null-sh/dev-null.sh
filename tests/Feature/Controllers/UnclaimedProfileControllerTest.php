@@ -117,6 +117,7 @@ it('lists the commits and replies that mention them, newest first, to guests too
             ->has('commits.data', 2)
             ->where('commits.data.0.id', $reply->id)
             ->where('commits.data.0.parent.id', $parent->id)
+            ->where('commits.data.0.developer_mentions.octocat', $profile->id)
             ->where('commits.data.1.id', $older->id));
 });
 

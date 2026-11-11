@@ -42,9 +42,16 @@ final class CommitBuilder extends Builder
     private const string ORGANIZATION_MENTIONS = "(select json_object_agg(reference, topic_id) from commit_topics where commit_topics.commit_id = commits.id and topic_type = 'organization') as organization_mentions";
 
     /**
+     * The developers a commit mentions who weren't on /dev/null yet, by lowercase handle, from its topics of type
+     * TopicType::Developer.
+     */
+    private const string DEVELOPER_MENTIONS = "(select json_object_agg(reference, topic_id) from commit_topics where commit_topics.commit_id = commits.id and topic_type = 'developer') as developer_mentions";
+
+    /**
      * Embeddings are only ever compared within the database, so commits are loaded without theirs rather than carry
-     * kilobytes of numbers each that nothing reads. They come with the organizations they mention instead, by lowercase
-     * handle, read from their topics in the same query, so rendering a page of commits takes no query more.
+     * kilobytes of numbers each that nothing reads. They come with the organizations they mention instead, and the
+     * developers who weren't on /dev/null yet, by lowercase handle, read from their topics in the same query, so
+     * rendering a page of commits takes no query more.
      *
      * @param  array<int, Expression|string>|string  $columns
      * @return array<int, Commit>
@@ -55,7 +62,7 @@ final class CommitBuilder extends Builder
 
         $this->query->columns = array_merge(...array_map(
             fn (Expression|string $column): array => $this->isEveryColumn($column)
-                ? [...array_map($this->qualifyColumn(...), self::COLUMNS_BUT_EMBEDDING), new QueryExpression(self::ORGANIZATION_MENTIONS)]
+                ? [...array_map($this->qualifyColumn(...), self::COLUMNS_BUT_EMBEDDING), new QueryExpression(self::ORGANIZATION_MENTIONS), new QueryExpression(self::DEVELOPER_MENTIONS)]
                 : [$column],
             $selected ?? (array) $columns,
         ));

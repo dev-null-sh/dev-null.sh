@@ -11,7 +11,6 @@ import {
     updateQuotedCommits,
 } from '@/lib/commit-mutation-options';
 import { isDeliberateHover } from '@/lib/feed-hover';
-import { mentionPattern } from '@/lib/mentions';
 import { authorLaneColor, cn, formatDayLabel, localDayKey } from '@/lib/utils';
 import type { Commit, CursorPaginated } from '@/types';
 
@@ -65,12 +64,12 @@ export function CommitFeed({
             : null;
     // A developer who isn't here yet has a Mentions tab like an organization's, which lists replies too, and a
     // Commits tab that stays empty until they sign up.
-    const unclaimedHandle =
+    const unclaimedProfileId =
         page.component === 'profile/unclaimed'
-            ? (page.props.profile as { handle: string }).handle.toLowerCase()
+            ? (page.props.profile as { id: string }).id
             : null;
     const isUnclaimedMentions =
-        unclaimedHandle !== null && page.props.tab === 'mentions';
+        unclaimedProfileId !== null && page.props.tab === 'mentions';
     const [highlightedAuthor, setHighlightedAuthor] = useState<string | null>(
         null,
     );
@@ -161,12 +160,11 @@ export function CommitFeed({
                     const belongsInFeed =
                         (isStarred
                             ? restored.starred === true
-                            : unclaimedHandle !== null
+                            : unclaimedProfileId !== null
                               ? isUnclaimedMentions &&
-                                Array.from(
-                                    restored.body.matchAll(mentionPattern),
-                                    ([, handle]) => handle.toLowerCase(),
-                                ).includes(unclaimedHandle)
+                                Object.values(
+                                    restored.developer_mentions ?? {},
+                                ).includes(unclaimedProfileId)
                               : mentionedOrganizationId !== null
                                 ? Object.values(
                                       restored.organization_mentions ?? {},
@@ -198,7 +196,7 @@ export function CommitFeed({
             isModeration,
             isProfileReplies,
             mentionedOrganizationId,
-            unclaimedHandle,
+            unclaimedProfileId,
             isUnclaimedMentions,
             isStarred,
             isRanked,

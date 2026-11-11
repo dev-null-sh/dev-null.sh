@@ -30,6 +30,7 @@ test('to array', function (): void {
             'hot_score',
             'pasteis_count',
             'organization_mentions',
+            'developer_mentions',
             'body_segments',
             'preview_segments',
             'is_checking',
