@@ -78,7 +78,24 @@ const mediaQuery = (): MediaQueryList | null => {
     return window.matchMedia('(prefers-color-scheme: dark)');
 };
 
-const handleSystemThemeChange = (): void => applyTheme(currentAppearance);
+// What the system theme resolves to changed, so whatever shows the resolved theme, like the logo copied as SVG,
+// renders again.
+const handleSystemThemeChange = (): void => {
+    applyTheme(currentAppearance);
+    notify();
+};
+
+// Another tab saved a theme, or cleared everything it saved, so this one follows without a reload, as the SSR
+// cookie already does on the next one.
+const handleStorage = (event: StorageEvent): void => {
+    if (event.key !== 'appearance' && event.key !== null) {
+        return;
+    }
+
+    currentAppearance = getStoredAppearance();
+    applyTheme(currentAppearance);
+    notify();
+};
 
 export function initializeTheme(): void {
     if (typeof window === 'undefined') {
@@ -95,6 +112,7 @@ export function initializeTheme(): void {
 
     // Set up system theme change listener
     mediaQuery()?.addEventListener('change', handleSystemThemeChange);
+    window.addEventListener('storage', handleStorage);
 }
 
 export function useAppearance(): UseAppearanceReturn {

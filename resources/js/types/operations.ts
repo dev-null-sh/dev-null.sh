@@ -36,7 +36,7 @@ export type Connectivity = {
 };
 
 export type Feature = {
-    name: 'translations' | 'organization_commits';
+    name: 'translations';
     enabled: boolean;
 };
 
@@ -166,6 +166,20 @@ export type RetentionCohort = {
 export type RetentionCohorts = {
     cohorts: RetentionCohort[];
     curve: RetentionCell[];
+};
+
+export type AppUsageDay = {
+    date: string;
+    web_app: number;
+    native_mobile_app: number;
+    lite_mobile_app: number;
+    mac_app: number;
+    other_app: number;
+};
+
+export type AppUsage = {
+    days: AppUsageDay[];
+    recorded_since: string | null;
 };
 
 export type ActiveUserCount = {

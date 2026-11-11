@@ -150,6 +150,11 @@ export type OrgThread = {
      * stay.
      */
     pinned: Message[] | null;
+    /**
+     * The messages that mentioned the user, latest first, until they open or clear them, and how many there are.
+     */
+    mentions: Message[];
+    mentions_count: number;
 };
 
 /**

@@ -161,3 +161,20 @@ it('does not count rejected drafts or failed attempts towards the limit', functi
 
     $this->actingAs($user)->postJson(route('issue.store'), ['command' => '/bug', 'body' => 'Broken.'])->assertCreated();
 });
+
+it('refuses any draft once the daily limit is reached, before validating it', function (): void {
+    $this->mock(GitHubProvider::class)->shouldReceive('createIssue')->andReturn([
+        'number' => 123,
+        'url' => 'https://github.com/dev-null-sh/dev-null.sh/issues/123',
+    ]);
+    $user = User::factory()->create();
+
+    foreach (range(1, 10) as $attempt) {
+        $this->travel(1)->minute();
+        $this->actingAs($user)->postJson(route('issue.store'), ['command' => '/bug', 'body' => "Broken {$attempt}."])->assertCreated();
+    }
+
+    $this->actingAs($user)->postJson(route('issue.store'), ['command' => '/deploy', 'body' => 'Nope.'])
+        ->assertTooManyRequests()
+        ->assertExactJson(['message' => 'Issue limit reached: 10 a day. Try again tomorrow.']);
+});

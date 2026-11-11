@@ -161,7 +161,7 @@ it('cannot say whether there is a sponsors listing when GitHub does not answer',
 })->with([
     'server error' => [fn () => Http::response(status: 502), ['status' => 502, 'errors' => null]],
     'graphql error' => [fn () => Http::response(['errors' => [['type' => 'INSUFFICIENT_SCOPES']]]), ['status' => 200, 'errors' => [['type' => 'INSUFFICIENT_SCOPES']]]],
-    'connection failure' => [fn () => throw new ConnectionException('timeout'), ['error' => 'timeout']],
+    'connection failure' => [fn (): never => throw new ConnectionException('timeout'), ['error' => 'timeout']],
 ]);
 
 it('reads the ids of followed and following accounts a page at a time, up to the given number of pages', function (): void {

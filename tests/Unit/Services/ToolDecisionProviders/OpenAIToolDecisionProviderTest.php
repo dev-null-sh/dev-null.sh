@@ -39,6 +39,12 @@ it('asks one question per tool under the shared policy, with the thread as conte
             'Do not use post search or repository tools to work around this',
         );
 
+        expect(json_encode($questions->firstWhere('name', 'SearchRepositoryHistory')))->toContain(
+            'built, worked on or changed it',
+            'makes clear which feature or change it means, even alongside congratulations',
+            'naming who worked on one feature is not a ranking',
+        );
+
         return $request->url() === 'https://api.openai.com/v1/decisions'
             && $request['model'] === 'gpt-6-luna'
             && $questions->pluck('name')->all() === ['SearchCommits', 'SearchKnowledgeBase', 'RepositoryInsights', 'SearchRepositoryHistory', 'CommunityStats']

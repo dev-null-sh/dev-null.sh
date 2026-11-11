@@ -3,10 +3,13 @@
 declare(strict_types=1);
 
 use App\Contracts\Services\GitHubProvider;
+use App\Dto\MobileAuthorization;
 use App\Enums\Log;
+use App\Http\Requests\CreateHumanVerificationRequest;
 use App\Jobs\ImportGitHubFollowsJob;
 use App\Jobs\LookUpUserOrganizations;
 use App\Jobs\SyncGitHubSshKeysJob;
+use App\Models\Device;
 use App\Models\User;
 use Illuminate\Support\Facades\Queue;
 use Laravel\Socialite\Socialite;
@@ -41,7 +44,7 @@ it('creates a user and logs them in', function (): void {
         'company' => '@github',
     ]));
 
-    $response = $this->get(route('login.store'));
+    $response = $this->withSession([CreateHumanVerificationRequest::SessionKey => true])->get(route('login.store'));
 
     $response->assertRedirectToRoute('onboarding.show')
         ->assertInertiaFlash('signedUp', true);
@@ -60,6 +63,24 @@ it('creates a user and logs them in', function (): void {
         ->has_sponsors_listing->toBeTrue();
 
     $this->assertAuthenticatedAs($user);
+});
+
+it('sends a new signup to the human check before it creates the account', function (): void {
+    Socialite::fake('github', GitHubUser::fake(['id' => '583231', 'nickname' => 'octocat']));
+
+    $this->get(route('login.store'))->assertRedirectToRoute('human-verification.show');
+
+    expect(User::query()->where('github_id', '583231')->exists())->toBeFalse();
+    $this->assertGuest();
+});
+
+it('uses a passed human check for one signup only', function (): void {
+    Socialite::fake('github', GitHubUser::fake(['id' => '583231', 'nickname' => 'octocat']));
+
+    $this->withSession([CreateHumanVerificationRequest::SessionKey => true])
+        ->get(route('login.store'))
+        ->assertRedirectToRoute('onboarding.show')
+        ->assertSessionMissing(CreateHumanVerificationRequest::SessionKey);
 });
 
 it('refuses a new signup from an account that fails the screening', function (): void {
@@ -178,7 +199,7 @@ it('queues a sync of the ssh keys of the user on login', function (): void {
         'nickname' => 'octocat',
     ]));
 
-    $this->get(route('login.store'));
+    $this->withSession([CreateHumanVerificationRequest::SessionKey => true])->get(route('login.store'));
 
     $user = User::query()->where('github_id', '583231')->sole();
 
@@ -195,7 +216,7 @@ it('queues a lookup of the organizations the bio of the user mentions on login',
         'company' => '@github',
     ]));
 
-    $this->get(route('login.store'));
+    $this->withSession([CreateHumanVerificationRequest::SessionKey => true])->get(route('login.store'));
 
     $user = User::query()->where('github_id', '583231')->sole();
 
@@ -215,7 +236,7 @@ it('queues an import of the github follows of the user on login, notifying only 
         'nickname' => 'octocat',
     ]));
 
-    $this->get(route('login.store'));
+    $this->withSession([CreateHumanVerificationRequest::SessionKey => true])->get(route('login.store'));
 
     $user = User::query()->where('github_id', '583231')->sole();
 
@@ -289,6 +310,72 @@ it('redirects authenticated users away from login', function (): void {
     $response->assertRedirectToRoute('log.show', Log::Following);
 });
 
+it('leaves a new account to onboard in the lite mobile app, while approving it', function (): void {
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('hasSponsorsListing')->andReturnFalse();
+
+    User::factory()->notOnboarded()->create(['github_id' => '583231']);
+
+    Socialite::fake('github', GitHubUser::fake(['id' => '583231', 'nickname' => 'octocat']));
+
+    $approval = route('mobile-authorization.show', ['app_id' => MobileAuthorization::LiteMobileAppId, 'state' => 'state']);
+
+    $this->withSession(['url.intended' => $approval])
+        ->get(route('login.store'))
+        ->assertRedirect($approval);
+});
+
+it('still onboards in the browser anyone going anywhere else', function (string $intended): void {
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('hasSponsorsListing')->andReturnFalse();
+
+    User::factory()->notOnboarded()->create(['github_id' => '583231']);
+
+    Socialite::fake('github', GitHubUser::fake(['id' => '583231', 'nickname' => 'octocat']));
+
+    $this->withSession(['url.intended' => url($intended)])
+        ->get(route('login.store'))
+        ->assertRedirectToRoute('onboarding.show');
+})->with([
+    'approving another app' => '/mobile/authorize?app_id=ios:com.nativephp.devnull',
+    'approving an app that does not say which' => '/mobile/authorize?state=state',
+    'a public page' => '/@octocat?app_id=ios:sh.devnull.app',
+]);
+
+it('signs the lite mobile app out along with its web view', function (): void {
+    $user = User::factory()->create();
+    $device = Device::factory()->create(['user_id' => $user->id]);
+    $other = Device::factory()->create(['user_id' => $user->id]);
+
+    $this->actingAs($user)
+        ->withSession([Device::SessionKey => $device->id])
+        ->post(route('logout'))
+        ->assertRedirectToRoute('home');
+
+    $this->assertGuest();
+    $this->assertModelMissing($device);
+    $this->assertModelExists($other);
+});
+
+it("leaves alone a device that has become someone else's when signing out", function (): void {
+    $device = Device::factory()->create();
+
+    $this->actingAs(User::factory()->create())
+        ->withSession([Device::SessionKey => $device->id])
+        ->post(route('logout'));
+
+    $this->assertModelExists($device);
+});
+
+it('leaves devices alone when signing out of any other web session', function (): void {
+    $user = User::factory()->create();
+    $device = Device::factory()->create(['user_id' => $user->id]);
+
+    $this->actingAs($user)->post(route('logout'))->assertRedirectToRoute('home');
+
+    $this->assertModelExists($device);
+});
+
 it('may destroy a session', function (): void {
     $user = User::factory()->create();
 
@@ -307,7 +394,7 @@ it('makes tom the first friend of a new user, but not of a returning one', funct
 
     Socialite::fake('github', GitHubUser::fake(['id' => '583231', 'nickname' => 'octocat', 'name' => 'The Octocat']));
 
-    $this->get(route('login.store'));
+    $this->withSession([CreateHumanVerificationRequest::SessionKey => true])->get(route('login.store'));
 
     $user = User::query()->where('github_id', '583231')->sole();
     $tom = User::query()->whereRelation('profile', 'handle', 'tom')->sole();

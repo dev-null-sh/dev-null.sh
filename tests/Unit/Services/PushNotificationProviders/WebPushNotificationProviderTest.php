@@ -59,7 +59,7 @@ it('forgets subscriptions the browser no longer has, and asks to retry temporary
 ]);
 
 it('asks to retry when the push service cannot be reached', function (): void {
-    Http::fake(['https://fcm.googleapis.com/*' => fn () => throw new ConnectionException('unavailable')]);
+    Http::fake(['https://fcm.googleapis.com/*' => fn (): never => throw new ConnectionException('unavailable')]);
     $subscription = PushSubscription::factory()->create();
 
     expect(new WebPushNotificationProvider()->send($subscription))->toBeFalse();

@@ -113,10 +113,11 @@ test('retains zoom controls and image descriptions for existing image viewers', 
 
     assert.equal(lightbox.props.render.buttonZoom, undefined);
     assert.equal(lightbox.props.slides[0].alt, 'Image description');
-    assert.notEqual(
-        lightbox.props.render.slideFooter?.({
-            slide: lightbox.props.slides[0],
-        }),
-        null,
+    assert.ok(
+        React.isValidElement(
+            lightbox.props.render.slideFooter?.({
+                slide: lightbox.props.slides[0],
+            }),
+        ),
     );
 });

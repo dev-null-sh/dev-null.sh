@@ -28,6 +28,7 @@ final readonly class DeleteOrgMember
     {
         DB::transaction(function () use ($actor, $org, $member): void {
             ConversationParticipant::query()->where('conversation_id', $org->id)->where('user_id', $member->id)->delete();
+            $member->mentions()->detach($member->mentions()->where('conversation_id', $org->id)->pluck('messages.id'));
 
             // No longer a member, they hear nothing more from the org, so they are told to let go of what they showed.
             event(new UsersUpdated([$member->id], UserUpdate::Inbox, ['conversation' => $org->id]));
