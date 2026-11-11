@@ -54,7 +54,7 @@ final readonly class CommitController
     public function store(CreateApiCommitRequest $request, #[CurrentUser] User $user, CreateCommit $action, CommitPageQuery $page): JsonResponse
     {
         try {
-            $commit = $action->handle($user, $request->string('body')->value(), $request->parent(), $request->quotedCommit(), $request->images(), $request->imageDescriptions(), poll: $request->poll(), replyRecipients: $request->replyRecipients(), organization: $request->organization(), guild: $request->guild());
+            $commit = $action->handle($user, $request->string('body')->value(), $request->parent(), $request->quotedCommit(), $request->images(), $request->imageDescriptions(), linkPreview: $request->linkPreview(), poll: $request->poll(), replyRecipients: $request->replyRecipients(), organization: $request->organization(), guild: $request->guild());
         } catch (GuildPaused) {
             return ApiException::guildPaused()->render();
         }
