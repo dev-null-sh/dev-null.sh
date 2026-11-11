@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Contracts\Services\ModerationProvider;
 use App\Contracts\Services\TranslationProvider;
 use App\Enums\CommitStatus;
 use App\Enums\CommitUpdate;
@@ -14,6 +15,7 @@ use App\Exceptions\CommitProcessingFailed;
 use App\Exceptions\InvalidTranslation;
 use App\Models\Commit;
 use App\Services\CommitTranslations;
+use App\Services\EncodedText;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
@@ -21,7 +23,7 @@ use Throwable;
 
 final readonly class CreateCommitTranslation
 {
-    public function __construct(private CommitTranslations $translations, private TranslationProvider $translator)
+    public function __construct(private CommitTranslations $translations, private TranslationProvider $translator, private EncodedText $encodedText, private ModerationProvider $moderation)
     {
         //
     }
@@ -30,7 +32,7 @@ final readonly class CreateCommitTranslation
     {
         $key = $this->translations->key($commit);
 
-        Cache::lock($key.':lock', 90)->block(5, function () use ($commit, $language, $key): void {
+        Cache::lock($key.':lock', 180)->block(5, function () use ($commit, $language, $key): void {
             $cached = $this->translations->cached($commit);
 
             if ($cached !== null && ($language === null || isset($cached['translations'][$language]) || in_array($cached['source_language'], [$language, 'und'], true))) {
@@ -40,7 +42,22 @@ final readonly class CreateCommitTranslation
             $reason = 'provider_request';
 
             try {
-                ['source_language' => $source, 'body' => $body] = $this->translator->translate($commit->body, $language);
+                $encoded = $this->encodedText->decode($commit->body);
+
+                if ($encoded !== null && $language !== null) {
+                    // Older posts and trusted authors may never have had their decoded contents moderated.
+                    $reason = 'encoded_text_moderation';
+
+                    if ($this->moderation->moderate($encoded['body']) !== [] || $this->moderation->isHarmful($encoded['body'])) {
+                        throw new RuntimeException('Unsafe encoded text.');
+                    }
+
+                    $reason = 'provider_request';
+                }
+
+                ['source_language' => $source, 'body' => $body] = $encoded !== null && $language === null
+                    ? ['source_language' => 'und', 'body' => '']
+                    : $this->translator->translate($encoded['body'] ?? $commit->body, $language);
 
                 $reason = match (true) {
                     preg_match('/^[a-z]{2,3}\z/', $source) !== 1 => 'unsupported_source_language',
@@ -56,6 +73,12 @@ final readonly class CreateCommitTranslation
                 throw new CommitProcessingFailed('Translation', $commit->id, new RuntimeException($invalid->getMessage()), $invalid->reason);
             } catch (Throwable $throwable) {
                 throw new CommitProcessingFailed('Translation', $commit->id, $throwable, $reason);
+            }
+
+            if ($encoded !== null) {
+                // Decoding is useful even when the decoded text already matches the reader's language or is just emoji.
+                $body = $source === 'und' ? $encoded['body'] : $body;
+                $source = $encoded['source_language'];
             }
 
             DB::transaction(function () use ($commit, $language, $key, $cached, $source, $body): void {

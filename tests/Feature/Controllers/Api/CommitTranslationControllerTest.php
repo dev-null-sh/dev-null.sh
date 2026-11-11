@@ -17,20 +17,24 @@ beforeEach(function (): void {
     $this->keyPair = apiKeyPairFor($this->user);
 });
 
-it('translates a commit into the language asked for', function (): void {
-    $this->mock(TranslationProvider::class)->shouldReceive('translate')->once()->with('Guten morgen', 'en')
-        ->andReturn(['source_language' => 'de', 'body' => 'Good morning']);
-    $commit = Commit::factory()->create(['body' => 'Guten morgen']);
+it('translates a commit into the language asked for', function (string $body, string $text, string $source, string $name, string $translated): void {
+    $this->mock(TranslationProvider::class)->shouldReceive('translate')->once()->with($text, 'en')
+        ->andReturn(['source_language' => $source, 'body' => $translated]);
+    $commit = Commit::factory()->create(['body' => $body]);
 
     signedApiRequest($this->keyPair, 'POST', route('api-commit-translation.store', $commit), ['language' => 'en'])
         ->assertOk()
         ->assertHeader('Cache-Control', 'no-store, private')
         ->assertJsonPath('translation.language', 'en')
-        ->assertJsonPath('translation.source_name', 'German')
-        ->assertJsonPath('translation.translated.body_segments.0.text', 'Good morning');
+        ->assertJsonPath('translation.source_name', $name)
+        ->assertJsonPath('translation.translated.body_segments.0.text', $translated);
 
-    expect($commit->refresh()->body)->toBe('Guten morgen');
-});
+    expect($commit->refresh()->body)->toBe($body);
+})->with([
+    'natural language' => ['Guten morgen', 'Guten morgen', 'de', 'German', 'Good morning'],
+    'binary' => ['01001000 01101001', 'Hi', 'en', 'Binary', 'Hi'],
+    'Morse' => ['.... ..', 'HI', 'en', 'Morse code', 'HI'],
+]);
 
 it('translates a pending commit for an admin', function (): void {
     $this->mock(TranslationProvider::class)->shouldReceive('translate')->once()

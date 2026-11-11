@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Actions\CreateCommitTranslation;
+use App\Contracts\Services\ModerationProvider;
 use App\Contracts\Services\TranslationProvider;
 use App\Enums\CommitStatus;
 use App\Enums\Feature;
@@ -43,6 +44,93 @@ it('shares translations between readers and identical posts without changing the
         ->assertOk()->assertJsonPath('translation.translated.body_segments.0.text', 'Good morning');
 
     expect($first->refresh()->body)->toBe('Guten morgen');
+});
+
+it('detects encoded posts locally and translates them even into their decoded language', function (string $text, string $source, string $name, string $decoded): void {
+    $this->mock(TranslationProvider::class)->shouldReceive('translate')->once()->with($decoded, 'en')
+        ->andReturn(['source_language' => 'en', 'body' => $decoded]);
+    $commit = Commit::factory()->create(['body' => $text]);
+    // An earlier language detector may already have hidden Translate for this exact post.
+    Cache::put('commit-translations:v1:'.hash('sha256', $text), [
+        'source_language' => 'und', 'translations' => [], 'expires_at' => now()->addWeek()->getTimestamp(),
+    ], 604800);
+
+    dispatch_sync(new DetectCommitLanguage($commit->id));
+
+    $this->getJson(route('commit-translation.show', [$commit, 'language' => 'en']))
+        ->assertOk()->assertJsonPath('translation.source_language', $source)
+        ->assertJsonPath('translation.source_name', $name)
+        ->assertJsonPath('translation.available', true)
+        ->assertJsonPath('translation.translated', null);
+
+    $this->actingAs(User::factory()->create())
+        ->postJson(route('commit-translation.store', $commit), ['language' => 'en'])
+        ->assertOk()->assertJsonPath('translation.translated.body_segments.0.text', $decoded);
+    $this->postJson(route('commit-translation.store', $commit), ['language' => 'en'])
+        ->assertOk()->assertJsonPath('translation.translated.body_segments.0.text', $decoded);
+
+    expect($commit->refresh()->body)->toBe($text);
+})->with([
+    'binary' => ['01001000 01100101 01101100 01101100 01101111 00100000 01010111 01101111 01110010 01101100 01100100', 'binary', 'Binary', 'Hello World'],
+    'Morse' => ['.... . .-.. .-.. --- / .-- --- .-. .-.. -..', 'morse', 'Morse code', 'HELLO WORLD'],
+]);
+
+it('translates decoded text into the requested language while retaining its encoding label', function (string $text, string $decoded, string $source): void {
+    $this->mock(TranslationProvider::class)->shouldReceive('translate')->once()->with($decoded, 'nl')
+        ->andReturn(['source_language' => 'en', 'body' => 'Hallo wereld']);
+    $commit = Commit::factory()->create(['body' => $text]);
+
+    $this->actingAs(User::factory()->create())
+        ->postJson(route('commit-translation.store', $commit), ['language' => 'nl'])
+        ->assertOk()->assertJsonPath('translation.source_language', $source)
+        ->assertJsonPath('translation.language', 'nl')
+        ->assertJsonPath('translation.translated.body_segments.0.text', 'Hallo wereld');
+})->with([
+    'binary' => ['01001000 01101001', 'Hi', 'binary'],
+    'Morse' => ['.... ..', 'HI', 'morse'],
+]);
+
+it('still decodes binary when its contents have no natural language', function (): void {
+    $this->mock(TranslationProvider::class)->shouldReceive('translate')->once()->with('😀', 'en')
+        ->andReturn(['source_language' => 'und', 'body' => '']);
+    $commit = Commit::factory()->create(['body' => '11110000 10011111 10011000 10000000']);
+
+    $this->actingAs(User::factory()->create())
+        ->postJson(route('commit-translation.store', $commit), ['language' => 'en'])
+        ->assertOk()->assertJsonPath('translation.available', true)
+        ->assertJsonPath('translation.translated.body_segments.0.text', '😀');
+});
+
+it('does not translate or cache unsafe decoded content', function (string $text, bool $flagged): void {
+    Exceptions::fake();
+    $this->mock(TranslationProvider::class)->shouldNotReceive('translate');
+    $moderation = $this->mock(ModerationProvider::class);
+    $moderation->shouldReceive('moderate')->once()->with('HI')->andReturn($flagged ? ['harassment' => 0.9] : []);
+
+    if (! $flagged) {
+        $moderation->shouldReceive('isHarmful')->once()->with('HI')->andReturnTrue();
+    }
+
+    $commit = Commit::factory()->create(['body' => $text]);
+
+    $this->actingAs(User::factory()->create())
+        ->postJson(route('commit-translation.store', $commit), ['language' => 'en'])
+        ->assertServiceUnavailable()->assertJsonPath('message', 'Could not translate this commit. Try again.');
+
+    expect(resolve(CommitTranslations::class)->cached($commit))->toBeNull();
+})->with(['binary' => '01001000 01001001', 'Morse' => '.... ..'])->with([true, false]);
+
+it('fails closed when decoded content cannot be moderated', function (): void {
+    Exceptions::fake();
+    $this->mock(TranslationProvider::class)->shouldNotReceive('translate');
+    $this->mock(ModerationProvider::class)->shouldReceive('moderate')->once()->andThrow(new RuntimeException('Unavailable'));
+    $commit = Commit::factory()->create(['body' => '.... ..']);
+
+    $this->actingAs(User::factory()->create())
+        ->postJson(route('commit-translation.store', $commit), ['language' => 'en'])
+        ->assertServiceUnavailable();
+
+    expect(resolve(CommitTranslations::class)->cached($commit))->toBeNull();
 });
 
 it('keeps target languages and exact source text separate', function (): void {
