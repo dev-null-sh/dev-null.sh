@@ -139,8 +139,8 @@ it('reports failed or incomplete searches as unavailable and retries rather than
     expect($tool->handle($request))->toContain('temporarily unavailable');
     expect(json_decode($tool->handle($request), true))->toMatchArray(['pull_requests' => [], 'commits' => []]);
 })->with(['searchIssues', 'searchCommits'])->with([
-    'rate limit' => fn () => throw new RequestException(new Response(new Psr7Response(403, [], '{"message":"secret error detail"}'))),
-    'server error' => fn () => throw new RequestException(new Response(new Psr7Response(503))),
-    'timeout' => fn () => throw new ConnectionException('timed out'),
+    'rate limit' => fn (): never => throw new RequestException(new Response(new Psr7Response(403, [], '{"message":"secret error detail"}'))),
+    'server error' => fn (): never => throw new RequestException(new Response(new Psr7Response(503))),
+    'timeout' => fn (): never => throw new ConnectionException('timed out'),
     'incomplete' => fn (): array => searchResults(incomplete: true),
 ]);

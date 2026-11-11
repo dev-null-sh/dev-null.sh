@@ -34,7 +34,7 @@ use Traversable;
  * @phpstan-type ExportPollVote array{commit_id: string, option: string, created_at: string}
  * @phpstan-type ExportMessage array{to: string|null, body: string, voice: string|null, created_at: string}
  * @phpstan-type ExportUser array{handle: string}
- * @phpstan-type ExportActiveDay array{date: string, web_app: bool, native_mobile_app: bool, mac_app: bool, other_app: bool}
+ * @phpstan-type ExportActiveDay array{date: string, web_app: bool, native_mobile_app: bool, lite_mobile_app: bool, mac_app: bool, other_app: bool}
  * @phpstan-type UserExport array{
  *     schema_version: int,
  *     exported_at: string,
@@ -76,7 +76,7 @@ final readonly class CreateExport
     public function handle(User $user): array
     {
         return [
-            'schema_version' => 7,
+            'schema_version' => 8,
             'exported_at' => now()->toIso8601String(),
             'profile' => [
                 'github_id' => $user->github_id,
@@ -303,7 +303,7 @@ final readonly class CreateExport
      */
     private function activeDays(User $user): Generator
     {
-        /** @var LazyCollection<int, object{seen_at: string, web_app: bool, native_mobile_app: bool, mac_app: bool, other_app: bool}> $days */
+        /** @var LazyCollection<int, object{seen_at: string, web_app: bool, native_mobile_app: bool, lite_mobile_app: bool, mac_app: bool, other_app: bool}> $days */
         $days = DB::table('user_active_days')->where('user_id', $user->id)->oldest('seen_at')->cursor();
 
         foreach ($days as $day) {
@@ -311,6 +311,7 @@ final readonly class CreateExport
                 'date' => $day->seen_at,
                 'web_app' => $day->web_app,
                 'native_mobile_app' => $day->native_mobile_app,
+                'lite_mobile_app' => $day->lite_mobile_app,
                 'mac_app' => $day->mac_app,
                 'other_app' => $day->other_app,
             ];

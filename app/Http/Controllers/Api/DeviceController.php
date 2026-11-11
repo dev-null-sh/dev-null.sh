@@ -33,7 +33,8 @@ final readonly class DeviceController
 
     /**
      * Approves the key that signed the request as a device, for the user who approved the app on the web, and answers
-     * as GET /api/v1/me does. A code redeemed by another request in the meantime gets the same answer as a wrong one.
+     * as GET /api/v1/me does. A code redeemed by another request in the meantime gets the same answer as a wrong one. The
+     * device goes on the current request, as the form request is a copy of it, for UpdateLastSeenAt to tell the app.
      */
     public function store(CreateApiDeviceRequest $request, CreateDevice $action, UpdateUserTermsAcceptance $acceptTerms, NotificationGroupsQuery $notifications): CurrentUserResource|JsonResponse
     {
@@ -48,6 +49,7 @@ final readonly class DeviceController
         }
 
         Auth::setUser($device->user);
+        request()->attributes->set(Device::class, $device);
 
         return CurrentUserResource::make($device->user->loadCounts())->additional([
             'unread_notifications_count' => $notifications->unreadCount($device->user),

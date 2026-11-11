@@ -27,6 +27,7 @@ declare module '@inertiajs/core' {
         sharedPageProps: {
             name: string;
             repository: string;
+            humanVerificationSiteKey: string;
             auth: Auth;
             /** For guests: how many developers are here, rounded down (12,000). */
             developersCount: number | null;

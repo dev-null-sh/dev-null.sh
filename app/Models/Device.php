@@ -48,6 +48,11 @@ final class Device extends Model
     use HasUuids;
 
     /**
+     * Where a web session made for a device keeps its id, so that it ends with the device.
+     */
+    public const string SessionKey = 'device_id';
+
+    /**
      * @return array<string, string>
      */
     public function casts(): array
