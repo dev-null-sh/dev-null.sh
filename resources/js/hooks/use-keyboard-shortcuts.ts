@@ -5,7 +5,7 @@ import LogController from '@/actions/App/Http/Controllers/LogController';
 import NotificationController from '@/actions/App/Http/Controllers/NotificationController';
 import StarredCommitController from '@/actions/App/Http/Controllers/StarredCommitController';
 import { signIn } from '@/lib/auth';
-import { hasModKey } from '@/lib/keyboard';
+import { hasModKey, shortcutKey } from '@/lib/keyboard';
 import { show } from '@/routes/user';
 import { edit } from '@/routes/user-profile';
 import type { Log, User } from '@/types';
@@ -114,7 +114,9 @@ export function useKeyboardShortcuts(
                   };
 
         const onKeyDown = (event: KeyboardEvent) => {
-            if (hasModKey(event) && event.key.toLowerCase() === 'k') {
+            const key = shortcutKey(event);
+
+            if (hasModKey(event) && key.toLowerCase() === 'k') {
                 event.preventDefault();
                 onSearch();
 
@@ -138,9 +140,9 @@ export function useKeyboardShortcuts(
                 awaitingGoTo = false;
                 clearTimeout(goToTimeout);
 
-                if (goTo[event.key]) {
+                if (goTo[key]) {
                     event.preventDefault();
-                    goTo[event.key]();
+                    goTo[key]();
                 }
 
                 return;
@@ -154,7 +156,7 @@ export function useKeyboardShortcuts(
                 return;
             }
 
-            const commitAction = focusedCommitAction(event.key);
+            const commitAction = focusedCommitAction(key);
 
             if (commitAction) {
                 event.preventDefault();
@@ -177,9 +179,9 @@ export function useKeyboardShortcuts(
                 },
             };
 
-            if (actions[event.key]) {
+            if (actions[key]) {
                 event.preventDefault();
-                actions[event.key]();
+                actions[key]();
             }
         };
 

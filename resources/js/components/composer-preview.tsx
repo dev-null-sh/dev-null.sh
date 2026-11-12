@@ -13,7 +13,7 @@ import type { PollDraft } from '@/components/poll-editor';
 import { Button } from '@/components/ui/button';
 import { useNow } from '@/hooks/use-now';
 import { bodySegments, hasCodeBlock } from '@/lib/code';
-import { hasModKey, useKeyLabels } from '@/lib/keyboard';
+import { hasModKey, shortcutKey, useKeyLabels } from '@/lib/keyboard';
 import { cn } from '@/lib/utils';
 import type { BodySegment } from '@/types';
 
@@ -30,7 +30,9 @@ const isModifierEnter = (event: KeyboardEvent) =>
     event.key === 'Enter' && hasModKey(event);
 
 const isPreviewShortcut = (event: KeyboardEvent) =>
-    event.key.toLowerCase() === 'p' && event.shiftKey && hasModKey(event);
+    shortcutKey(event).toLowerCase() === 'p' &&
+    event.shiftKey &&
+    hasModKey(event);
 
 export type ComposerPreview = ReturnType<typeof useComposerPreview>;
 
