@@ -36,6 +36,14 @@ test('to array', function (): void {
         ]);
 });
 
+it('includes shipped only when the commit was marked shipped', function (): void {
+    $shipped = Commit::factory()->create(['shipped' => true]);
+    $plain = Commit::factory()->create();
+
+    expect($shipped->toArray())->toHaveKey('shipped', true)
+        ->and($plain->toArray())->not->toHaveKey('shipped');
+});
+
 it('never shows who posted it, even loaded', function (): void {
     expect(Commit::factory()->create()->load('user')->toArray())->not->toHaveKeys(['user', 'user_id']);
 });

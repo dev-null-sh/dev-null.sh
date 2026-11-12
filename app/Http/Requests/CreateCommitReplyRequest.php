@@ -59,6 +59,7 @@ final class CreateCommitReplyRequest extends FormRequest
             'reply_recipients' => ['sometimes', 'list', 'max:'.self::MAX_REPLY_RECIPIENTS],
             'reply_recipients.*' => ['required', 'string', 'distinct', Rule::in(array_values($parent->mentions ?? []))],
             'body' => CreateCommitRequest::bodyRules($this->hasFile('images')),
+            'shipped' => ['prohibited'],
             'link_preview_url' => ['nullable', 'string', Rule::in(is_string($body) ? resolve(Urls::class)->all($body) : [])],
             'images' => ['nullable', 'list', 'max:'.CreateCommitImages::MAX_IMAGES],
             'images.*' => [
