@@ -121,6 +121,7 @@ final readonly class TheAlgorithm
             ->where('commits.created_at', '>=', now()->subDays(self::CANDIDATE_MAX_AGE_DAYS))
             ->visibleTo($viewer)
             ->withoutMutedAuthorsFor($viewer)
+            ->withoutMutedGuildsFor($viewer)
             ->select('commits.id as drawn_id')
             ->selectRaw(
                 "round((commits.hot_score + {$authorDiversity} + {$network} - {$gumbelNoise})::numeric, 6) as trending_score",

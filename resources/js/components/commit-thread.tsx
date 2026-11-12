@@ -203,7 +203,7 @@ type Thread = {
 };
 
 async function fetchReplies(
-    commit: Pick<ThreadCommit, 'id'>,
+    commit: Pick<ThreadCommit, 'id'> & { inLog?: boolean },
     cursor: string | null,
     newest: boolean,
     limit: number,
@@ -215,6 +215,7 @@ async function fetchReplies(
             query: {
                 cursor,
                 newest: newest ? 1 : 0,
+                in_log: commit.inLog ? 1 : 0,
                 limit,
                 ...(except ? { except } : {}),
             },
@@ -236,7 +237,7 @@ async function fetchReplies(
 }
 
 async function fetchRepliesAfter(
-    commit: Pick<ThreadCommit, 'id'>,
+    commit: Pick<ThreadCommit, 'id'> & { inLog?: boolean },
     replies: ThreadCommit[],
     cursor: string | null,
     minimum: number,
@@ -264,7 +265,7 @@ async function fetchRepliesAfter(
 }
 
 async function fetchRepliesUntil(
-    commit: Pick<ThreadCommit, 'id'>,
+    commit: Pick<ThreadCommit, 'id'> & { inLog?: boolean },
     minimum: number,
     perPage: number,
     newest: boolean,
@@ -296,7 +297,7 @@ async function fetchRepliesUntil(
  * so recovering what changed keeps the loaded range without loading everything that arrived after it.
  */
 async function fetchRepliesThrough(
-    commit: Pick<ThreadCommit, 'id'>,
+    commit: Pick<ThreadCommit, 'id'> & { inLog?: boolean },
     lastId: string | undefined,
     depth: number,
     perPage: number,
@@ -352,6 +353,7 @@ export function useThread(
     const isPreview = preview !== undefined;
     const initial = preview ?? initialReplies;
     const { repliesPerPage, continuation, now: serverNow } = usePage().props;
+    const inLog = usePage().component === 'log/show';
     const historyKey = `thread:${commit.id}:${except ?? ''}`;
     const remembered = router.restore<{
         replies: ThreadCommit[] | null;
@@ -449,7 +451,7 @@ export function useThread(
         setIsLoading(true);
 
         return fetchRepliesThrough(
-            commit,
+            { id: commit.id, inLog },
             replies.at(-1)?.id,
             Math.max(replies.length, repliesPerPage),
             repliesPerPage,
@@ -488,7 +490,7 @@ export function useThread(
         setIsLoading(true);
 
         return fetchRepliesUntil(
-            commit,
+            { id: commit.id, inLog },
             minimum,
             repliesPerPage,
             isPreview,
@@ -518,7 +520,7 @@ export function useThread(
         setIsLoading(true);
 
         fetchRepliesAfter(
-            commit,
+            { id: commit.id, inLog },
             replies,
             nextCursor,
             minimum,
@@ -553,7 +555,7 @@ export function useThread(
         setIsLoading(true);
 
         fetchRepliesUntil(
-            { id: commitId },
+            { id: commitId, inLog },
             initialReplyLimit,
             repliesPerPage,
             isPreview,
@@ -579,6 +581,7 @@ export function useThread(
         commitId,
         shouldLoadReplies,
         isPreview,
+        inLog,
         except,
         repliesPerPage,
         initialReplyLimit,
@@ -654,6 +657,7 @@ export function useThread(
                     query: {
                         ids,
                         newest: isPreview ? 1 : 0,
+                        in_log: inLog ? 1 : 0,
                         ...(except ? { except } : {}),
                     },
                 }).url,
@@ -724,9 +728,12 @@ export function useThread(
         return change.replies;
     });
     // Called when a read's turn comes, so it reads the range loaded by then, not the one loaded when it was asked for.
-    const recoverLoaded = useEffectEvent((signal: AbortSignal) =>
-        recover(signal),
-    );
+    const recoverLoaded = useEffectEvent((signal: AbortSignal) => {
+        // The log refreshes compact previews together; only an expanded thread needs its own deeper read.
+        if (inLog && isPreview && (replies?.length ?? 0) <= repliesPerPage)
+            return;
+        return recover(signal);
+    });
     const isLoaded = replies !== null;
     const viewerId = usePage().props.auth.user?.id ?? null;
 
@@ -818,7 +825,7 @@ export function useThread(
                 : listen(
                       userChannel(viewerId),
                       { relationships: recoverWhenFree },
-                      isPreview ? undefined : recoverWhenFree,
+                      isPreview && !inLog ? undefined : recoverWhenFree,
                   );
 
         return () => {
@@ -827,7 +834,7 @@ export function useThread(
             stopRelationships();
             refresh.cancel();
         };
-    }, [commitId, isLoaded, viewerId, isPreview]);
+    }, [commitId, isLoaded, viewerId, isPreview, inLog]);
 
     useEffect(
         () =>

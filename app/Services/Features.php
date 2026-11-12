@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Enums\Feature;
+use App\Models\User;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
@@ -18,6 +19,11 @@ final readonly class Features
     public function enabled(Feature $feature): bool
     {
         return $this->switched()[$feature->value] ?? true;
+    }
+
+    public function available(Feature $feature, ?User $user): bool
+    {
+        return ($feature !== Feature::Guilds || ($user?->isAdmin() ?? false)) && $this->enabled($feature);
     }
 
     /** @return list<array{name: string, enabled: bool}> */

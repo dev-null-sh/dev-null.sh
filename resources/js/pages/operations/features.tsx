@@ -18,6 +18,11 @@ const FEATURES: Record<
         description:
             'The Translate control, cached translations, and background language detection. Off stops new detection jobs from being queued and skips any already waiting.',
     },
+    guilds: {
+        label: 'guilds',
+        description:
+            'Public guild pages, creation, editing, and inline hashtag chips. Available to admins only during this preview, even when switched on.',
+    },
 };
 
 /**
@@ -50,8 +55,8 @@ function FeatureRow({ feature }: { feature: Feature }) {
                     toast(
                         <span className="font-mono text-[13px]">
                             {enabled
-                                ? `Switched ${label} on for everyone`
-                                : `Switched ${label} off for everyone`}
+                                ? `Switched ${label} on`
+                                : `Switched ${label} off`}
                         </span>,
                     ),
                 onError: () =>

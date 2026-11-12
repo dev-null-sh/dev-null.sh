@@ -11,6 +11,8 @@ use App\Models\CommitReport;
 use App\Models\Conversation;
 use App\Models\ConversationParticipant;
 use App\Models\Device;
+use App\Models\Guild;
+use App\Models\GuildReport;
 use App\Models\Message;
 use App\Models\Poll;
 use App\Models\PollOption;
@@ -52,6 +54,10 @@ use Traversable;
  *     dismissed_suggestions: Generator<int, ExportUser>,
  *     organizations: array<int, array{handle: string, role: string, joined_at: string}>,
  *     followed_organizations: array<int, array{handle: string, followed_at: string}>,
+ *     guilds: array<int, array<string, mixed>>,
+ *     guild_preferences: array<int, stdClass>,
+ *     guild_reports: array<int, array{handle: string, details: string, created_at: string}>,
+ *     guild_moderator_removals: array<int, stdClass>,
  *     pending_follows: list<string>,
  *     messages: Generator<int, ExportMessage>,
  *     reports: Traversable<int, array<string, mixed>>,
@@ -76,7 +82,7 @@ final readonly class CreateExport
     public function handle(User $user): array
     {
         return [
-            'schema_version' => 8,
+            'schema_version' => 9,
             'exported_at' => now()->toIso8601String(),
             'profile' => [
                 'github_id' => $user->github_id,
@@ -130,7 +136,19 @@ final readonly class CreateExport
             'dismissed_suggestions' => $this->handles($user->dismissedSuggestions()),
             'organizations' => $this->organizations($user),
             'followed_organizations' => $this->followedOrganizations($user),
+            'guilds' => Guild::query()->where('user_id', $user->id)->orderBy('handle')->get()->map(fn (Guild $guild): array => [
+                ...$guild->toArray(),
+                'icon' => $guild->icon_path === null ? null : route('guild-icon.show', $guild->handle),
+                'created_at' => $guild->created_at->toIso8601String(),
+                'updated_at' => $guild->updated_at->toIso8601String(),
+            ])->all(),
+            'guild_preferences' => DB::table('guild_preferences')->join('guilds', 'guilds.id', '=', 'guild_preferences.guild_id')
+                ->where('guild_preferences.user_id', $user->id)->orderBy('handle')->get(['handle', 'joined_at', 'muted_at'])->all(),
             'pending_follows' => $this->pendingFollows($user),
+            'guild_reports' => GuildReport::query()->where('reporter_id', $user->id)->with('guild')->oldest('id')->get()->map(fn (GuildReport $report): array => [
+                'handle' => $report->guild->handle, 'details' => $report->details, 'created_at' => $report->created_at->toIso8601String(),
+            ])->all(),
+            'guild_moderator_removals' => DB::table('guild_moderator_removals')->where('github_id', $user->github_id)->orderBy('handle')->get(['handle', 'created_at'])->all(),
             'messages' => $this->messages($user),
             'reports' => CommitReport::query()->where('reporter_id', $user->id)->oldest('id')->cursor()->map(fn (CommitReport $report): array => [
                 'commit_id' => $report->commit_id,

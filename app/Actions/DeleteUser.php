@@ -14,6 +14,7 @@ use App\Models\CommitImage;
 use App\Models\CommitReport;
 use App\Models\Conversation;
 use App\Models\ConversationParticipant;
+use App\Models\Guild;
 use App\Models\Headline;
 use App\Models\Message;
 use App\Models\MessageImage;
@@ -21,6 +22,7 @@ use App\Models\MessageVoice;
 use App\Models\Notification;
 use App\Models\ScheduledCommit;
 use App\Models\User;
+use App\Queries\AdminsQuery;
 use App\Queries\CommitBuilder;
 use App\Services\CommitTranslations;
 use Illuminate\Database\Eloquent\Builder;
@@ -72,7 +74,8 @@ final readonly class DeleteUser
             $this->touchedCommits($user)->orderBy('id')->lockForUpdate()->pluck('id');
 
             // Report creation holds shared reporter and commit locks until its attachment paths are saved.
-            $imagePaths = [...$this->reportImagePaths($user), ...$this->imagePaths($user), ...$this->scheduledImagePaths($user), ...$this->messageImagePaths($user), ...$this->messageVoicePaths($user)];
+            $guildIcons = Guild::query()->where('user_id', $user->id)->orderBy('id')->lockForUpdate()->get()->flatMap(fn (Guild $guild): array => $guild->icon_path === null ? [] : [$guild->icon_path])->all();
+            $imagePaths = [...$guildIcons, ...$this->reportImagePaths($user), ...$this->imagePaths($user), ...$this->scheduledImagePaths($user), ...$this->messageImagePaths($user), ...$this->messageVoicePaths($user)];
             resolve(DeleteStoredFiles::class)->retain($imagePaths);
 
             DB::table('commit_topics')->whereIn('commit_id', $this->touchedCommits($user)->select('id'))->delete();
@@ -107,6 +110,8 @@ final readonly class DeleteUser
             $vanishing->chunk(100)->each(fn (Collection $commits) => event(new CommitsUpdated($commits, CommitUpdate::Visibility)));
             event(new UsersUpdated($notified, UserUpdate::Notifications));
             event(new UsersUpdated($partners, UserUpdate::Inbox));
+            event(new UsersUpdated(resolve(AdminsQuery::class)->ids(), UserUpdate::Guilds));
+            event(new UsersUpdated(resolve(AdminsQuery::class)->ids(), UserUpdate::Relationships));
 
             foreach ($translationKeys as $key) {
                 Cache::forget($key);
