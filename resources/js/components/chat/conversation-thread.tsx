@@ -1523,7 +1523,7 @@ function BubbleWithMeta({
                             {bubbleActions}
                         </div>
                     )}
-                    {message.body !== '' && (
+                    {(message.body !== '' || isEditing) && (
                         <div
                             data-message-id={
                                 bubble.kind === 'message'
@@ -1536,6 +1536,11 @@ function BubbleWithMeta({
                                 <div className="min-w-48">
                                     <textarea
                                         value={draft}
+                                        placeholder={
+                                            message.body === ''
+                                                ? 'Add a caption…'
+                                                : undefined
+                                        }
                                         onChange={(event) =>
                                             setDraft(event.target.value)
                                         }

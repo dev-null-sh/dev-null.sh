@@ -33,9 +33,12 @@ final readonly class UpdateMessage
     {
         $url = $this->urls->first($body);
         $sender = $message->user;
-        $previousMentions = array_values($message->mentions ?? []);
 
-        DB::transaction(function () use ($message, $body, $url, $sender, $previousMentions): void {
+        DB::transaction(function () use ($message, $body, $url, $sender): void {
+            // Read under a lock so overlapping edits serialize: the second one diffs against the first one's
+            // committed mentions instead of a stale snapshot, and no badge is left behind.
+            $previousMentions = array_values(Message::query()->whereKey($message->id)->lockForUpdate()->value('mentions') ?? []);
+
             $linkPreview = $url === null ? null : LinkPreview::query()->firstOrCreate(['url_hash' => hash('sha256', $url)], ['url' => $url]);
 
             $message->update([
