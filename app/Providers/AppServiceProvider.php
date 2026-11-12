@@ -185,7 +185,11 @@ final class AppServiceProvider extends ServiceProvider
         });
 
         // Every lookup spends GitHub's shared budget, so a member gets a few an hour. Their page says so...
-        RateLimiter::for('profile-lookups', fn (Request $request): Limit => Limit::perHour(30)->by($this->userId($request))->response(function (): RedirectResponse {
+        RateLimiter::for('profile-lookups', fn (Request $request): Limit => Limit::perHour(30)->by($this->userId($request))->response(function (Request $request, array $headers): JsonResponse|RedirectResponse {
+            if ($request->is('api/*')) {
+                return new ApiException(ApiErrorCode::RateLimited, __('You looked up too many handles. Try again later.'), $headers)->render();
+            }
+
             Inertia::flash('lookupThrottled', true);
 
             return back();
