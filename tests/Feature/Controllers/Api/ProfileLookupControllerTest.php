@@ -53,7 +53,7 @@ it('answers not found once a lookup finds the handle, so the app opens its page 
     signedApiRequest($this->keyPair, 'GET', route('api-profile-lookup.show', 'Octocat'))->assertNotFound();
 });
 
-it('looks up only handles GitHub could have that nobody here has, and not again those it has no account for', function (string $handle): void {
+it('looks up only handles GitHub could have that nobody here has, and not again those it has no account for', function (string|array $handle): void {
     Queue::fake([LookUpGitHubProfile::class]);
     Profile::factory()->create(['handle' => 'taken']);
     Cache::put('github-profiles:not-found:nobody', 'missing', 60);
@@ -63,7 +63,7 @@ it('looks up only handles GitHub could have that nobody here has, and not again 
         ->assertJsonValidationErrors('handle');
 
     Queue::assertNothingPushed();
-})->with(['taken, whatever the case' => 'Taken', 'no GitHub account, whatever the case' => 'Nobody', 'an underscore' => 'oct_cat', 'empty' => '']);
+})->with(['taken, whatever the case' => 'Taken', 'no GitHub account, whatever the case' => 'Nobody', 'an underscore' => 'oct_cat', 'empty' => '', 'not a string' => [['octocat']]]);
 
 it('lets only signed requests look handles up', function (): void {
     Queue::fake([LookUpGitHubProfile::class]);

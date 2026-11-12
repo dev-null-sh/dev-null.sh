@@ -19,6 +19,7 @@ final class CreateApiProfileLookupRequest extends FormRequest
     {
         return [
             'handle' => [
+                'bail',
                 'required',
                 'string',
                 'regex:/^[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}$/',
