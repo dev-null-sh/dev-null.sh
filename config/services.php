@@ -27,6 +27,12 @@ return [
         'api_token' => env('CLOUDFLARE_TURN_API_TOKEN'),
     ],
 
+    'cloudflare_stream' => [
+        'account_id' => env('CLOUDFLARE_STREAM_ACCOUNT_ID'),
+        'api_token' => env('CLOUDFLARE_STREAM_API_TOKEN'),
+        'customer_subdomain' => env('CLOUDFLARE_STREAM_CUSTOMER_SUBDOMAIN'),
+    ],
+
     'cloudflare_turnstile' => [
         'site_key' => env('CLOUDFLARE_TURNSTILE_SITE_KEY'),
         'secret_key' => env('CLOUDFLARE_TURNSTILE_SECRET_KEY'),

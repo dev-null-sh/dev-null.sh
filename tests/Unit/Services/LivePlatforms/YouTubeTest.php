@@ -11,6 +11,7 @@ it('accepts links to a single video', function (string $url): void {
         ->and($youTube->stream($url)->toArray())->toBe([
             'url' => 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
             'thumbnail_url' => 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault_live.jpg',
+            'embed_url' => null,
         ]);
 })->with([
     'watch' => 'https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=42s',

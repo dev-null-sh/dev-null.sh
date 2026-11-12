@@ -89,11 +89,13 @@ it('shows the stream of a user who is live', function (LivePlatform $platform, s
         'platform' => 'youtube',
         'url' => 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
         'thumbnail_url' => 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault_live.jpg',
+        'embed_url' => null,
     ]],
     'twitch' => [LivePlatform::Twitch, 'https://www.twitch.tv/octocat', [
         'platform' => 'twitch',
         'url' => 'https://www.twitch.tv/octocat',
         'thumbnail_url' => 'https://static-cdn.jtvnw.net/previews-ttv/live_user_octocat-1280x720.jpg',
+        'embed_url' => null,
     ]],
 ]);
 

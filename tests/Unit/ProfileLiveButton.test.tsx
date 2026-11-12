@@ -21,6 +21,7 @@ test('offers ending the stream while you are live', () => {
                 live: {
                     url: 'https://twitch.tv/me',
                     thumbnail_url: '',
+                    embed_url: null,
                     ends_at: new Date(Date.now() + 3_600_000).toISOString(),
                 },
             }}

@@ -160,6 +160,7 @@ it('tells on each commit whether its author is live', function (): void {
             'platform' => 'twitch',
             'url' => 'https://www.twitch.tv/octocat',
             'thumbnail_url' => 'https://static-cdn.jtvnw.net/previews-ttv/live_user_octocat-1280x720.jpg',
+            'embed_url' => null,
             'ends_at' => now()->addHour()->toIso8601ZuluString(),
         ])
         ->assertJsonPath('data.1.id', $offline->id)

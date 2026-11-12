@@ -18,7 +18,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
 final class LiveStreamResource extends JsonResource
 {
     /**
-     * @return array{url: string, thumbnail_url: string, ends_at: string|null}|null
+     * @return array{url: string, thumbnail_url: string, embed_url: string|null, ends_at: string|null}|null
      */
     public static function of(User $user): ?array
     {
@@ -26,7 +26,7 @@ final class LiveStreamResource extends JsonResource
     }
 
     /**
-     * @return array{url: string, thumbnail_url: string, ends_at: string|null}
+     * @return array{url: string, thumbnail_url: string, embed_url: string|null, ends_at: string|null}
      */
     public function toArray(Request $request): array
     {

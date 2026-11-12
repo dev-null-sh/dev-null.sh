@@ -10,8 +10,10 @@ import type { User } from '@/types';
  */
 export function ProfileLiveButton({
     user,
+    canStreamHere = false,
 }: {
     user: Pick<User, 'id' | 'live'>;
+    canStreamHere?: boolean;
 }) {
     const [isGoingLive, setIsGoingLive] = useState(false);
     const stream = useLiveStream(user);
@@ -53,7 +55,11 @@ export function ProfileLiveButton({
                 </Button>
             )}
 
-            <GoLiveDialog open={isGoingLive} onOpenChange={setIsGoingLive} />
+            <GoLiveDialog
+                open={isGoingLive}
+                onOpenChange={setIsGoingLive}
+                canStreamHere={canStreamHere}
+            />
         </>
     );
 }
