@@ -79,6 +79,7 @@ export default function TranslationLanguageSetting({
                             value={selected}
                         />
                         <Combobox
+                            immediate
                             value={selected}
                             onChange={(value: string | null) => {
                                 if (value !== null) {

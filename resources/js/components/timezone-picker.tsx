@@ -95,6 +95,7 @@ export default function TimezonePicker() {
                         />
 
                         <Combobox
+                            immediate
                             value={selected}
                             onChange={(value: string | null) =>
                                 setSelected(value)
