@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\DB;
 /**
  * A profile's year in numbers: posts, stars, streaks and community growth.
  *
- * @phpstan-type YearInReview array{year: int, commits: int, replies: int, starsEarned: int, followersGained: int, activeDays: int, longestStreak: int, months: list<int>, topCommit: array{id: string, body: string, stars: int}|null}
+ * @phpstan-type YearInReview array{year: int, commits: int, replies: int, starsEarned: int, followersGained: int, activeDays: int, longestStreak: int, months: list<int>, weekdays: list<int>, dayCounts: array<string, int>, topCommit: array{id: string, body: string, stars: int}|null}
  */
 final readonly class YearInReviewQuery
 {
@@ -33,18 +33,27 @@ final readonly class YearInReviewQuery
 
         $top = (clone $commits)->withCount('stars')->orderByDesc('stars_count')->orderBy('commits.created_at')->first();
 
-        /** @var list<string> $days */
-        $days = (clone $commits)
-            ->selectRaw('date(commits.created_at) as day')
-            ->distinct()
+        /** @var array<string, int> $dayCounts */
+        $dayCounts = (clone $commits)
+            ->selectRaw('date(commits.created_at) as day, count(*) as total')
+            ->groupBy('day')
             ->orderBy('day')
-            ->pluck('day')
+            ->pluck('total', 'day')
+            ->map(fn ($total) => (int) $total)
             ->all();
+
+        $days = array_keys($dayCounts);
 
         $months = array_fill(0, 12, 0);
 
         foreach ((clone $commits)->selectRaw('extract(month from commits.created_at) as month, count(*) as total')->groupBy('month')->pluck('total', 'month') as $month => $total) {
             $months[(int) $month - 1] = (int) $total;
+        }
+
+        $weekdays = array_fill(0, 7, 0);
+
+        foreach ((clone $commits)->selectRaw('extract(dow from commits.created_at) as dow, count(*) as total')->groupBy('dow')->pluck('total', 'dow') as $dow => $total) {
+            $weekdays[(int) $dow] = (int) $total;
         }
 
         return [
@@ -56,6 +65,8 @@ final readonly class YearInReviewQuery
             'activeDays' => count($days),
             'longestStreak' => $this->longestRun($days),
             'months' => $months,
+            'weekdays' => $weekdays,
+            'dayCounts' => $dayCounts,
             'topCommit' => $top === null ? null : [
                 'id' => $top->id,
                 'body' => mb_strimwidth($top->body, 0, 140, '…'),
