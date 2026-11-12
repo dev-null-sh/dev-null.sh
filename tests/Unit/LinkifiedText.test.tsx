@@ -1114,6 +1114,20 @@ test('keeps fenced blocks verbatim in text segments', () => {
     assert.ok(markup.includes('<strong>bold</strong>'));
 });
 
+test('keeps an unfinished fence verbatim like the text blocks do', () => {
+    const markup = renderToStaticMarkup(
+        <LinkifiedText
+            text={'before **bold**\n```js\n**not bold** https://example.com'}
+            mentions={null}
+        />,
+    );
+
+    assert.ok(markup.includes('<strong>bold</strong>'));
+    assert.ok(markup.includes('```js\n**not bold** https://example.com'));
+    assert.ok(!markup.includes('<strong>not bold</strong>'));
+    assert.ok(!markup.includes('href="https://example.com"'));
+});
+
 test('leaves math, globs and kwargs markers alone', () => {
     for (const text of [
         '2 * 3 * 4',
@@ -1182,6 +1196,17 @@ test('words future timestamps as upcoming', () => {
 
     assert.ok(soon.includes('data-test="timestamp"'));
     assert.ok(soon.includes('in 2h'));
+
+    const imminent = renderToStaticMarkup(
+        <LinkifiedText
+            text={`At <t:${Math.ceil(Date.now() / 1000) + 30}:R> o clock`}
+            mentions={null}
+        />,
+    );
+
+    assert.ok(imminent.includes('data-test="timestamp"'));
+    assert.ok(imminent.includes('soon'));
+    assert.ok(!imminent.includes('now'));
 });
 
 test('keeps linked children inside hidden spoilers', () => {
@@ -1218,4 +1243,17 @@ test('omits spoiler content from static previews', () => {
 
     assert.ok(markup.includes('data-revealed="false"'));
     assert.ok(!markup.includes('secret'));
+});
+
+test('never nests an anchor inside a masked label', () => {
+    for (const text of [
+        '[https://a.com](https://b.com)',
+        '[see @Original](https://example.com)',
+    ]) {
+        const markup = renderToStaticMarkup(
+            <LinkifiedText text={text} mentions={null} />,
+        );
+
+        assert.equal(markup.match(/<a[\s>]/g)?.length, 1, text);
+    }
 });

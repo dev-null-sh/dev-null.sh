@@ -940,6 +940,14 @@ function TimestampText({ at, format }: { at: string; format: string }) {
             );
         }
 
+        if (ahead >= 0) {
+            return (
+                <span title={title} data-test="timestamp">
+                    soon
+                </span>
+            );
+        }
+
         return (
             <span title={title} data-test="timestamp">
                 {formatRelativeTime(date.toISOString())}

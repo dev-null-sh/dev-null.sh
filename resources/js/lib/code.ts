@@ -19,12 +19,14 @@ const typedCodePattern = new RegExp(
 /**
  * Splits the text at committed fenced code blocks, keeping exact spans: each part is either prose or a whole fenced
  * block, in order, with nothing dropped, so callers can leave code verbatim. Inline code stays prose here; the
- * inline pass handles it.
+ * inline pass handles it. A fence that never closes runs to the end of the text, the way typing already treats it,
+ * so both whole-body paths agree.
  */
 export function splitFencedCode(
     text: string,
 ): { code: boolean; text: string }[] {
     const pattern = new RegExp(fencedBlock, 'g');
+    const unclosedPattern = /(?<![^\n])```[\s\S]*$/;
     const parts: { code: boolean; text: string }[] = [];
     let position = 0;
 
@@ -41,7 +43,17 @@ export function splitFencedCode(
     }
 
     if (position < text.length) {
-        parts.push({ code: false, text: text.slice(position) });
+        const tail = text.slice(position);
+        const unclosed = unclosedPattern.exec(tail);
+
+        if (unclosed !== null && unclosed.index > 0) {
+            parts.push({ code: false, text: tail.slice(0, unclosed.index) });
+        }
+
+        parts.push({
+            code: unclosed !== null,
+            text: unclosed !== null ? tail.slice(unclosed.index) : tail,
+        });
     }
 
     return parts;
