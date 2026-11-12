@@ -193,7 +193,11 @@ it('shares whether there are unmoderated commits for admins', function (): void 
 
     expect($shared['hasUnmoderatedCommits']())->toBeFalse();
 
-    Commit::factory()->pending()->create();
+    $commit = Commit::factory()->pending()->create();
+
+    expect($shared['hasUnmoderatedCommits']())->toBeFalse();
+
+    $commit->update(['ai_decision' => CommitStatus::Rejected]);
 
     expect($shared['hasUnmoderatedCommits']())->toBeTrue();
 });
