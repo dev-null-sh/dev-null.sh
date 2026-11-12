@@ -9,9 +9,40 @@ import type { ConversationSummary } from '@/types';
 
 export type RemoteAlertChannel = 'notifications' | 'sound' | 'offsite';
 
+export const REMOTE_SOUNDS = {
+    msn: { label: 'MSN Messenger', sources: ['/sounds/remote.mp3'] },
+    navi: {
+        label: 'Navi',
+        sources: ['/sounds/navi-hey.mp3', '/sounds/navi-listen.mp3'],
+    },
+    icq: { label: 'ICQ', sources: ['/sounds/icq.mp3'] },
+    aim: { label: 'AIM', sources: ['/sounds/aim.mp3'] },
+};
+
+export type RemoteSound = keyof typeof REMOTE_SOUNDS;
+
 const listeners = new Set<() => void>();
 const preferenceKey = (userId: string, channel: RemoteAlertChannel) =>
     `remote-alerts:${userId}:${channel}`;
+
+export function remoteSound(userId: string): RemoteSound {
+    const saved = readStorage(`remote-sound:${userId}`);
+
+    return Object.hasOwn(REMOTE_SOUNDS, saved) ? (saved as RemoteSound) : 'msn';
+}
+
+export function setRemoteSound(userId: string, sound: RemoteSound): boolean {
+    writeStorage(`remote-sound:${userId}`, sound);
+    listeners.forEach((listener) => listener());
+
+    return readStorage(`remote-sound:${userId}`) === sound;
+}
+
+export function remoteSoundSource(sound: RemoteSound): string {
+    const sources = REMOTE_SOUNDS[sound].sources;
+
+    return sources[Math.floor(Math.random() * sources.length)];
+}
 
 export function remoteAlertsEnabled(
     userId: string,
@@ -121,7 +152,7 @@ export function createRemoteAlerts(
     let latest: Record<string, number> | null = null;
     let stopped = false;
     let lastSoundAt = 0;
-    const sound = new Audio('/sounds/remote.mp3');
+    const sound = new Audio(remoteSoundSource(remoteSound(userId)));
     const notifications = new Set<Notification>();
     const cooldownKey = `remote-alert-cooldown:${userId}`;
     const readingKey = `remote-alert-reading:${userId}`;
@@ -268,6 +299,7 @@ export function createRemoteAlerts(
                 } else if (playSound && now - previousSoundAt >= 10_000) {
                     lastSoundAt = now;
                     writeStorage(cooldownKey, `${now}\n${consumedState}`);
+                    sound.src = remoteSoundSource(remoteSound(userId));
                     sound.currentTime = 0;
                     void sound.play().catch(() => undefined);
                 }

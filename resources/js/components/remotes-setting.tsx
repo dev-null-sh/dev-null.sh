@@ -1,14 +1,33 @@
 import { router, usePage } from '@inertiajs/react';
-import { useState } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { toast } from 'sonner';
 import { update } from '@/actions/App/Http/Controllers/UserRemotesController';
+import { RemoteSoundIcon } from '@/components/remote-sound-icon';
+import { Button } from '@/components/ui/button';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 import {
     useRemoteAlertsEnabled,
     useRemoteNotificationSupport,
 } from '@/hooks/use-chat';
 import { usePicked } from '@/hooks/use-picked';
-import type { RemoteAlertChannel } from '@/lib/remote-notifications';
-import { setRemoteAlerts } from '@/lib/remote-notifications';
+import type {
+    RemoteAlertChannel,
+    RemoteSound,
+} from '@/lib/remote-notifications';
+import {
+    REMOTE_SOUNDS,
+    remoteSound,
+    remoteSoundSource,
+    setRemoteAlerts,
+    setRemoteSound,
+    subscribeRemoteAlerts,
+} from '@/lib/remote-notifications';
 import { RemotePushValidationError } from '@/lib/remote-push';
 import { cn } from '@/lib/utils';
 
@@ -28,6 +47,14 @@ export function RemotesSetting() {
         'offsite',
     );
     const [savingAlerts, setSavingAlerts] = useState(false);
+    const selectedSound = useSyncExternalStore<RemoteSound>(
+        subscribeRemoteAlerts,
+        () => (auth.user === null ? 'msn' : remoteSound(auth.user.id)),
+        () => 'msn',
+    );
+    const preview = useRef<HTMLAudioElement | null>(null);
+
+    useEffect(() => () => preview.current?.pause(), []);
 
     const saveAlerts = (
         enabled: boolean,
@@ -233,6 +260,73 @@ export function RemotesSetting() {
                         )}
                     />
                 </button>
+            </div>
+            <div className="mt-4 space-y-2">
+                <div className="flex items-center gap-2">
+                    <Select
+                        value={selectedSound}
+                        disabled={!enabled || !soundEnabled}
+                        onValueChange={(value) => {
+                            preview.current?.pause();
+                            if (
+                                auth.user !== null &&
+                                !setRemoteSound(
+                                    auth.user.id,
+                                    value as RemoteSound,
+                                )
+                            ) {
+                                toast.error(
+                                    'Could not save notification sound. Check your browser’s storage settings.',
+                                );
+                            }
+                        }}
+                    >
+                        <SelectTrigger
+                            aria-label="Message sound"
+                            className="w-52"
+                        >
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {Object.entries(REMOTE_SOUNDS).map(
+                                ([value, { label }]) => (
+                                    <SelectItem key={value} value={value}>
+                                        <span className="flex items-center gap-2">
+                                            <RemoteSoundIcon
+                                                sound={value as RemoteSound}
+                                                className="size-4 shrink-0"
+                                            />
+                                            {label}
+                                        </span>
+                                    </SelectItem>
+                                ),
+                            )}
+                        </SelectContent>
+                    </Select>
+                    <Button
+                        type="button"
+                        variant="outline"
+                        disabled={!enabled || !soundEnabled}
+                        onClick={() => {
+                            preview.current ??= new Audio();
+                            preview.current.src =
+                                remoteSoundSource(selectedSound);
+                            void preview.current
+                                .play()
+                                .catch(() =>
+                                    toast.error(
+                                        'Could not play the sound. Please try again.',
+                                    ),
+                                );
+                        }}
+                    >
+                        Preview
+                    </Button>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                    Navi randomly says “Hey!” or “Listen!”. Saved in this
+                    browser.
+                </p>
             </div>
         </section>
     );
