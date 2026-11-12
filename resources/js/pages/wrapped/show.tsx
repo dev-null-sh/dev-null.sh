@@ -399,10 +399,12 @@ export default function Show({
                                     label="commits shipped"
                                 />
                             </div>
-                            <p className="mt-4 text-muted-foreground">
-                                plus {stats.replies.toLocaleString()} replies in
-                                other people&apos;s threads
-                            </p>
+                            {stats.replies > 0 && (
+                                <p className="mt-4 text-muted-foreground">
+                                    plus {stats.replies.toLocaleString()}{' '}
+                                    replies in threads
+                                </p>
+                            )}
                             <MonthBars months={stats.months} />
                             {hasCommits && (
                                 <>
@@ -449,17 +451,25 @@ export default function Show({
                                     label="stars earned"
                                 />
                             </div>
+                            {stats.starsEarned === 0 && (
+                                <p className="mt-4 text-muted-foreground">
+                                    No stars yet. The work still counted.
+                                </p>
+                            )}
                             {stats.topCommit !== null && (
-                                <figure className="mx-auto mt-8 max-w-md rounded-lg border p-4 text-left">
+                                <a
+                                    href={`/@${handle}/commits/${stats.topCommit.id}`}
+                                    className="mx-auto mt-8 block max-w-md rounded-lg border p-4 text-left transition-colors hover:border-[var(--lane-0)]"
+                                >
                                     <blockquote className="text-sm">
                                         {stats.topCommit.body}
                                     </blockquote>
-                                    <figcaption className="mt-2 text-xs text-muted-foreground">
+                                    <p className="mt-2 text-xs text-muted-foreground">
                                         Your top commit ·{' '}
                                         {stats.topCommit.stars.toLocaleString()}{' '}
                                         stars
-                                    </figcaption>
-                                </figure>
+                                    </p>
+                                </a>
                             )}
                         </div>
                     )}
@@ -469,7 +479,7 @@ export default function Show({
                             <div className="mt-6">
                                 <BigNumber
                                     value={stats.longestStreak}
-                                    label="day streak at best"
+                                    label="best day streak"
                                 />
                             </div>
                             <p className="mt-4 text-muted-foreground">
@@ -492,7 +502,9 @@ export default function Show({
                                 />
                             </div>
                             <p className="mt-4 text-muted-foreground">
-                                people who want to read what you ship next
+                                {stats.followersGained === 0
+                                    ? 'Quiet on the follower front. The work comes first.'
+                                    : 'people who want to read what you ship next'}
                             </p>
                         </div>
                     )}
@@ -529,9 +541,6 @@ export default function Show({
                             <p className="mt-3 text-muted-foreground">
                                 Thank you, nullers, for every commit, reply, and
                                 star this year. From the team, happy New Year.
-                            </p>
-                            <p className="mt-3 text-sm text-muted-foreground">
-                                This page is public. Send it anywhere.
                             </p>
                             <p className="mx-auto mt-6 max-w-md rounded-md bg-muted px-3 py-2 font-mono text-xs wrap-anywhere">
                                 {shareUrl}

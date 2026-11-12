@@ -34,7 +34,7 @@ final readonly class YearInReviewQuery
         $top = (clone $commits)->withCount('stars')->orderByDesc('stars_count')->orderBy('commits.created_at')->first();
 
         /** @var array<string, int> $dayCounts */
-        $dayCounts = (clone $commits)
+        $dayCounts = (clone $commits)->whereNull('commits.parent_id')
             ->selectRaw('date(commits.created_at) as day, count(*) as total')
             ->groupBy('day')
             ->orderBy('day')
@@ -46,19 +46,19 @@ final readonly class YearInReviewQuery
 
         $months = array_fill(0, 12, 0);
 
-        foreach ((clone $commits)->selectRaw('extract(month from commits.created_at) as month, count(*) as total')->groupBy('month')->pluck('total', 'month') as $month => $total) {
+        foreach ((clone $commits)->whereNull('commits.parent_id')->selectRaw('extract(month from commits.created_at) as month, count(*) as total')->groupBy('month')->pluck('total', 'month') as $month => $total) {
             $months[(int) $month - 1] = (int) $total;
         }
 
         $weekdays = array_fill(0, 7, 0);
 
-        foreach ((clone $commits)->selectRaw('extract(dow from commits.created_at) as dow, count(*) as total')->groupBy('dow')->pluck('total', 'dow') as $dow => $total) {
+        foreach ((clone $commits)->whereNull('commits.parent_id')->selectRaw('extract(dow from commits.created_at) as dow, count(*) as total')->groupBy('dow')->pluck('total', 'dow') as $dow => $total) {
             $weekdays[(int) $dow] = (int) $total;
         }
 
         $hourCounts = array_fill(0, 24, 0);
 
-        foreach ((clone $commits)->selectRaw('extract(hour from commits.created_at) as hour, count(*) as total')->groupBy('hour')->pluck('total', 'hour') as $hour => $total) {
+        foreach ((clone $commits)->whereNull('commits.parent_id')->selectRaw('extract(hour from commits.created_at) as hour, count(*) as total')->groupBy('hour')->pluck('total', 'hour') as $hour => $total) {
             $hourCounts[(int) $hour] = (int) $total;
         }
 
