@@ -56,6 +56,7 @@ use LogicException;
  * @property-read CarbonInterface|null $pasteis_given_on
  * @property-read string|null $pinned_commit_id
  * @property-read bool|null $automatic_translation
+ * @property-read string|null $event_theme
  * @property-read string|null $translation_language
  * @property-read string|null $timezone
  * @property-read bool $show_local_time
@@ -102,6 +103,7 @@ use LogicException;
     'remember_token',
     'translation_language',
     'automatic_translation',
+    'event_theme',
     'preferred_lane',
     'lane_color',
     'pasteis_mode',
@@ -224,6 +226,7 @@ final class User extends Authenticatable
             'show_local_time' => 'boolean',
             'translation_language' => 'encrypted',
             'automatic_translation' => 'boolean',
+            'event_theme' => 'string',
             'log' => Log::class,
             'onboarded_at' => 'datetime',
             'github_follows_imported_at' => 'datetime',

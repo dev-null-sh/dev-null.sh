@@ -43,6 +43,7 @@ import { useTabSlide } from '@/hooks/use-tab-slide';
 import { signIn } from '@/lib/auth';
 import { backgroundPollOptions } from '@/lib/background-poll';
 import { isPageGone } from '@/lib/deleted-resources';
+import { applyEventTheme } from '@/lib/event-theme';
 import type { IssueKind } from '@/lib/issue-commands';
 import { userChannel } from '@/lib/realtime';
 import type { SearchAction } from '@/lib/search-actions';
@@ -52,8 +53,11 @@ import type { AppLayoutProps } from '@/types';
 export default function AppLayout({ children }: AppLayoutProps) {
     const {
         component,
-        props: { auth, isLiteMobileApp },
+        props: { auth, isLiteMobileApp, eventTheme },
     } = usePage();
+
+    // A theme saved on the account elsewhere reaches the open page, as its props do.
+    useEffect(() => applyEventTheme(eventTheme), [eventTheme]);
     const { isLayoutOpen } = useNavOpen();
     const [isShowingShortcuts, setIsShowingShortcuts] = useState(false);
     const [isSearching, setIsSearching] = useState(false);

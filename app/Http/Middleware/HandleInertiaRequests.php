@@ -170,9 +170,10 @@ final class HandleInertiaRequests extends Middleware
                     // Read again at most once a minute however busy the headlines get, since everyone listens.
                     ->live('headlines', new Channel('headlines'), throttle: 60_000),
             ] : [],
-            'eventTheme' => EventTheme::forRequest($request)?->value,
+            // Saved on the account once picked while signed in, so a change saved elsewhere reaches the open page.
+            'eventTheme' => $live(fn (): ?string => EventTheme::forRequest($request)?->value, UserUpdate::Account),
             'eventYear' => EventTheme::greetedYear($request),
-            'eventThemeChoice' => EventTheme::choiceFrom(is_string($request->cookie('event_theme')) ? $request->cookie('event_theme') : null),
+            'eventThemeChoice' => $live(fn (): string => EventTheme::choiceForRequest($request), UserUpdate::Account),
             'dimsLanes' => $request->cookie('lane_dimming') !== 'false',
             'repliesPerPage' => RepliesPerPage::of($request)->value,
             'clock' => ReaderClock::of($request)->toArray(),
