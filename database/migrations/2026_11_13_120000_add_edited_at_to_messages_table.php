@@ -14,11 +14,4 @@ return new class extends Migration
             $table->timestamp('edited_at')->nullable()->after('pinned_at');
         });
     }
-
-    public function down(): void
-    {
-        Schema::table('messages', function (Blueprint $table): void {
-            $table->dropColumn('edited_at');
-        });
-    }
 };

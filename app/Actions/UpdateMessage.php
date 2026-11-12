@@ -6,6 +6,7 @@ namespace App\Actions;
 
 use App\Enums\UserUpdate;
 use App\Events\UsersUpdated;
+use App\Jobs\UnfurlLink;
 use App\Models\ConversationParticipant;
 use App\Models\LinkPreview;
 use App\Models\Message;
@@ -32,8 +33,9 @@ final readonly class UpdateMessage
     {
         $url = $this->urls->first($body);
         $sender = $message->user;
+        $previousMentions = array_values($message->mentions ?? []);
 
-        DB::transaction(function () use ($message, $body, $url, $sender): void {
+        DB::transaction(function () use ($message, $body, $url, $sender, $previousMentions): void {
             $linkPreview = $url === null ? null : LinkPreview::query()->firstOrCreate(['url_hash' => hash('sha256', $url)], ['url' => $url]);
 
             $message->update([
@@ -43,16 +45,28 @@ final readonly class UpdateMessage
                 'edited_at' => now(),
             ]);
 
-            // Mention badges live on a pivot, not in the JSON, so resync them the way pushing does — but only where
-            // pushing tracks them.
+            if ($linkPreview instanceof LinkPreview && $linkPreview->fetched_at === null) {
+                dispatch(new UnfurlLink($linkPreview))->afterCommit();
+            }
+
+            // Mention badges live on a pivot, not in the JSON. Badges are only added for newly mentioned
+            // recipients and removed for deleted mentions, so a badge the recipient cleared stays cleared.
             if ($message->conversation->isOrg()) {
-                $message->mentionedUsers()->sync($message->conversation->participants()
-                    ->whereIn('user_id', array_values($message->mentions ?? []))
-                    ->where('user_id', '!=', $sender->id)
-                    ->where('visible_from_id', '<', $message->id)
-                    ->whereNotIn('user_id', $sender->idsAcrossBlocks())
-                    ->whereNotIn('user_id', $sender->mutedBy()->newPivotQuery()->select('muter_id'))
-                    ->pluck('user_id'));
+                $currentMentions = array_values($message->mentions ?? []);
+
+                $message->mentionedUsers()->detach(array_diff($previousMentions, $currentMentions));
+
+                $added = array_diff($currentMentions, $previousMentions);
+
+                if ($added !== []) {
+                    $message->mentionedUsers()->attach($message->conversation->participants()
+                        ->whereIn('user_id', $added)
+                        ->where('user_id', '!=', $sender->id)
+                        ->where('visible_from_id', '<', $message->id)
+                        ->whereNotIn('user_id', $sender->idsAcrossBlocks())
+                        ->whereNotIn('user_id', $sender->mutedBy()->newPivotQuery()->select('muter_id'))
+                        ->pluck('user_id'));
+                }
             }
         });
 

@@ -46,8 +46,12 @@ final class UpdateOrgMessageRequest extends FormRequest
      */
     public function rules(): array
     {
+        // A caption can be cleared down to nothing, but only where images remain to hold the message up.
+        $message = $this->route('message');
+        $bodyRequired = ! ($message instanceof Message && $message->images()->exists());
+
         return [
-            'body' => ['required', 'string', 'max:'.Message::MAX_LENGTH],
+            'body' => [$bodyRequired ? 'required' : 'nullable', 'string', 'max:'.Message::MAX_LENGTH],
         ];
     }
 }

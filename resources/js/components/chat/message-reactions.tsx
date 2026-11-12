@@ -1,6 +1,6 @@
 import { Transition } from '@headlessui/react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
-import { Copy, Pin, PinOff, Search, SmilePlus } from 'lucide-react';
+import { Copy, Pencil, Pin, PinOff, Search, SmilePlus } from 'lucide-react';
 import type { KeyboardEvent, PointerEvent, ReactNode, RefObject } from 'react';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -888,6 +888,7 @@ export function ReactionSheet({
     body,
     preview,
     onReact,
+    onEdit = null,
     pin = null,
 }: {
     isOpen: boolean;
@@ -898,6 +899,7 @@ export function ReactionSheet({
     body: string;
     preview: ReactNode;
     onReact: (emoji: string) => void;
+    onEdit?: (() => void) | null;
     pin?: { isPinned: boolean; onToggle: () => void } | null;
 }) {
     const [isPicking, setIsPicking] = useState(false);
@@ -1052,6 +1054,21 @@ export function ReactionSheet({
                             >
                                 <Copy aria-hidden className="size-4" />
                                 Copy text
+                            </button>
+                        )}
+                        {onEdit !== null && !isPicking && (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    close();
+                                    onEdit();
+                                }}
+                                data-sheet-part
+                                className="flex w-max items-center gap-2 rounded-lg border bg-popover px-3 py-2 text-sm shadow-sm"
+                                data-test="sheet-edit"
+                            >
+                                <Pencil aria-hidden className="size-4" />
+                                Edit message
                             </button>
                         )}
                         {pin !== null && !isPicking && (

@@ -317,3 +317,17 @@ it('resyncs mention badges when an org message is reworded', function (): void {
 
     expect($message->mentionedUsers()->where('user_id', $taylor->id)->exists())->toBeFalse();
 });
+
+it('keeps a cleared mention badge cleared through later edits', function (): void {
+    $mark = User::factory()->create();
+    [$nuno, $taylor] = followersOf($mark, 2);
+    $org = createOrg($mark, [$nuno, $taylor]);
+    $message = pushToOrg($nuno, $org, "ping {$taylor->mention()} about this");
+    $message->mentionedUsers()->detach($taylor->id);
+
+    $this->actingAs($nuno)
+        ->putJson(route('org-message.update', [$org, $message]), ['body' => "ping {$taylor->mention()} about this!!"])
+        ->assertOk();
+
+    expect($message->mentionedUsers()->where('user_id', $taylor->id)->exists())->toBeFalse();
+});

@@ -1642,6 +1642,16 @@ async function pollThread(target: ChatTarget): Promise<void> {
                       },
             ),
         );
+
+        if (
+            after !== null &&
+            fresh.messages.length === 0 &&
+            fresh.reaction_changes.length === 0
+        ) {
+            // In-place changes, like edits, don't advance the last id, so an empty page means the loaded window
+            // itself changed. Reread it so open threads see the new wording without a reload.
+            fresh = await remotesRequest(urls(target).index(undefined));
+        }
     } catch (error) {
         if (
             error instanceof ChatRequestError &&

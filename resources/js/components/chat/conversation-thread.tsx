@@ -1333,16 +1333,28 @@ function BubbleWithMeta({
     const [isSaving, setIsSaving] = useState(false);
     // Read once per mount: the thread re-renders on every poll, which is plenty fresh for a three-minute window.
     const [mountedAt] = useState(() => Date.now());
+    // Matches Message::EDIT_WINDOW_MINUTES on the server.
+    const editWindowMs = 3 * 60 * 1000;
+    const hasBody = (body: string): boolean =>
+        body !== '' ||
+        (bubble.kind === 'message' && (bubble.message.images?.length ?? 0) > 0);
     // The author gets three minutes after pushing, matching the server's edit window.
     const canEdit =
         isMine &&
         bubble.kind === 'message' &&
-        bubble.message.body !== '' &&
+        hasBody(bubble.message.body) &&
         bubble.message.event == null &&
         bubble.message.voice == null &&
-        mountedAt - Date.parse(bubble.message.created_at) < 3 * 60 * 1000;
+        mountedAt - Date.parse(bubble.message.created_at) < editWindowMs;
     const startEditing = (): void => {
         if (bubble.kind !== 'message') {
+            return;
+        }
+
+        // The affordance is a snapshot, so recheck the window on the way in: the server enforces it either way.
+        if (Date.parse(bubble.message.created_at) + editWindowMs < Date.now()) {
+            toast.error('The edit window for this message has closed.');
+
             return;
         }
 
@@ -1356,7 +1368,7 @@ function BubbleWithMeta({
 
         const trimmed = draft.trim();
 
-        if (trimmed === '' || trimmed === bubble.message.body) {
+        if (!hasBody(trimmed) || trimmed === bubble.message.body) {
             setIsEditing(false);
 
             return;
@@ -1528,7 +1540,10 @@ function BubbleWithMeta({
                                             setDraft(event.target.value)
                                         }
                                         onKeyDown={(event) => {
-                                            if (event.key === 'Escape') {
+                                            if (
+                                                event.key === 'Escape' &&
+                                                !isSaving
+                                            ) {
                                                 setIsEditing(false);
                                             }
                                         }}
@@ -1544,7 +1559,8 @@ function BubbleWithMeta({
                                             type="button"
                                             onClick={saveEdit}
                                             disabled={
-                                                isSaving || draft.trim() === ''
+                                                isSaving ||
+                                                !hasBody(draft.trim())
                                             }
                                             data-test="save-edit-button"
                                             className="rounded-md bg-primary px-2 py-1 text-xs font-medium text-primary-foreground disabled:opacity-50"
@@ -1614,6 +1630,7 @@ function BubbleWithMeta({
                         />
                     }
                     onReact={reactToThis}
+                    onEdit={canEdit && !isEditing ? startEditing : null}
                     pin={
                         pin?.onToggle
                             ? { isPinned, onToggle: pin.onToggle }
@@ -1665,23 +1682,31 @@ function BubbleWithMeta({
                         )}
                 </MetaLine>
             ) : (
-                isLast &&
-                bubble.kind === 'message' && (
-                    <MetaLine>
-                        <time dateTime={bubble.message.created_at}>
-                            {formatClockTime(bubble.message.created_at)}
-                        </time>
-                        {bubble.message.edited_at != null && (
-                            <span>(edited)</span>
+                <>
+                    {isLast && bubble.kind === 'message' && (
+                        <MetaLine>
+                            <time dateTime={bubble.message.created_at}>
+                                {formatClockTime(bubble.message.created_at)}
+                            </time>
+                            {bubble.message.edited_at != null && (
+                                <span>(edited)</span>
+                            )}
+                            {showsStatus && pulledBy.length > 0 && (
+                                <>
+                                    <span>· pulled by</span>
+                                    <PulledBy users={pulledBy} total={total} />
+                                </>
+                            )}
+                        </MetaLine>
+                    )}
+                    {!isLast &&
+                        bubble.kind === 'message' &&
+                        bubble.message.edited_at != null && (
+                            <MetaLine>
+                                <span>(edited)</span>
+                            </MetaLine>
                         )}
-                        {showsStatus && pulledBy.length > 0 && (
-                            <>
-                                <span>· pulled by</span>
-                                <PulledBy users={pulledBy} total={total} />
-                            </>
-                        )}
-                    </MetaLine>
-                )
+                </>
             )}
         </>
     );
