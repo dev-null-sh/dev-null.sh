@@ -6,11 +6,12 @@ import {
     useState,
     type ReactNode,
 } from 'react';
+import AppLogo from '@/components/app-logo';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { useClipboard } from '@/hooks/use-clipboard';
 import AppLayout from '@/layouts/app-layout';
-import { dropConfetti } from '@/lib/confetti';
+import { dropFireworks } from '@/lib/confetti';
 
 type WrappedStats = {
     year: number;
@@ -247,7 +248,7 @@ export default function Show({
     useEffect(() => {
         if (slide === last && !celebrated.current) {
             celebrated.current = true;
-            dropConfetti();
+            dropFireworks();
         }
     }, [slide, last]);
 
@@ -446,11 +447,18 @@ export default function Show({
                     )}
                     {slide === 6 && (
                         <div>
-                            <Eyebrow>06 · Share</Eyebrow>
-                            <h2 className="mt-6 text-3xl font-bold tracking-tight">
-                                Take it with you
+                            <Eyebrow>06 · Happy New Year</Eyebrow>
+                            <div className="mt-6 flex justify-center">
+                                <AppLogo className="text-3xl" />
+                            </div>
+                            <h2 className="mt-4 text-3xl font-bold tracking-tight">
+                                See you next year, nuller
                             </h2>
                             <p className="mt-3 text-muted-foreground">
+                                Thank you, nullers, for every commit, reply, and
+                                star this year. From the team, happy New Year.
+                            </p>
+                            <p className="mt-3 text-sm text-muted-foreground">
                                 This page is public. Send it anywhere.
                             </p>
                             <p className="mx-auto mt-6 max-w-md rounded-md bg-muted px-3 py-2 font-mono text-xs wrap-anywhere">
