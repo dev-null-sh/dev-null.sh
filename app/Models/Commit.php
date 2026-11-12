@@ -92,6 +92,11 @@ final class Commit extends Model
     public const int MAX_BODY_LENGTH = 4000;
 
     /**
+     * How many commits someone may post a minute, however they post them.
+     */
+    public const int MAX_PER_MINUTE = 10;
+
+    /**
      * Lists show a longer body folded to its first characters and lines, the rest one click away.
      */
     public const int PREVIEW_LENGTH = 280;
