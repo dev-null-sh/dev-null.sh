@@ -151,7 +151,9 @@ Its page shows how many members are waiting to follow them: the members who foll
 
 Its page also says how many commits mention them, like **12 commits mention them**, counting approved commits that mention `@handle` outside code, refreshed within the hour. The commits themselves aren't shown or linked, since they can't answer what's said about them.
 
-Sources: [looking handles up](app/Http/Controllers/ProfileLookupController.php), [lookup page](resources/js/pages/profile/lookup.tsx), [developer page](resources/js/pages/profile/unclaimed.tsx), [GitHub lookups](app/Actions/CreateGitHubProfile.php), [mention count](app/Queries/UnclaimedProfileMentionCountQuery.php).
+Apps look handles up and wait to follow through the [signed API](#signed-api-and-devices), with the same budget of 30 lookups an hour. Anyone can read a developer who isn't here yet at `/api/v1/unclaimed-profiles/{handle}`, with how many members wait to follow them. A signed request also says whether you wait, and up to three people you follow who do. Once a lookup finds the handle, its status answers not found, and the app opens it as a user, an organization or a developer not here yet.
+
+Sources: [looking handles up](app/Http/Controllers/ProfileLookupController.php), [API lookups](app/Http/Controllers/Api/ProfileLookupController.php), [lookup page](resources/js/pages/profile/lookup.tsx), [developer page](resources/js/pages/profile/unclaimed.tsx), [GitHub lookups](app/Actions/CreateGitHubProfile.php), [mention count](app/Queries/UnclaimedProfileMentionCountQuery.php).
 
 ### Going live
 
@@ -587,6 +589,7 @@ A signed request sees what the web shows you, such as your own pending commits a
 - preview commit drafts without publishing them;
 - request a feature or report a bug as `/feature` and `/bug` do, with the same limit of 10 opened issues a day;
 - follow or unfollow people and organizations, mute or unmute, and block or unblock, and list who you muted and blocked;
+- look up a handle on GitHub and check where the lookup stands, and wait or stop waiting to follow a developer who isn't on /dev/null yet;
 - read who to follow, also as it is suggested beside a profile or a commit, and mark a suggestion not interested;
 - read the hot topics, and each one's commits from the past week with its recap;
 - star or unstar, and list who starred your own commit, newest first, 20 a page;
