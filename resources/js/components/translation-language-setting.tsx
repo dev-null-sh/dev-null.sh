@@ -120,6 +120,7 @@ export default function TranslationLanguageSetting({
                             </div>
                             <ComboboxOptions
                                 anchor="bottom start"
+                                modal={false}
                                 className="z-50 max-h-64 w-(--input-width) overflow-y-auto rounded-md border bg-popover p-1 text-popover-foreground shadow-md [--anchor-gap:4px]"
                             >
                                 {filtered.length === 0 && (
