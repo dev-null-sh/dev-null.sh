@@ -75,12 +75,22 @@ type TextBlock =
     | { kind: 'paragraph'; text: string }
     | { kind: 'heading'; level: number; text: string }
     | { kind: 'subtext'; text: string }
+    | { kind: 'code'; text: string }
     | { kind: 'list'; ordered: boolean; start: number; items: string[] };
+
+/**
+ * A fenced code block opens on a line starting with three or more backticks, like the committed-code pattern in
+ * lib/code, and runs to a line that is only backticks, or to the end of the text when never closed.
+ */
+const fencePattern = /^(`{3,})[^`]*$/;
+const fenceClosePattern = /^`{3,}\s*$/;
 
 function splitTextBlocks(text: string): TextBlock[] {
     const blocks: TextBlock[] = [];
     let paragraph: string[] = [];
     let list: TextBlock | null = null;
+    let fence: string[] | null = null;
+    let fenceRun = '';
 
     const flushParagraph = (): void => {
         if (paragraph.length > 0) {
@@ -97,6 +107,32 @@ function splitTextBlocks(text: string): TextBlock[] {
     };
 
     for (const line of text.split('\n')) {
+        if (fence !== null) {
+            if (
+                fenceClosePattern.test(line) &&
+                line.replace(/\s/g, '').length >= fenceRun.length
+            ) {
+                fence.push(line);
+                blocks.push({ kind: 'code', text: fence.join('\n') });
+                fence = null;
+            } else {
+                fence.push(line);
+            }
+
+            continue;
+        }
+
+        const fenceOpen = fencePattern.exec(line);
+
+        if (fenceOpen !== null) {
+            flushParagraph();
+            flushList();
+            fence = [line];
+            fenceRun = fenceOpen[1];
+
+            continue;
+        }
+
         const heading = headingPattern.exec(line);
         const subtext = subtextPattern.exec(line);
         const item = listItemPattern.exec(line);
@@ -140,6 +176,10 @@ function splitTextBlocks(text: string): TextBlock[] {
 
     flushParagraph();
     flushList();
+
+    if (fence !== null) {
+        blocks.push({ kind: 'code', text: fence.join('\n') });
+    }
 
     return blocks;
 }
@@ -231,6 +271,17 @@ function BodyTextBlocks({
                         <ul key={key} className="list-disc pl-5">
                             {items}
                         </ul>
+                    );
+                }
+
+                if (block.kind === 'code') {
+                    return (
+                        <pre
+                            key={key}
+                            className="overflow-x-auto rounded-lg bg-muted p-3 font-mono text-[0.875em] whitespace-pre-wrap"
+                        >
+                            {block.text}
+                        </pre>
                     );
                 }
 

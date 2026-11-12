@@ -1094,6 +1094,26 @@ test('renders headings, subtext and lists as blocks', () => {
     assert.ok(markup.includes('<strong>bold</strong>'));
 });
 
+test('keeps fenced blocks verbatim in text segments', () => {
+    const markup = renderPage(
+        <BodySegments
+            segments={[
+                {
+                    type: 'text',
+                    text: 'intro **bold**\n```js\n**not bold** https://example.com\n```\nplain tail',
+                },
+            ]}
+            mentions={null}
+        />,
+    );
+
+    assert.ok(markup.includes('<pre'));
+    assert.ok(markup.includes('**not bold** https://example.com'));
+    assert.ok(!markup.includes('<strong>not bold</strong>'));
+    assert.ok(!markup.includes('href="https://example.com"'));
+    assert.ok(markup.includes('<strong>bold</strong>'));
+});
+
 test('leaves math, globs and kwargs markers alone', () => {
     for (const text of [
         '2 * 3 * 4',
@@ -1152,6 +1172,16 @@ test('words future timestamps as upcoming', () => {
 
     assert.ok(markup.includes('data-test="timestamp"'));
     assert.ok(markup.includes('in '));
+
+    const soon = renderToStaticMarkup(
+        <LinkifiedText
+            text={`At <t:${Math.ceil(Date.now() / 1000) + 7200}:R> o clock`}
+            mentions={null}
+        />,
+    );
+
+    assert.ok(soon.includes('data-test="timestamp"'));
+    assert.ok(soon.includes('in 2h'));
 });
 
 test('keeps linked children inside hidden spoilers', () => {
@@ -1160,5 +1190,32 @@ test('keeps linked children inside hidden spoilers', () => {
     );
 
     assert.ok(markup.includes('data-test="spoiler"'));
+    assert.ok(markup.includes('data-revealed="false"'));
     assert.ok(markup.includes('href="https://example.com"'));
+});
+
+test('leaves fenced code verbatim while formatting the prose around it', () => {
+    const markup = renderToStaticMarkup(
+        <LinkifiedText
+            text={
+                'Before **bold**\n```js\n**not bold** https://example.com\n```\nAfter @Original'
+            }
+            mentions={null}
+        />,
+    );
+
+    assert.ok(markup.includes('<strong>bold</strong>'));
+    assert.ok(markup.includes('**not bold** https://example.com'));
+    assert.ok(!markup.includes('<strong>not bold</strong>'));
+    assert.ok(!markup.includes('href="https://example.com"'));
+    assert.ok(markup.includes('href="/@Original"'));
+});
+
+test('omits spoiler content from static previews', () => {
+    const markup = renderToStaticMarkup(
+        <LinkifiedText text="||secret||" mentions={null} isStatic />,
+    );
+
+    assert.ok(markup.includes('data-revealed="false"'));
+    assert.ok(!markup.includes('secret'));
 });

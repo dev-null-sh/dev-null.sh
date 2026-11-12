@@ -11,7 +11,7 @@ import { CodebergIcon } from '@/components/codeberg-icon';
 import { GitHubIcon } from '@/components/github-icon';
 import { GitLabIcon } from '@/components/gitlab-icon';
 import { UserPreview } from '@/components/user-preview';
-import { typedProse, withoutCode } from '@/lib/code';
+import { splitFencedCode, typedProse, withoutCode } from '@/lib/code';
 import type { Color } from '@/lib/colors';
 import { colorsIn } from '@/lib/colors';
 import { mentionPattern } from '@/lib/mentions';
@@ -852,10 +852,17 @@ type InlineOptions = {
 const richInlinePattern =
     /(?<code>`[^`\n]*`)|(?<masked>\[(?<maskedLabel>[^\]\n]+)\]\((?<maskedUrl>https?:\/\/[^)\s]+)\))|(?<timestamp><t:(?<timestampAt>\d+)(?::(?<timestampFormat>[tTdDfFR]))?>)|(?<spoiler>\|\|(?<spoilerContent>[\s\S]+?)\|\|)|(?<bold>\*\*(?<boldContent>[^\s*](?:[^*\n]*?[^\s*])?)\*\*)|(?<underline>__(?<underlineContent>[^\s_](?:[^_\n]*?[^\s_])?)__)|(?<strike>~~(?<strikeContent>[^\s~](?:[^~\n]*?[^\s~])?)~~)|(?<italicStar>\*(?<italicStarContent>[^\s*](?:[^*\n]*?[^\s*])?)\*)|(?<italicUnder>_(?<italicUnderContent>[^\s_](?:[^_\n]*?[^\s_])?)_)/g;
 
+/**
+ * Whether the character counts as part of a word, so underscore italics keep their underscores in snake_case.
+ */
 function isWordCharacter(character: string | undefined): boolean {
     return character !== undefined && /[\p{L}\p{M}\p{N}_]/u.test(character);
 }
 
+/**
+ * Hides the children behind a tap to reveal, holding them back only while hidden so nothing interactive escapes.
+ * Static previews offer no tap, so they omit the hidden content entirely.
+ */
 function SpoilerText({
     children,
     isStatic,
@@ -866,11 +873,8 @@ function SpoilerText({
     const [revealed, setRevealed] = useState(false);
 
     if (isStatic) {
-        return (
-            <span className="spoiler" data-revealed="true">
-                {children}
-            </span>
-        );
+        // Static previews offer no tap to reveal with, so the hidden content stays out entirely.
+        return <span className="spoiler" data-revealed="false" />;
     }
 
     return (
@@ -908,6 +912,9 @@ const timestampFormats: Record<string, Intl.DateTimeFormatOptions> = {
     },
 };
 
+/**
+ * Renders a Discord-style timestamp, wording near-future relative times as upcoming and the rest absolutely.
+ */
 function TimestampText({ at, format }: { at: string; format: string }) {
     const date = new Date(Number(at) * 1000);
     const timeZone = readerClock().timeZone;
@@ -945,6 +952,9 @@ function TimestampText({ at, format }: { at: string; format: string }) {
     );
 }
 
+/**
+ * Words a future distance in the largest fitting unit, for upcoming timestamps.
+ */
 function formatFuture(totalSeconds: number): string {
     if (totalSeconds < 3600) {
         return `${Math.floor(totalSeconds / 60)}m`;
@@ -965,6 +975,10 @@ function formatFuture(totalSeconds: number): string {
     }).format(new Date(Date.now() + totalSeconds * 1000));
 }
 
+/**
+ * Applies the rich inline pass to a prose slice: code, masked links, timestamps, spoilers, emphasis and mentions,
+ * in that order, with absolute offsets so keys stay stable across slices.
+ */
 function withRichInline(
     text: string,
     offset: number,
@@ -1125,21 +1139,59 @@ export function LinkifiedText({
     const colors = colorsIn(prose, startsText);
     const hashtags = isStatic ? [] : [...prose.matchAll(hashtagPattern)];
 
+    // Fenced code stays verbatim: formatting only runs on the prose around it, so whole bodies from any caller,
+    // suggestions included, keep their code blocks intact. Colors and hashtags keep whole-text indexes; each slice
+    // ignores the ones outside it. Without fences this is exactly the old single pass, same elements and keys.
+    const segments = splitFencedCode(text);
+
+    if (segments.length === 1 && !segments[0].code) {
+        return (
+            <>
+                {withRichInline(text, 0, 'rich', {
+                    mentions,
+                    organizationMentions,
+                    colors,
+                    hashtags,
+                    pasteisMode,
+                    isStatic,
+                    linksEveryMention,
+                })}
+            </>
+        );
+    }
+
+    let offset = 0;
+
     return (
         <>
-            {withRichInline(text, 0, 'rich', {
-                mentions,
-                organizationMentions,
-                colors,
-                hashtags,
-                pasteisMode,
-                isStatic,
-                linksEveryMention,
+            {segments.map((segment, index) => {
+                const segmentOffset = offset;
+                offset += segment.text.length;
+
+                return segment.code ? (
+                    <Fragment key={`fenced-${index}`}>{segment.text}</Fragment>
+                ) : (
+                    <Fragment key={`prose-${index}`}>
+                        {withRichInline(segment.text, segmentOffset, 'rich', {
+                            mentions,
+                            organizationMentions,
+                            colors,
+                            hashtags,
+                            pasteisMode,
+                            isStatic,
+                            linksEveryMention,
+                        })}
+                    </Fragment>
+                );
             })}
         </>
     );
 }
 
+/**
+ * Links the URLs, forge references, commits, colors, hashtags and mentions in plain prose, leaving code to its own
+ * pass. Static mode flattens links to text so no anchor nests inside a masked label.
+ */
 function withLinksAndMentions(
     text: string,
     offset: number,
