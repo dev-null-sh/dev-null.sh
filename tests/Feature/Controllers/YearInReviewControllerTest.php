@@ -24,7 +24,9 @@ it('renders the year in review for guests', function (): void {
             ->where('stats.starsEarned', 2)
             ->where('stats.topCommit.stars', 2)
             ->where('stats.months.2', 1)
-            ->where('stats.months.4', 1));
+            ->where('stats.months.4', 1)
+            ->where('stats.comeback', false)
+            ->has('stats.hourCounts', 24));
 });
 
 it('describes the review to search engines and link previews', function (): void {

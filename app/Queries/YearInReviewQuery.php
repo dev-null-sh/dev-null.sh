@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\DB;
 /**
  * A profile's year in numbers: posts, stars, streaks and community growth.
  *
- * @phpstan-type YearInReview array{year: int, commits: int, replies: int, starsEarned: int, followersGained: int, activeDays: int, longestStreak: int, months: list<int>, weekdays: list<int>, dayCounts: array<string, int>, topCommit: array{id: string, body: string, stars: int}|null}
+ * @phpstan-type YearInReview array{year: int, commits: int, replies: int, starsEarned: int, followersGained: int, activeDays: int, longestStreak: int, months: list<int>, weekdays: list<int>, hourCounts: list<int>, comeback: bool, dayCounts: array<string, int>, topCommit: array{id: string, body: string, stars: int}|null}
  */
 final readonly class YearInReviewQuery
 {
@@ -56,6 +56,12 @@ final readonly class YearInReviewQuery
             $weekdays[(int) $dow] = (int) $total;
         }
 
+        $hourCounts = array_fill(0, 24, 0);
+
+        foreach ((clone $commits)->selectRaw('extract(hour from commits.created_at) as hour, count(*) as total')->groupBy('hour')->pluck('total', 'hour') as $hour => $total) {
+            $hourCounts[(int) $hour] = (int) $total;
+        }
+
         return [
             'year' => $year,
             'commits' => (clone $commits)->whereNull('commits.parent_id')->count(),
@@ -66,6 +72,8 @@ final readonly class YearInReviewQuery
             'longestStreak' => $this->longestRun($days),
             'months' => $months,
             'weekdays' => $weekdays,
+            'hourCounts' => $hourCounts,
+            'comeback' => $this->hasComeback($days),
             'dayCounts' => $dayCounts,
             'topCommit' => $top === null ? null : [
                 'id' => $top->id,
@@ -73,6 +81,37 @@ final readonly class YearInReviewQuery
                 'stars' => (int) $top->stars_count,
             ],
         ];
+    }
+
+    /**
+     * A 7-plus day streak that starts after a 30-plus day silence.
+     *
+     * @param  list<string>  $days  Ordered Y-m-d dates with at least one commit.
+     */
+    private function hasComeback(array $days): bool
+    {
+        $run = 0;
+        $gap = 0;
+        $previous = null;
+
+        foreach ($days as $day) {
+            $current = CarbonImmutable::parse($day);
+
+            if ($previous !== null && $current->diffInDays($previous) === 1) {
+                $run++;
+            } else {
+                $gap = $previous === null ? 0 : $current->diffInDays($previous);
+                $run = 1;
+            }
+
+            if ($run >= 7 && $gap >= 30) {
+                return true;
+            }
+
+            $previous = $current;
+        }
+
+        return false;
     }
 
     /**

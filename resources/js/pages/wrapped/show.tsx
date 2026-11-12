@@ -23,6 +23,8 @@ type WrappedStats = {
     longestStreak: number;
     months: number[];
     weekdays: number[];
+    hourCounts: number[];
+    comeback: boolean;
     dayCounts: Record<string, number>;
     topCommit: { id: string; body: string; stars: number } | null;
 };
@@ -102,40 +104,89 @@ const MONTHS = [
 function archetype(stats: WrappedStats): { name: string; quip: string } {
     if (stats.commits === 0) {
         return {
-            name: 'Ghost in the Machine',
-            quip: 'Present in spirit. The commits will come.',
+            name: 'The Ghost',
+            quip: 'You were here. Git remembers.',
         };
     }
-    if (stats.longestStreak >= 30) {
+
+    const total = stats.commits + stats.replies;
+    const night =
+        (stats.hourCounts[22] ?? 0) +
+        (stats.hourCounts[23] ?? 0) +
+        stats.hourCounts.slice(0, 6).reduce((sum, count) => sum + count, 0);
+
+    if (night / total >= 0.4) {
         return {
-            name: 'Streak Machine',
-            quip: 'A month straight of shipping without blinking.',
+            name: 'Night Owl',
+            quip: 'Your best ideas apparently do not believe in business hours.',
         };
     }
-    if (stats.starsEarned >= 100) {
+
+    const weekend = (stats.weekdays[0] ?? 0) + (stats.weekdays[6] ?? 0);
+
+    if (weekend / total >= 0.45) {
         return {
-            name: 'Star Magnet',
-            quip: 'People keep starring whatever you touch.',
+            name: 'Weekend Warrior',
+            quip: 'While everyone else logged off, you logged commits.',
         };
     }
-    if (stats.replies > stats.commits) {
+
+    if (stats.comeback) {
         return {
-            name: 'Conversation Starter',
-            quip: 'Your best work happens in other people\u2019s threads.',
+            name: 'The Comeback Kid',
+            quip: 'Quiet periods are just intermissions.',
         };
     }
-    if (stats.followersGained >= 25) {
+
+    if (stats.starsEarned >= 100 || stats.followersGained >= 25) {
         return {
-            name: 'Rising Star',
-            quip: 'The follower graph noticed before you did.',
+            name: 'Main Character Energy',
+            quip: 'Somehow, your repositories are the plot.',
         };
     }
+
+    if (stats.replies > stats.commits && stats.replies >= 5) {
+        return {
+            name: 'Merge Overlord',
+            quip: 'Nothing gets merged without your blessing.',
+        };
+    }
+
+    if (stats.activeDays >= 200) {
+        return {
+            name: 'The Green Square Addict',
+            quip: 'Those contribution squares are not going to fill themselves.',
+        };
+    }
+
+    if (stats.longestStreak >= 14) {
+        return {
+            name: 'One More Commit',
+            quip: 'You said that three hours ago.',
+        };
+    }
+
+    if (stats.activeDays >= 100) {
+        return {
+            name: 'The Infinite Loop',
+            quip: 'Start coding. Forget time. Repeat.',
+        };
+    }
+
     if (stats.commits >= 100) {
         return {
-            name: 'Ship-it Machine',
-            quip: 'Triple digits. Rest, then keep shipping.',
+            name: '404: Free Time Not Found',
+            quip: 'Your calendar has been replaced by commits.',
         };
     }
+
+    if (stats.replies <= 2) {
+        return {
+            name: 'The Silent Shipper',
+            quip: 'No noise. Just output.',
+        };
+    }
+
     return {
         name: 'Steady Builder',
         quip: 'Brick by brick. That is how codebases get built.',
@@ -143,7 +194,7 @@ function archetype(stats: WrappedStats): { name: string; quip: string } {
 }
 
 function buildInsights(stats: WrappedStats): string[] {
-    const total = stats.months.reduce((sum, count) => sum + count, 0);
+    const total = stats.commits + stats.replies;
 
     if (total === 0) {
         return ['No commits this year. The graph is a blank canvas.'];
@@ -151,16 +202,37 @@ function buildInsights(stats: WrappedStats): string[] {
 
     const best = stats.months.indexOf(Math.max(...stats.months));
     const weekend = (stats.weekdays[0] ?? 0) + (stats.weekdays[6] ?? 0);
+    const night =
+        (stats.hourCounts[22] ?? 0) +
+        (stats.hourCounts[23] ?? 0) +
+        stats.hourCounts.slice(0, 6).reduce((sum, count) => sum + count, 0);
 
-    return [
+    const insights = [
         `Most productive month: ${MONTHS[best]} with ${stats.months[best]} commits.`,
         weekend / total >= 0.4
             ? 'Weekend warrior: nearly half your commits land on Sat/Sun.'
             : 'Weekday grinder: evenings and weekends stay yours.',
+    ];
+
+    if (night / total >= 0.25) {
+        insights.push(
+            `Night shift: ${Math.round((night / total) * 100)} percent of commits landed between 10pm and 6am.`,
+        );
+    }
+
+    if (stats.comeback) {
+        insights.push(
+            'Comeback season: a 7-plus day streak after a month away.',
+        );
+    }
+
+    insights.push(
         stats.replies > stats.commits
             ? 'You reply more than you post. Threads love you.'
             : 'You post more than you reply. A builder first.',
-    ];
+    );
+
+    return insights;
 }
 
 function YearHeatmap({
