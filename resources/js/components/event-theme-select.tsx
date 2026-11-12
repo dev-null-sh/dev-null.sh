@@ -18,6 +18,7 @@ export default function EventThemeSelect() {
     const { eventThemeChoice } = usePage().props;
     const { appearance, updateAppearance } = useAppearance();
     const { picked, pick } = usePicked<string>();
+    const saving = picked !== null;
     const selected = picked ?? eventThemeChoice;
 
     const show = (value: string): Promise<void> =>
@@ -28,11 +29,12 @@ export default function EventThemeSelect() {
         }, 'theme');
 
     const select = (value: string): void => {
-        if (value === selected) {
+        // One save at a time, so a failure always rolls back to the choice the account has.
+        if (saving || value === selected) {
             return;
         }
 
-        const previous = selected;
+        const previous = eventThemeChoice;
         const done = pick(value);
         const rollBack = () => {
             void show(previous);
