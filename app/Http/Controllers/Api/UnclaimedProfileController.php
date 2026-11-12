@@ -8,6 +8,7 @@ use App\Http\Requests\ShowApiUnclaimedProfileRequest;
 use App\Models\Profile;
 use App\Models\User;
 use App\Queries\PendingFollowsQuery;
+use App\Queries\UnclaimedProfileMentionCountQuery;
 use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Http\JsonResponse;
 
@@ -15,9 +16,10 @@ final readonly class UnclaimedProfileController
 {
     /**
      * A developer looked up from GitHub who isn't on /dev/null yet, as their page on the web shows them, with how many
-     * members wait to follow them. A signed request also gets whether its user waits, and who they follow that does.
+     * members wait to follow them and how many commits mention them. A signed request also gets whether its user waits,
+     * and who they follow that does.
      */
-    public function show(ShowApiUnclaimedProfileRequest $request, #[CurrentUser] ?User $user, PendingFollowsQuery $pendingFollows): JsonResponse
+    public function show(ShowApiUnclaimedProfileRequest $request, #[CurrentUser] ?User $user, PendingFollowsQuery $pendingFollows, UnclaimedProfileMentionCountQuery $mentions): JsonResponse
     {
         $profile = $request->profile();
         assert($profile instanceof Profile);
@@ -25,6 +27,7 @@ final readonly class UnclaimedProfileController
         return response()->json([
             'data' => $profile->only(['id', 'handle', 'name', 'avatar_url', 'bio']),
             'waiting_count' => $pendingFollows->count($profile),
+            'mention_count' => $mentions->get($profile),
             'is_waiting' => $user instanceof User && $pendingFollows->isWaiting($profile, $user),
             'waiting_you_follow' => $user instanceof User ? $pendingFollows->youFollow($profile, $user) : [],
         ]);
