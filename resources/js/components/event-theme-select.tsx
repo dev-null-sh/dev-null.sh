@@ -34,6 +34,10 @@ export default function EventThemeSelect() {
 
         const previous = selected;
         const done = pick(value);
+        const rollBack = () => {
+            void show(previous);
+            toast.error('Could not save the event theme. Please try again.');
+        };
 
         // Saved on the account too, so the user's other browsers and apps follow it.
         void show(value).then(() => {
@@ -44,12 +48,9 @@ export default function EventThemeSelect() {
                     preserveScroll: true,
                     only: ['eventTheme', 'eventThemeChoice'],
                     onFinish: done,
-                    onError: () => {
-                        void show(previous);
-                        toast.error(
-                            'Could not save the event theme. Please try again.',
-                        );
-                    },
+                    onError: rollBack,
+                    onHttpException: rollBack,
+                    onNetworkError: rollBack,
                 },
             );
         });
