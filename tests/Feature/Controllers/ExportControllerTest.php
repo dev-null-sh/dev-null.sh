@@ -8,6 +8,7 @@ use App\Actions\CreateExport;
 use App\Actions\DeleteUser;
 use App\Actions\UpdateDevicePushToken;
 use App\Contracts\Services\TranslationProvider;
+use App\Enums\CommitType;
 use App\Enums\ModerationReason;
 use App\Enums\NotificationType;
 use App\Enums\OrganizationRole;
@@ -92,7 +93,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
     $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
 
     expect($data)->toBe([
-        'schema_version' => 8,
+        'schema_version' => 9,
         'exported_at' => now()->toIso8601String(),
         'profile' => [
             'github_id' => $user->github_id,
@@ -139,6 +140,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
         'polls' => [],
         'poll_votes' => [],
         'stars' => [],
+        'launch_boardings' => [],
         'following' => [],
         'followers' => [],
         'muting' => [],
@@ -259,6 +261,7 @@ it('exports all the signed-in users commits including replies, deleted ones, and
             'translated_at' => now()->getTimestampMs(),
         ],
         'status' => 'approved',
+        'type' => 'standard',
         'pasteis_count' => 3,
         'images' => [],
         'created_at' => $approved->created_at->toIso8601String(),
@@ -706,4 +709,17 @@ it('exports subscription metadata without delivery endpoints', function (): void
     $subscription = $user->pushSubscriptions()->create(['endpoint_hash' => 'browser', 'endpoint' => 'https://fcm.googleapis.com/wp/private']);
     $export = resolve(CreateExport::class)->handle($user);
     expect($export['push_subscriptions'])->toBe([['id' => $subscription->id]]);
+});
+
+it('exports only the users launch boardings and includes the launch commit type', function (): void {
+    $user = User::factory()->create();
+    $launch = Commit::factory()->create(['type' => CommitType::Launch]);
+    $own = Commit::factory()->for($user)->create(['type' => CommitType::Launch]);
+    $launch->launchPassengers()->attach($user, ['created_at' => now()]);
+    $own->launchPassengers()->attach(User::factory()->create(), ['created_at' => now()]);
+
+    $response = $this->actingAs($user)->get(route('export'))->assertOk();
+    $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
+    expect($data['launch_boardings'])->toBe([['commit_id' => $launch->id, 'boarded_at' => now()->toIso8601String()]])
+        ->and($data['commits'][0]['type'])->toBe('launch');
 });

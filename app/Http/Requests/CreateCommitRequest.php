@@ -6,6 +6,7 @@ namespace App\Http\Requests;
 
 use App\Actions\CreateCommitImages;
 use App\Dto\NewPoll;
+use App\Enums\CommitType;
 use App\Enums\PollDuration;
 use App\Models\Commit;
 use App\Models\Organization;
@@ -90,6 +91,7 @@ final class CreateCommitRequest extends FormRequest
 
         return [
             'body' => self::bodyRules($this->hasFile('images')),
+            'type' => ['sometimes', Rule::enum(CommitType::class)],
             'author' => ['nullable', 'string', new OrganizationToPostAs($user)],
             'quoted_commit_id' => ['nullable', 'uuid', 'prohibits:parent_id', new VisibleCommit($user, 'That commit is no longer available to quote.')],
             'link_preview_url' => ['nullable', 'string', Rule::in(is_string($body) ? resolve(Urls::class)->all($body) : [])],

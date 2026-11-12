@@ -20,6 +20,10 @@ import {
     PreviewToggle,
     useComposerPreview,
 } from '@/components/composer-preview';
+import {
+    ComposerShipit,
+    useComposerShipit,
+} from '@/components/composer-shipit';
 import { EmojiPickerButton } from '@/components/emoji-picker';
 import { GraphRail, RailAvatar } from '@/components/graph-rail';
 import InputError from '@/components/input-error';
@@ -110,6 +114,7 @@ function CommitComposerBody({
     isSubmittable,
     processing,
     issue,
+    shipit,
     errors,
     onKeyDown,
     drop,
@@ -129,6 +134,7 @@ function CommitComposerBody({
     isSubmittable: boolean;
     processing: boolean;
     issue: UseIssueCommandReturn;
+    shipit: ReturnType<typeof useComposerShipit>;
     errors: Record<string, string>;
     onKeyDown: (event: KeyboardEvent<HTMLTextAreaElement>) => void;
     drop: () => void;
@@ -282,11 +288,15 @@ function CommitComposerBody({
                             name="body"
                             rows={1}
                             value={body}
-                            onValueChange={issue.change}
+                            onValueChange={(value) => {
+                                if (isIssue || !shipit.change(value))
+                                    issue.change(value);
+                            }}
                             onPaste={
                                 poll === null ? attachments.onPaste : undefined
                             }
                             onKeyDown={(event) =>
+                                (!isIssue && shipit.handleKeyDown(event)) ||
                                 preview.handleShortcut(event) ||
                                 onKeyDown(event)
                             }
@@ -335,6 +345,18 @@ function CommitComposerBody({
                             />
                         )}
                     </div>
+
+                    {shipit.isCommand && (
+                        <p className="py-1 font-mono text-[11px] text-muted-foreground">
+                            Press Enter to set sail.
+                        </p>
+                    )}
+                    {shipit.isLaunch && (
+                        <>
+                            <input type="hidden" name="type" value="launch" />
+                            <ComposerShipit onCancel={shipit.reset} />
+                        </>
+                    )}
 
                     {issue.hint && (
                         <IssueCommandHint
@@ -506,7 +528,9 @@ function CommitComposerBody({
                                             aria-label="Schedule"
                                             aria-expanded={isScheduling}
                                             aria-controls={`${id}-schedule`}
-                                            disabled={processing}
+                                            disabled={
+                                                processing || shipit.isLaunch
+                                            }
                                             onClick={() => {
                                                 setTimezone(
                                                     Intl.DateTimeFormat().resolvedOptions()
@@ -573,7 +597,11 @@ function CommitComposerBody({
                         ) : (
                             <ActionTooltip
                                 label={
-                                    isScheduling ? 'Schedule commit' : 'Commit'
+                                    isScheduling
+                                        ? 'Schedule commit'
+                                        : shipit.isLaunch
+                                          ? 'Ship it'
+                                          : 'Commit'
                                 }
                                 shortcut={keys.combo(keys.mod, keys.enter)}
                             >
@@ -588,8 +616,12 @@ function CommitComposerBody({
                                             ? 'Scheduling…'
                                             : 'Schedule commit'
                                         : processing
-                                          ? 'Committing…'
-                                          : 'Commit'}
+                                          ? shipit.isLaunch
+                                              ? 'Shipping…'
+                                              : 'Committing…'
+                                          : shipit.isLaunch
+                                            ? 'Ship it'
+                                            : 'Commit'}
                                 </Button>
                             </ActionTooltip>
                         )}
@@ -622,6 +654,7 @@ export function CommitComposer({
     const [draftVersion, setDraftVersion] = useState(0);
     const drop = () => {
         stash.drop();
+        shipit.reset();
         linkCard.reset();
         setDraftVersion((version) => version + 1);
     };
@@ -634,6 +667,17 @@ export function CommitComposer({
     const [poll, setPoll] = useState<PollDraft | null>(null);
     const commitRules = useCommitRules();
     const isPosting = useRef(false);
+    const shipit = useComposerShipit({
+        body,
+        updateBody: stash.updateBody,
+        stashKey: stash.key,
+        enabled: initialIssue === null,
+        onLaunch: () => setIsScheduling(false),
+    });
+
+    useEffect(() => {
+        if (shipit.isLaunch) setIsScheduling(false);
+    }, [shipit.isLaunch, setIsScheduling]);
 
     const hasImages = attachments.images.length > 0;
     const issue = useIssueCommand({
@@ -643,7 +687,8 @@ export function CommitComposer({
             !attachments.reading &&
             !hasImages &&
             poll === null &&
-            !isScheduling,
+            !isScheduling &&
+            !shipit.isLaunch,
         initialKind: initialIssue,
         onCreated: () => {
             drop();
@@ -701,6 +746,9 @@ export function CommitComposer({
     return (
         <Form
             className={cn({ 'flex min-h-0 flex-col': isInDialog })}
+            onSubmitCapture={(event) => {
+                if (issue.command === null) shipit.handleSubmit(event);
+            }}
             {...(isScheduling
                 ? ScheduledCommitController.store.form()
                 : CommitController.store.form())}
@@ -771,6 +819,7 @@ export function CommitComposer({
                         isSubmittable={isSubmittable}
                         processing={processing}
                         issue={issue}
+                        shipit={shipit}
                         errors={errors}
                         onKeyDown={onKeyDown}
                         drop={drop}

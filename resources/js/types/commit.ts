@@ -2,6 +2,7 @@ import type { User } from '@/types/auth';
 import type { Organization } from '@/types/organization';
 
 export type CommitStatus = 'pending' | 'approved' | 'rejected';
+export type CommitType = 'standard' | 'launch';
 
 export type EmbedKind = 'video' | 'audio' | 'code';
 
@@ -89,6 +90,7 @@ export type Commit = {
     parent_id: string | null;
     hot_score: number;
     body: string;
+    type?: CommitType;
     mentions: Record<string, string> | null;
     organization_mentions?: Record<string, string> | null;
     body_segments: BodySegment[];

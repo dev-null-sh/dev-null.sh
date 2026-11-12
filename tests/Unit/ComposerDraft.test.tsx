@@ -89,6 +89,8 @@ const { LinkCardPicker } =
 const { PollEditor } =
     await import('../../resources/js/components/poll-editor');
 const { GraphRail } = await import('../../resources/js/components/graph-rail');
+const { refreshSharedState } =
+    await import('../../resources/js/hooks/use-shared-state');
 
 type Element = ReactElement<Record<string, unknown>>;
 
@@ -765,6 +767,55 @@ test('turning scheduling off clears the chosen time and commits now', () => {
 
     (find('aria-controls', 'body-schedule')!.props.onClick as () => void)();
     assert.equal(find('id', 'body-scheduled-at')!.props.value, '');
+});
+
+test('a launch selected in another composer cancels this composer’s schedule', () => {
+    const launchKey = `${draft.key}:launch`;
+    const immediateAction = render().form.props.action;
+    const toggle = render().fields.find(
+        (element) => element.props['aria-controls'] === 'body-schedule',
+    )!;
+    (toggle.props.onClick as () => void)();
+    assert.notEqual(render().form.props.action, immediateAction);
+
+    try {
+        refreshSharedState(new Map([[launchKey, true]]));
+        effects = [];
+        render();
+        effects.forEach((effect) => effect());
+
+        const view = render();
+        assert.equal(view.form.props.action, immediateAction);
+        assert.equal(
+            view.fields.some(
+                (element) => element.props.id === 'body-scheduled-at',
+            ),
+            false,
+        );
+        assert.ok(
+            view.fields.some(
+                (element) =>
+                    element.props.name === 'type' &&
+                    element.props.value === 'launch',
+            ),
+        );
+        assert.equal(
+            view.fields.find(
+                (element) =>
+                    element.props['aria-controls'] === 'body-schedule',
+            )!.props.disabled,
+            true,
+        );
+        assert.equal(
+            'scheduled_at' in view.form.props.transform({ body: draft.body }),
+            false,
+        );
+
+        refreshSharedState(new Map([[launchKey, false]]));
+        assert.equal(render().form.props.action, immediateAction);
+    } finally {
+        refreshSharedState(new Map([[launchKey, false]]));
+    }
 });
 
 test('picker clears its selection before a pending read finishes so the same file can be retried', async () => {

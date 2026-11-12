@@ -9,6 +9,7 @@ use App\Actions\DeleteUser;
 use App\Actions\UpdateCommitHotScores;
 use App\Contracts\Services\TranslationProvider;
 use App\Dto\ThreadEngagement;
+use App\Enums\CommitType;
 use App\Enums\OrganizationRole;
 use App\Models\Commit;
 use App\Models\CommitImage;
@@ -473,4 +474,15 @@ it('erases browser push subscriptions with the account', function (): void {
     PushSubscription::factory()->create(['user_id' => $user->id]);
     resolve(DeleteUser::class)->handle($user);
     expect(PushSubscription::query()->count())->toBe(0);
+});
+
+it('erases launch boardings with the account and preserves other passengers', function (): void {
+    $user = User::factory()->create();
+    $other = User::factory()->create();
+    $launch = Commit::factory()->create(['type' => CommitType::Launch]);
+    $launch->launchPassengers()->attach([$user->id => ['created_at' => now()], $other->id => ['created_at' => now()]]);
+
+    resolve(DeleteUser::class)->handle($user);
+
+    expect($launch->launchPassengers()->pluck('users.id')->all())->toBe([$other->id]);
 });

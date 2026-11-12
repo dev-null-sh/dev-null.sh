@@ -6,6 +6,7 @@ import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import CommitLinkPreviewController from '@/actions/App/Http/Controllers/CommitLinkPreviewController';
 import { FoldedCommitBody } from '@/components/commit-body';
 import { CommitImages } from '@/components/commit-images';
+import { CommitLaunch } from '@/components/commit-launch';
 import { CommitPastelButton } from '@/components/commit-pastel-button';
 import { CommitPoll } from '@/components/commit-poll';
 import { CommitQuoteButton } from '@/components/commit-quote-button';
@@ -478,6 +479,9 @@ export function CommitCard({
                             </div>
                             {translation.notice}
                             {showImages && <CommitImages commit={commit} />}
+                            {commit.type === 'launch' && (
+                                <CommitLaunch commit={commit} />
+                            )}
                             {commit.poll && (
                                 <CommitPoll
                                     key={`${commit.poll.id}-${commit.poll.has_voted}-${commit.poll.total_votes}`}

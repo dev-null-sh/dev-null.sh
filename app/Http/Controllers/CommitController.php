@@ -8,6 +8,7 @@ use App\Actions\CreateCommit;
 use App\Actions\DeleteCommit;
 use App\Dto\ThreadContinuation;
 use App\Enums\CommitStatus;
+use App\Enums\CommitType;
 use App\Http\Requests\CreateCommitRequest;
 use App\Http\Requests\DeleteCommitRequest;
 use App\Http\Requests\ShowCommitRequest;
@@ -68,7 +69,7 @@ final readonly class CommitController
         $before = $achievements->unlockedBadgeNames($user);
 
         $organization = $request->organization();
-        $commit = $action->handle($user, $request->string('body')->value(), quotedCommit: $request->quotedCommit(), images: $request->images(), imageDescriptions: $request->imageDescriptions(), linkPreview: $request->linkPreview(), poll: $request->poll(), organization: $organization);
+        $commit = $action->handle($user, $request->string('body')->value(), quotedCommit: $request->quotedCommit(), images: $request->images(), imageDescriptions: $request->imageDescriptions(), linkPreview: $request->linkPreview(), poll: $request->poll(), organization: $organization, type: $request->enum('type', CommitType::class) ?? CommitType::Standard);
 
         $unlocked = $achievements->unlockedBadgeNames($user)->diff($before)->values();
 

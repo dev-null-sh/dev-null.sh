@@ -45,6 +45,7 @@ use Traversable;
  *     polls: Generator<int, ExportPoll>,
  *     poll_votes: Generator<int, ExportPollVote>,
  *     stars: Generator<int, string>,
+ *     launch_boardings: Generator<int, array{commit_id: string, boarded_at: string}>,
  *     following: Generator<int, ExportUser>,
  *     followers: Generator<int, ExportUser>,
  *     muting: Generator<int, ExportUser>,
@@ -76,7 +77,7 @@ final readonly class CreateExport
     public function handle(User $user): array
     {
         return [
-            'schema_version' => 8,
+            'schema_version' => 9,
             'exported_at' => now()->toIso8601String(),
             'profile' => [
                 'github_id' => $user->github_id,
@@ -123,6 +124,7 @@ final readonly class CreateExport
             'polls' => $this->polls($user),
             'poll_votes' => $this->pollVotes($user),
             'stars' => $this->stars($user),
+            'launch_boardings' => $this->launchBoardings($user),
             'following' => $this->handles($user->following()),
             'followers' => $this->handles($user->followers()),
             'muting' => $this->handles($user->muting()),
@@ -198,7 +200,7 @@ final readonly class CreateExport
     {
         $commits = $user->commits()
             ->withTrashed()
-            ->select(['id', 'parent_id', 'quoted_commit_id', 'body', 'status', 'pasteis_count', 'created_at', 'updated_at', 'deleted_at'])
+            ->select(['id', 'parent_id', 'quoted_commit_id', 'body', 'type', 'status', 'pasteis_count', 'created_at', 'updated_at', 'deleted_at'])
             ->with('images:id,commit_id')
             ->lazyById(500);
 
@@ -215,6 +217,7 @@ final readonly class CreateExport
                     'body' => $commit->body,
                     'cached_translations' => $cached[$translations->key($commit)],
                     'status' => $commit->status->value,
+                    'type' => $commit->type->value,
                     'pasteis_count' => $commit->pasteis_count,
                     'images' => $commit->images->map(fn (CommitImage $image): string => $image->url())->all(),
                     'created_at' => $commit->created_at->toIso8601String(),
@@ -248,6 +251,7 @@ final readonly class CreateExport
                 'quoted_commit_id' => $commit->quoted_commit_id,
                 'body' => $commit->body,
                 'status' => $commit->status->value,
+                'type' => $commit->type->value,
                 'images' => $commit->images->map(fn (CommitImage $image): string => $image->url())->all(),
                 'created_at' => $commit->created_at->toIso8601String(),
                 'deleted_at' => $commit->deleted_at?->toIso8601String(),
@@ -328,6 +332,20 @@ final readonly class CreateExport
 
         foreach ($stars as $star) {
             yield $star->commit_id;
+        }
+    }
+
+    /**
+     * @return Generator<int, array{commit_id: string, boarded_at: string}>
+     */
+    private function launchBoardings(User $user): Generator
+    {
+        /** @var LazyCollection<int, object{commit_id: string, created_at: string}> $boardings */
+        $boardings = DB::table('launch_passengers')->where('user_id', $user->id)
+            ->select(['commit_id', 'created_at'])->lazyById(500, 'commit_id');
+
+        foreach ($boardings as $boarding) {
+            yield ['commit_id' => $boarding->commit_id, 'boarded_at' => CarbonImmutable::parse($boarding->created_at)->toIso8601String()];
         }
     }
 

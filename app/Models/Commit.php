@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Enums\CommitStatus;
+use App\Enums\CommitType;
 use App\Queries\CommitBuilder;
 use App\Services\CommitBodies;
 use App\Services\Mentions;
@@ -31,6 +32,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read string|null $root_id
  * @property-read float $hot_score
  * @property-read string $body
+ * @property-read CommitType $type
  * @property-read array<string, string>|null $mentions
  * @property-read array<string, string>|null $organization_mentions
  * @property-read CommitStatus $status
@@ -103,6 +105,7 @@ final class Commit extends Model
      */
     protected $attributes = [
         'pasteis_count' => 0,
+        'type' => CommitType::Standard->value,
     ];
 
     /**
@@ -124,6 +127,7 @@ final class Commit extends Model
             'hot_score' => 'float',
             'pasteis_count' => 'integer',
             'body' => 'string',
+            'type' => CommitType::class,
             'mentions' => 'array',
             'organization_mentions' => 'array',
             'status' => CommitStatus::class,
@@ -187,6 +191,14 @@ final class Commit extends Model
     public function stars(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'stars')->withTimestamps();
+    }
+
+    /**
+     * @return BelongsToMany<User, $this>
+     */
+    public function launchPassengers(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'launch_passengers')->withPivot('created_at');
     }
 
     /**
