@@ -39,6 +39,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read CommitStatus|null $ai_decision
  * @property-read list<string>|null $ai_categories
  * @property-read list<float>|null $embedding
+ * @property-read CarbonInterface|null $approved_at
  * @property-read CarbonInterface|null $headlines_classified_at
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
@@ -68,6 +69,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
     'ai_decision',
     'ai_categories',
     'embedding',
+    'feed_at',
     'headlines_classified_at',
 ])]
 #[UseEloquentBuilder(CommitBuilder::class)]
@@ -132,6 +134,7 @@ final class Commit extends Model
             'ai_decision' => CommitStatus::class,
             'ai_categories' => 'array',
             'embedding' => AsVector::class,
+            'approved_at' => 'datetime',
             'headlines_classified_at' => 'datetime',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',

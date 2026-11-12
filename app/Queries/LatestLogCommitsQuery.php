@@ -7,6 +7,7 @@ namespace App\Queries;
 use App\Enums\Log;
 use App\Models\Commit;
 use App\Models\User;
+use Carbon\CarbonInterface;
 
 /**
  * A ranked log does not put new commits on top, so it does not offer them either: they belong to the Latest log. The
@@ -17,14 +18,14 @@ final readonly class LatestLogCommitsQuery
     /**
      * Counts what is newer than the commit, or everything for a log that showed nothing yet.
      */
-    public function count(Log $log, ?User $user, ?Commit $since): int
+    public function count(Log $log, ?User $user, ?Commit $since, ?CarbonInterface $sinceAt = null): int
     {
         if ($log->isRanked()) {
             return 0;
         }
 
         return $log->query()->builder($user)
-            ->when($since, fn (CommitBuilder $query, Commit $since): CommitBuilder => $query->newerThan($since))
+            ->when($since, fn (CommitBuilder $query, Commit $since): CommitBuilder => $query->newerThan($since, $sinceAt))
             // The user's own commits aren't news to them, nor are their organizations', as the log's page tells them apart.
             ->when($user, fn (CommitBuilder $query, User $user): CommitBuilder => $query
                 ->where($query->qualifyColumn('author_id'), '!=', $user->id)
@@ -38,7 +39,7 @@ final readonly class LatestLogCommitsQuery
      * means commits were removed or placed in between, even when as many left as arrived. A ranked log has none, as
      * it is never reshaped while read.
      */
-    public function window(Log $log, ?User $user, ?Commit $oldest, ?Commit $newest): ?string
+    public function window(Log $log, ?User $user, ?Commit $oldest, ?Commit $newest, ?CarbonInterface $oldestAt = null, ?CarbonInterface $newestAt = null): ?string
     {
         if ($log->isRanked() || ! $oldest instanceof Commit || ! $newest instanceof Commit) {
             return null;
@@ -46,8 +47,8 @@ final readonly class LatestLogCommitsQuery
 
         /** @var list<string> $ids */
         $ids = $log->query()->builder($user)
-            ->where(fn (CommitBuilder $query): CommitBuilder => $query->newerThan($oldest)->orWhere('commits.id', $oldest->id))
-            ->whereNot(fn (CommitBuilder $query): CommitBuilder => $query->newerThan($newest))
+            ->where(fn (CommitBuilder $query): CommitBuilder => $query->newerThan($oldest, $oldestAt)->orWhere('commits.id', $oldest->id))
+            ->whereNot(fn (CommitBuilder $query): CommitBuilder => $query->newerThan($newest, $newestAt))
             ->toBase()
             ->reorder()
             ->pluck('commits.id')
@@ -82,7 +83,7 @@ final readonly class LatestLogCommitsQuery
      * @param  list<string>  $ids
      * @return list<string>
      */
-    public function arrived(Log $log, ?User $user, array $ids, ?Commit $through): array
+    public function arrived(Log $log, ?User $user, array $ids, ?Commit $through, ?CarbonInterface $throughAt = null): array
     {
         if ($ids === [] || $log->isRanked() || ! $through instanceof Commit) {
             return [];
@@ -90,7 +91,7 @@ final readonly class LatestLogCommitsQuery
 
         $arrived = $log->query()->builder($user)
             ->whereKey($ids)
-            ->where('commits.created_at', '>=', $through->created_at)
+            ->whereRaw('coalesce(commits.approved_at, commits.created_at) >= ?', [$throughAt ?? $through->approved_at ?? $through->created_at])
             ->toBase()->select('commits.id')->reorder()->pluck('commits.id');
 
         return array_values(array_filter($ids, fn (string $id): bool => $arrived->contains($id)));

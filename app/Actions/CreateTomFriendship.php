@@ -73,6 +73,7 @@ final readonly class CreateTomFriendship
                 'user_id' => $tom->id,
                 'body' => 'Welcome to dev/null!',
                 'status' => CommitStatus::Approved,
+                'approved_at' => now(),
             ]);
 
             return $tom;
