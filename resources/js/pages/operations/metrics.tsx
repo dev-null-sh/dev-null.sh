@@ -998,6 +998,7 @@ const APP_SERIES = [
     { key: 'native_mobile_app', label: 'mobile', color: 'var(--app-mobile)' },
     { key: 'mac_app', label: 'mac', color: 'var(--app-mac)' },
     { key: 'other_app', label: 'other', color: 'var(--app-other)' },
+    { key: 'lite_mobile_app', label: 'lite', color: 'var(--app-lite)' },
 ] as const;
 
 /**
@@ -1014,7 +1015,7 @@ function AppUsageChart({
     const { days, recorded_since: recordedSince } = usage;
 
     return (
-        <div className="space-y-3 [--app-mac:#1baf7a] [--app-mobile:#eb6834] [--app-other:#eda100] [--app-web:#2a78d6] dark:[--app-mac:#199e70] dark:[--app-mobile:#d95926] dark:[--app-other:#c98500] dark:[--app-web:#3987e5]">
+        <div className="space-y-3 [--app-lite:#e87ba4] [--app-mac:#1baf7a] [--app-mobile:#eb6834] [--app-other:#eda100] [--app-web:#2a78d6] dark:[--app-lite:#d55181] dark:[--app-mac:#199e70] dark:[--app-mobile:#d95926] dark:[--app-other:#c98500] dark:[--app-web:#3987e5]">
             <ul className="flex flex-wrap gap-x-4 gap-y-1 font-mono text-xs text-muted-foreground">
                 {APP_SERIES.map((app) => (
                     <li key={app.key} className="flex items-center gap-1.5">

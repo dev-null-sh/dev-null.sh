@@ -82,6 +82,16 @@ it('scopes commits to pending ones', function (): void {
     expect(Commit::query()->pending()->sole()->is($pending))->toBeTrue();
 });
 
+it('scopes commits to the pending ones the ai checked or gave up on', function (): void {
+    Commit::factory()->pending()->create(['created_at' => now()->subMinutes(Commit::CHECKING_MINUTES - 1)]);
+    $givenUpOn = Commit::factory()->pending()->create(['created_at' => now()->subMinutes(Commit::CHECKING_MINUTES)]);
+    $checked = Commit::factory()->pending()->checkedByAi()->create();
+    Commit::factory()->checkedByAi()->create();
+
+    expect(Commit::query()->awaitingModerator()->pluck('id')->sort()->values()->all())
+        ->toBe(collect([$givenUpOn->id, $checked->id])->sort()->values()->all());
+});
+
 it('scopes commits to top-level ones', function (): void {
     $parent = Commit::factory()->create();
     Commit::factory()->for($parent, 'parent')->create();

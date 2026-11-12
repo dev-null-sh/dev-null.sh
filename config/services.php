@@ -27,6 +27,11 @@ return [
         'api_token' => env('CLOUDFLARE_TURN_API_TOKEN'),
     ],
 
+    'cloudflare_turnstile' => [
+        'site_key' => env('CLOUDFLARE_TURNSTILE_SITE_KEY'),
+        'secret_key' => env('CLOUDFLARE_TURNSTILE_SECRET_KEY'),
+    ],
+
     'fathom' => [
         'token' => env('FATHOM_API_TOKEN'),
         'site_id' => env('FATHOM_SITE_ID', 'HTQONOPD'),
@@ -37,6 +42,7 @@ return [
         'client_id' => env('GITHUB_CLIENT_ID'),
         'client_secret' => env('GITHUB_CLIENT_SECRET'),
         'redirect' => env('GITHUB_REDIRECT_URI', '/auth/github/callback'),
+        'sponsors_token' => env('GITHUB_SPONSORS_TOKEN'),
     ],
 
     'github_app' => [

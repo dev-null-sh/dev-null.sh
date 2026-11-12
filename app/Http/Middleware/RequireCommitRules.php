@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Middleware;
 
+use App\Contracts\Services\HumanVerificationProvider;
 use App\Enums\ApiErrorCode;
 use App\Exceptions\ApiException;
 use App\Models\User;
@@ -14,6 +15,8 @@ use Symfony\Component\HttpFoundation\Response;
 
 final readonly class RequireCommitRules
 {
+    public function __construct(private HumanVerificationProvider $humanVerification) {}
+
     /**
      * A first-time poster reads the commit rules on the web before their first commit, so it has to come from the web
      * composer, which says they read them. After that, they can commit from anywhere.
@@ -32,6 +35,14 @@ final readonly class RequireCommitRules
         $fromWeb = ! $request->is('api/*');
 
         if ($fromWeb && $request->boolean('commit_rules_accepted')) {
+            $token = $request->input('human_verification_token');
+
+            if (! is_string($token) || ! $this->humanVerification->isHuman($token)) {
+                throw ValidationException::withMessages([
+                    'body' => __('Confirm that you are human first: reload the page and commit again.'),
+                ]);
+            }
+
             $user->update(['commit_rules_accepted_at' => now()]);
 
             return $next($request);

@@ -20,6 +20,23 @@
             })();
         </script>
         <style>
+            @font-face {
+                font-family: 'Geist';
+                font-weight: 400;
+                src: url('fonts/Geist-Regular.ttf');
+            }
+
+            @font-face {
+                font-family: 'Geist';
+                font-weight: 600;
+                src: url('fonts/Geist-SemiBold.ttf');
+            }
+
+            @font-face {
+                font-family: 'Geist Mono';
+                src: url('fonts/GeistMono-Regular.ttf');
+            }
+
             :root {
                 --background: #f6f7f8;
                 --foreground: #121417;
@@ -35,11 +52,11 @@
             html.dark {
                 --background: #111112;
                 --foreground: #ececec;
-                --muted-foreground: #9a9ca3;
-                --primary: #6b93ec;
-                --primary-hover: #5a84e3;
-                --primary-foreground: #0b0b0c;
-                --rail: #2b2c30;
+                --muted-foreground: #a1a1a6;
+                --primary: #7aa2f7;
+                --primary-hover: #94b5f9;
+                --primary-foreground: #111112;
+                --rail: #36363a;
                 --accent: #ff8a4c;
                 color-scheme: dark;
             }
@@ -265,7 +282,7 @@
         </main>
         <script>
             function retry() {
-                location.replace('https://dev-null.sh/');
+                window.Capacitor.Plugins.Session.renew();
             }
 
             addEventListener('online', retry);

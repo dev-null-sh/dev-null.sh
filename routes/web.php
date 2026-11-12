@@ -61,6 +61,7 @@ use App\Http\Controllers\FailedJobsController;
 use App\Http\Controllers\FeatureController;
 use App\Http\Controllers\ForecastController;
 use App\Http\Controllers\HeadlineController;
+use App\Http\Controllers\HumanVerificationController;
 use App\Http\Controllers\InboxController;
 use App\Http\Controllers\IssueController;
 use App\Http\Controllers\IssueSuggestionController;
@@ -163,6 +164,7 @@ use App\Http\Middleware\RequireCommitRules;
 use App\Http\Middleware\SerializePushSessions;
 use App\Http\Middleware\SerializePushSubscriptions;
 use App\Http\Middleware\ThrottleCommits;
+use App\Http\Middleware\ThrottleIssues;
 use App\Models\Profile;
 use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
 use Illuminate\Http\Request;
@@ -195,6 +197,11 @@ Route::middleware('guest')->group(function (): void {
     Route::get('auth/github/callback', [SessionController::class, 'store'])
         ->middleware('throttle:10,1')
         ->name('login.store');
+
+    Route::get('human-verification', [HumanVerificationController::class, 'show'])->name('human-verification.show');
+    Route::post('human-verification', [HumanVerificationController::class, 'store'])
+        ->middleware('throttle:10,1')
+        ->name('human-verification.store');
 
     // A link by email, for a guest on a phone who'd rather join from their computer...
     Route::post('join-links', [JoinLinkController::class, 'store'])
@@ -363,7 +370,7 @@ Route::get('headlines/{headline}', [HeadlineController::class, 'show'])
 
 Route::middleware('auth')->group(function (): void {
     Route::post('issues', [IssueController::class, 'store'])
-        ->middleware([PreventPostingInTimeout::class, 'throttle:10,1'])
+        ->middleware([PreventPostingInTimeout::class, 'throttle:10,1', ThrottleIssues::class])
         ->name('issue.store');
 
     // Session...

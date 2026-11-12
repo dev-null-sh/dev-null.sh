@@ -35,7 +35,7 @@ import { cn, laneColor } from '@/lib/utils';
 import { show } from '@/routes/user';
 import type { Message, OrgMember, OrgRef, OrgRole, User } from '@/types';
 
-export const maxMembers = 100;
+export const maxMembers = 256;
 
 const searchDebounce = 150;
 
