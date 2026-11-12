@@ -10,13 +10,9 @@ import type { ConversationSummary } from '@/types';
 export type RemoteAlertChannel = 'notifications' | 'sound' | 'offsite';
 
 export const REMOTE_SOUNDS = {
-    msn: { label: 'MSN Messenger', sources: ['/sounds/remote.mp3'] },
-    navi: {
-        label: 'Navi',
-        sources: ['/sounds/navi-hey.mp3', '/sounds/navi-listen.mp3'],
-    },
-    icq: { label: 'ICQ', sources: ['/sounds/icq.mp3'] },
-    aim: { label: 'AIM', sources: ['/sounds/aim.mp3'] },
+    msn: { label: 'MSN Messenger', source: '/sounds/remote.mp3' },
+    icq: { label: 'ICQ', source: '/sounds/icq.mp3' },
+    aim: { label: 'AIM', source: '/sounds/aim.mp3' },
 };
 
 export type RemoteSound = keyof typeof REMOTE_SOUNDS;
@@ -39,9 +35,7 @@ export function setRemoteSound(userId: string, sound: RemoteSound): boolean {
 }
 
 export function remoteSoundSource(sound: RemoteSound): string {
-    const sources = REMOTE_SOUNDS[sound].sources;
-
-    return sources[Math.floor(Math.random() * sources.length)];
+    return REMOTE_SOUNDS[sound].source;
 }
 
 export function remoteAlertsEnabled(
