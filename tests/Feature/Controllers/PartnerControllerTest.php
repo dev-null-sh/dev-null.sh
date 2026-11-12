@@ -24,6 +24,7 @@ it('describes the partners page to search engines and link previews', function (
         ->assertOk()
         ->assertSee('<title>Partners - /dev/null</title>', false)
         ->assertSee('<link rel="canonical" href="'.route('partner.index').'">', false)
+        ->assertSee(url('/images/partners/og.png'), false)
         ->assertSee('"@type":"WebPage"', false);
 });
 

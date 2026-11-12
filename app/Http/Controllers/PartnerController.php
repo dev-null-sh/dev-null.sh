@@ -15,10 +15,6 @@ final readonly class PartnerController
     {
         return Inertia::render('partner/index', [
             'tiers' => $partners->get(...),
-        ])->withViewData(['preview' => $metadata->page(
-            'Partners - /dev/null',
-            'The people and companies who sponsor /dev/null on GitHub, and where their money goes: hosting, AI, and getting the team together to build more.',
-            route('partner.index'),
-        )]);
+        ])->withViewData(['preview' => $metadata->partners()]);
     }
 }
