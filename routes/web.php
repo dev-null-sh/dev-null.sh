@@ -574,6 +574,10 @@ Route::middleware('auth')->group(function (): void {
     Route::post('remotes/@{partner:handle}/messages', [ConversationMessageController::class, 'store'])
         ->middleware([PreventPostingInTimeout::class, 'throttle:messages'])
         ->name('conversation-message.store');
+    Route::put('remotes/@{partner:handle}/messages/{message}', [ConversationMessageController::class, 'update'])
+        ->whereNumber('message')
+        ->middleware([PreventPostingInTimeout::class, 'throttle:messages'])
+        ->name('conversation-message.update');
     Route::get('remotes/@{partner:handle}/call/ice-servers', [ConversationCallIceServerController::class, 'index'])
         ->middleware('throttle:messages')
         ->name('conversation-call-ice-server.index');
@@ -599,6 +603,11 @@ Route::middleware('auth')->group(function (): void {
         ->whereUuid('org')
         ->middleware([PreventPostingInTimeout::class, 'throttle:messages'])
         ->name('org-message.store');
+    Route::put('remotes/orgs/{org}/messages/{message}', [OrgMessageController::class, 'update'])
+        ->whereUuid('org')
+        ->whereNumber('message')
+        ->middleware([PreventPostingInTimeout::class, 'throttle:messages'])
+        ->name('org-message.update');
 
     // Moderation...
     Route::get('moderation', [ModerationController::class, 'show'])->name('moderation.show');

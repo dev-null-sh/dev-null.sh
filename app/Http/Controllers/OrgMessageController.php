@@ -5,9 +5,12 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Actions\CreateMessage;
+use App\Actions\UpdateMessage;
 use App\Http\Requests\CreateOrgMessageRequest;
 use App\Http\Requests\ListOrgMessagesRequest;
+use App\Http\Requests\UpdateOrgMessageRequest;
 use App\Models\Conversation;
+use App\Models\Message;
 use App\Models\User;
 use App\Queries\ConversationThreadQuery;
 use Illuminate\Container\Attributes\CurrentUser;
@@ -39,5 +42,10 @@ final readonly class OrgMessageController
         );
 
         return response()->json(['message' => $message], 201);
+    }
+
+    public function update(UpdateOrgMessageRequest $request, Conversation $org, Message $message, UpdateMessage $action): JsonResponse
+    {
+        return response()->json(['message' => $action->handle($message, $request->string('body')->value())]);
     }
 }

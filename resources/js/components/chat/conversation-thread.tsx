@@ -69,6 +69,7 @@ import { useVoiceNote } from '@/hooks/use-voice-note';
 import {
     ChatRequestError,
     settleRequest,
+    editMessage,
     loadMessage,
     loadOlderMessages,
     markThreadRead,
@@ -1327,6 +1328,47 @@ function BubbleWithMeta({
         onReply !== null && bubble.kind === 'message'
             ? () => onReply(replyOf(bubble.message))
             : null;
+    const [isEditing, setIsEditing] = useState(false);
+    const [draft, setDraft] = useState('');
+    const [isSaving, setIsSaving] = useState(false);
+    // Read once per mount: the thread re-renders on every poll, which is plenty fresh for a three-minute window.
+    const [mountedAt] = useState(() => Date.now());
+    // The author gets three minutes after pushing, matching the server's edit window.
+    const canEdit =
+        isMine &&
+        bubble.kind === 'message' &&
+        bubble.message.body !== '' &&
+        bubble.message.event == null &&
+        bubble.message.voice == null &&
+        mountedAt - Date.parse(bubble.message.created_at) < 3 * 60 * 1000;
+    const startEditing = (): void => {
+        if (bubble.kind !== 'message') {
+            return;
+        }
+
+        setDraft(bubble.message.body);
+        setIsEditing(true);
+    };
+    const saveEdit = (): void => {
+        if (bubble.kind !== 'message' || isSaving) {
+            return;
+        }
+
+        const trimmed = draft.trim();
+
+        if (trimmed === '' || trimmed === bubble.message.body) {
+            setIsEditing(false);
+
+            return;
+        }
+
+        setIsSaving(true);
+
+        void editMessage(target, bubble.message.id, trimmed)
+            .then(() => setIsEditing(false))
+            .catch(() => toast.error('Could not save your edit. Try again.'))
+            .finally(() => setIsSaving(false));
+    };
     // Only org messages pin. Contributors see the pin of a pinned one, and can't press it.
     const pin =
         target.kind !== 'org' || bubble.kind !== 'message'
@@ -1386,6 +1428,7 @@ function BubbleWithMeta({
             isMine={isMine}
             onReply={replyToThis}
             onReact={toggleTray}
+            onEdit={canEdit && !isEditing ? startEditing : null}
             isReacting={isTrayOpen}
             reactRef={reactButton}
             trayId={trayId}
@@ -1477,10 +1520,54 @@ function BubbleWithMeta({
                             }
                             className={bubbleClass}
                         >
-                            <MessageText
-                                message={message}
-                                isMine={isOnPrimary}
-                            />
+                            {isEditing ? (
+                                <div className="min-w-48">
+                                    <textarea
+                                        value={draft}
+                                        onChange={(event) =>
+                                            setDraft(event.target.value)
+                                        }
+                                        onKeyDown={(event) => {
+                                            if (event.key === 'Escape') {
+                                                setIsEditing(false);
+                                            }
+                                        }}
+                                        maxLength={2000}
+                                        rows={3}
+                                        autoFocus
+                                        aria-label="Edit message"
+                                        data-test="edit-textarea"
+                                        className="w-full rounded-md border border-input bg-background px-2 py-1 text-sm text-foreground"
+                                    />
+                                    <div className="mt-1.5 flex gap-1.5">
+                                        <button
+                                            type="button"
+                                            onClick={saveEdit}
+                                            disabled={
+                                                isSaving || draft.trim() === ''
+                                            }
+                                            data-test="save-edit-button"
+                                            className="rounded-md bg-primary px-2 py-1 text-xs font-medium text-primary-foreground disabled:opacity-50"
+                                        >
+                                            Save
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsEditing(false)}
+                                            disabled={isSaving}
+                                            data-test="cancel-edit-button"
+                                            className="rounded-md border px-2 py-1 text-xs"
+                                        >
+                                            Cancel
+                                        </button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <MessageText
+                                    message={message}
+                                    isMine={isOnPrimary}
+                                />
+                            )}
                             {bubbleActions}
                         </div>
                     )}
@@ -1572,6 +1659,10 @@ function BubbleWithMeta({
                     {pulledBy.length > 0 && (
                         <PulledBy users={pulledBy} total={total} />
                     )}
+                    {bubble.kind === 'message' &&
+                        bubble.message.edited_at != null && (
+                            <span>(edited)</span>
+                        )}
                 </MetaLine>
             ) : (
                 isLast &&
@@ -1580,6 +1671,9 @@ function BubbleWithMeta({
                         <time dateTime={bubble.message.created_at}>
                             {formatClockTime(bubble.message.created_at)}
                         </time>
+                        {bubble.message.edited_at != null && (
+                            <span>(edited)</span>
+                        )}
                         {showsStatus && pulledBy.length > 0 && (
                             <>
                                 <span>· pulled by</span>
