@@ -305,6 +305,7 @@ export default function Show({
     const [copiedLink, copyLink] = useClipboard();
     const [copiedSummary, copySummary] = useClipboard();
     const celebrated = useRef(false);
+    const touchStart = useRef<{ x: number; y: number } | null>(null);
 
     const last = 6;
     const hasCommits = stats.commits > 0;
@@ -361,6 +362,31 @@ export default function Show({
                 <div
                     className="mt-12 flex min-h-[640px] flex-col justify-center rounded-xl border bg-card p-8 sm:p-12"
                     data-test="wrapped-slide"
+                    onTouchStart={(event) => {
+                        const touch = event.touches[0];
+                        touchStart.current =
+                            event.touches.length === 1 && touch
+                                ? { x: touch.clientX, y: touch.clientY }
+                                : null;
+                    }}
+                    onTouchEnd={(event) => {
+                        const touch = event.changedTouches[0];
+                        const from = touchStart.current;
+                        touchStart.current = null;
+
+                        if (!touch || !from) {
+                            return;
+                        }
+
+                        const dx = touch.clientX - from.x;
+                        const dy = touch.clientY - from.y;
+
+                        if (Math.abs(dx) < 48 || Math.abs(dx) < Math.abs(dy)) {
+                            return;
+                        }
+
+                        go(slide + (dx < 0 ? 1 : -1));
+                    }}
                 >
                     {slide === 0 && (
                         <div>
