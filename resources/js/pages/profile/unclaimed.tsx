@@ -1,8 +1,7 @@
-import { Head, Link, router, usePage } from '@inertiajs/react';
+import { Head, router, usePage } from '@inertiajs/react';
 import { AtSign, Clock } from 'lucide-react';
 import { useState } from 'react';
 import PendingFollowController from '@/actions/App/Http/Controllers/PendingFollowController';
-import SearchController from '@/actions/App/Http/Controllers/SearchController';
 import { show } from '@/actions/App/Http/Controllers/UserController';
 import { BioText } from '@/components/bio-text';
 import { useFollowHover } from '@/components/follow-button';
@@ -27,7 +26,7 @@ type UnclaimedProfile = {
 /**
  * A developer looked up from GitHub who isn't on /dev/null yet. Signing in as them makes the page theirs. Where they
  * are is left out, even when GitHub shows it: they never chose to share it here. So are the commits that mention them,
- * which they can't answer: the page only counts them, and links to a search for "@handle".
+ * which they can't answer: the page only counts them. Search wouldn't list them either, since it matches by meaning.
  */
 export default function UnclaimedProfile({
     profile,
@@ -121,15 +120,9 @@ export default function UnclaimedProfile({
                     {mentionCount !== undefined && mentionCount > 0 && (
                         <li className="flex items-center gap-1.5">
                             <AtSign className="size-4" />
-                            <Link
-                                href={SearchController.index.url({
-                                    query: { q: `@${profile.handle}` },
-                                })}
-                                className="text-primary hover:underline"
-                                data-test="mention-count"
-                            >
+                            <span data-test="mention-count">
                                 <span
-                                    className="tabular-nums"
+                                    className="font-mono font-medium text-foreground tabular-nums"
                                     title={exactCountTitle(mentionCount)}
                                 >
                                     {formatCount(mentionCount)}
@@ -137,7 +130,7 @@ export default function UnclaimedProfile({
                                 {mentionCount === 1
                                     ? 'commit mentions them'
                                     : 'commits mention them'}
-                            </Link>
+                            </span>
                         </li>
                     )}
                 </ul>
