@@ -5,14 +5,15 @@ declare(strict_types=1);
 namespace App\Http\Requests;
 
 use App\Enums\OrgRole;
-use App\Enums\ProfileType;
 use App\Models\Conversation;
 use App\Models\User;
 use App\Queries\RemoteCandidatesQuery;
 use Illuminate\Auth\Access\Response;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Exists;
 use Illuminate\Validation\Validator;
@@ -38,7 +39,7 @@ final class CreateOrgMemberRequest extends FormRequest
     {
         return [
             'members' => ['required', 'array', 'min:1', 'max:'.(Conversation::MAX_MEMBERS - 1)],
-            'members.*' => ['required', 'string', 'distinct', Rule::exists('profiles', 'handle')->where('type', ProfileType::User->value)],
+            'members.*' => ['required', 'string', 'distinct:ignore_case', Rule::exists('profiles', 'handle')->where(fn (QueryBuilder $query): QueryBuilder => $query->whereIn('id', DB::table('users')->select('id')))],
             'share_history' => ['required', 'boolean'],
         ];
     }
@@ -86,6 +87,6 @@ final class CreateOrgMemberRequest extends FormRequest
         /** @var list<string> $handles */
         $handles = $this->array('members');
 
-        return User::query()->whereHas('profile', fn (Builder $query): Builder => $query->whereIn('handle', $handles))->get()->sortBy(fn (User $user): int|false => array_search($user->handle, $handles, true))->values()->toBase();
+        return User::query()->whereHas('profile', fn (Builder $query): Builder => $query->whereIn('handle', $handles))->get()->sortBy(fn (User $user): int|false => array_search(mb_strtolower($user->handle), array_map(mb_strtolower(...), $handles), true))->values()->toBase();
     }
 }

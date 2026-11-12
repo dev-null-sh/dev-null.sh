@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Contracts\Services\EmbeddingProvider;
 use App\Models\Commit;
-use App\Services\OpenAI;
 
 final readonly class UpdateCommitEmbedding
 {
-    public function __construct(private OpenAI $openAI)
+    public function __construct(private EmbeddingProvider $embeddings)
     {
         //
     }
@@ -20,6 +20,6 @@ final readonly class UpdateCommitEmbedding
      */
     public function handle(Commit $commit): void
     {
-        $commit->update(['embedding' => $this->openAI->embed($commit->body)]);
+        $commit->update(['embedding' => $this->embeddings->embed($commit->body)]);
     }
 }

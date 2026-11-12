@@ -1,6 +1,7 @@
 import { CommitCard } from '@/components/commit-card';
+import { GraphCanvas } from '@/components/graph-canvas';
 import { useRelatedCommits } from '@/hooks/use-related-commits';
-import { laneOf } from '@/lib/utils';
+import type { Commit } from '@/types';
 
 export function RelatedCommits({ commitId }: { commitId: string }) {
     const commits = useRelatedCommits(commitId);
@@ -17,15 +18,21 @@ export function RelatedCommits({ commitId }: { commitId: string }) {
                 </h2>
             </div>
 
-            {commits.map((commit, index) => (
-                <CommitCard
-                    key={commit.id}
-                    commit={commit}
-                    previousLane={
-                        index === 0 ? undefined : laneOf(commits[index - 1])
-                    }
-                />
-            ))}
+            <RelatedCommitList commits={commits} />
         </section>
+    );
+}
+
+/**
+ * The related commits relate to the commit shown, not to each other, so each one ends on a dot of its own in a canvas
+ * below the thread's, as a feed does.
+ */
+export function RelatedCommitList({ commits }: { commits: Commit[] }) {
+    return (
+        <GraphCanvas>
+            {commits.map((commit) => (
+                <CommitCard key={commit.id} commit={commit} endsWithDot />
+            ))}
+        </GraphCanvas>
     );
 }

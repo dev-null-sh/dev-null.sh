@@ -45,6 +45,7 @@ export default function Index({ devices }: { devices: Device[] }) {
                         as you through the app, since you approved it here on
                         the web. Revoke any you don't use or don't recognize.{' '}
                         <Link
+                            prefetch
                             href={AppController.index()}
                             className="underline decoration-rail underline-offset-4 hover:decoration-current"
                         >
@@ -142,8 +143,15 @@ function DeviceRow({
             <div className="min-h-0 overflow-hidden">
                 <div className="flex items-center gap-3 px-4 py-3">
                     <div className="min-w-0 flex-1">
-                        <p className="truncate font-medium" title={device.name}>
-                            {device.name}
+                        {/* The app first, so two apps on one computer read apart, and it wraps rather than cut the device off. Apps that didn't say show the device alone... */}
+                        <p className="font-medium [overflow-wrap:anywhere]">
+                            {device.app_name ?? device.name}
+                            {device.app_name !== null && (
+                                <span className="font-normal text-muted-foreground">
+                                    {' '}
+                                    on {device.name}
+                                </span>
+                            )}
                         </p>
                         <p
                             className="truncate font-mono text-[13px] leading-5 text-muted-foreground"

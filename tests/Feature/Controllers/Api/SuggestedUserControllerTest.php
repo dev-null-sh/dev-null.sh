@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Models\Commit;
+use App\Models\Profile;
 use App\Models\User;
 use App\Queries\SuggestedUsersQuery;
 
@@ -205,6 +206,12 @@ it("takes the user's own pending commit as the page, as its page shows it to the
     signedApiRequest($this->keyPair, 'GET', route('api-suggested-user.index', ['commit_id' => $root->id]))
         ->assertOk()
         ->assertJsonPath('data.0.id', $participant->id);
+});
+
+it('refuses the profile of a developer who is not on /dev/null yet', function (): void {
+    signedApiRequest($this->keyPair, 'GET', route('api-suggested-user.index', ['handle' => Profile::factory()->create()->handle]))
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('handle');
 });
 
 it('refuses a commit whose page the user cannot see', function (Closure $commit): void {

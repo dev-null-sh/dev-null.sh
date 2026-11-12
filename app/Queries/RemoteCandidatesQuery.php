@@ -24,10 +24,10 @@ final readonly class RemoteCandidatesQuery
      *
      * @return Collection<int, array{user: User, reason: string|null}>
      */
-    public function get(User $user, string $term, ?Conversation $org = null): Collection
+    public function get(User $user, string $term, ?Conversation $org = null, bool $forSharing = false): Collection
     {
         $candidates = $this->search->get($term, $user)->reject(fn (User $candidate): bool => $candidate->is($user))->values();
-        $reasons = $this->reasons($user, $candidates, $org);
+        $reasons = $this->reasons($user, $candidates, $org, forSharing: $forSharing);
 
         return $candidates->map(fn (User $candidate): array => [
             'user' => $candidate,
@@ -44,12 +44,14 @@ final readonly class RemoteCandidatesQuery
      * @param  Collection<int, User>|null  $joining
      * @return array<string, string|null>
      */
-    public function reasons(User $user, Collection $candidates, ?Conversation $org = null, ?Collection $joining = null): array
+    public function reasons(User $user, Collection $candidates, ?Conversation $org = null, ?Collection $joining = null, bool $forSharing = false): array
     {
         if (! $org instanceof Conversation) {
             return $candidates->mapWithKeys(fn (User $candidate): array => [$candidate->id => match ($this->pushAccess->get($user, $candidate)) {
                 PushAccess::Closed => 'has remotes off',
                 PushAccess::Restricted => "doesn't follow you",
+                PushAccess::Request => $forSharing ? 'merge their request first' : null,
+                PushAccess::Waiting => $forSharing ? 'your request is waiting to be merged' : null,
                 default => null,
             }])->all();
         }

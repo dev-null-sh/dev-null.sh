@@ -2,7 +2,38 @@
 
 declare(strict_types=1);
 
+use App\Actions\CreateConversation;
+use App\Enums\RemoteStatus;
 use App\Models\User;
+
+it('only shares into conversations that can accept a message', function (bool $outgoing, bool $dropped, string $reason): void {
+    $viewer = User::factory()->create();
+    $partner = User::factory()->create(['handle' => 'share_partner']);
+    $conversation = resolve(CreateConversation::class)->handle($outgoing ? $viewer : $partner, $outgoing ? $partner : $viewer);
+
+    if ($dropped) {
+        $conversation->participants()->where('user_id', $partner->id)->update(['status' => RemoteStatus::Dropped]);
+    }
+
+    $this->actingAs($viewer)->getJson(route('remote-candidate.index', ['q' => 'share_partner', 'for' => 'share']))
+        ->assertOk()->assertJsonPath('candidates.0.reason', $reason);
+
+    $this->getJson(route('remote-candidate.index', ['q' => 'share_partner', 'for' => 'remote']))
+        ->assertOk()->assertJsonPath('candidates.0.reason', null);
+})->with([
+    'incoming request' => [false, false, 'merge their request first'],
+    'outgoing request' => [true, false, 'your request is waiting to be merged'],
+    'dropped request stays private' => [true, true, 'your request is waiting to be merged'],
+]);
+
+it('can share a first message when requests are enabled', function (): void {
+    config(['remotes.requests' => true]);
+    $viewer = User::factory()->create();
+    User::factory()->create(['handle' => 'share_partner']);
+
+    $this->actingAs($viewer)->getJson(route('remote-candidate.index', ['q' => 'share_partner', 'for' => 'share']))
+        ->assertOk()->assertJsonPath('candidates.0.reason', null);
+});
 
 it('says who can be messaged and why not', function (): void {
     $mark = User::factory()->create();

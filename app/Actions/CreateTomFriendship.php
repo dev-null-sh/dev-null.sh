@@ -52,7 +52,7 @@ final readonly class CreateTomFriendship
         }
 
         return DB::transaction(function (): User {
-            Profile::query()->create([
+            $profile = Profile::query()->create([
                 'type' => ProfileType::User,
                 'github_id' => self::GITHUB_ID,
                 'handle' => self::HANDLE,
@@ -63,12 +63,14 @@ final readonly class CreateTomFriendship
             ]);
 
             $tom = User::query()->create([
+                'id' => $profile->id,
                 'github_id' => self::GITHUB_ID,
                 'onboarded_at' => now(),
                 'remotes_enabled' => false,
             ]);
 
             $tom->commits()->create([
+                'user_id' => $tom->id,
                 'body' => 'Welcome to dev/null!',
                 'status' => CommitStatus::Approved,
             ]);

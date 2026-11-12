@@ -32,7 +32,8 @@ export default function RepliesPerPageTabs() {
             }))}
             value={selected}
             onChange={select}
-            className="tabular-nums"
+            // Seven counts don't fit a 320px screen with the usual padding...
+            className="tabular-nums *:px-2.5 sm:*:px-3.5"
         />
     );
 }

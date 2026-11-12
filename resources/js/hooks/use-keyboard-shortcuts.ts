@@ -1,6 +1,9 @@
 import { router } from '@inertiajs/react';
 import { useEffect } from 'react';
+import ConversationController from '@/actions/App/Http/Controllers/ConversationController';
 import LogController from '@/actions/App/Http/Controllers/LogController';
+import NotificationController from '@/actions/App/Http/Controllers/NotificationController';
+import StarredCommitController from '@/actions/App/Http/Controllers/StarredCommitController';
 import { signIn } from '@/lib/auth';
 import { hasModKey } from '@/lib/keyboard';
 import { show } from '@/routes/user';
@@ -43,11 +46,13 @@ export function focusCommit(commit: HTMLElement): void {
 }
 
 /**
+ * Focus inside a reply acts on that reply, not on the commit card around it.
+ *
  * A deleted commit's actions are inert, which stops pointers and focus but not a scripted click.
  */
 function focusedCommitAction(key: string): HTMLButtonElement | null {
     const action = document.activeElement
-        ?.closest('[data-commit]')
+        ?.closest('[data-reply], [data-commit]')
         ?.querySelector<HTMLButtonElement>(
             `button[aria-keyshortcuts="${CSS.escape(key)}"]`,
         );
@@ -77,6 +82,7 @@ function openFocusedCommit(): boolean {
 export function useKeyboardShortcuts(
     user: User | null,
     log: Log | null,
+    hasRemotes: boolean,
     onShowHelp: () => void,
     onSearch: () => void,
     onCompose: () => void,
@@ -87,12 +93,24 @@ export function useKeyboardShortcuts(
 
         const goTo: Record<string, () => void> =
             user === null || log === null
-                ? { l: signIn, e: signIn, p: signIn, s: signIn }
+                ? {
+                      l: signIn,
+                      e: signIn,
+                      p: signIn,
+                      s: signIn,
+                      n: signIn,
+                      '*': signIn,
+                  }
                 : {
                       l: () => router.visit(LogController.show(log)),
                       e: () => router.visit(LogController.show('trending')),
                       p: () => router.visit(show(user)),
                       s: () => router.visit(edit()),
+                      n: () => router.visit(NotificationController.index()),
+                      '*': () => router.visit(StarredCommitController.index()),
+                      ...(hasRemotes && {
+                          m: () => router.visit(ConversationController.index()),
+                      }),
                   };
 
         const onKeyDown = (event: KeyboardEvent) => {
@@ -171,5 +189,5 @@ export function useKeyboardShortcuts(
             window.removeEventListener('keydown', onKeyDown);
             clearTimeout(goToTimeout);
         };
-    }, [user, log, onShowHelp, onSearch, onCompose]);
+    }, [user, log, hasRemotes, onShowHelp, onSearch, onCompose]);
 }

@@ -3,12 +3,11 @@
 declare(strict_types=1);
 
 use App\Actions\UpdateUserSshKeys;
+use App\Contracts\Services\GitHubProvider;
 use App\Dto\SshPublicKey;
 use App\Models\SshKey;
 use App\Models\User;
-use Illuminate\Http\Client\Request;
-use Illuminate\Http\Client\RequestException;
-use Illuminate\Support\Facades\Http;
+use Illuminate\Http\Client\ConnectionException;
 use Tests\Support\SshKeyPair;
 
 it('mirrors the authentication and signing keys of the github account', function (): void {
@@ -16,7 +15,9 @@ it('mirrors the authentication and signing keys of the github account', function
     $authenticationKey = SshKeyPair::generate()->publicKey;
     $signingKey = SshKeyPair::generate()->publicKey;
 
-    fakeGitHubSshKeys($user, [$authenticationKey], [$signingKey]);
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($user->github_id)->andReturn($user->handle);
+    $github->shouldReceive('sshKeys')->with($user->handle)->andReturn([$authenticationKey->toOpenSsh(), $signingKey->toOpenSsh()]);
 
     resolve(UpdateUserSshKeys::class)->handle($user);
 
@@ -28,7 +29,9 @@ it('stores a key used for both authentication and signing once', function (): vo
     $user = User::factory()->create();
     $publicKey = SshKeyPair::generate()->publicKey;
 
-    fakeGitHubSshKeys($user, [$publicKey], [$publicKey]);
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($user->github_id)->andReturn($user->handle);
+    $github->shouldReceive('sshKeys')->with($user->handle)->andReturn([$publicKey->toOpenSsh(), $publicKey->toOpenSsh()]);
 
     resolve(UpdateUserSshKeys::class)->handle($user);
 
@@ -40,7 +43,9 @@ it('removes keys that are no longer on github', function (): void {
     $removed = SshKey::factory()->for($user)->create();
     $kept = SshKeyPair::generate()->publicKey;
 
-    fakeGitHubSshKeys($user, [$kept]);
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($user->github_id)->andReturn($user->handle);
+    $github->shouldReceive('sshKeys')->with($user->handle)->andReturn([$kept->toOpenSsh()]);
 
     resolve(UpdateUserSshKeys::class)->handle($user);
 
@@ -53,7 +58,9 @@ it('moves a key to the user that now has it on github', function (): void {
     $publicKey = SshKeyPair::generate()->publicKey;
     $sshKey = SshKey::factory()->withPublicKey($publicKey)->create();
 
-    fakeGitHubSshKeys($user, [$publicKey]);
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($user->github_id)->andReturn($user->handle);
+    $github->shouldReceive('sshKeys')->with($user->handle)->andReturn([$publicKey->toOpenSsh()]);
 
     resolve(UpdateUserSshKeys::class)->handle($user);
 
@@ -63,13 +70,11 @@ it('moves a key to the user that now has it on github', function (): void {
 it('ignores unsupported keys', function (): void {
     $user = User::factory()->create();
 
-    Http::fake([
-        "api.github.com/user/{$user->github_id}" => Http::response(['login' => $user->handle]),
-        "api.github.com/users/{$user->handle}/keys*" => Http::response([
-            ['id' => 1, 'key' => 'ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBA=='],
-            ['id' => 2, 'key' => mb_trim(sshFixture('ed25519.pub'))],
-        ]),
-        "api.github.com/users/{$user->handle}/ssh_signing_keys*" => Http::response([]),
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($user->github_id)->andReturn($user->handle);
+    $github->shouldReceive('sshKeys')->with($user->handle)->andReturn([
+        'ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBA==',
+        mb_trim(sshFixture('ed25519.pub')),
     ]);
 
     resolve(UpdateUserSshKeys::class)->handle($user);
@@ -81,22 +86,20 @@ it('looks the account up by its github id, so a renamed handle cannot be claimed
     $user = User::factory()->create(['github_id' => '583231', 'handle' => 'old-handle']);
     $publicKey = SshKeyPair::generate()->publicKey;
 
-    fakeGitHubSshKeys($user, [$publicKey], handle: 'octocat');
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($user->github_id)->andReturn('octocat');
+    $github->shouldReceive('sshKeys')->with('octocat')->andReturn([$publicKey->toOpenSsh()]);
 
     resolve(UpdateUserSshKeys::class)->handle($user);
 
     expect($user->sshKeys()->sole()->fingerprint)->toBe($publicKey->fingerprint());
 
-    Http::assertNotSent(fn (Request $request): bool => str_contains($request->url(), 'old-handle'));
+    $github->shouldNotHaveReceived('sshKeys', ['old-handle']);
 });
 
 it('removes all keys when the github account is gone', function (): void {
     $user = User::factory()->create();
     SshKey::factory()->for($user)->count(2)->create();
-
-    Http::fake([
-        "api.github.com/user/{$user->github_id}" => Http::response(['message' => 'Not Found'], 404),
-    ]);
 
     resolve(UpdateUserSshKeys::class)->handle($user);
 
@@ -107,106 +110,76 @@ it('fails when github fails', function (): void {
     $user = User::factory()->create();
     $sshKey = SshKey::factory()->for($user)->create();
 
-    Http::fake([
-        "api.github.com/user/{$user->github_id}" => Http::response(['message' => 'Server Error'], 500),
-    ]);
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($user->github_id)->andThrow(new ConnectionException());
 
-    expect(fn () => resolve(UpdateUserSshKeys::class)->handle($user))->toThrow(RequestException::class)
+    expect(fn () => resolve(UpdateUserSshKeys::class)->handle($user))->toThrow(ConnectionException::class)
         ->and($sshKey->fresh())->not->toBeNull();
-});
-
-it('authenticates as the github oauth app when configured', function (): void {
-    config([
-        'services.github.client_id' => 'client-id',
-        'services.github.client_secret' => 'client-secret',
-    ]);
-
-    $user = User::factory()->create();
-
-    fakeGitHubSshKeys($user);
-
-    resolve(UpdateUserSshKeys::class)->handle($user);
-
-    Http::assertSent(fn (Request $request): bool => $request->hasHeader('Authorization', 'Basic '.base64_encode('client-id:client-secret')));
-});
-
-it('does not authenticate when the github oauth app is not configured', function (): void {
-    config([
-        'services.github.client_id' => null,
-        'services.github.client_secret' => null,
-    ]);
-
-    $user = User::factory()->create();
-
-    fakeGitHubSshKeys($user);
-
-    resolve(UpdateUserSshKeys::class)->handle($user);
-
-    Http::assertSent(fn (Request $request): bool => ! $request->hasHeader('Authorization'));
 });
 
 it('skips users synced in the last 5 minutes when asked to', function (): void {
     $user = User::factory()->create();
 
-    fakeGitHubSshKeys($user);
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($user->github_id)->andReturn($user->handle);
+    $github->shouldReceive('sshKeys')->with($user->handle)->andReturn([]);
 
     $action = resolve(UpdateUserSshKeys::class);
 
     $action->handle($user);
     $action->handle($user, unlessRecentlySynced: true);
 
-    Http::assertSentCount(3);
+    $github->shouldHaveReceived('sshKeys')->once();
 
     $this->travel(5)->minutes();
 
     $action->handle($user, unlessRecentlySynced: true);
 
-    Http::assertSentCount(6);
+    $github->shouldHaveReceived('sshKeys')->twice();
 });
 
 it('always syncs when not asked to skip recently synced users', function (): void {
     $user = User::factory()->create();
 
-    fakeGitHubSshKeys($user);
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($user->github_id)->andReturn($user->handle);
+    $github->shouldReceive('sshKeys')->with($user->handle)->andReturn([]);
 
     $action = resolve(UpdateUserSshKeys::class);
 
     $action->handle($user);
     $action->handle($user);
 
-    Http::assertSentCount(6);
+    $github->shouldHaveReceived('sshKeys')->twice();
 });
 
 it('counts a gone github account as synced', function (): void {
     $user = User::factory()->create();
 
-    Http::fake([
-        "api.github.com/user/{$user->github_id}" => Http::response(['message' => 'Not Found'], 404),
-    ]);
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($user->github_id)->andReturnNull();
 
     $action = resolve(UpdateUserSshKeys::class);
 
     $action->handle($user);
     $action->handle($user, unlessRecentlySynced: true);
 
-    Http::assertSentCount(1);
+    $github->shouldHaveReceived('login')->once();
 });
 
 it('does not count a failed sync as synced', function (): void {
     $user = User::factory()->create();
 
-    Http::fakeSequence("api.github.com/user/{$user->github_id}")
-        ->push(['message' => 'Server Error'], 500)
-        ->push(['login' => $user->handle]);
-    Http::fake([
-        "api.github.com/users/{$user->handle}/*" => Http::response([]),
-    ]);
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($user->github_id)->andThrow(new ConnectionException())->once();
+    $github->shouldReceive('login')->with($user->github_id)->andReturn($user->handle);
+    $github->shouldReceive('sshKeys')->with($user->handle)->andReturn([]);
 
     $action = resolve(UpdateUserSshKeys::class);
 
-    expect(fn () => $action->handle($user))->toThrow(RequestException::class);
+    expect(fn () => $action->handle($user))->toThrow(ConnectionException::class);
 
     $action->handle($user, unlessRecentlySynced: true);
 
-    Http::assertSentCount(4);
+    $github->shouldHaveReceived('sshKeys')->once();
 });

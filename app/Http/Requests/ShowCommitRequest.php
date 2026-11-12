@@ -12,7 +12,8 @@ use Illuminate\Foundation\Http\FormRequest;
 final class ShowCommitRequest extends FormRequest
 {
     /**
-     * Guests only see approved commits, while authors may also see their own pending or rejected commits.
+     * Guests only see approved commits, while authors may also see their own pending or rejected commits, and members
+     * their organization's.
      */
     public function authorize(): Response
     {

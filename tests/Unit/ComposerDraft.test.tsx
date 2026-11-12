@@ -88,6 +88,7 @@ const { LinkCardPicker } =
     await import('../../resources/js/components/link-card-picker');
 const { PollEditor } =
     await import('../../resources/js/components/poll-editor');
+const { GraphRail } = await import('../../resources/js/components/graph-rail');
 
 type Element = ReactElement<Record<string, unknown>>;
 
@@ -140,6 +141,7 @@ test('preserves restored images and link cards and allows scheduling them', () =
     assert.deepEqual(form.props.transform(data), {
         ...data,
         commit_rules_accepted: true,
+        human_verification_token: '',
         images: [image],
         image_descriptions: ['A restored screenshot'],
     });
@@ -265,6 +267,7 @@ test('removing restored images enables polls and successful posting resets the p
         assert.deepEqual(view.form.props.transform(data), {
             ...data,
             commit_rules_accepted: true,
+            human_verification_token: '',
         });
         view.form.props.onSuccess({
             flash: { toast: { type: 'error', message: 'Slow down' } },
@@ -353,6 +356,7 @@ test('schedules in UTC with pasted images and the chosen link card', () => {
     assert.deepEqual(view.form.props.transform({ body: draft.body }), {
         body: draft.body,
         commit_rules_accepted: true,
+        human_verification_token: '',
         scheduled_at: scheduledAt,
     });
     assert.equal(
@@ -388,6 +392,7 @@ test('schedules in UTC with pasted images and the chosen link card', () => {
     assert.deepEqual(view.form.props.transform(data), {
         ...data,
         commit_rules_accepted: true,
+        human_verification_token: '',
         images: [image],
         image_descriptions: [''],
         scheduled_at: scheduledAt,
@@ -408,6 +413,7 @@ test('submits token-shaped text and restored images without secret approval', ()
     assert.deepEqual(form.props.transform({ body: draft.body }), {
         body: draft.body,
         commit_rules_accepted: true,
+        human_verification_token: '',
         images: [image],
         image_descriptions: ['A restored screenshot'],
     });
@@ -443,6 +449,7 @@ test('previews restored images and descriptions while keeping them attached when
     assert.deepEqual(view.form.props.transform({ body: draft.body }), {
         body: draft.body,
         commit_rules_accepted: true,
+        human_verification_token: '',
         images: [image],
         image_descriptions: ['A restored screenshot'],
     });
@@ -697,6 +704,37 @@ test('commands are not offered while the draft has images, a poll or a schedule'
     );
 });
 
+test('schedules as the organization picked from the avatar', () => {
+    const organization = {
+        type: 'organization',
+        id: 'laravel',
+        handle: 'laravel',
+        lane: null,
+    };
+    const node = () =>
+        render().fields.find((element) => element.type === GraphRail)!.props
+            .node as Element;
+    const find = (key: string, value: unknown) =>
+        render().fields.find((element) => element.props[key] === value)!;
+
+    (find('aria-controls', 'body-schedule').props.onClick as () => void)();
+    (node().props.onChange as (author: unknown) => void)(organization);
+    (find('id', 'body-scheduled-at').props.onChange as (value: string) => void)(
+        '2026-10-17T10:30',
+    );
+
+    assert.equal(node().props.author, organization);
+    assert.deepEqual(render().form.props.transform({ body: draft.body }), {
+        body: draft.body,
+        commit_rules_accepted: true,
+        human_verification_token: '',
+        author: 'laravel',
+        scheduled_at: new Date('2026-10-17T10:30')
+            .toISOString()
+            .replace(/\.\d{3}Z$/, '+00:00'),
+    });
+});
+
 test('turning scheduling off clears the chosen time and commits now', () => {
     const find = (key: string, value: unknown) =>
         render().fields.find((element) => element.props[key] === value);
@@ -722,6 +760,7 @@ test('turning scheduling off clears the chosen time and commits now', () => {
     assert.deepEqual(render().form.props.transform({ body: draft.body }), {
         body: draft.body,
         commit_rules_accepted: true,
+        human_verification_token: '',
     });
 
     (find('aria-controls', 'body-schedule')!.props.onClick as () => void)();

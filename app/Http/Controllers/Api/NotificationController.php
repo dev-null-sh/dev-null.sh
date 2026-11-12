@@ -11,6 +11,7 @@ use App\Models\Notification;
 use App\Models\User;
 use App\Queries\CommitBuilder;
 use App\Queries\NotificationGroupsQuery;
+use Carbon\CarbonImmutable;
 use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -25,7 +26,7 @@ final readonly class NotificationController
      */
     public function index(ListNotificationsRequest $request, #[CurrentUser] User $user, NotificationGroupsQuery $query, UpdateNotificationsReadAt $action): AnonymousResourceCollection
     {
-        $readAt = $action->handle($user);
+        $readAt = $action->handle($user, CarbonImmutable::now());
         $type = $request->type($user);
 
         $notifications = $query->paginate($user, $type, $request->through());
@@ -34,10 +35,10 @@ final readonly class NotificationController
         $items = $notifications->items();
 
         new Collection($items)->loadMissing([
-            'commit.user',
+            'commit.author',
             'commit.parent' => fn (BelongsTo $query): BelongsTo => $query
                 ->where(fn (CommitBuilder $query): CommitBuilder => $query->visibleTo($user))
-                ->with('user'),
+                ->with('author'),
         ]);
 
         return NotificationResource::collection($notifications)->additional([

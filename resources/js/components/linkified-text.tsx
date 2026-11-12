@@ -1,7 +1,9 @@
-import { Link } from '@inertiajs/react';
+import { Link, usePage } from '@inertiajs/react';
 import { Fragment } from 'react';
 import type { ReactNode, SVGAttributes } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
+import SearchController from '@/actions/App/Http/Controllers/SearchController';
+import { show as showProfile } from '@/actions/App/Http/Controllers/UserController';
 import AppLogoIcon from '@/components/app-logo-icon';
 import AppWordmark from '@/components/app-wordmark';
 import { CertificateText } from '@/components/certificate-text';
@@ -21,11 +23,14 @@ import {
 } from '@/lib/urls';
 import { cn, shortHash } from '@/lib/utils';
 import { show } from '@/routes/mention';
+import { show as showOrganizationMention } from '@/routes/organization-mention';
 import type { BodySegment, Commit } from '@/types';
 
 // A link to a commit on dev/null itself, nothing after its id, so it can show as the author and the commit's hash.
 const commitLinkPattern =
     /^https?:\/\/(?:www\.)?dev-null\.sh\/@([A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38})\/commits\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
+const hashtagPattern =
+    /(?<![\p{L}\p{M}\p{N}_&/#>-])#\p{L}[\p{L}\p{M}\p{N}_]*/gu;
 const gitHubHostPattern = /^(?:www\.)?github\.com$/i;
 const gitHubOwnerPattern =
     /^[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}$/;
@@ -224,7 +229,8 @@ function CommitLink({
 
     return (
         <Link
-            href={CommitController.show({ user: handle, commit })}
+            prefetch
+            href={CommitController.show({ profile: handle, commit })}
             title={url}
             aria-label={`@${handle}’s commit ${hash}`}
             className="text-primary hover:underline"
@@ -621,6 +627,60 @@ function withWordmarks(
         );
 }
 
+function Hashtag({ hashtag }: { hashtag: string }) {
+    const { auth } = usePage().props;
+
+    if (!auth.user) {
+        return hashtag;
+    }
+
+    return (
+        <Link
+            prefetch
+            href={SearchController.index({ query: { q: hashtag } })}
+            className="font-medium text-primary hover:underline"
+            data-test="hashtag"
+        >
+            {hashtag}
+        </Link>
+    );
+}
+
+function withHashtags(
+    text: string,
+    offset: number,
+    hashtags: RegExpExecArray[],
+    pasteisMode: boolean,
+): ReactNode[] {
+    const parts: ReactNode[] = [];
+    let position = 0;
+
+    for (const hashtag of hashtags) {
+        const index = hashtag.index - offset;
+
+        if (index < position || index + hashtag[0].length > text.length) {
+            continue;
+        }
+
+        parts.push(
+            ...withWordmarks(
+                text.slice(position, index),
+                offset + position,
+                pasteisMode,
+            ),
+            <Hashtag key={`hashtag-${hashtag.index}`} hashtag={hashtag[0]} />,
+        );
+
+        position = index + hashtag[0].length;
+    }
+
+    parts.push(
+        ...withWordmarks(text.slice(position), offset + position, pasteisMode),
+    );
+
+    return parts;
+}
+
 /**
  * The hex colors found in the whole text that fall in this slice of it, as their value with a swatch of the color.
  */
@@ -628,6 +688,7 @@ function withColors(
     text: string,
     offset: number,
     colors: Color[],
+    hashtags: RegExpExecArray[],
     pasteisMode: boolean,
 ): ReactNode[] {
     const parts: ReactNode[] = [];
@@ -641,9 +702,10 @@ function withColors(
         }
 
         parts.push(
-            ...withWordmarks(
+            ...withHashtags(
                 text.slice(position, index),
                 offset + position,
+                hashtags,
                 pasteisMode,
             ),
             <span
@@ -664,7 +726,12 @@ function withColors(
     }
 
     parts.push(
-        ...withWordmarks(text.slice(position), offset + position, pasteisMode),
+        ...withHashtags(
+            text.slice(position),
+            offset + position,
+            hashtags,
+            pasteisMode,
+        ),
     );
 
     return parts;
@@ -674,9 +741,12 @@ function withMentions(
     text: string,
     offset: number,
     mentions: Commit['mentions'],
+    organizationMentions: Commit['organization_mentions'],
     colors: Color[],
+    hashtags: RegExpExecArray[],
     pasteisMode: boolean,
     isStatic: boolean,
+    linksEveryMention: boolean,
 ): ReactNode[] {
     const parts: ReactNode[] = [];
     let position = 0;
@@ -687,23 +757,29 @@ function withMentions(
             mentions && Object.hasOwn(mentions, handle)
                 ? mentions[handle]
                 : null;
+        const organizationId =
+            organizationMentions && Object.hasOwn(organizationMentions, handle)
+                ? organizationMentions[handle]
+                : null;
 
         parts.push(
             ...withColors(
                 text.slice(position, match.index),
                 offset + position,
                 colors,
+                hashtags,
                 pasteisMode,
             ),
-            isStatic || !userId ? (
+            isStatic ? (
                 match[0]
-            ) : (
+            ) : userId ? (
                 <UserPreview
                     key={`mention-${offset + match.index}`}
                     user={{ handle: match[1] }}
                     userId={userId}
                 >
                     <Link
+                        prefetch
                         href={show(userId)}
                         className="font-medium text-primary hover:underline"
                         data-test="mention"
@@ -711,6 +787,30 @@ function withMentions(
                         {match[0]}
                     </Link>
                 </UserPreview>
+            ) : organizationId ? (
+                <Link
+                    prefetch
+                    key={`mention-${offset + match.index}`}
+                    href={showOrganizationMention(organizationId)}
+                    className="font-medium text-primary hover:underline"
+                    data-test="organization-mention"
+                >
+                    {match[0]}
+                </Link>
+            ) : !linksEveryMention ? (
+                match[0]
+            ) : (
+                // Anyone else may be on GitHub: their page looks them up for members. Guests and crawlers get a
+                // missing page, so it isn't followed, nor prefetched, which would ask for it on every hover of a feed...
+                <Link
+                    key={`mention-${offset + match.index}`}
+                    href={showProfile(match[1])}
+                    rel="nofollow"
+                    className="font-medium text-primary hover:underline"
+                    data-test="handle-mention"
+                >
+                    {match[0]}
+                </Link>
             ),
         );
 
@@ -722,6 +822,7 @@ function withMentions(
             text.slice(position),
             offset + position,
             colors,
+            hashtags,
             pasteisMode,
         ),
     );
@@ -732,20 +833,26 @@ function withMentions(
 export function LinkifiedText({
     text,
     mentions,
+    organizationMentions = null,
     pasteisMode = false,
     isStatic = false,
+    linksEveryMention = true,
     startsText = false,
 }: {
     text: string;
     mentions: Commit['mentions'];
+    organizationMentions?: Commit['organization_mentions'];
     pasteisMode?: boolean;
     isStatic?: boolean;
+    linksEveryMention?: boolean;
     // Whether the text is a whole body, so its start is the start of a line.
     startsText?: boolean;
 }) {
     const parts: ReactNode[] = [];
     // Colors are found in the prose only, for callers that pass a whole body, code included.
-    const colors = colorsIn(withoutCode(text), startsText);
+    const prose = withoutCode(text);
+    const colors = colorsIn(prose, startsText);
+    const hashtags = isStatic ? [] : [...prose.matchAll(hashtagPattern)];
     let position = 0;
 
     for (const match of text.matchAll(urlPattern)) {
@@ -764,9 +871,12 @@ export function LinkifiedText({
                 text.slice(position, match.index),
                 position,
                 mentions,
+                organizationMentions,
                 colors,
+                hashtags,
                 pasteisMode,
                 isStatic,
+                linksEveryMention,
             ),
             commitLink ? (
                 <CommitLink
@@ -808,9 +918,12 @@ export function LinkifiedText({
             text.slice(position),
             position,
             mentions,
+            organizationMentions,
             colors,
+            hashtags,
             pasteisMode,
             isStatic,
+            linksEveryMention,
         ),
     );
 

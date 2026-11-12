@@ -15,6 +15,7 @@ test('to array', function (): void {
             'name',
             'approved_at',
             'last_used_at',
+            'app_name',
         ]);
 });
 

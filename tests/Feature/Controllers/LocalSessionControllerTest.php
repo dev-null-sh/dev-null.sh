@@ -5,10 +5,13 @@ declare(strict_types=1);
 use App\Enums\Log;
 use App\Enums\NotificationType;
 use App\Http\Controllers\SessionController;
+use App\Http\Requests\CreateHumanVerificationRequest;
 use App\Models\User;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Routing\Router;
+use Illuminate\Support\Env;
 use Illuminate\Support\Facades\Route;
+use Inertia\Testing\AssertableInertia;
 
 /**
  * The local sign-in routes are only registered in the local environment, so the routes are loaded again in it.
@@ -46,8 +49,20 @@ it('opens the sign in modal on the home page without a previous page', function 
         ->assertInertiaFlash('localSignIn', true);
 });
 
+it('takes a signed-out following reader home instead of looping through local login', function (): void {
+    registerRoutes('local');
+
+    $this->from(route('log.show', Log::Following))
+        ->get(route('log.show', Log::Following))
+        ->assertRedirectToRoute('home')
+        ->assertInertiaFlash('localSignIn', true);
+
+    $this->get(route('home'))->assertOk();
+});
+
 it('creates a user for a new handle and signs them in', function (): void {
     registerRoutes('local');
+    session()->put(CreateHumanVerificationRequest::SessionKey, true);
 
     $this->post(route('local-login.store'), ['_token' => session()->token(), 'handle' => 'octocat'])
         ->assertRedirectToRoute('log.show', Log::Following);
@@ -59,6 +74,26 @@ it('creates a user for a new handle and signs them in', function (): void {
         ->name->toBe('octocat');
 
     $this->assertAuthenticatedAs($user);
+});
+
+it('sends a new handle to the human check before it creates the user', function (): void {
+    registerRoutes('local');
+
+    $this->post(route('local-login.store'), ['_token' => session()->token(), 'handle' => 'octocat'], ['X-Inertia' => 'true'])
+        ->assertConflict()
+        ->assertHeader('X-Inertia-Location', route('human-verification.show'));
+
+    expect(User::query()->whereRelation('profile', 'handle', 'octocat')->exists())->toBeFalse();
+    $this->assertGuest();
+});
+
+it('opens the sign in modal on the home page once the human check passed', function (): void {
+    registerRoutes('local');
+    session()->put(CreateHumanVerificationRequest::SessionKey, true);
+
+    $this->get(route('login'))
+        ->assertRedirectToRoute('home')
+        ->assertInertiaFlash('localSignIn', true);
 });
 
 it('signs in as the existing user of a handle', function (): void {
@@ -91,16 +126,76 @@ it('signs in as the seeded local developer', function (): void {
         ->and($localDeveloper->notifications()->unread()->count())->toBe(12);
 });
 
+it('seeds activity for a local developer who already signed in', function (): void {
+    registerRoutes('local');
+    session()->put(CreateHumanVerificationRequest::SessionKey, true);
+
+    $this->post(route('local-login.store'), ['_token' => session()->token(), 'handle' => 'local-dev'])
+        ->assertSessionHasNoErrors();
+
+    $localDeveloper = User::query()->where('github_id', 'local:local-dev')->sole();
+
+    $this->seed(DatabaseSeeder::class);
+
+    $this->assertAuthenticatedAs($localDeveloper);
+
+    expect($localDeveloper->commits()->topLevel()->count())->toBe(4)
+        ->and($localDeveloper->following()->count())->toBe(3)
+        ->and($localDeveloper->notifications()->unread()->count())->toBe(12);
+
+    $this->get(route('conversation.index'))
+        ->assertOk()
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
+            ->has('inbox.conversations', 4));
+});
+
 it('loads the signed in page in full, as signing in with GitHub does', function (): void {
     registerRoutes('local');
+    session()->put(CreateHumanVerificationRequest::SessionKey, true);
 
     $this->post(route('local-login.store'), ['_token' => session()->token(), 'handle' => 'octocat'], ['X-Inertia' => 'true'])
         ->assertConflict()
         ->assertHeader('X-Inertia-Location', route('log.show', Log::Following));
 });
 
+it('keeps the sign in redirect secure only behind a configured proxy', function (?string $proxies, string $remoteAddress, string $scheme): void {
+    registerRoutes('local');
+    session()->put(CreateHumanVerificationRequest::SessionKey, true);
+
+    $environment = Env::getRepository();
+    $original = $environment->get('TRUSTED_PROXIES');
+    $environment->clear('TRUSTED_PROXIES');
+    $environment->set('TRUSTED_PROXIES', $proxies ?? '');
+
+    try {
+        config(['trustedproxy' => require config_path('trustedproxy.php')]);
+
+        $this->withServerVariables(['REMOTE_ADDR' => $remoteAddress])
+            ->post('http://preview.test/login/local', ['_token' => session()->token(), 'handle' => 'octocat'], [
+                'X-Inertia' => 'true',
+                'X-Forwarded-Proto' => 'https',
+                'X-Forwarded-Port' => '443',
+            ])
+            ->assertConflict()
+            ->assertHeader('X-Inertia-Location', $scheme.'://preview.test/log/following');
+
+        $this->assertAuthenticated();
+    } finally {
+        $environment->clear('TRUSTED_PROXIES');
+
+        if ($original !== null) {
+            $environment->set('TRUSTED_PROXIES', $original);
+        }
+    }
+})->with([
+    'configured loopback proxy' => ['127.0.0.1,::1', '127.0.0.1', 'https'],
+    'untrusted remote' => ['127.0.0.1,::1', '192.0.2.10', 'http'],
+    'no configured proxies' => [null, '127.0.0.1', 'http'],
+]);
+
 it('returns to the page the guest was reading', function (): void {
     registerRoutes('local');
+    session()->put(CreateHumanVerificationRequest::SessionKey, true);
 
     $user = User::factory()->create();
 

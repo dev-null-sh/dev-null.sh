@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Ai\Agents\Tom;
+use App\Contracts\Services\ToolDecisionProvider;
 use App\Enums\CommitStatus;
 use App\Models\Commit;
 use App\Models\User;
 use App\Queries\TomQuery;
-use App\Services\TomToolDecision;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Laravel\Ai\Contracts\Tool;
@@ -18,7 +18,7 @@ use RuntimeException;
 
 final readonly class CreateTomReply
 {
-    public function __construct(private CreateCommit $createCommit, private TomQuery $tomQuery, private TomToolDecision $toolDecision)
+    public function __construct(private CreateCommit $createCommit, private TomQuery $tomQuery, private ToolDecisionProvider $toolDecision)
     {
         //
     }
@@ -38,7 +38,7 @@ final readonly class CreateTomReply
         }
 
         $history = new Tom($commit)->messages();
-        $tools = $this->toolDecision->decide($commit->body, $history);
+        $tools = $this->toolDecision->tools($commit->body, $history);
         $attempt = 0;
         $messages = [];
         $called = collect();

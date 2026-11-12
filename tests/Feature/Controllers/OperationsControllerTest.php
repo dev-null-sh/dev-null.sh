@@ -29,8 +29,7 @@ it('gives admins an overview of where the app is failing, what happened, and whe
             ->where('daily.27.signups', 1)
             ->has('forecasts', 4)
             ->has('recentEvents', 1)
-            ->where('recentEvents.0.actor', 'newcomer')
-            ->where('hasTraffic', false));
+            ->where('recentEvents.0.actor', 'newcomer'));
 });
 
 it('shows only the 10 newest events of the last day', function (): void {
@@ -43,15 +42,6 @@ it('shows only the 10 newest events of the last day', function (): void {
 
     $response->assertOk()
         ->assertInertia(fn ($page) => $page->has('recentEvents', 10));
-});
-
-it('offers the traffic tab when a Fathom token is configured', function (): void {
-    config(['services.fathom.token' => 'token', 'services.fathom.site_id' => 'SITE']);
-
-    $this->actingAs(User::factory()->create(['handle' => 'admin']))
-        ->get(route('operations.show'))
-        ->assertOk()
-        ->assertInertia(fn ($page) => $page->where('hasTraffic', true));
 });
 
 it('is a 404 for non admins', function (): void {

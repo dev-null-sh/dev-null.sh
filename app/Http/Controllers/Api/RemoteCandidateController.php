@@ -15,12 +15,12 @@ final readonly class RemoteCandidateController
 {
     /**
      * The people matching a search, each with the reason the user can't message them or add them to the org, as the
-     * web's New remote and New org pickers show them.
+     * web's New remote, New org and Share in Remotes pickers show them.
      */
     public function index(ListApiRemoteCandidatesRequest $request, #[CurrentUser] User $user, RemoteCandidatesQuery $candidates): JsonResponse
     {
         return response()->json([
-            'candidates' => RemoteCandidateResource::collection($candidates->get($user, $request->string('q')->value(), $request->org())),
+            'candidates' => RemoteCandidateResource::collection($candidates->get($user, $request->string('q')->value(), $request->org(), forSharing: $request->isSharing())),
         ])->header('Cache-Control', 'private, no-store');
     }
 }

@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Database\Factories;
 
+use App\Contracts\Services\EmbeddingProvider;
 use App\Models\KnowledgeBaseSection;
-use App\Services\OpenAI;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -23,7 +23,7 @@ final class KnowledgeBaseSectionFactory extends Factory
             'position' => 0,
             'headings' => ['Knowledge base', 'Lore'],
             'content' => fake()->paragraph(),
-            'embedding' => [1.0, ...array_fill(0, OpenAI::EMBEDDING_DIMENSIONS - 1, 0.0)],
+            'embedding' => [1.0, ...array_fill(0, EmbeddingProvider::DIMENSIONS - 1, 0.0)],
         ];
     }
 }

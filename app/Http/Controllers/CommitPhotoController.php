@@ -6,24 +6,25 @@ namespace App\Http\Controllers;
 
 use App\Dto\ThreadContinuation;
 use App\Http\Requests\ShowCommitPhotoRequest;
+use App\Http\Resources\ShownStreams;
 use App\Models\Commit;
+use App\Models\Profile;
 use App\Models\User;
 use App\Queries\CommitAncestorsQuery;
 use App\Queries\CommitContinuationQuery;
 use App\Queries\CommitRepliesQuery;
 use Illuminate\Container\Attributes\CurrentUser;
-use Illuminate\Contracts\Pagination\CursorPaginator;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Support\Collection;
+use Illuminate\Pagination\CursorPaginator;
 use Inertia\Inertia;
 use Inertia\Response;
 
 final readonly class CommitPhotoController
 {
-    public function show(ShowCommitPhotoRequest $request, #[CurrentUser] ?User $currentUser, User $user, Commit $commit, int $photo, CommitAncestorsQuery $ancestors, CommitContinuationQuery $continuation, CommitRepliesQuery $replies): RedirectResponse|Response
+    public function show(ShowCommitPhotoRequest $request, #[CurrentUser] ?User $currentUser, Profile $profile, Commit $commit, int $photo, CommitAncestorsQuery $ancestors, CommitContinuationQuery $continuation, CommitRepliesQuery $replies): RedirectResponse|Response
     {
         if (! $currentUser instanceof User) {
-            return to_route('commit.show', [$user, $commit]);
+            return to_route('commit.show', [$profile, $commit]);
         }
 
         $focusedCommit = null;
@@ -31,7 +32,7 @@ final readonly class CommitPhotoController
             return $focusedCommit ??= Commit::query()
                 ->withVisibleReplyCount($currentUser)
                 ->withContinuationId($currentUser)
-                ->with(['user', 'linkPreview', 'images'])
+                ->with(['author', 'linkPreview', 'images'])
                 ->withQuotedCommitFor($currentUser)
                 ->withStarsFor($currentUser)
                 ->findOrFail($commit->id);
@@ -43,12 +44,12 @@ final readonly class CommitPhotoController
         };
 
         return Inertia::render('commit/show', [
-            'commit' => $getCommit,
-            'ancestors' => fn (): Collection => $ancestors->get($commit, $currentUser),
-            'continuation' => $getContinuation,
-            'replies' => fn (): ?CursorPaginator => $getContinuation()->commits->isEmpty() ? $replies->paginate($commit, $currentUser, limit: $request->repliesPerPage()) : null,
+            'commit' => fn (): ?array => ShownStreams::commit($getCommit()),
+            'ancestors' => fn (): array => ShownStreams::commits($ancestors->get($commit, $currentUser)),
+            'continuation' => fn (): array => ShownStreams::continuation($getContinuation()),
+            'replies' => fn (): ?CursorPaginator => $getContinuation()->commits->isEmpty() ? ShownStreams::page($replies->paginate($commit, $currentUser, limit: $request->repliesPerPage())) : null,
             'photo' => fn (): array => [
-                'commit' => $getCommit(),
+                'commit' => ShownStreams::commit($getCommit()),
                 'index' => $photo - 1,
             ],
         ]);

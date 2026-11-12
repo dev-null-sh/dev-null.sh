@@ -80,7 +80,13 @@ export type OrgEvent =
     | 'promoted'
     | 'demoted'
     | 'inherited'
-    | 'ping';
+    | 'ping'
+    | 'call_started'
+    | 'call_answered'
+    | 'call_cancelled'
+    | 'call_declined'
+    | 'call_missed'
+    | 'call_failed';
 
 export type OrgRef = { id: string; name: string | null };
 
@@ -144,6 +150,11 @@ export type OrgThread = {
      * stay.
      */
     pinned: Message[] | null;
+    /**
+     * The messages that mentioned the user, latest first, until they open or clear them, and how many there are.
+     */
+    mentions: Message[];
+    mentions_count: number;
 };
 
 /**

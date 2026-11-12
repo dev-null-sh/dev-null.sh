@@ -12,7 +12,9 @@ use App\Enums\CommitStatus;
 use App\Http\Requests\CreateCommitRequest;
 use App\Http\Requests\DeleteCommitRequest;
 use App\Http\Requests\ShowCommitRequest;
+use App\Http\Resources\ShownStreams;
 use App\Models\Commit;
+use App\Models\Profile;
 use App\Models\User;
 use App\Queries\CommitAncestorsQuery;
 use App\Queries\CommitContinuationQuery;
@@ -21,9 +23,8 @@ use App\Queries\CommitRepliesQuery;
 use App\Queries\UserAchievementsQuery;
 use App\Services\PageMetadata;
 use Illuminate\Container\Attributes\CurrentUser;
-use Illuminate\Contracts\Pagination\CursorPaginator;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Support\Collection;
+use Illuminate\Pagination\CursorPaginator;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -53,15 +54,15 @@ final readonly class CommitController
         };
 
         $preview = $currentUser instanceof User || $request->inertia() ? null : $metadata->commit(
-            $commit->loadPublicPreview()->loadCount('stars')->load(['images', 'linkPreview', 'quotedCommit.user']),
+            $commit->loadPublicPreview()->loadCount('stars')->load(['images', 'linkPreview', 'quotedCommit.author']),
             $getReplies()->items(),
         );
 
         return Inertia::render('commit/show', [
-            'commit' => $getCommit,
-            'ancestors' => fn (): Collection => $ancestors->get($commit, $currentUser),
-            'continuation' => $getContinuation,
-            'replies' => fn (): ?CursorPaginator => $getContinuation()->commits->isEmpty() ? $getReplies() : null,
+            'commit' => fn (): ?array => ShownStreams::commit($getCommit()),
+            'ancestors' => fn (): array => ShownStreams::commits($ancestors->get($commit, $currentUser)),
+            'continuation' => fn (): array => ShownStreams::continuation($getContinuation()),
+            'replies' => fn (): ?CursorPaginator => $getContinuation()->commits->isEmpty() ? ShownStreams::page($getReplies()) : null,
         ])->withViewData(['preview' => $preview]);
     }
 
@@ -69,14 +70,15 @@ final readonly class CommitController
     {
         $before = $achievements->unlockedBadgeNames($user);
 
-        $commit = $action->handle($user, $request->string('body')->value(), quotedCommit: $request->quotedCommit(), images: $request->images(), imageDescriptions: $request->imageDescriptions(), linkPreview: $request->linkPreview(), poll: $request->poll());
+        $organization = $request->organization();
+        $commit = $action->handle($user, $request->string('body')->value(), quotedCommit: $request->quotedCommit(), images: $request->images(), imageDescriptions: $request->imageDescriptions(), linkPreview: $request->linkPreview(), poll: $request->poll(), organization: $organization);
 
         $unlocked = $achievements->unlockedBadgeNames($user)->diff($before)->values();
 
         Inertia::flash('committed', [
             'id' => $commit->id,
             'body' => $commit->body,
-            'user' => ['handle' => $user->handle],
+            'author' => ['handle' => ($organization ?? $user)->handle],
         ]);
 
         if ($unlocked->isNotEmpty()) {
@@ -105,10 +107,10 @@ final readonly class CommitController
             'server_time' => now()->toJSON(),
         ]);
 
-        $commitUrl = route('commit.show', [$commit->user, $commit]);
+        $commitUrl = route('commit.show', [$commit->author, $commit]);
 
         if (Str::is([$commitUrl, "{$commitUrl}/photos/*"], url()->previous())) {
-            return to_route('user.show', $commit->user);
+            return to_route('user.show', $commit->author);
         }
 
         return back();

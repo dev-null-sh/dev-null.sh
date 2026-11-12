@@ -7,7 +7,12 @@ import Heading from '@/components/heading';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import { useUser } from '@/hooks/use-user';
-import { cn, laneColor, withViewTransition } from '@/lib/utils';
+import {
+    cn,
+    laneColor,
+    organizationLaneColor,
+    withViewTransition,
+} from '@/lib/utils';
 import type { Lane } from '@/types';
 
 const laneNames = ['Orange', 'Green', 'Violet', 'Teal', 'Rose', 'Ochre'];
@@ -52,7 +57,10 @@ export function LaneOptions({
     onSelect,
 }: {
     selected: Lane | null;
-    automaticLane: number;
+    /**
+     * The lane picked when none is chosen, or null when that is /dev/null's blue, like organizations.
+     */
+    automaticLane: number | null;
     onSelect: (lane: Lane | null) => void;
 }) {
     const colorInputRef = useRef<HTMLInputElement>(null);
@@ -62,17 +70,24 @@ export function LaneOptions({
     const isCustom = typeof selected === 'string';
 
     const options = [
-        {
-            value: null,
-            label: 'Auto',
-            ariaLabel: `Automatic (${laneNames[automaticLane].toLowerCase()})`,
-            lane: automaticLane,
-        },
+        automaticLane === null
+            ? {
+                  value: null,
+                  label: 'Blue',
+                  ariaLabel: 'Blue (default)',
+                  color: organizationLaneColor(null),
+              }
+            : {
+                  value: null,
+                  label: 'Auto',
+                  ariaLabel: `Automatic (${laneNames[automaticLane].toLowerCase()})`,
+                  color: laneColor(automaticLane),
+              },
         ...laneNames.map((name, index) => ({
             value: index,
             label: name,
             ariaLabel: undefined,
-            lane: index,
+            color: laneColor(index),
         })),
     ];
 
@@ -109,7 +124,7 @@ export function LaneOptions({
                         className={optionClassName}
                         style={
                             {
-                                '--lane': laneColor(option.lane),
+                                '--lane': option.color,
                             } as CSSProperties
                         }
                     >
@@ -156,11 +171,9 @@ export function LaneOptions({
                         {
                             '--lane':
                                 customColor ??
-                                laneColor(
-                                    typeof selected === 'number'
-                                        ? selected
-                                        : automaticLane,
-                                ),
+                                (typeof selected === 'number'
+                                    ? laneColor(selected)
+                                    : options[0].color),
                         } as CSSProperties
                     }
                     data-test="custom-lane-option"

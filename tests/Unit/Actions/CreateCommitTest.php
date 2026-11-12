@@ -31,7 +31,8 @@ it('may create a commit', function (): void {
 
     expect($commit->exists)->toBeTrue()
         ->and($commit->body)->toBe('Hello, devnull!')
-        ->and($commit->user->is($user))->toBeTrue();
+        ->and($commit->user->is($user))->toBeTrue()
+        ->and($commit->author_id)->toBe($user->id);
 });
 
 it('creates commits pending review', function (): void {
@@ -109,6 +110,20 @@ it('notifies the parent author about replies of admins', function (): void {
     $reply = $action->handle(User::factory()->create(['handle' => 'nunomaduro']), 'Nice one', $parent);
 
     expect($parent->user->notifications()->sole()->commit_id)->toBe($reply->id);
+});
+
+it("tells the author's followers about their first commit", function (): void {
+    config(['app.admins' => ['nunomaduro']]);
+
+    $author = User::factory()->create(['handle' => 'nunomaduro']);
+    $follower = User::factory()->create();
+    $author->followers()->attach($follower);
+
+    $commit = resolve(CreateCommit::class)->handle($author, 'Hello world!');
+
+    expect($follower->notifications()->sole())
+        ->type->toBe(NotificationType::FirstCommit)
+        ->commit_id->toBe($commit->id);
 });
 
 it('does not notify about pending replies', function (): void {

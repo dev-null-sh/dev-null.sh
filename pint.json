@@ -1,6 +1,7 @@
 {
     "preset": "laravel",
     "notPath": [
+        "public/frankenphp-worker.php",
         "tests/TestCase.php",
         "tmp"
     ],

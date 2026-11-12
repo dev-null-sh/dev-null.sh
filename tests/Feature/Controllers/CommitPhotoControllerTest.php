@@ -175,3 +175,13 @@ it('hides quoted photo context across a block in either direction', function (bo
             ->where('photo.commit.quoted_commit', null))
         ->assertDontSee('Blocked quote context');
 })->with([true, false]);
+
+it('moves a photo for good to the handle of its author in its own case', function (): void {
+    $commit = commitWithPhotos();
+    $handle = $commit->user->handle;
+
+    $this->actingAs(User::factory()->create())
+        ->get('/@'.mb_strtoupper($handle)."/commits/{$commit->id}/photos/2")
+        ->assertMovedPermanently()
+        ->assertRedirect("/@{$handle}/commits/{$commit->id}/photos/2");
+});

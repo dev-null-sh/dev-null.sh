@@ -6,14 +6,16 @@ namespace App\Queries;
 
 use App\Enums\NotificationType;
 use App\Models\Notification;
+use App\Models\Profile;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
-use Illuminate\Contracts\Pagination\CursorPaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Query\Builder as QueryBuilder;
+use Illuminate\Pagination\CursorPaginator;
 use Illuminate\Support\Facades\DB;
 
 final readonly class NotificationGroupsQuery
@@ -34,9 +36,10 @@ final readonly class NotificationGroupsQuery
         $query = Notification::query()->fromSub($events, 'notifications')
             ->where('group_rank', 1)
             ->with([
-                'actor' => fn (BelongsTo $query): BelongsTo => $query
+                'actor.user' => fn (HasOne $query): HasOne => $query
                     ->withExists(['followers as is_followed' => fn (Builder $query): Builder => $query->whereKey($user->id)]),
                 'commit',
+                'organization',
             ])
             ->latest()->latest('id');
         $perPage = $through instanceof CarbonImmutable
@@ -51,24 +54,29 @@ final readonly class NotificationGroupsQuery
     }
 
     /**
-     * The inbox shows a quote with the commit it quotes, which is always the recipient's own, so only the recipient's
-     * commits load there: a reply that quotes someone else never brings along a commit the recipient may not see.
+     * The inbox shows a quote with the commit it quotes, which is always the recipient's own or the organization's they
+     * heard about it for, so only those commits load there, as far as the recipient may see them: a reply that quotes
+     * someone else never brings along a commit the recipient may not see, nor does an organization's rejected one.
      *
      * @param  CursorPaginator<int, Notification>  $groups
      * @return CursorPaginator<int, Notification>
      */
     public function withQuotedCommits(User $user, CursorPaginator $groups): CursorPaginator
     {
-        new Collection($groups->items())->loadMissing([
-            'commit.quotedCommit' => fn (BelongsTo $query): BelongsTo => $query->withTrashed()->whereBelongsTo($user),
+        $items = new Collection($groups->items());
+        $authorIds = $items->pluck('organization_id')->filter()->push($user->id)->unique()->values()->all();
+
+        $items->loadMissing([
+            'commit.quotedCommit' => fn (BelongsTo $query): BelongsTo => $query->withTrashed()->whereIn('author_id', $authorIds)
+                ->where(fn (CommitBuilder $query): CommitBuilder => $query->visibleTo($user)),
         ]);
 
         return $groups;
     }
 
     /**
-     * A star is always on the recipient's own commit, so its images may show beside it: an image-only commit has nothing
-     * else to show.
+     * A star is always on the recipient's own commit, or the organization's they heard about it for, so its images may
+     * show beside it: an image-only commit has nothing else to show.
      *
      * @param  CursorPaginator<int, Notification>  $groups
      * @return CursorPaginator<int, Notification>
@@ -100,8 +108,11 @@ final readonly class NotificationGroupsQuery
     public function members(User $user, Notification $notification, string $type = 'all'): NotificationBuilder
     {
         return $this->group($this->visible($user), $type, $notification)
-            ->with(['actor' => fn (BelongsTo $query): BelongsTo => $query
-                ->withExists(['followers as is_followed' => fn (Builder $query): Builder => $query->whereKey($user->id)])]);
+            ->with([
+                'actor.user' => fn (HasOne $query): HasOne => $query
+                    ->withExists(['followers as is_followed' => fn (Builder $query): Builder => $query->whereKey($user->id)]),
+                'organization',
+            ]);
     }
 
     public function events(User $user, string $type = 'all'): NotificationBuilder
@@ -151,7 +162,8 @@ final readonly class NotificationGroupsQuery
         // Deleted ancestors supply grouping identity only; content comes from relevant notifications. A commit's
         // recorded root is always one of its ancestors, so the walk up the thread only continues past it when the
         // recorded root is itself a reply. Follows never group across days, as a busy account gets followed so often
-        // that its follows would otherwise never stop joining a single group.
+        // that its follows would otherwise never stop joining a single group. What a member hears about for an
+        // organization only groups with what they hear about for that organization: each names whose it is.
         $sql = <<<SQL
             WITH RECURSIVE visible AS ({$visible->toSql()}),
             threads AS (
@@ -170,7 +182,9 @@ final readonly class NotificationGroupsQuery
             topics AS (
                 SELECT visible.*,
                     CASE WHEN visible.type = 'starred' THEN 'starred'
-                        WHEN visible.type = 'replied' THEN 'replied' ELSE 'activity' END AS topic_kind,
+                        WHEN visible.type = 'replied' THEN 'replied'
+                        WHEN visible.organization_id IS NOT NULL THEN CONCAT('organization:', visible.organization_id)
+                        ELSE 'activity' END AS topic_kind,
                     CASE WHEN visible.type = 'followed' THEN visible.recipient_id
                         WHEN visible.type = 'starred' THEN visible.commit_id
                         WHEN visible.type = 'replied' THEN visible.id
@@ -225,7 +239,7 @@ final readonly class NotificationGroupsQuery
     private function loadStackedActors(array $groups): void
     {
         $grouped = array_filter($groups, fn (Notification $group): bool => $group->actors_count > 1);
-        $actors = $grouped === [] ? new Collection() : User::query()
+        $actors = $grouped === [] ? new Collection() : Profile::query()->with(['user', 'organization'])
             ->findMany(array_merge(...array_map($this->stackedActorIds(...), $grouped)));
 
         foreach ($groups as $group) {
