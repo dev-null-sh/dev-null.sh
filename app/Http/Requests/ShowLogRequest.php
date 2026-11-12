@@ -24,20 +24,36 @@ final class ShowLogRequest extends FormRequest
     {
         return [
             'since' => ['nullable', 'uuid'],
-            'through' => ['nullable', 'uuid'],
-            'pending' => ['sometimes', 'array', 'list'],
+            // The oldest loaded commits, oldest first, so the range holds even when the oldest is hidden or gone.
+            'through' => ['nullable', 'string', 'regex:/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(,[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}){0,19}$/i'],
+            'pending' => ['sometimes', 'array', 'list', 'max:100'],
             'pending.*' => ['required', 'uuid', 'distinct'],
+            'arrived' => ['sometimes', 'array', 'list', 'max:100'],
+            'arrived.*' => ['required', 'uuid', 'distinct'],
+            'everything' => ['sometimes', 'boolean'],
         ];
     }
 
     /**
-     * Keep the loaded range when a follow changes who belongs in the log, or new commits arrive on top of it.
+     * Keep the loaded range when a follow changes who belongs in the log, or new commits arrive on top of it: the
+     * oldest of the loaded commits named that the user can still see, as older ones may have been hidden or erased.
      */
     public function through(): ?Commit
     {
-        return $this->filled('through')
-            ? Commit::query()->withTrashed()->visibleTo($this->user())->find($this->string('through')->value())
-            : null;
+        if (! $this->filled('through')) {
+            return null;
+        }
+
+        $ids = explode(',', mb_strtolower($this->string('through')->value()));
+        $visible = Commit::query()->withTrashed()->visibleTo($this->user())->whereKey($ids)->get()->keyBy('id');
+
+        foreach ($ids as $id) {
+            if ($visible->has($id)) {
+                return $visible->get($id);
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -70,6 +86,20 @@ final class ShowLogRequest extends FormRequest
         $pending = $this->validated('pending', []);
 
         return $pending;
+    }
+
+    /**
+     * Commits the log heard about that it doesn't show, which may belong among the ones it does, as when an older one
+     * was approved.
+     *
+     * @return list<string>
+     */
+    public function arrived(): array
+    {
+        /** @var list<string> $arrived */
+        $arrived = $this->validated('arrived', []);
+
+        return $arrived;
     }
 
     public function prepareForValidation(): void

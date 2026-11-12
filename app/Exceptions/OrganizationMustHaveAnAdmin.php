@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Exceptions;
 
-use App\Models\Profile;
+use App\Models\Organization;
 use RuntimeException;
 
 /**
@@ -13,7 +13,7 @@ use RuntimeException;
  */
 final class OrganizationMustHaveAnAdmin extends RuntimeException
 {
-    public function __construct(public readonly Profile $organization)
+    public function __construct(public readonly Organization $organization)
     {
         parent::__construct(__('@:handle needs at least one admin.', ['handle' => $organization->handle]));
     }

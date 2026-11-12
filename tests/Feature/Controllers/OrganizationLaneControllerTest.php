@@ -2,16 +2,16 @@
 
 declare(strict_types=1);
 
-use App\Models\Profile;
+use App\Models\Organization;
 use App\Models\User;
 
 /**
- * @return array{0: User, 1: Profile}
+ * @return array{0: User, 1: Organization}
  */
 function organizationAdmin(array $attributes = []): array
 {
     $user = User::factory()->create();
-    $organization = Profile::factory()->organization()->create(['handle' => 'laravel', ...$attributes]);
+    $organization = Organization::factory()->create(['handle' => 'laravel', ...$attributes]);
     $organization->admins()->attach($user->id, ['created_at' => now()]);
 
     return [$user, $organization];
@@ -71,14 +71,14 @@ it('hides the color from users who are not admins of the organization', function
     expect($organization->refresh()->lane())->toBe(2);
 });
 
-it('hides the color of profiles of users, which have no admins', function (): void {
+it('hides the color of profiles of users, which are not organizations', function (): void {
     $user = User::factory()->create();
 
     $this->actingAs($user)
         ->put(route('organization-lane.update', $user->profile), ['lane' => 1])
         ->assertNotFound();
 
-    expect($user->profile->refresh()->lane())->toBeNull();
+    expect(Organization::query()->exists())->toBeFalse();
 });
 
 it('requires authentication', function (): void {

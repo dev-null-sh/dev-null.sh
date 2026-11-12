@@ -21,9 +21,11 @@ final class ListApiUserFollowingRequest extends FormRequest
         assert($user instanceof User);
 
         $viewer = $this->user();
-        $blockerId = $viewer instanceof User ? $viewer->blockerIdWith($user) : null;
+        assert($viewer instanceof User);
 
-        throw_if($blockerId !== null, fn (): ApiException => ApiException::acrossBlock($user, blockedByViewer: $blockerId === $viewer?->id, shown: UserResource::make($user)));
+        $blockerId = $viewer->blockerIdWith($user);
+
+        throw_if($blockerId !== null, fn (): ApiException => ApiException::acrossBlock($user, blockedByViewer: $blockerId === $viewer->id, shown: UserResource::make($user)));
 
         return true;
     }

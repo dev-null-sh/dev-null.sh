@@ -17,10 +17,12 @@ import {
     PreviewToggle,
     useComposerPreview,
 } from '@/components/composer-preview';
+import { EmojiPickerButton } from '@/components/emoji-picker';
 import InputError from '@/components/input-error';
 import { LinkCardPicker } from '@/components/link-card-picker';
 import { MentionTextarea } from '@/components/mention-textarea';
 import { QuotedCommit } from '@/components/quoted-commit';
+import { StableLabel } from '@/components/stable-label';
 import { StashLabel } from '@/components/stash-label';
 import { Button } from '@/components/ui/button';
 import {
@@ -31,8 +33,10 @@ import {
 } from '@/components/ui/dialog';
 import { UserAvatar } from '@/components/user-avatar';
 import { useMarkCommitDeleted } from '@/hooks/use-deleted-resources';
+import { useEmojiInsertion } from '@/hooks/use-emoji-insertion';
 import { useImageAttachments } from '@/hooks/use-image-attachments';
 import { useLinkCard } from '@/hooks/use-link-card';
+import { useOwnsCommit } from '@/hooks/use-owns-commit';
 import { moveCaretToEnd, useHasStash, useStash } from '@/hooks/use-stash';
 import { useUser } from '@/hooks/use-user';
 import { signIn } from '@/lib/auth';
@@ -56,10 +60,11 @@ export function CommitQuoteButton({
     className?: string;
 }) {
     const { auth } = usePage().props;
+    const ownsCommit = useOwnsCommit();
     const [isOpen, setIsOpen] = useState(false);
     const hasStash = useHasStash(auth.user?.id ?? null, `quote-${commit.id}`);
 
-    if (commit.status !== 'approved' && commit.user_id !== auth.user?.id) {
+    if (commit.status !== 'approved' && !ownsCommit(commit)) {
         return null;
     }
 
@@ -149,6 +154,12 @@ function QuoteComposer({
         textareaRef,
         isSubmittable: isQuotable,
     });
+    const insertEmoji = useEmojiInsertion({
+        body,
+        updateBody,
+        textareaRef,
+        maxLength: maxRawBodyLength,
+    });
 
     const submitOnModEnter = (event: KeyboardEvent<HTMLTextAreaElement>) => {
         if (preview.handleShortcut(event)) {
@@ -199,7 +210,7 @@ function QuoteComposer({
                 <ImageDropOverlay className="fixed" />
             )}
             <DialogTitle className="text-base">
-                Quote @{commit.user.handle}
+                Quote @{commit.author.handle}
             </DialogTitle>
             <DialogDescription className="sr-only">
                 Write a commit of your own. This commit is embedded below it.
@@ -214,6 +225,8 @@ function QuoteComposer({
                 transform={(data) => ({
                     ...data,
                     commit_rules_accepted: commitRules.hasAccepted(),
+                    human_verification_token:
+                        commitRules.humanVerificationToken(),
                     ...(images.length > 0 && {
                         images,
                         image_descriptions: descriptions,
@@ -278,10 +291,19 @@ function QuoteComposer({
                                     }
                                     aria-describedby={`${id}-count`}
                                     className={cn(
-                                        'col-start-1 row-start-1 block field-sizing-content max-h-[40dvh] min-h-10 w-full resize-none overflow-x-hidden overflow-y-auto bg-transparent py-1.5 text-[17px] leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:outline-none',
+                                        'col-start-1 row-start-1 block field-sizing-content max-h-[40dvh] min-h-10 w-full resize-none overflow-x-hidden overflow-y-auto bg-transparent py-1.5 pr-9 text-[17px] leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:outline-none',
                                         { invisible: preview.isPreviewing },
                                     )}
                                 />
+                                {!preview.isPreviewing && (
+                                    <div className="sticky bottom-0 col-start-1 row-start-1 self-end justify-self-end">
+                                        <EmojiPickerButton
+                                            disabled={processing}
+                                            onPick={insertEmoji}
+                                            className="size-8"
+                                        />
+                                    </div>
+                                )}
                                 {preview.isPreviewing && (
                                     <ComposerPreviewBody
                                         preview={preview}
@@ -378,7 +400,11 @@ function QuoteComposer({
                                     title={`Quote (${keys.combo(keys.mod, keys.enter)})`}
                                     data-test="submit-quote-button"
                                 >
-                                    {processing ? 'Quoting…' : 'Quote'}
+                                    <StableLabel
+                                        label="Quote"
+                                        pendingLabel="Quoting…"
+                                        isPending={processing}
+                                    />
                                 </Button>
                             </div>
                         </div>

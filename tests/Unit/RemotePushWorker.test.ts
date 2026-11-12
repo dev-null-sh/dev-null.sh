@@ -42,6 +42,23 @@ void test('clicking a notification opens the inbox when the site is closed', asy
     assert.deepEqual(opened, ['https://dev-null.sh/remotes']);
 });
 
+void test('a push signals every open page without navigation or message content', async () => {
+    const received: unknown[] = [];
+    const { handlers, notifications, opened } = worker([
+        { postMessage: (message: unknown) => received.push(message) },
+        { postMessage: (message: unknown) => received.push(message) },
+    ]);
+    let finished = Promise.resolve();
+    handlers.get('push')!({ waitUntil: (promise: Promise<void>) => { finished = promise; } });
+    await finished;
+    assert.equal(received.length, 2);
+    assert.deepEqual(received.map((message) => JSON.stringify(message)), [
+        '{"type":"remote-push"}', '{"type":"remote-push"}',
+    ]);
+    assert.equal(notifications.length, 1);
+    assert.deepEqual(opened, []);
+});
+
 void test('clicking reuses and focuses an existing remote window', async () => {
     const navigated: string[] = [];
     let focused = false;

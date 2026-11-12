@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Enums\UserUpdate;
+use App\Events\UsersUpdated;
 use App\Models\Conversation;
 use App\Models\User;
 use App\Queries\OrgCallQuery;
@@ -35,6 +37,9 @@ final readonly class UpdateOrgCall
             foreach ($signals as $toId => $signal) {
                 Cache::put(CreateOrgCall::signalKey($org, $user->id, $toId), Crypt::encryptString(json_encode($signal, JSON_THROW_ON_ERROR)), CreateConversationCall::SECONDS);
             }
+
+            // Each member a signal was left for checks in now to collect it, instead of at their next check-in.
+            event(new UsersUpdated(array_keys($signals), UserUpdate::CallSignals, ['conversation' => $org->id]));
         });
     }
 }

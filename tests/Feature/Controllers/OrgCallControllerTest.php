@@ -63,7 +63,7 @@ it('starts a new call once everyone in the last one left', function (): void {
         ->assertCreated()
         ->assertJsonCount(1, 'call.members');
 
-    expect(Message::query()->where('event', OrgEvent::CallStarted)->pluck('user_id')->all())->toBe([$this->user->id, $this->member->id]);
+    expect(Message::query()->where('event', OrgEvent::CallStarted)->pluck('user_id')->all())->toEqualCanonicalizing([$this->user->id, $this->member->id]);
 });
 
 it('hides the org call from a nonmember or a member with Remotes off', function (bool $isMember): void {

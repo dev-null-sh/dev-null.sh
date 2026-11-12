@@ -10,12 +10,24 @@ use Illuminate\Contracts\Filesystem\FileNotFoundException;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\Client\Response;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 beforeEach(function (): void {
     $disk = Storage::fake('local');
     $this->source = Str::after($disk->path('knowledge.md'), base_path().'/');
+});
+
+it('warns and exits successfully when the knowledge base table is missing', function (): void {
+    Schema::drop('knowledge_base_sections');
+    $this->mock(EmbeddingProvider::class)->shouldNotReceive('embedMany');
+    Log::shouldReceive('warning')->once()->with('Skipping knowledge base embedding: the knowledge_base_sections table does not exist.');
+
+    $this->artisan('knowledge-base:embed', ['source' => $this->source])
+        ->expectsOutputToContain('Skipping knowledge base embedding: the knowledge_base_sections table does not exist.')
+        ->assertSuccessful();
 });
 
 it('stores sections and their vectors with heading context and can retrieve the nearest section', function (): void {
@@ -46,6 +58,51 @@ it('stores sections and their vectors with heading context and can retrieve the 
     expect(resolve(KnowledgeBaseSearchQuery::class)->get('Portuguese pastry', limit: 1)->sole()->id)
         ->toBe($sections[1]->id);
 });
+
+it('returns after checking the table and reading unchanged sections', function (): void {
+    KnowledgeBaseSection::factory()->create([
+        'source' => $this->source, 'position' => 1, 'headings' => ['Stack'],
+        'content' => 'PostgreSQL.', 'embedding' => embeddingVector(2),
+    ]);
+    KnowledgeBaseSection::factory()->create([
+        'source' => $this->source, 'position' => 0, 'headings' => ['Lore', 'Tom'],
+        'content' => 'A fictional profile.', 'embedding' => embeddingVector(1),
+    ]);
+    Storage::disk('local')->put('knowledge.md', "# Lore\n## Tom\nA fictional profile.\n# Stack\nPostgreSQL.");
+    $this->mock(EmbeddingProvider::class)->shouldNotReceive('embedMany');
+    $this->expectsDatabaseQueryCount(2);
+
+    $this->artisan('knowledge-base:embed', ['source' => $this->source])
+        ->expectsOutputToContain('Embedded 0 knowledge base sections')
+        ->assertSuccessful();
+});
+
+it('synchronizes moved or removed sections without reembedding', function (string $markdown, int $count): void {
+    KnowledgeBaseSection::factory()->create([
+        'source' => $this->source, 'position' => 0, 'headings' => ['Lore', 'Tom'],
+        'content' => 'A fictional profile.', 'embedding' => embeddingVector(1),
+    ]);
+    KnowledgeBaseSection::factory()->create([
+        'source' => $this->source, 'position' => 1, 'headings' => ['Stack'],
+        'content' => 'PostgreSQL.', 'embedding' => embeddingVector(2),
+    ]);
+    Storage::disk('local')->put('knowledge.md', $markdown);
+    $this->mock(EmbeddingProvider::class)->shouldNotReceive('embedMany');
+
+    $this->artisan('knowledge-base:embed', ['source' => $this->source])
+        ->expectsOutputToContain('Embedded 0 knowledge base sections')
+        ->assertSuccessful();
+
+    $sections = KnowledgeBaseSection::query()->where('source', $this->source)->orderBy('position')->get();
+    expect($sections->first())->position->toBe(0)
+        ->headings->toBe(['Stack'])
+        ->content->toBe('PostgreSQL.')
+        ->embedding->toBe(embeddingVector(2));
+    expect($sections)->toHaveCount($count);
+})->with([
+    'moved' => ["# Stack\nPostgreSQL.\n# Lore\n## Tom\nA fictional profile.", 2],
+    'removed' => ["# Stack\nPostgreSQL.", 1],
+]);
 
 it('replaces changed and removed sections without duplicating them or touching other sources', function (): void {
     $other = KnowledgeBaseSection::factory()->create();
@@ -80,8 +137,8 @@ it('preserves existing sections if embedding or storing a replacement fails', fu
     $this->assertDatabaseCount('knowledge_base_sections', 1);
     expect($existing->fresh()->getAttributes())->toEqual($existing->getAttributes());
 })->with([
-    'provider failure' => [fn () => throw new RequestException(new Response(new Psr7Response(503))), RequestException::class],
-    'missing embedding' => [fn () => throw new UnexpectedValueException('OpenAI did not return an embedding for every input.'), UnexpectedValueException::class],
+    'provider failure' => [fn (): never => throw new RequestException(new Response(new Psr7Response(503))), RequestException::class],
+    'missing embedding' => [fn (): never => throw new UnexpectedValueException('OpenAI did not return an embedding for every input.'), UnexpectedValueException::class],
     'invalid vector after a valid insert' => [fn (): array => [embeddingVector(0), [0.5, 0.5]], QueryException::class],
 ]);
 

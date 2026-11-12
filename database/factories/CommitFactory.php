@@ -23,6 +23,8 @@ final class CommitFactory extends Factory
     {
         return [
             'user_id' => User::factory(),
+            // Users share the ID of their profile, which they post as.
+            'author_id' => fn (array $attributes): mixed => $attributes['user_id'],
             'body' => fake()->realText(280),
             'status' => CommitStatus::Approved,
             'mentions' => [],

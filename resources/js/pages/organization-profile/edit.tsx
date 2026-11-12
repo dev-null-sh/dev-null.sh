@@ -12,13 +12,8 @@ import OrganizationSettingsLayout from '@/layouts/organization-settings/layout';
 import { organizationLaneColor, withViewTransition } from '@/lib/utils';
 import type { Lane, Organization } from '@/types';
 
-export default function Edit({
-    organization,
-    lane,
-}: {
-    organization: Organization & { id: string };
-    lane: Lane | null;
-}) {
+export default function Edit({ organization }: { organization: Organization }) {
+    const { lane } = organization;
     const [selected, setSelected] = useState<Lane | null>(lane);
 
     return (

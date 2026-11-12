@@ -7,6 +7,7 @@ use App\Enums\Log;
 use App\Exceptions\ApiException;
 use App\Http\Middleware\AuthenticateSignedRequest;
 use App\Http\Middleware\AuthenticateSshSignature;
+use App\Http\Middleware\EndSessionsOfRevokedDevices;
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\PreventFraming;
@@ -15,6 +16,7 @@ use App\Http\Middleware\SerializePushSessions;
 use App\Http\Middleware\StripNullBytes;
 use App\Http\Middleware\UpdateLastSeenAt;
 use App\Models\User;
+use Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -45,7 +47,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->trimStrings(except: ['sdp', 'signals.*.sdp']);
         $middleware->append(PreventFraming::class);
 
-        $middleware->encryptCookies(except: ['appearance', 'sidebar_state', 'who_to_follow', 'who_to_follow_round', 'lane_dimming', 'replies_per_page', 'time_zone', 'hour_cycle']);
+        $middleware->encryptCookies(except: ['appearance', 'sidebar_state', 'who_to_follow', 'who_to_follow_round', 'lane_dimming', 'event_theme', 'replies_per_page', 'time_zone', 'hour_cycle']);
 
         // Approving the app is the one page a guest should leave for GitHub, then return to. Every other page
         // they open while signed out stays the log. Locally, sign-in is the modal on that log.
@@ -58,8 +60,11 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->prependToPriorityList(before: ThrottleRequests::class, prepend: AuthenticateSshSignature::class);
         $middleware->prependToPriorityList(before: ThrottleRequests::class, prepend: AuthenticateSignedRequest::class);
         $middleware->prependToPriorityList(before: StartSession::class, prepend: SerializePushSessions::class);
+        // A session that just ended must not get past `auth` as if it were still signed in...
+        $middleware->prependToPriorityList(before: AuthenticatesRequests::class, prepend: EndSessionsOfRevokedDevices::class);
 
         $middleware->web(append: [
+            EndSessionsOfRevokedDevices::class,
             HandleAppearance::class,
             HandleInertiaRequests::class,
             AddLinkHeadersForPreloadedAssets::class,

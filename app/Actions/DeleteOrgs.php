@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Enums\UserUpdate;
+use App\Events\UsersUpdated;
 use App\Models\Conversation;
+use App\Models\ConversationParticipant;
 use App\Models\Message;
 use App\Models\MessageImage;
 use App\Models\MessageVoice;
@@ -29,6 +32,10 @@ final readonly class DeleteOrgs
 
         resolve(DeleteStoredFiles::class)->retain($paths);
 
+        $members = ConversationParticipant::query()->whereIn('conversation_id', (clone $orgs)->select('id'))->distinct()->pluck('user_id');
+
         $orgs->delete();
+
+        event(new UsersUpdated($members, UserUpdate::Inbox));
     }
 }

@@ -11,9 +11,9 @@ use Illuminate\Support\Facades\Cache;
 /**
  * A code as the web handed it out, in the cache.
  */
-function cachedAuthorizationCode(User $user, string $deviceName = 'devnull on iPhone'): AuthorizationCode
+function cachedAuthorizationCode(User $user, string $deviceName = 'devnull on iPhone', ?string $appName = null, ?string $appId = null): AuthorizationCode
 {
-    $code = new AuthorizationCode(AuthorizationCode::keyFor(bin2hex(random_bytes(32))), $user->id, 'SHA256:key', $deviceName, 'challenge');
+    $code = new AuthorizationCode(AuthorizationCode::keyFor(bin2hex(random_bytes(32))), $user->id, 'SHA256:key', $deviceName, 'challenge', $appName, $appId);
 
     Cache::put($code->key, $code->toArray(), now()->addMinutes(AuthorizationCode::EXPIRES_AFTER_MINUTES));
 
@@ -29,9 +29,19 @@ it('approves the key of an authorization code as a device of its user, and uses 
     expect($device?->refresh()->user_id)->toBe($user->id)
         ->and($device?->fingerprint)->toBe('SHA256:key')
         ->and($device?->name)->toBe('devnull on iPhone')
+        ->and($device?->app_name)->toBeNull()
+        ->and($device?->app_id)->toBeNull()
         ->and($device?->approved_at->toDateTimeString())->toBe(now()->toDateTimeString())
         ->and($device?->last_used_at)->toBeNull()
         ->and(Cache::has($code->key))->toBeFalse();
+});
+
+it('keeps the name and id the app gave itself', function (): void {
+    $device = resolve(CreateDevice::class)->handle(cachedAuthorizationCode(User::factory()->create(), 'MacBook Pro', '/dev/null for Mac', 'macos:sh.dev-null.mac'));
+
+    expect($device?->refresh()->name)->toBe('MacBook Pro')
+        ->and($device?->app_name)->toBe('/dev/null for Mac')
+        ->and($device?->app_id)->toBe('macos:sh.dev-null.mac');
 });
 
 it('moves a key approved by someone else to the user who approved it now', function (): void {

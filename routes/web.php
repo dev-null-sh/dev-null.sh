@@ -3,16 +3,19 @@
 declare(strict_types=1);
 
 use App\Enums\Log;
+use App\Enums\ProfileType;
 use App\Http\Controllers\AboutController;
 use App\Http\Controllers\AppController;
 use App\Http\Controllers\BanController;
 use App\Http\Controllers\BannedController;
 use App\Http\Controllers\BrandController;
+use App\Http\Controllers\BroadcastAuthorizationController;
 use App\Http\Controllers\BulkActivityController;
 use App\Http\Controllers\CallController;
 use App\Http\Controllers\ChangelogController;
 use App\Http\Controllers\Cli\ScriptController;
 use App\Http\Controllers\CommitApprovalController;
+use App\Http\Controllers\CommitChangeController;
 use App\Http\Controllers\CommitContinuationController;
 use App\Http\Controllers\CommitController;
 use App\Http\Controllers\CommitImageController;
@@ -21,6 +24,7 @@ use App\Http\Controllers\CommitOpenGraphImageController;
 use App\Http\Controllers\CommitPastelController;
 use App\Http\Controllers\CommitPhotoController;
 use App\Http\Controllers\CommitPinController;
+use App\Http\Controllers\CommitPollController;
 use App\Http\Controllers\CommitPollVoteController;
 use App\Http\Controllers\CommitPreviewController;
 use App\Http\Controllers\CommitRejectionController;
@@ -56,11 +60,14 @@ use App\Http\Controllers\FailedJobRetryController;
 use App\Http\Controllers\FailedJobsController;
 use App\Http\Controllers\FeatureController;
 use App\Http\Controllers\ForecastController;
+use App\Http\Controllers\HeadlineController;
+use App\Http\Controllers\HumanVerificationController;
 use App\Http\Controllers\InboxController;
 use App\Http\Controllers\IssueController;
 use App\Http\Controllers\IssueSuggestionController;
 use App\Http\Controllers\JoinLinkController;
 use App\Http\Controllers\LinkController;
+use App\Http\Controllers\LiveStreamController;
 use App\Http\Controllers\LocalSessionController;
 use App\Http\Controllers\LogController;
 use App\Http\Controllers\MentionController;
@@ -75,11 +82,13 @@ use App\Http\Controllers\ModeratedUserController;
 use App\Http\Controllers\ModerationController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\NotificationGroupController;
+use App\Http\Controllers\NotificationReadAtController;
 use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\OperationsController;
 use App\Http\Controllers\OperationsEventController;
 use App\Http\Controllers\OrganizationAdminController;
 use App\Http\Controllers\OrganizationController;
+use App\Http\Controllers\OrganizationFollowController;
 use App\Http\Controllers\OrganizationLaneController;
 use App\Http\Controllers\OrganizationMemberController;
 use App\Http\Controllers\OrganizationMentionController;
@@ -90,15 +99,20 @@ use App\Http\Controllers\OrgCallController;
 use App\Http\Controllers\OrgCallIceServerController;
 use App\Http\Controllers\OrgController;
 use App\Http\Controllers\OrgMemberController;
+use App\Http\Controllers\OrgMentionController;
 use App\Http\Controllers\OrgMessageController;
 use App\Http\Controllers\OrgMuteController;
 use App\Http\Controllers\OrgPinController;
 use App\Http\Controllers\OrgPingController;
 use App\Http\Controllers\OrgReadController;
 use App\Http\Controllers\OrgTypingController;
+use App\Http\Controllers\PartnerController;
+use App\Http\Controllers\PendingFollowController;
 use App\Http\Controllers\PrivacyController;
 use App\Http\Controllers\ProductMetricsController;
+use App\Http\Controllers\ProfileLookupController;
 use App\Http\Controllers\ProfileOpenGraphImageController;
+use App\Http\Controllers\ProfileSearchController;
 use App\Http\Controllers\PushSubscriptionController;
 use App\Http\Controllers\RelatedCommitController;
 use App\Http\Controllers\RemoteCandidateController;
@@ -111,11 +125,13 @@ use App\Http\Controllers\SessionController;
 use App\Http\Controllers\SiteActivityController;
 use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\StarredCommitController;
+use App\Http\Controllers\SuggestedUserStateController;
 use App\Http\Controllers\SuggestionDismissalController;
 use App\Http\Controllers\SystemHealthController;
 use App\Http\Controllers\TermsController;
 use App\Http\Controllers\TestEmailController;
 use App\Http\Controllers\TrafficController;
+use App\Http\Controllers\UnclaimedProfileController;
 use App\Http\Controllers\UnsubscriptionController;
 use App\Http\Controllers\UserActivityGraphController;
 use App\Http\Controllers\UserAutomaticTranslationController;
@@ -137,8 +153,8 @@ use App\Http\Controllers\UserPreviewController;
 use App\Http\Controllers\UserProfileController;
 use App\Http\Controllers\UserRemotePreferencesController;
 use App\Http\Controllers\UserRemotesController;
-use App\Http\Controllers\UserSearchController;
 use App\Http\Controllers\UserSitemapController;
+use App\Http\Controllers\UserTermsController;
 use App\Http\Controllers\UserTimeoutController;
 use App\Http\Controllers\UserTimezoneController;
 use App\Http\Controllers\UserTranslationLanguageController;
@@ -149,6 +165,8 @@ use App\Http\Middleware\RequireCommitRules;
 use App\Http\Middleware\SerializePushSessions;
 use App\Http\Middleware\SerializePushSubscriptions;
 use App\Http\Middleware\ThrottleCommits;
+use App\Http\Middleware\ThrottleIssues;
+use App\Models\Profile;
 use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Middleware\SubstituteBindings;
@@ -181,6 +199,11 @@ Route::middleware('guest')->group(function (): void {
         ->middleware('throttle:10,1')
         ->name('login.store');
 
+    Route::get('human-verification', [HumanVerificationController::class, 'show'])->name('human-verification.show');
+    Route::post('human-verification', [HumanVerificationController::class, 'store'])
+        ->middleware('throttle:10,1')
+        ->name('human-verification.store');
+
     // A link by email, for a guest on a phone who'd rather join from their computer...
     Route::post('join-links', [JoinLinkController::class, 'store'])
         ->middleware('throttle:join-links')
@@ -205,6 +228,9 @@ Route::post('emails/unsubscribe/{user}', [UnsubscriptionController::class, 'stor
 // How /dev/null was built, readable by everyone...
 Route::get('about', [AboutController::class, 'show'])->name('about.show');
 
+// Who sponsors /dev/null, readable by everyone...
+Route::get('partners', [PartnerController::class, 'index'])->name('partner.index');
+
 // Logos, colors, and backgrounds, downloadable by everyone...
 Route::get('brand', [BrandController::class, 'show'])->name('brand.show');
 
@@ -217,8 +243,9 @@ Route::get('changelog', [ChangelogController::class, 'index'])->name('changelog.
 
 // Public pages, readable by guests and crawlers...
 Route::middleware([RememberIntendedUrl::class, RedirectToHandleCase::class])->group(function (): void {
-    // A handle no user has may be an organization's. Bindings run before the rest of the route's middleware, like
-    // the one sharing the page's props, so the organization's page goes through that rest first, like any page.
+    // A handle no user has may be an organization's, an unclaimed developer's, or one to look up on GitHub. Bindings
+    // run before the rest of the route's middleware, like the one sharing the page's props, so the page goes through
+    // that rest first, like any page.
     Route::get('@{user:handle}', [UserController::class, 'show'])
         ->missing(function (Request $request): mixed {
             $router = resolve(Router::class);
@@ -226,19 +253,26 @@ Route::middleware([RememberIntendedUrl::class, RedirectToHandleCase::class])->gr
             return new Pipeline(app())
                 ->send($request)
                 ->through(collect($router->gatherRouteMiddleware(resolve(RoutingRoute::class)))->skipUntil(SubstituteBindings::class)->skip(1)->all())
-                ->then(fn (Request $request): SymfonyResponse => $router->prepareResponse($request, app()->call(resolve(OrganizationController::class)->show(...))));
+                ->then(fn (Request $request): SymfonyResponse => $router->prepareResponse($request, app()->call(resolve(match (Profile::query()->firstWhere('handle', $request->route('user'))?->type) {
+                    ProfileType::Organization => OrganizationController::class,
+                    ProfileType::User => UnclaimedProfileController::class,
+                    null => ProfileLookupController::class,
+                })->show(...))));
         })
         ->name('user.show');
-    Route::get('@{user:handle}/following', [UserFollowingController::class, 'index'])
-        ->name('user-following.index');
-    Route::get('@{user:handle}/followers', [UserFollowersController::class, 'index'])
-        ->name('user-followers.index');
-    Route::get('@{user:handle}/mutuals', [UserMutualsController::class, 'index'])
-        ->name('user-mutuals.index');
-    Route::get('@{user:handle}/commits/{commit}', [CommitController::class, 'show'])
+    // Who follows whom is for members, so scrapers can't walk the graph page by page...
+    Route::middleware('auth')->group(function (): void {
+        Route::get('@{user:handle}/following', [UserFollowingController::class, 'index'])
+            ->name('user-following.index');
+        Route::get('@{user:handle}/followers', [UserFollowersController::class, 'index'])
+            ->name('user-followers.index');
+        Route::get('@{user:handle}/mutuals', [UserMutualsController::class, 'index'])
+            ->name('user-mutuals.index');
+    });
+    Route::get('@{profile:handle}/commits/{commit}', [CommitController::class, 'show'])
         ->scopeBindings()
         ->name('commit.show');
-    Route::get('@{user:handle}/commits/{commit}/photos/{photo}', [CommitPhotoController::class, 'show'])
+    Route::get('@{profile:handle}/commits/{commit}/photos/{photo}', [CommitPhotoController::class, 'show'])
         ->scopeBindings()
         ->whereNumber('photo')
         ->name('commit-photo.show');
@@ -284,16 +318,28 @@ Route::get('@{user:handle}/graph.svg', [UserActivityGraphController::class, 'sho
     ->name('user-activity-graph.show');
 
 // Commit...
-Route::get('@{user:handle}/commits/{commit}/og.png', [CommitOpenGraphImageController::class, 'show'])
+Route::get('@{profile:handle}/commits/{commit}/og.png', [CommitOpenGraphImageController::class, 'show'])
     ->scopeBindings()
     ->name('commit-open-graph-image.show');
 Route::get('commit-images/{commitImage}', [CommitImageController::class, 'show'])
     ->whereUuid('commitImage')
     ->name('commit-image.show');
+Route::get('live-streams', [LiveStreamController::class, 'index'])
+    ->middleware('throttle:live-streams')
+    ->name('live-stream.index');
+Route::get('commits/changes', [CommitChangeController::class, 'index'])
+    ->middleware('throttle:commit-changes')
+    ->name('commit-change.index');
 Route::get('commits/{commit}/link-preview', [CommitLinkPreviewController::class, 'show'])
     ->name('commit-link-preview.show');
 Route::get('commits/{commit}/status', [CommitStatusController::class, 'show'])
     ->name('commit-status.show');
+Route::get('commits/{commit}/translation', [CommitTranslationController::class, 'show'])
+    ->middleware('throttle:live-reads')
+    ->name('commit-translation.show');
+Route::get('commits/{commit}/poll', [CommitPollController::class, 'show'])
+    ->middleware('throttle:live-reads')
+    ->name('commit-poll.show');
 Route::get('commits/{commit}/replies', [CommitReplyController::class, 'index'])
     ->withTrashed()
     ->name('commit-reply.index');
@@ -303,23 +349,29 @@ Route::get('commits/{commit}/related', [RelatedCommitController::class, 'index']
     ->middleware('throttle:related-commits')
     ->name('related-commit.index');
 
-// Search...
+// Search: commits by meaning are for members, as each search pays for AI that bots could run up...
 Route::get('search', [SearchController::class, 'index'])
+    ->middleware('auth')
     ->name('search.index');
 
-// User Search...
-Route::get('search/users', [UserSearchController::class, 'index'])
+// Profile Search: developers and organizations by name or handle...
+Route::get('search/profiles', [ProfileSearchController::class, 'index'])
     ->middleware('throttle:people')
-    ->name('user-search.index');
+    ->name('profile-search.index');
 
 // Commit Search...
 Route::get('search/commits', [CommitSearchController::class, 'index'])
-    ->middleware('throttle:search')
+    ->middleware(['auth', 'throttle:search'])
     ->name('commit-search.index');
+
+Route::get('headlines/{headline}', [HeadlineController::class, 'show'])
+    ->whereUuid('headline')
+    ->middleware('auth')
+    ->name('headline.show');
 
 Route::middleware('auth')->group(function (): void {
     Route::post('issues', [IssueController::class, 'store'])
-        ->middleware([PreventPostingInTimeout::class, 'throttle:10,1'])
+        ->middleware([PreventPostingInTimeout::class, 'throttle:10,1', ThrottleIssues::class])
         ->name('issue.store');
 
     // Session...
@@ -327,19 +379,28 @@ Route::middleware('auth')->group(function (): void {
     Route::post('push-subscriptions', [PushSubscriptionController::class, 'store'])->middleware(['throttle:30,1', SerializePushSessions::class, SerializePushSubscriptions::class])->name('push-subscription.store');
     Route::delete('push-subscriptions', [PushSubscriptionController::class, 'destroy'])->middleware(SerializePushSessions::class)->name('push-subscription.destroy');
 
+    // Live updates, on the user's own private channel...
+    Route::post('broadcasting/auth', [BroadcastAuthorizationController::class, 'store'])
+        ->middleware('throttle:broadcast-authorizations')
+        ->name('broadcast-authorization.store');
+
     Route::post('logout', [SessionController::class, 'destroy'])
         ->middleware(SerializePushSessions::class)
         ->name('logout');
 
+    Route::put('terms', [UserTermsController::class, 'update'])->name('user-terms.update');
+
     // Banned, where a banned user is sent from everywhere else...
     Route::get('banned', [BannedController::class, 'show'])->name('banned.show');
 
+    // Looking a handle up on GitHub from its page, which spends GitHub's shared budget...
+    Route::post('profile-lookups', [ProfileLookupController::class, 'store'])
+        ->middleware('throttle:profile-lookups')
+        ->name('profile-lookup.store');
+
     // Claiming an organization's page, which GitHub confirms the user belongs to...
-    Route::post('organizations/{organization}/claim', [OrganizationAdminController::class, 'create'])
+    Route::post('organizations/{organization}/claim', [OrganizationAdminController::class, 'store'])
         ->whereUuid('organization')
-        ->middleware('throttle:10,1')
-        ->name('organization-admin.create');
-    Route::get('auth/github/callback/organizations', [OrganizationAdminController::class, 'store'])
         ->middleware('throttle:10,1')
         ->name('organization-admin.store');
 
@@ -435,6 +496,7 @@ Route::middleware('auth')->group(function (): void {
 
     // Notifications...
     Route::get('notifications', [NotificationController::class, 'index'])->name('notification.index');
+    Route::put('notifications/read-at', [NotificationReadAtController::class, 'update'])->name('notification-read-at.update');
     Route::get('notifications/{notification}/group', [NotificationGroupController::class, 'show'])->name('notification-group.show');
 
     // Messages...
@@ -472,6 +534,7 @@ Route::middleware('auth')->group(function (): void {
         Route::delete('remotes/orgs/{org}/call', [OrgCallController::class, 'destroy'])->whereUuid('org')->name('org-call.destroy');
         Route::get('remotes/orgs/{org}/messages', [OrgMessageController::class, 'index'])->whereUuid('org')->name('org-message.index');
         Route::put('remotes/orgs/{org}/read', [OrgReadController::class, 'update'])->whereUuid('org')->name('org-read.update');
+        Route::delete('remotes/orgs/{org}/mentions', [OrgMentionController::class, 'destroy'])->whereUuid('org')->name('org-mention.destroy');
         Route::put('remotes/orgs/{org}/typing', [OrgTypingController::class, 'update'])->whereUuid('org')->name('org-typing.update');
         Route::post('remotes/orgs/{org}/archive', [OrgArchiveController::class, 'store'])->whereUuid('org')->name('org-archive.store');
         Route::delete('remotes/orgs/{org}/archive', [OrgArchiveController::class, 'destroy'])->whereUuid('org')->name('org-archive.destroy');
@@ -651,6 +714,26 @@ Route::middleware('auth')->group(function (): void {
         ->middleware('throttle:follows')
         ->name('user-follow.destroy');
 
+    // Waiting to follow a developer who isn't on /dev/null yet...
+    Route::post('profiles/{profile}/pending-follow', [PendingFollowController::class, 'store'])
+        ->whereUuid('profile')
+        ->middleware('throttle:follows')
+        ->name('pending-follow.store');
+    Route::delete('profiles/{profile}/pending-follow', [PendingFollowController::class, 'destroy'])
+        ->whereUuid('profile')
+        ->middleware('throttle:follows')
+        ->name('pending-follow.destroy');
+
+    // Organization Follow...
+    Route::post('organizations/{organization}/follow', [OrganizationFollowController::class, 'store'])
+        ->whereUuid('organization')
+        ->middleware('throttle:follows')
+        ->name('organization-follow.store');
+    Route::delete('organizations/{organization}/follow', [OrganizationFollowController::class, 'destroy'])
+        ->whereUuid('organization')
+        ->middleware('throttle:follows')
+        ->name('organization-follow.destroy');
+
     // User Mute...
     Route::post('@{user:handle}/mute', [UserMuteController::class, 'store'])
         ->name('user-mute.store');
@@ -664,6 +747,8 @@ Route::middleware('auth')->group(function (): void {
         ->name('user-block.destroy');
 
     // Suggestion Dismissal...
+    Route::get('suggested-user-states', [SuggestedUserStateController::class, 'index'])
+        ->middleware('throttle:live-reads')->name('suggested-user-state.index');
     Route::post('@{user:handle}/dismiss', [SuggestionDismissalController::class, 'store'])
         ->name('suggestion-dismissal.store');
 

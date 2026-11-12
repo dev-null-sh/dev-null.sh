@@ -15,6 +15,8 @@ export function conversationsMatching(
     const isPersonMatch = ({ handle, name }: User) =>
         isMatch(handle) || isMatch(name);
 
+    const seen = new Set<string>();
+
     return [
         ...found,
         ...onHand.filter(
@@ -26,8 +28,12 @@ export function conversationsMatching(
                     isPersonMatch(user),
                 ),
         ),
-    ].filter(
-        (conversation, index, all) =>
-            all.findIndex(({ id }) => id === conversation.id) === index,
-    );
+    ].filter(({ id }) => {
+        if (seen.has(id)) {
+            return false;
+        }
+
+        seen.add(id);
+        return true;
+    });
 }

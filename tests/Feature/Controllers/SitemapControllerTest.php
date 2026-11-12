@@ -3,11 +3,11 @@
 declare(strict_types=1);
 
 use App\Models\Commit;
-use App\Models\Profile;
+use App\Models\Organization;
 use App\Models\User;
 
 it('lists a sitemap for every month of sign-ups, every month of organizations and every day of commits', function (): void {
-    Profile::factory()->organization()->create(['created_at' => '2026-08-15 00:00:00']);
+    Organization::factory()->create(['created_at' => '2026-08-15 00:00:00']);
     $user = User::factory()->create(['created_at' => '2026-09-30 23:59:59']);
     Commit::factory()->for($user)->create(['created_at' => '2026-10-15 08:00:00']);
     Commit::factory()->for($user)->create(['created_at' => '2026-10-15 23:59:59']);
@@ -42,7 +42,7 @@ it('leaves out the days and months with nothing approved', function (): void {
 
 it('serves every sitemap without cookies, so a cache can share it', function (string $route): void {
     Commit::factory()->create();
-    Profile::factory()->organization()->create();
+    Organization::factory()->create();
 
     $response = $this->get(route($route, match ($route) {
         'sitemap.index' => [],

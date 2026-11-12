@@ -27,7 +27,7 @@ final readonly class CommitContinuationQuery
             SELECT step.id, chain.depth + 1 FROM chain
             CROSS JOIN LATERAL (
                 SELECT next.id FROM commits next
-                WHERE next.parent_id = chain.id AND next.user_id = ? AND next.deleted_at IS NULL
+                WHERE next.parent_id = chain.id AND next.author_id = ? AND next.deleted_at IS NULL
                 ORDER BY next.created_at, next.id
                 LIMIT 1
             ) step
@@ -45,9 +45,9 @@ final readonly class CommitContinuationQuery
             UNION ALL
             SELECT parent.id, parent.parent_id, up.depth + 1 FROM up
             JOIN commits parent ON parent.id = up.parent_id
-            WHERE parent.user_id = ? AND parent.deleted_at IS NULL AND up.depth < ? AND (
+            WHERE parent.author_id = ? AND parent.deleted_at IS NULL AND up.depth < ? AND (
                 SELECT next.id FROM commits next
-                WHERE next.parent_id = parent.id AND next.user_id = ? AND next.deleted_at IS NULL
+                WHERE next.parent_id = parent.id AND next.author_id = ? AND next.deleted_at IS NULL
                 ORDER BY next.created_at, next.id
                 LIMIT 1
             ) = up.id
@@ -62,7 +62,7 @@ final readonly class CommitContinuationQuery
     {
         $hasNoNext = $commit->hasAttribute('continuation_id') && $commit->continuation_id === null;
 
-        if ($commit->user_id === null || ($hasNoNext && $commit->parent_id === null)) {
+        if ($commit->author_id === null || ($hasNoNext && $commit->parent_id === null)) {
             return new ThreadContinuation(commits: new Collection, position: 1, length: 0, isCapped: false, nextId: null);
         }
 
@@ -104,7 +104,7 @@ final readonly class CommitContinuationQuery
     private function chainBelow(Commit $commit, ?User $user): array
     {
         $byParent = Commit::query()
-            ->whereRaw('commits.id IN ('.self::CHAIN.')', [$commit->id, $commit->user_id, self::MAX_LENGTH + 1])
+            ->whereRaw('commits.id IN ('.self::CHAIN.')', [$commit->id, $commit->author_id, self::MAX_LENGTH + 1])
             ->visibleTo($user)
             ->withoutMutedAuthorsFor($user)
             ->get(['id', 'parent_id'])
@@ -127,7 +127,7 @@ final readonly class CommitContinuationQuery
         }
 
         $byId = Commit::query()
-            ->whereRaw('commits.id IN ('.self::POSITION.')', [$commit->id, $commit->parent_id, $commit->user_id, self::MAX_POSITION, $commit->user_id])
+            ->whereRaw('commits.id IN ('.self::POSITION.')', [$commit->id, $commit->parent_id, $commit->author_id, self::MAX_POSITION, $commit->author_id])
             ->visibleTo($user)
             ->withoutMutedAuthorsFor($user)
             ->get(['id', 'parent_id'])

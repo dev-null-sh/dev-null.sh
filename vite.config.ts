@@ -13,7 +13,7 @@ export default defineConfig({
             typeCheck: true,
         },
         plugins: ['eslint', 'typescript', 'unicorn', 'oxc', 'react'],
-        ignorePatterns: ['vite.config.ts'],
+        ignorePatterns: ['vite.config.ts', 'apps/**'],
     },
     fmt: {
         printWidth: 80,

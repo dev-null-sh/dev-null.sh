@@ -5,16 +5,15 @@ import { createInertiaApp } from '@inertiajs/react';
 import type { ComponentType } from 'react';
 import { renderToString } from 'react-dom/server';
 import { test } from 'vite-plus/test';
+import { SearchResults } from '../../resources/js/components/commit-search-results';
 import { RelatedCommitList } from '../../resources/js/components/related-commits';
 import { TooltipProvider } from '../../resources/js/components/ui/tooltip';
 import Reports from '../../resources/js/pages/moderation/reports';
-import { SearchResults } from '../../resources/js/pages/search/index';
 import type { Commit } from '../../resources/js/types';
 
 const commit = (id: string, lane: number): Commit =>
     ({
         id,
-        user_id: `author-${id}`,
         parent_id: null,
         quoted_commit_id: null,
         created_at: new Date().toISOString(),
@@ -23,7 +22,7 @@ const commit = (id: string, lane: number): Commit =>
         body_segments: [{ type: 'text', text: `Commit ${id}` }],
         preview_segments: [{ type: 'text', text: `Commit ${id}` }],
         replies_count: 0,
-        user: {
+        author: {
             id: `author-${id}`,
             name: `Author ${id}`,
             handle: `author-${id}`,
@@ -37,7 +36,7 @@ async function render(Page: ComponentType): Promise<string> {
     const result = await createInertiaApp({
         page: {
             component: 'test',
-            props: { auth: { user: null }, errors: {} },
+            props: { auth: { organizations: [], user: null }, errors: {} },
             url: '/',
             version: null,
             clearHistory: false,
@@ -159,7 +158,7 @@ test('keeps the graph of each report apart, even when two people report the same
     assert.equal(html.match(/data-test="graph-canvas"/g)?.length, 2);
 });
 
-test('ends the chain of search results on a dot below the last one', async () => {
+test('ends each search result on its own dot, as in a feed', async () => {
     const html = await render(() => (
         <SearchResults
             results={{
@@ -174,15 +173,10 @@ test('ends the chain of search results on a dot below the last one', async () =>
         />
     ));
 
-    assert.equal(html.match(/data-test="rail-end-dot"/g)?.length, 1);
-    // In the last card: past everything the second one shows.
-    assert.ok(
-        html.indexOf('data-test="rail-end-dot"') >
-            html.lastIndexOf('Commit two'),
-    );
+    assert.equal(html.match(/data-test="rail-end-dot"/g)?.length, 3);
 });
 
-test('draws related commits in a canvas of their own, chained one after the other and ending on a dot below the last one', async () => {
+test('draws related commits in a canvas of their own, each commit ending on its dot as in a feed', async () => {
     const html = await render(() => (
         <RelatedCommitList
             commits={[commit('one', 1), commit('two', 2), commit('three', 3)]}
@@ -191,10 +185,5 @@ test('draws related commits in a canvas of their own, chained one after the othe
 
     assert.equal(html.match(/data-test="graph-canvas"/g)?.length, 1);
     assert.equal(railPiecesLeftShowing(html), 0);
-    assert.equal(html.match(/data-test="rail-end-dot"/g)?.length, 1);
-    // In the last card: past everything the second one shows.
-    assert.ok(
-        html.indexOf('data-test="rail-end-dot"') >
-            html.lastIndexOf('Commit two'),
-    );
+    assert.equal(html.match(/data-test="rail-end-dot"/g)?.length, 3);
 });

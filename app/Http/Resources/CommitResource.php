@@ -16,7 +16,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
- * A commit and its author, as anyone may see them.
+ * A commit and its author, a user or an organization as its type says, as anyone may see them.
  *
  * A signed request gets the commit as the web shows it to that user instead: parent_id is the parent the commit
  * replies to, whoever may see it, and on top come the body split into prose, inline code and highlighted code
@@ -57,7 +57,7 @@ final class CommitResource extends JsonResource
             'short_hash' => mb_substr(str_replace('-', '', $this->id), -7),
             'body' => $this->body,
             'parent_id' => $isSigned ? $this->parent_id : $this->parent?->id,
-            'html_url' => route('commit.show', [$this->user, $this->resource]),
+            'html_url' => route('commit.show', [$this->author, $this->resource]),
             'created_at' => $this->created_at->toIso8601ZuluString(),
             'stars_count' => $this->whenCounted('stars'),
             'replies_count' => $this->whenCounted('replies'),
@@ -65,7 +65,7 @@ final class CommitResource extends JsonResource
             'images' => $this->whenLoaded('images', fn (): mixed => $this->status === CommitStatus::Approved || ! $this->imagesAreVisibleTo($request->user())
                 ? $this->images
                 : $this->images->map(fn (CommitImage $image): array => [...$image->toArray(), 'url' => $image->temporaryUrl()])),
-            'author' => UserResource::make($this->user),
+            'author' => ProfileResource::make($this->author),
         ];
 
         if (! $isSigned) {
@@ -77,7 +77,7 @@ final class CommitResource extends JsonResource
             ...resolve(CommitBodies::class)->segments($this->body),
             'mentions' => resolve(Mentions::class)->positions($this->body, $this->organization_mentions ?? []),
             'status' => $this->status,
-            'is_pinned' => $this->user?->pinned_commit_id === $this->id,
+            'is_pinned' => $this->author?->user?->pinned_commit_id === $this->id,
             'starred' => $this->whenHas('starred'),
             'pasteis_count' => $this->pasteis_count,
             'deleted_at' => null,

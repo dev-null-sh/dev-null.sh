@@ -7,9 +7,10 @@ services:
       timeout 10s bash -c 'until pg_isready -q -h 127.0.0.1 -p 5432 -U root -d devnull; do sleep 0.2; done' &&
       php artisan config:clear &&
       APP_URL="$PUBLIC_URL" ASSET_URL="$PUBLIC_URL"
-      php artisan serve --host=0.0.0.0 --port="$PORT"
+      php artisan serve --no-reload --host=0.0.0.0 --port="$PORT"
     env:
       APP_ENV: local
+      TRUSTED_PROXIES: "127.0.0.1,::1"
       NIGHTWATCH_ENABLED: "false"
       DB_URL: ""
       DB_CONNECTION: pgsql

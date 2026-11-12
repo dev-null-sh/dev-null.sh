@@ -6,8 +6,10 @@ namespace App\Http\Requests;
 
 use App\Actions\CreateCommitImages;
 use App\Models\Commit;
+use App\Models\Organization;
 use App\Models\User;
 use App\Queries\MentionedUsersQuery;
+use App\Rules\OrganizationToPostAs;
 use App\Services\Urls;
 use Illuminate\Auth\Access\Response;
 use Illuminate\Contracts\Validation\ValidationRule;
@@ -46,11 +48,14 @@ final class CreateCommitReplyRequest extends FormRequest
      */
     public function rules(): array
     {
+        $user = $this->user();
+        assert($user instanceof User);
         $body = $this->input('body');
         $parent = $this->route('commit');
         assert($parent instanceof Commit);
 
         return [
+            'author' => ['nullable', 'string', new OrganizationToPostAs($user)],
             'reply_recipients' => ['sometimes', 'list', 'max:'.self::MAX_REPLY_RECIPIENTS],
             'reply_recipients.*' => ['required', 'string', 'distinct', Rule::in(array_values($parent->mentions ?? []))],
             'body' => CreateCommitRequest::bodyRules($this->hasFile('images')),
@@ -156,5 +161,16 @@ final class CreateCommitReplyRequest extends FormRequest
         $descriptions = $this->array('image_descriptions');
 
         return $descriptions;
+    }
+
+    /**
+     * The organization the user posts as, or null when they post as themselves.
+     */
+    public function organization(): ?Organization
+    {
+        $user = $this->user();
+        assert($user instanceof User);
+
+        return OrganizationToPostAs::of($user, $this->input('author'));
     }
 }

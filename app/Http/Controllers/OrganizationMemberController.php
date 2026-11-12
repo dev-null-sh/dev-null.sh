@@ -8,14 +8,17 @@ use App\Actions\CreateOrganizationMember;
 use App\Actions\DeleteOrganizationMember;
 use App\Actions\UpdateOrganizationMemberRole;
 use App\Enums\OrganizationRole;
+use App\Enums\UserUpdate;
 use App\Exceptions\OrganizationMustHaveAnAdmin;
 use App\Http\Requests\CreateOrganizationMemberRequest;
 use App\Http\Requests\DeleteOrganizationMemberRequest;
 use App\Http\Requests\ListOrganizationMembersRequest;
 use App\Http\Requests\UpdateOrganizationMemberRequest;
-use App\Models\Profile;
+use App\Models\Organization;
 use App\Models\User;
+use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Container\Attributes\CurrentUser;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -28,20 +31,21 @@ final readonly class OrganizationMemberController
     /**
      * Every member sees who the members are, first joined first. Only admins can change them.
      */
-    public function index(ListOrganizationMembersRequest $request, #[CurrentUser] User $user, Profile $organization): Response
+    public function index(ListOrganizationMembersRequest $request, #[CurrentUser] User $user, Organization $organization): Response
     {
         return Inertia::render('organization-member/index', [
-            'organization' => $organization->makeVisible('id'),
-            'role' => $organization->roleOf($user),
-            'members' => $organization->members()
+            'organization' => $organization,
+            // Changed by another admin, the members and the user's own role read again, the form being filled in stays.
+            'role' => Inertia::live(fn (): ?OrganizationRole => $organization->roleOf($user), UserUpdate::Account->value, new PrivateChannel($user)),
+            'members' => Inertia::live(fn (): Collection => $organization->members()
                 ->oldest('organization_members.created_at')
                 ->withCasts(['joined_at' => 'datetime'])
                 ->get(['users.*', 'organization_members.role', 'organization_members.created_at as joined_at'])
-                ->makeHidden('pivot'),
+                ->makeHidden('pivot'), UserUpdate::Account->value, new PrivateChannel($user)),
         ]);
     }
 
-    public function store(CreateOrganizationMemberRequest $request, Profile $organization, CreateOrganizationMember $action): RedirectResponse
+    public function store(CreateOrganizationMemberRequest $request, Organization $organization, CreateOrganizationMember $action): RedirectResponse
     {
         $member = $request->member();
         assert($member instanceof User);
@@ -51,7 +55,7 @@ final readonly class OrganizationMemberController
         return back();
     }
 
-    public function update(UpdateOrganizationMemberRequest $request, Profile $organization, User $member, UpdateOrganizationMemberRole $action): RedirectResponse
+    public function update(UpdateOrganizationMemberRequest $request, Organization $organization, User $member, UpdateOrganizationMemberRole $action): RedirectResponse
     {
         $role = $request->role();
         assert($role instanceof OrganizationRole);
@@ -68,7 +72,7 @@ final readonly class OrganizationMemberController
     /**
      * Leaving takes the user to the organization's page, as its settings are for members only.
      */
-    public function destroy(DeleteOrganizationMemberRequest $request, #[CurrentUser] User $user, Profile $organization, User $member, DeleteOrganizationMember $action): RedirectResponse
+    public function destroy(DeleteOrganizationMemberRequest $request, #[CurrentUser] User $user, Organization $organization, User $member, DeleteOrganizationMember $action): RedirectResponse
     {
         try {
             $action->handle($organization, $member);

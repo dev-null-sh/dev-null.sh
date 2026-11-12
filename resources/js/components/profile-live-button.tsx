@@ -2,6 +2,7 @@ import { Radio, RadioOff } from 'lucide-react';
 import { useState } from 'react';
 import { endStream, GoLiveDialog } from '@/components/go-live-dialog';
 import { Button } from '@/components/ui/button';
+import { useLiveStream } from '@/hooks/use-live-stream';
 import type { User } from '@/types';
 
 /**
@@ -11,15 +12,16 @@ export function ProfileLiveButton({
     user,
     canStreamHere = false,
 }: {
-    user: Pick<User, 'live'>;
+    user: Pick<User, 'id' | 'live'>;
     canStreamHere?: boolean;
 }) {
     const [isGoingLive, setIsGoingLive] = useState(false);
+    const stream = useLiveStream(user);
     const [isEnding, setIsEnding] = useState(false);
 
     return (
         <>
-            {user.live ? (
+            {stream ? (
                 <Button
                     type="button"
                     variant="outline"

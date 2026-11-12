@@ -76,7 +76,7 @@ final readonly class UpdateCommitHotScores
     {
         Commit::query()->whereKey($rootIds)->orderBy('id')->lockForUpdate()->get(['id']);
 
-        $commits = Commit::query()->whereKey($rootIds)->topLevel()->get(['id', 'user_id', 'created_at']);
+        $commits = Commit::query()->whereKey($rootIds)->topLevel()->get(['id', 'author_id', 'created_at']);
 
         if ($commits->isEmpty()) {
             return;
@@ -88,7 +88,7 @@ final readonly class UpdateCommitHotScores
         $repliersAnsweredByAuthorByThread = $this->usersByThread($this->repliersAnsweredByAuthor($commits->modelKeys()));
 
         $scores = $commits->flatMap(function (Commit $commit) use ($stargazersByThread, $quotersByThread, $repliersByThread, $repliersAnsweredByAuthorByThread): array {
-            $author = $commit->user_id === null ? [] : [$commit->user_id => true];
+            $author = $commit->author_id === null ? [] : [$commit->author_id => true];
 
             return [$commit->id, $this->theAlgorithm->score($commit->created_at, new ThreadEngagement(
                 stargazers: count(array_diff_key($stargazersByThread[$commit->id] ?? [], $author)),
@@ -113,7 +113,7 @@ final readonly class UpdateCommitHotScores
     private function repliers(array $rootIds): Builder
     {
         return $this->visibleCommits('replies')
-            ->select(['replies.root_id as thread_id', 'replies.user_id'])
+            ->select(['replies.root_id as thread_id', 'replies.author_id as profile_id'])
             ->whereIn('replies.root_id', $rootIds);
     }
 
@@ -126,11 +126,11 @@ final readonly class UpdateCommitHotScores
     private function repliersAnsweredByAuthor(array $rootIds): Builder
     {
         return $this->visibleCommits('replies')
-            ->select(['replies.root_id as thread_id', 'replies.user_id'])
+            ->select(['replies.root_id as thread_id', 'replies.author_id as profile_id'])
             ->join('commits as roots', 'roots.id', '=', 'replies.root_id')
             ->join('commits as answers', fn (JoinClause $join): JoinClause => $join
                 ->on('answers.parent_id', '=', 'replies.id')
-                ->on('answers.user_id', '=', 'roots.user_id'))
+                ->on('answers.author_id', '=', 'roots.author_id'))
             ->whereIn('replies.root_id', $rootIds)
             ->where('answers.status', CommitStatus::Approved)
             ->whereNull('answers.deleted_at');
@@ -145,10 +145,10 @@ final readonly class UpdateCommitHotScores
     private function quoters(array $rootIds): Builder
     {
         return $this->visibleCommits('quotes')
-            ->select(['quotes.quoted_commit_id as thread_id', 'quotes.user_id'])
+            ->select(['quotes.quoted_commit_id as thread_id', 'quotes.author_id as profile_id'])
             ->whereIn('quotes.quoted_commit_id', $rootIds)
             ->union($this->visibleCommits('quotes')
-                ->select(['quoted.root_id as thread_id', 'quotes.user_id'])
+                ->select(['quoted.root_id as thread_id', 'quotes.author_id as profile_id'])
                 ->join('commits as quoted', 'quoted.id', '=', 'quotes.quoted_commit_id')
                 ->whereIn('quoted.root_id', $rootIds)
                 ->where('quoted.status', CommitStatus::Approved));
@@ -162,10 +162,10 @@ final readonly class UpdateCommitHotScores
     private function stargazers(array $rootIds): Builder
     {
         return DB::table('stars')
-            ->select(['stars.commit_id as thread_id', 'stars.user_id'])
+            ->select(['stars.commit_id as thread_id', 'stars.user_id as profile_id'])
             ->whereIn('stars.commit_id', $rootIds)
             ->union(DB::table('stars')
-                ->select(['starred.root_id as thread_id', 'stars.user_id'])
+                ->select(['starred.root_id as thread_id', 'stars.user_id as profile_id'])
                 ->join('commits as starred', 'starred.id', '=', 'stars.commit_id')
                 ->whereIn('starred.root_id', $rootIds)
                 ->where('starred.status', CommitStatus::Approved)
@@ -191,8 +191,8 @@ final readonly class UpdateCommitHotScores
         $usersByThread = [];
 
         foreach ($query->get() as $row) {
-            if (is_string($row->thread_id) && is_string($row->user_id)) {
-                $usersByThread[$row->thread_id][$row->user_id] = true;
+            if (is_string($row->thread_id) && is_string($row->profile_id)) {
+                $usersByThread[$row->thread_id][$row->profile_id] = true;
             }
         }
 

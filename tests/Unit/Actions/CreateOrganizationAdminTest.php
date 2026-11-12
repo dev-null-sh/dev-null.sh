@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 use App\Actions\CreateOrganizationAdmin;
 use App\Enums\OrganizationRole;
-use App\Models\Profile;
+use App\Models\Organization;
 use App\Models\User;
 
 it('makes only the first of two members coming back from github at once the admin', function (): void {
-    $organization = Profile::factory()->organization()->create();
+    $organization = Organization::factory()->create();
     [$first, $second] = User::factory()->count(2)->create();
 
     expect(resolve(CreateOrganizationAdmin::class)->handle($organization, $first))->toBeTrue()
@@ -17,7 +17,7 @@ it('makes only the first of two members coming back from github at once the admi
 });
 
 it('makes a member the admin of a page left without one', function (): void {
-    $organization = Profile::factory()->organization()->create();
+    $organization = Organization::factory()->create();
     $member = User::factory()->create();
     $organization->members()->attach($member->id, ['role' => OrganizationRole::Member]);
 

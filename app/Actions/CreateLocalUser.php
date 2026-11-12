@@ -25,7 +25,7 @@ final readonly class CreateLocalUser
                 'name' => $handle,
             ]);
 
-            return User::query()->create(['github_id' => $profile->github_id]);
+            return User::query()->create(['id' => $profile->id, 'github_id' => $profile->github_id]);
         });
     }
 }

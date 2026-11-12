@@ -32,13 +32,19 @@ function escapeHtml(text: string): string {
 
 function block(part: string): BodySegment {
     const lines = part.replaceAll('\r\n', '\n').split('\n');
-    const [, language = '', meta = ''] =
-        /^`+[ \t]*([^ \t]*)([\s\S]*)$/.exec(lines[0]) ?? [];
+    const tokens = [
+        ...lines[0]
+            .replace(/^`+/, '')
+            .matchAll(
+                /\{[^}]*\}|([A-Za-z][\w-]*)=(?:"([^"]*)"|'([^']*)')|([^ \t{]+)/g,
+            ),
+    ];
+    const language = tokens[0]?.[4] ?? null;
     const attributes = new Map<string, string>();
 
-    for (const [, key, value] of meta.matchAll(
-        /\{[^}]*\}|([A-Za-z][\w-]*)="([^"]*)"|[^ \t]+/g,
-    )) {
+    for (const [, key, double, single] of tokens) {
+        const value = double ?? single;
+
         if (key !== undefined && value !== '' && !attributes.has(key)) {
             attributes.set(key, value);
         }
@@ -46,7 +52,7 @@ function block(part: string): BodySegment {
 
     return {
         type: 'block',
-        language: language === '' ? null : language,
+        language,
         filename: attributes.get('title') ?? attributes.get('filename') ?? null,
         html: escapeHtml(lines.slice(1, -1).join('\n')),
     };

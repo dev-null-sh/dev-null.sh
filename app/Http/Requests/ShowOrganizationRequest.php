@@ -4,18 +4,17 @@ declare(strict_types=1);
 
 namespace App\Http\Requests;
 
-use App\Enums\ProfileType;
-use App\Models\Profile;
+use App\Models\Organization;
 use Illuminate\Auth\Access\Response;
 use Illuminate\Foundation\Http\FormRequest;
 
 final class ShowOrganizationRequest extends FormRequest
 {
-    private ?Profile $organization = null;
+    private ?Organization $organization = null;
 
     public function authorize(): Response
     {
-        return $this->organization() instanceof Profile ? Response::allow() : Response::denyAsNotFound();
+        return $this->organization() instanceof Organization ? Response::allow() : Response::denyAsNotFound();
     }
 
     /**
@@ -24,32 +23,26 @@ final class ShowOrganizationRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'tab' => ['nullable', 'string', 'in:mentions'],
+            'tab' => ['nullable', 'string', 'in:commits,mentions'],
         ];
     }
 
     /**
-     * Mentions is the only tab so far, so it's the default.
+     * The organization's own commits first, then the commits that mention it.
      */
     public function tab(): string
     {
-        return 'mentions';
+        return $this->string('tab')->value() === 'mentions' ? 'mentions' : 'commits';
     }
 
     /**
-     * Organizations share the "@handle" pages with users, so this is the handle no user has, whatever its case,
-     * the exact case first.
+     * Organizations share the "@handle" pages with users, so this is the handle no user has, whatever its case.
      */
-    public function organization(): ?Profile
+    public function organization(): ?Organization
     {
         $handle = $this->route('user');
         assert(is_string($handle));
 
-        return $this->organization ??= Profile::query()
-            ->where('type', ProfileType::Organization)
-            ->whereRaw('LOWER(handle) = LOWER(?)', [$handle])
-            ->orderByRaw('handle = ? desc', [$handle])
-            ->orderBy('handle')
-            ->first();
+        return $this->organization ??= Organization::query()->whereRelation('profile', 'handle', $handle)->first();
     }
 }

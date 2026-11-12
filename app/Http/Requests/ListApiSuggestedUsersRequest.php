@@ -4,12 +4,13 @@ declare(strict_types=1);
 
 namespace App\Http\Requests;
 
-use App\Enums\ProfileType;
 use App\Models\Commit;
 use App\Models\User;
 use App\Rules\VisibleCommit;
 use Illuminate\Contracts\Validation\ValidationRule;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Exists;
 
@@ -29,7 +30,7 @@ final class ListApiSuggestedUsersRequest extends FormRequest
 
         return [
             'round' => ['nullable', 'integer', 'min:0'],
-            'handle' => ['nullable', 'string', Rule::exists('profiles', 'handle')->where('type', ProfileType::User->value)],
+            'handle' => ['nullable', 'string', Rule::exists('profiles', 'handle')->where(fn (Builder $query): Builder => $query->whereIn('id', DB::table('users')->select('id')))],
             'commit_id' => ['bail', 'nullable', 'uuid', 'prohibits:handle', new VisibleCommit($user, __('That commit is no longer available.'))],
         ];
     }

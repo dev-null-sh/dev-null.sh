@@ -7,10 +7,12 @@ use App\Contracts\Services\ModerationProvider;
 use App\Contracts\Services\TranslationProvider;
 use App\Enums\CommitStatus;
 use App\Enums\NotificationType;
+use App\Http\Middleware\HandleInertiaRequests;
 use App\Jobs\DetectCommitLanguage;
 use App\Jobs\ModerateCommit;
 use App\Models\Commit;
 use App\Models\LinkPreview;
+use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Support\Facades\Queue;
 
@@ -37,7 +39,7 @@ it('renders pending commits oldest first', function (): void {
             ->where('commits.data.0.stars_count', 0)
             ->where('commits.data.0.starred', false)
             ->where('commits.data.1.body', 'Newer')
-            ->has('commits.data.0.user'));
+            ->has('commits.data.0.author'));
 });
 
 it('shows the ai decision on commits', function (): void {
@@ -174,7 +176,7 @@ it('shows who a pending reply is replying to', function (): void {
 
     $response->assertOk()
         ->assertInertia(fn ($page) => $page
-            ->where('commits.data.0.parent.user.handle', 'octocat'));
+            ->where('commits.data.0.parent.author.handle', 'octocat'));
 });
 
 it('shows what a pending quote is quoting', function (): void {
@@ -188,7 +190,7 @@ it('shows what a pending quote is quoting', function (): void {
     $response->assertOk()
         ->assertInertia(fn ($page) => $page
             ->where('commits.data.1.quoted_commit.body', 'Quoted while pending')
-            ->where('commits.data.1.quoted_commit.user.handle', 'octocat'));
+            ->where('commits.data.1.quoted_commit.author.handle', 'octocat'));
 });
 
 it('includes the link previews of pending commits', function (): void {
@@ -271,4 +273,62 @@ it('may not approve many commits as a non admin', function (): void {
     $response->assertForbidden();
 
     expect($commit->refresh()->status)->toBe(CommitStatus::Pending);
+});
+
+it("shows moderators who posted an organization's commit, and no poster for a person's own", function (): void {
+    $admin = User::factory()->create(['handle' => 'admin']);
+    $organization = Organization::factory()->create();
+    $poster = User::factory()->create(['handle' => 'taylor']);
+
+    Commit::factory()->pending()->for($poster)->create(['author_id' => $organization->id, 'created_at' => now()->subMinutes(2)]);
+    Commit::factory()->pending()->create(['author_id' => $organization->id, 'user_id' => null, 'created_at' => now()->subMinute()]);
+    Commit::factory()->pending()->create();
+
+    $this->actingAs($admin)->get(route('moderation.show'))->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('commits.data.0.poster.handle', 'taylor')
+            ->where('commits.data.1.poster', null)
+            ->missing('commits.data.2.poster')
+            ->missing('commits.data.0.user')
+            ->missing('commits.data.0.user_id'));
+});
+
+it('lists the commits submitted since a queue last read, so a queue that started listening late can catch up', function (): void {
+    $admin = User::factory()->create(['handle' => 'admin']);
+    $read = now()->subSeconds(30);
+    Commit::factory()->pending()->create(['updated_at' => now()->subMinute()]);
+    $submitted = Commit::factory()->pending()->create();
+    Commit::factory()->create();
+
+    $this->actingAs($admin)->get(route('moderation.show', ['since' => $read->getTimestampMs()]), [
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) resolve(HandleInertiaRequests::class)->version(request()),
+        'X-Inertia-Partial-Component' => 'moderation/show',
+        'X-Inertia-Partial-Data' => 'arrivedCommitIds',
+    ])->assertOk()
+        ->assertJsonPath('props.arrivedCommitIds', [$submitted->id])
+        ->assertJsonMissingPath('props.commits');
+});
+
+it('does not list arrivals unless a queue asks', function (): void {
+    $this->actingAs(User::factory()->create(['handle' => 'admin']))
+        ->get(route('moderation.show'))
+        ->assertInertia(fn ($page) => $page->missing('arrivedCommitIds'));
+});
+
+it('names which commits a queue loaded were decided or deleted since, so a queue that listened late takes them off', function (): void {
+    $admin = User::factory()->create(['handle' => 'admin']);
+    $waiting = Commit::factory()->pending()->create();
+    $approved = Commit::factory()->pending()->create();
+    $deleted = Commit::factory()->pending()->create();
+    $approved->update(['status' => CommitStatus::Approved]);
+    $deleted->delete();
+
+    $this->actingAs($admin)->get(route('moderation.show', ['loaded' => [$waiting->id, $approved->id, $deleted->id]]), [
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) resolve(HandleInertiaRequests::class)->version(request()),
+        'X-Inertia-Partial-Component' => 'moderation/show',
+        'X-Inertia-Partial-Data' => 'decidedCommitIds',
+    ])->assertOk()
+        ->assertJsonPath('props.decidedCommitIds', fn (array $ids): bool => collect($ids)->sort()->values()->all() === collect([$approved->id, $deleted->id])->sort()->values()->all());
 });

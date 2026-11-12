@@ -11,10 +11,11 @@ return [
     |
     | The version of the terms and privacy policy people accept: the moment it took effect, as an ISO 8601 UTC timestamp.
     | Anyone who accepted at or after it accepted this version. Set a new version to the moment it ships, never earlier,
-    | and keep its date in step with resources/js/lib/legal.ts. Raising it asks everyone to accept again in the app.
+    | and keep its date in step with resources/js/lib/legal.ts. Raising it asks everyone to accept again, in the apps and
+    | on the website.
     |
     */
 
-    'terms_version' => '2026-10-25T00:00:00Z',
+    'terms_version' => '2026-11-01T14:35:00Z',
 
 ];

@@ -130,6 +130,11 @@ it('takes the language from the first word of the fence and the filename from it
     'two titles' => ['```php title="a.php" title="b.php"', 'a.php'],
     'spaces in the title' => ['```php title="My Model.php"', 'My Model.php'],
     'other attributes' => ['```php {1, 3} showLineNumbers title="app.php" tab="Pest 4"', 'app.php'],
+    'line range right after the language' => ['```php{1,3} title="app.php"', 'app.php'],
+    'single quotes' => ["```php title='app.php'", 'app.php'],
+    'single-quoted filename' => ["```php filename='app.php'", 'app.php'],
+    'apostrophe in double quotes' => ['```php title="it\'s.php"', "it's.php"],
+    'double quotes in single quotes' => ["```php title='\"a\".php'", '"a".php'],
 ]);
 
 it('keeps only the language when the fence has no title', function (string $fence): void {
@@ -146,9 +151,26 @@ it('keeps only the language when the fence has no title', function (string $fenc
     'unclosed title' => '```php title="app.php',
     'title inside another attribute' => '```php caption="see title="app.php"',
     'title inside a line range' => '```php {1 title="app.php"}',
+    'line range right after the language' => '```php{1,3}',
+    'empty single-quoted title' => "```php title=''",
+    'unclosed single-quoted title' => "```php title='app.php",
 ]);
 
-it('only separates the language from the rest of the fence with spaces or tabs', function (): void {
+it('takes no language from a fence that starts with a title or a line range', function (string $fence, ?string $filename): void {
+    $codeSpans = resolve(CodeSpans::class);
+
+    expect($codeSpans->highlight("{$fence}\n\$name;\n```"))->toBe([
+        ['type' => 'block', 'language' => null, 'filename' => $filename, 'html' => '$name;'],
+    ]);
+})->with([
+    'title' => ['``` title="app.php"', 'app.php'],
+    'title right after the backticks' => ['```title="app.php"', 'app.php'],
+    'single-quoted title' => ["``` title='app.php'", 'app.php'],
+    'line range' => ['```{1,3}', null],
+    'line range and title' => ['``` {1,3} title="app.php"', 'app.php'],
+]);
+
+it('does not separate the language from the rest of the fence with a non-breaking space', function (): void {
     $codeSpans = resolve(CodeSpans::class);
 
     expect($codeSpans->highlight("```php\u{a0}title=\"app.php\"\n\$name;\n```"))->toBe([

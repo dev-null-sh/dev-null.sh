@@ -3,10 +3,12 @@
 declare(strict_types=1);
 
 use App\Enums\CommitStatus;
+use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\CommitReport;
 use App\Models\LinkPreview;
+use App\Models\Organization;
 use App\Models\Poll;
 use App\Models\PollVote;
 use App\Models\User;
@@ -137,11 +139,11 @@ it('includes visible quoted context in reports without exposing ai advice or del
 
             if ($deleted) {
                 $page->missing('reports.data.0.commit.quoted_commit.body')
-                    ->missing('reports.data.0.commit.quoted_commit.user')
+                    ->missing('reports.data.0.commit.quoted_commit.author')
                     ->missing('reports.data.0.commit.quoted_commit.user_id');
             } else {
                 $page->where('reports.data.0.commit.quoted_commit.body', $quoted->body)
-                    ->where('reports.data.0.commit.quoted_commit.user.id', $quoted->user_id);
+                    ->where('reports.data.0.commit.quoted_commit.author.id', $quoted->user_id);
             }
         });
 })->with([false, true]);
@@ -458,3 +460,35 @@ it('rejects invalid report images without storing a report', function (string $i
     expect(CommitReport::query()->count())->toBe(0);
     expect(Storage::disk()->allFiles())->toBeEmpty();
 })->with(['type', 'size', 'count']);
+
+it('shows moderators who posted a reported organization commit', function (): void {
+    $admin = User::factory()->create(['handle' => 'moderator-demo']);
+    $poster = User::factory()->create(['handle' => 'taylor']);
+    CommitReport::factory()->for(Commit::factory()->for($poster)->state(['author_id' => Organization::factory()]))->create(['created_at' => now()->subMinute()]);
+    CommitReport::factory()->create();
+
+    $this->actingAs($admin)->get(route('reported-commit.index'))->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('reports.data.0.commit.poster.handle', 'taylor')
+            ->missing('reports.data.0.commit.user')
+            ->missing('reports.data.1.commit.poster'));
+});
+
+it('lists the reports filed and dismissed since a queue last read, so a queue that started listening late can catch up', function (): void {
+    $moderator = User::factory()->create(['handle' => 'moderator-demo']);
+    $read = now()->subSeconds(30);
+    CommitReport::factory()->create(['created_at' => now()->subMinute()]);
+    CommitReport::factory()->create(['created_at' => now()->subMinutes(2), 'dismissed_at' => now()->subMinute()]);
+    $filed = CommitReport::factory()->create();
+    CommitReport::factory()->for(Commit::factory()->pending())->create();
+    $dismissed = CommitReport::factory()->create(['created_at' => now()->subMinute(), 'dismissed_at' => now()]);
+
+    $this->actingAs($moderator)->get(route('reported-commit.index', ['since' => $read->getTimestampMs()]), [
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) resolve(HandleInertiaRequests::class)->version(request()),
+        'X-Inertia-Partial-Component' => 'moderation/reports',
+        'X-Inertia-Partial-Data' => 'reportChanges',
+    ])->assertOk()
+        ->assertJsonPath('props.reportChanges', ['filed' => [$filed->id], 'dismissed' => [$dismissed->id]])
+        ->assertJsonMissingPath('props.reports');
+});

@@ -15,11 +15,7 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
-import type {
-    Changelog,
-    ChangelogDay,
-    ChangelogPullRequest,
-} from '@/lib/changelog';
+import type { Changelog, ChangelogDay, ChangelogCommit } from '@/lib/changelog';
 import { changelogDayHeading, changelogDays } from '@/lib/changelog';
 import { formatCount } from '@/lib/numbers';
 import { cn } from '@/lib/utils';
@@ -40,8 +36,8 @@ function DaySection({
     const [isExpanded, setIsExpanded] = useState(false);
     const firstRevealedLink = useRef<HTMLAnchorElement>(null);
     const heading = changelogDayHeading(day.date, timeZone);
-    const shown = day.pullRequests.slice(0, shownPerDay);
-    const hidden = day.pullRequests.slice(shownPerDay);
+    const shown = day.commits.slice(0, shownPerDay);
+    const hidden = day.commits.slice(shownPerDay);
     return (
         <section
             data-day={day.date}
@@ -61,10 +57,10 @@ function DaySection({
                 </div>
                 <p className="flex items-baseline gap-1.5 tabular-nums sm:mt-2.5 sm:block">
                     <span className="text-2xl leading-none font-semibold sm:text-[28px]">
-                        {day.pullRequests.length}
+                        {day.commits.length}
                     </span>
                     <span className="text-xs text-muted-foreground sm:mt-0.5 sm:block">
-                        merged by {day.authors.length}
+                        by {day.authors.length}
                     </span>
                 </p>
                 <ul className="flex w-full flex-wrap gap-1 sm:mt-2.5">
@@ -92,7 +88,7 @@ function DaySection({
             </div>
             <div className="min-w-0">
                 <ChangelogLane
-                    pullRequests={shown}
+                    commits={shown}
                     continues={hidden.length > 0}
                     timeZone={timeZone}
                     onNavigate={onNavigate}
@@ -102,7 +98,7 @@ function DaySection({
                         <div className="grid grid-rows-[1fr] opacity-100 motion-safe:transition-[grid-template-rows,opacity] motion-safe:duration-300 motion-safe:ease-out starting:grid-rows-[0fr] starting:opacity-0">
                             <div className="min-h-0 overflow-hidden">
                                 <ChangelogLane
-                                    pullRequests={hidden}
+                                    commits={hidden}
                                     previousAuthor={shown.at(-1)?.author}
                                     firstLinkRef={firstRevealedLink}
                                     timeZone={timeZone}
@@ -176,7 +172,7 @@ export function ChangelogDialog({
     hasFailed: boolean;
     isLoadingOlder: boolean;
     hasOlderFailed: boolean;
-    onLoadOlder: (onLoaded: (added: ChangelogPullRequest[]) => void) => void;
+    onLoadOlder: (onLoaded: (added: ChangelogCommit[]) => void) => void;
     timeZone: string;
 }) {
     return (
@@ -211,18 +207,17 @@ export function ChangelogContent({
     hasFailed: boolean;
     isLoadingOlder: boolean;
     hasOlderFailed: boolean;
-    onLoadOlder: (onLoaded: (added: ChangelogPullRequest[]) => void) => void;
+    onLoadOlder: (onLoaded: (added: ChangelogCommit[]) => void) => void;
     timeZone: string;
     isDialog?: boolean;
     onNavigate?: () => void;
 }) {
     const [revealedDays, setRevealedDays] = useState<Set<string>>(new Set());
     const scroller = useRef<HTMLDivElement>(null);
-    const pullRequests = changelog?.pullRequests ?? [];
-    const contributors = new Set(
-        pullRequests.map((pullRequest) => pullRequest.author.login),
-    ).size;
-    const days = changelogDays(pullRequests, timeZone);
+    const commits = changelog?.commits ?? [];
+    const contributors = new Set(commits.map((commit) => commit.author.login))
+        .size;
+    const days = changelogDays(commits, timeZone);
 
     const Description = isDialog ? DialogDescription : 'p';
 
@@ -235,7 +230,7 @@ export function ChangelogContent({
                     <h1 className="text-base font-semibold">Changelog</h1>
                 )}
                 <Description className="mt-1 text-sm text-muted-foreground">
-                    Every pull request merged into{' '}
+                    Every commit on{' '}
                     <span className="font-mono">production</span>.
                 </Description>
             </div>
@@ -253,9 +248,9 @@ export function ChangelogContent({
                     </p>
                 ) : changelog === null ? (
                     <DaysSkeleton />
-                ) : pullRequests.length === 0 ? (
+                ) : commits.length === 0 ? (
                     <p className="py-10 text-center text-sm text-muted-foreground">
-                        Nothing has been merged yet.
+                        Nothing has landed yet.
                     </p>
                 ) : (
                     <>
@@ -286,7 +281,7 @@ export function ChangelogContent({
                                             setRevealedDays(new Set(addedDays));
                                             scroller.current
                                                 ?.querySelector<HTMLAnchorElement>(
-                                                    `[data-day="${addedDays[0]}"] a[href*="/pull/"]`,
+                                                    `[data-day="${addedDays[0]}"] a[data-commit-link]`,
                                                 )
                                                 ?.focus({
                                                     preventScroll: true,
@@ -308,7 +303,7 @@ export function ChangelogContent({
             <div className="flex items-center justify-between gap-4 border-t px-5 py-2.5 text-xs text-muted-foreground">
                 <span className="tabular-nums">
                     {changelog !== null &&
-                        `${formatCount(pullRequests.length)} merges · ${formatCount(contributors)} contributors`}
+                        `${formatCount(commits.length)} commits · ${formatCount(contributors)} contributors`}
                 </span>
                 {changelog !== null && (
                     <a

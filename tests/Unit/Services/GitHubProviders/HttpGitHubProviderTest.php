@@ -2,8 +2,8 @@
 
 declare(strict_types=1);
 
-use App\Enums\GitHubOrganizationMembership;
 use App\Services\GitHubProviders\HttpGitHubProvider;
+use Carbon\CarbonImmutable;
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
 use GuzzleHttp\Promise\PromiseInterface;
@@ -82,27 +82,62 @@ it('fails when GitHub does', function (): void {
     new HttpGitHubProvider()->account('583231');
 })->throws(RequestException::class);
 
-it('says where the user stands in the organization, with their own token', function (int $status, array $membership, array $headers, GitHubOrganizationMembership $expected): void {
-    Http::fake(['api.github.com/user/memberships/orgs/brefphp' => Http::response($membership, $status, $headers)]);
+it('says whether the user shows their membership of the organization, by their current login', function (int $status, bool $expected): void {
+    Http::fake([
+        'api.github.com/user/720328' => Http::response(['id' => 720328, 'login' => 'mnapoli']),
+        'api.github.com/organizations/45861341/public_members/mnapoli' => Http::response(null, $status),
+    ]);
 
-    expect(new HttpGitHubProvider()->organizationMembership('claim-token', 'brefphp', '45861341'))->toBe($expected);
-
-    Http::assertSent(fn (Request $request): bool => $request->hasHeader('Authorization', 'Bearer claim-token'));
+    expect(new HttpGitHubProvider()->isPublicMember('45861341', '720328'))->toBe($expected);
 })->with([
-    'an admin' => [200, ['state' => 'active', 'role' => 'admin', 'organization' => ['id' => 45861341]], [], GitHubOrganizationMembership::Member],
-    'a member' => [200, ['state' => 'active', 'role' => 'member', 'organization' => ['id' => 45861341]], [], GitHubOrganizationMembership::Member],
-    'not a member' => [404, ['message' => 'Not Found'], [], GitHubOrganizationMembership::NotMember],
-    'invited only' => [200, ['state' => 'pending', 'role' => 'member', 'organization' => ['id' => 45861341]], [], GitHubOrganizationMembership::NotMember],
-    'a billing manager' => [200, ['state' => 'active', 'role' => 'billing_manager', 'organization' => ['id' => 45861341]], [], GitHubOrganizationMembership::NotMember],
-    'of another organization since renamed' => [200, ['state' => 'active', 'role' => 'member', 'organization' => ['id' => 1]], [], GitHubOrganizationMembership::NotMember],
-    'restricted' => [403, ['message' => 'Although you appear to have the correct authorization credentials, the `brefphp` organization has enabled OAuth App access restrictions.'], [], GitHubOrganizationMembership::Restricted],
-    'single sign-on' => [403, ['message' => 'Resource protected by organization SAML enforcement.'], ['X-GitHub-SSO' => 'required; url=https://github.com/orgs/brefphp/sso?authorization_request=abc'], GitHubOrganizationMembership::SingleSignOn],
+    'a public member' => [204, true],
+    'not a public member' => [404, false],
 ]);
 
-it('fails when GitHub refuses the membership for another reason', function (): void {
-    Http::fake(['api.github.com/user/memberships/orgs/brefphp' => Http::response(['message' => 'API rate limit exceeded for user ID 720328.'], 403)]);
+it('does not list users GitHub no longer has as public members', function (): void {
+    Http::fake(['api.github.com/user/720328' => Http::response(['message' => 'Not Found'], 404)]);
 
-    new HttpGitHubProvider()->organizationMembership('claim-token', 'brefphp', '45861341');
+    expect(new HttpGitHubProvider()->isPublicMember('45861341', '720328'))->toBeFalse();
+
+    Http::assertSentCount(1);
+});
+
+it('reads every public organization member page without exposing or persisting account details', function (): void {
+    Http::fake(['api.github.com/orgs/example/public_members*' => Http::sequence()
+        ->push([['id' => 101, 'login' => 'first']], 200, ['Link' => '<https://api.github.com/orgs/example/public_members?page=2>; rel="next"'])
+        ->push([['id' => 102, 'login' => 'second'], ['id' => 101, 'login' => 'first']])]);
+
+    expect(new HttpGitHubProvider()->publicOrganizationMemberIds('example'))->toBe(['101', '102']);
+
+    Http::assertSent(fn (Request $request): bool => $request['page'] === 2 && $request['per_page'] === 100);
+    Http::assertSentCount(2);
+});
+
+it('does not return a partial public membership list when the scan limit is reached', function (): void {
+    Http::fake(['api.github.com/orgs/example/public_members*' => Http::response([['id' => 101]], 200, ['Link' => '<https://api.github.com/orgs/example/public_members?page=11>; rel="next"'])]);
+
+    expect(new HttpGitHubProvider()->publicOrganizationMemberIds('example'))->toBeNull();
+
+    Http::assertSentCount(10);
+});
+
+it('distinguishes a missing organization from an empty public member list', function (): void {
+    Http::fake([
+        'api.github.com/orgs/missing/public_members*' => Http::response([], 404),
+        'api.github.com/orgs/empty/public_members*' => Http::response([]),
+    ]);
+
+    expect(new HttpGitHubProvider()->publicOrganizationMemberIds('missing'))->toBeNull()
+        ->and(new HttpGitHubProvider()->publicOrganizationMemberIds('empty'))->toBe([]);
+});
+
+it('fails when GitHub fails to say whether the user is a public member', function (): void {
+    Http::fake([
+        'api.github.com/user/720328' => Http::response(['id' => 720328, 'login' => 'mnapoli']),
+        'api.github.com/organizations/45861341/public_members/mnapoli' => Http::response([], 502),
+    ]);
+
+    new HttpGitHubProvider()->isPublicMember('45861341', '720328');
 })->throws(RequestException::class);
 
 it('asks GraphQL with the user token whether they have a sponsors listing', function (bool $hasSponsorsListing): void {
@@ -127,11 +162,82 @@ it('cannot say whether there is a sponsors listing when GitHub does not answer',
 })->with([
     'server error' => [fn () => Http::response(status: 502), ['status' => 502, 'errors' => null]],
     'graphql error' => [fn () => Http::response(['errors' => [['type' => 'INSUFFICIENT_SCOPES']]]), ['status' => 200, 'errors' => [['type' => 'INSUFFICIENT_SCOPES']]]],
-    'connection failure' => [fn () => throw new ConnectionException('timeout'), ['error' => 'timeout']],
+    'connection failure' => [fn (): never => throw new ConnectionException('timeout'), ['error' => 'timeout']],
 ]);
 
+it('reads the public sponsors with the sponsors token, the most paid in total first, then the biggest tier, once each', function (): void {
+    config(['services.github.sponsors_token' => 'github_pat_sponsors']);
+    Http::fake(['api.github.com/graphql' => fn (Request $request) => str_contains((string) $request['query'], 'sponsorsActivities')
+        ? Http::response(['data' => ['organization' => ['sponsorsActivities' => ['pageInfo' => ['hasNextPage' => false, 'endCursor' => null], 'nodes' => []]]]])
+        : Http::response(['data' => ['organization' => ['sponsorshipsAsMaintainer' => ['nodes' => [
+            ['tier' => ['monthlyPriceInCents' => 500], 'sponsorEntity' => ['login' => 'octocat', 'databaseId' => 583231, 'totalSponsorshipAmountAsSponsorInCents' => 20000]],
+            ['tier' => ['monthlyPriceInCents' => 100], 'sponsorEntity' => ['login' => 'laravel', 'databaseId' => 958072, 'totalSponsorshipAmountAsSponsorInCents' => 90000]],
+            ['tier' => ['monthlyPriceInCents' => 1000], 'sponsorEntity' => ['login' => 'xHeaven', 'databaseId' => 1001, 'totalSponsorshipAmountAsSponsorInCents' => null]],
+            ['tier' => ['monthlyPriceInCents' => 2500], 'sponsorEntity' => ['login' => 'octocat', 'databaseId' => 583231, 'totalSponsorshipAmountAsSponsorInCents' => 20000]],
+            ['tier' => ['monthlyPriceInCents' => 2500], 'sponsorEntity' => ['login' => 'jubianchi', 'databaseId' => 1002, 'totalSponsorshipAmountAsSponsorInCents' => null]],
+            ['tier' => ['monthlyPriceInCents' => 5000], 'sponsorEntity' => null],
+        ]]]]])]);
+
+    expect(new HttpGitHubProvider()->publicSponsors('dev-null-sh'))->toBe([
+        ['login' => 'laravel', 'github_id' => '958072', 'amount_in_cents' => 90000],
+        ['login' => 'octocat', 'github_id' => '583231', 'amount_in_cents' => 20000],
+        ['login' => 'jubianchi', 'github_id' => '1002', 'amount_in_cents' => 0],
+        ['login' => 'xHeaven', 'github_id' => '1001', 'amount_in_cents' => 0],
+    ]);
+
+    Http::assertSent(fn (Request $request): bool => $request->url() === 'https://api.github.com/graphql'
+        && $request->hasHeader('Authorization', 'Bearer github_pat_sponsors')
+        && $request['variables'] === ['login' => 'dev-null-sh']
+        && str_contains((string) $request['query'], 'includePrivate: false'));
+});
+
+it('counts the total from the history when GitHub gives none: a one-time tier once, and a monthly tier for each month started', function (): void {
+    $this->travelTo(CarbonImmutable::parse('2026-11-11 12:00:00'));
+    config(['services.github.sponsors_token' => 'github_pat_sponsors']);
+    $activity = fn (string $action, string $timestamp, string $login, int $price, bool $isOneTime = false): array => [
+        'action' => $action, 'timestamp' => $timestamp, 'sponsor' => ['login' => $login], 'sponsorsTier' => ['monthlyPriceInCents' => $price, 'isOneTime' => $isOneTime],
+    ];
+    $pages = [
+        null => ['pageInfo' => ['hasNextPage' => true, 'endCursor' => 'page-2'], 'nodes' => [
+            $activity('NEW_SPONSORSHIP', '2026-11-01T10:00:00Z', 'pushery', 49900, true),
+            $activity('NEW_SPONSORSHIP', '2026-07-20T10:00:00Z', 'boxxroom', 1000),
+            $activity('TIER_CHANGE', '2026-09-25T10:00:00Z', 'boxxroom', 5000),
+        ]],
+        'page-2' => ['pageInfo' => ['hasNextPage' => false, 'endCursor' => null], 'nodes' => [
+            $activity('NEW_SPONSORSHIP', '2026-01-05T10:00:00Z', 'vmitchell85', 1000),
+            $activity('PENDING_CHANGE', '2026-02-05T10:00:00Z', 'vmitchell85', 9900),
+            $activity('CANCELLED_SPONSORSHIP', '2026-03-10T10:00:00Z', 'vmitchell85', 1000),
+        ]],
+    ];
+    Http::fake(['api.github.com/graphql' => fn (Request $request) => str_contains((string) $request['query'], 'sponsorsActivities')
+        ? Http::response(['data' => ['organization' => ['sponsorsActivities' => $pages[$request['variables']['after']]]]])
+        : Http::response(['data' => ['organization' => ['sponsorshipsAsMaintainer' => ['nodes' => [
+            ['tier' => ['monthlyPriceInCents' => 49900], 'sponsorEntity' => ['login' => 'pushery', 'databaseId' => 1, 'totalSponsorshipAmountAsSponsorInCents' => null]],
+            ['tier' => ['monthlyPriceInCents' => 5000], 'sponsorEntity' => ['login' => 'boxxroom', 'databaseId' => 2, 'totalSponsorshipAmountAsSponsorInCents' => null]],
+            ['tier' => ['monthlyPriceInCents' => 1000], 'sponsorEntity' => ['login' => 'vmitchell85', 'databaseId' => 3, 'totalSponsorshipAmountAsSponsorInCents' => null]],
+        ]]]]])]);
+
+    expect(new HttpGitHubProvider()->publicSponsors('dev-null-sh'))->toBe([
+        ['login' => 'pushery', 'github_id' => '1', 'amount_in_cents' => 49900],
+        ['login' => 'boxxroom', 'github_id' => '2', 'amount_in_cents' => 13000],
+        ['login' => 'vmitchell85', 'github_id' => '3', 'amount_in_cents' => 3000],
+    ]);
+
+    Http::assertSentCount(3);
+});
+
+it('throws when GitHub cannot read the sponsors', function (Closure $response): void {
+    config(['services.github.sponsors_token' => 'github_pat_sponsors']);
+    Http::fake(['api.github.com/graphql' => $response]);
+
+    new HttpGitHubProvider()->publicSponsors('dev-null-sh');
+})->with([
+    'server error' => [fn () => Http::response(status: 502)],
+    'graphql error' => [fn () => Http::response(['errors' => [['type' => 'INSUFFICIENT_SCOPES']]])],
+])->throws(RequestException::class);
+
 it('reads the ids of followed and following accounts a page at a time, up to the given number of pages', function (): void {
-    $page = fn (int $from, int $count): array => array_map(fn (int $id): array => ['id' => $id, 'login' => "user{$id}"], range($from, $from + $count - 1));
+    $page = fn (int $from, int $count): array => array_map(fn (int $id): array => ['id' => $id, 'login' => "user{$id}", 'type' => 'User'], range($from, $from + $count - 1));
 
     Http::fake([
         'api.github.com/users/octocat/following?per_page=100&page=1' => Http::response($page(1, 100)),
@@ -142,10 +248,22 @@ it('reads the ids of followed and following accounts a page at a time, up to the
 
     $provider = new HttpGitHubProvider();
 
-    expect($provider->followingIds('octocat', 1))->toBe(array_map(strval(...), range(1, 100)))
+    expect($provider->followingIds('octocat', 1))->toBe(['users' => array_map(strval(...), range(1, 100)), 'organizations' => []])
         ->and($provider->followerIds('octocat', 10))->toBe(array_map(strval(...), range(1, 103)));
 
     Http::assertSentCount(3);
+});
+
+it('tells the organizations the user follows apart from the people', function (): void {
+    Http::fake([
+        'api.github.com/users/octocat/following?per_page=100&page=1' => Http::response([
+            ['id' => 1, 'login' => 'mona', 'type' => 'User'],
+            ['id' => 958072, 'login' => 'laravel', 'type' => 'Organization'],
+            ['id' => 2, 'login' => 'hubot', 'type' => 'User'],
+        ]),
+    ]);
+
+    expect(new HttpGitHubProvider()->followingIds('octocat', 10))->toBe(['users' => ['1', '2'], 'organizations' => ['958072']]);
 });
 
 it('reads the authentication and signing keys of the account', function (): void {
@@ -173,15 +291,44 @@ it('reads the profile readme as html, and is null when there is none', function 
     Http::assertSent(fn (Request $request): bool => $request->header('Accept') === ['application/vnd.github.html+json']);
 });
 
-it('reads a page of the closed pull requests into the branch, most recently updated first', function (): void {
-    Http::fake(['api.github.com/repos/dev-null-sh/dev-null.sh/pulls*' => Http::response([['number' => 1]])]);
+it('reads a page of the commits on the branch, with the author GitHub links to each, if any', function (): void {
+    Http::fake(['api.github.com/repos/dev-null-sh/dev-null.sh/commits*' => Http::response([
+        [
+            'sha' => 'aaa',
+            'html_url' => 'https://github.com/dev-null-sh/dev-null.sh/commit/aaa',
+            'commit' => ['message' => 'feat: something (#1)', 'committer' => ['date' => '2026-10-18T10:00:00Z'], 'author' => ['name' => 'Octo Cat']],
+            'author' => ['id' => 583231, 'login' => 'octocat', 'avatar_url' => 'https://avatars.githubusercontent.com/u/583231?v=4'],
+            'parents' => [['sha' => 'bbb'], ['sha' => 'ccc']],
+        ],
+        [
+            'sha' => 'bbb',
+            'html_url' => 'https://github.com/dev-null-sh/dev-null.sh/commit/bbb',
+            'commit' => ['message' => 'fix: pushed from an unknown email', 'committer' => ['date' => '2026-10-18T09:00:00Z'], 'author' => ['name' => 'Someone']],
+            'author' => null,
+            'parents' => [],
+        ],
+    ])]);
 
-    expect(new HttpGitHubProvider()->closedPullRequests('dev-null-sh/dev-null.sh', 'production', 2, 100))->toBe([['number' => 1]]);
+    expect(new HttpGitHubProvider()->commits('dev-null-sh/dev-null.sh', 'production', 2, 100))->toBe([
+        [
+            'sha' => 'aaa',
+            'message' => 'feat: something (#1)',
+            'url' => 'https://github.com/dev-null-sh/dev-null.sh/commit/aaa',
+            'committed_at' => '2026-10-18T10:00:00Z',
+            'parents' => ['bbb', 'ccc'],
+            'author' => ['id' => 583231, 'login' => 'octocat', 'avatar_url' => 'https://avatars.githubusercontent.com/u/583231?v=4'],
+        ],
+        [
+            'sha' => 'bbb',
+            'message' => 'fix: pushed from an unknown email',
+            'url' => 'https://github.com/dev-null-sh/dev-null.sh/commit/bbb',
+            'committed_at' => '2026-10-18T09:00:00Z',
+            'parents' => [],
+            'author' => ['id' => null, 'login' => 'Someone', 'avatar_url' => 'https://avatars.githubusercontent.com/u/10137'],
+        ],
+    ]);
 
-    Http::assertSent(fn (Request $request): bool => $request['state'] === 'closed'
-        && $request['base'] === 'production'
-        && $request['sort'] === 'updated'
-        && $request['direction'] === 'desc'
+    Http::assertSent(fn (Request $request): bool => $request['sha'] === 'production'
         && $request['per_page'] === 100
         && $request['page'] === 2);
 });

@@ -1,3 +1,4 @@
+import type { OrganizationAuthor } from '@/types/commit';
 import type { RemotesFrom } from '@/types/conversation';
 import type { Log } from '@/types/log';
 
@@ -9,7 +10,8 @@ export type Lane = number | string;
 export type LiveStream = {
     url: string;
     thumbnail_url: string;
-    embed_url: string | null;
+    embed_url?: string | null;
+    ends_at?: string | null;
 };
 
 export type LiveInput = {
@@ -51,9 +53,18 @@ export type Profile = User & {
 export type Auth = {
     user: Profile | null;
     bioProfiles: Record<string, string>;
+    /**
+     * The organizations the user is a member of, whose commits are theirs too.
+     */
+    organizations: OrganizationAuthor[];
     isAdmin: boolean;
     automaticTranslation: boolean;
+    /**
+     * The language the reader reads translations in, saved or from the browser.
+     */
+    translationLanguage?: string;
     mustReadCommitRules: boolean;
+    termsToAccept: string | null;
     log: Log | null;
     unreadNotificationsCount: number;
     unreadMessagesCount: number;

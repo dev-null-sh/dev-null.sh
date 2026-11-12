@@ -5,15 +5,15 @@ declare(strict_types=1);
 use App\Actions\DeleteOrganizationMember;
 use App\Actions\UpdateOrganizationMemberRole;
 use App\Enums\OrganizationRole;
-use App\Models\Profile;
+use App\Models\Organization;
 use App\Models\User;
 
 /**
- * @return array{0: Profile, 1: User, 2: User}
+ * @return array{0: Organization, 1: User, 2: User}
  */
 function organizationWithAdminAndMember(): array
 {
-    $organization = Profile::factory()->organization()->create(['handle' => 'laravel']);
+    $organization = Organization::factory()->create(['handle' => 'laravel']);
     $admin = User::factory()->create();
     $member = User::factory()->create();
     $organization->admins()->attach($admin->id, ['created_at' => now()->subDay()]);
@@ -25,7 +25,7 @@ function organizationWithAdminAndMember(): array
 /**
  * @return array{organization: string, member: string}
  */
-function memberRoute(Profile $organization, User $member): array
+function memberRoute(Organization $organization, User $member): array
 {
     return ['organization' => $organization->id, 'member' => $member->handle];
 }

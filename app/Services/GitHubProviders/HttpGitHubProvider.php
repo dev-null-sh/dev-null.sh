@@ -5,11 +5,12 @@ declare(strict_types=1);
 namespace App\Services\GitHubProviders;
 
 use App\Contracts\Services\GitHubProvider;
-use App\Enums\GitHubOrganizationMembership;
 use Carbon\CarbonImmutable;
 use Firebase\JWT\JWT;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Http\Client\RequestException;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Http;
@@ -19,10 +20,11 @@ use Illuminate\Support\Str;
 
 /**
  * @phpstan-import-type Account from GitHubProvider
- * @phpstan-import-type PullRequest from GitHubProvider
+ * @phpstan-import-type Commit from GitHubProvider
  * @phpstan-import-type SearchResults from GitHubProvider
  * @phpstan-import-type Issue from GitHubProvider
  * @phpstan-import-type RateLimit from GitHubProvider
+ * @phpstan-import-type Sponsor from GitHubProvider
  */
 final readonly class HttpGitHubProvider implements GitHubProvider
 {
@@ -59,29 +61,38 @@ final readonly class HttpGitHubProvider implements GitHubProvider
         return $account === null ? null : new Fluent($account)->string('login')->value();
     }
 
-    public function organizationMembership(string $token, string $handle, string $githubId): GitHubOrganizationMembership
+    public function isPublicMember(string $organizationGithubId, string $githubId): bool
     {
-        $response = $this->request($token)->get("user/memberships/orgs/{$handle}");
+        $login = $this->login($githubId);
 
-        if ($response->notFound()) {
-            return GitHubOrganizationMembership::NotMember;
+        if ($login === null) {
+            return false;
         }
 
-        if ($response->forbidden() && $response->hasHeader('X-GitHub-SSO')) {
-            return GitHubOrganizationMembership::SingleSignOn;
+        $response = $this->request()->get("organizations/{$organizationGithubId}/public_members/{$login}");
+
+        return ! $response->notFound() && $response->throw()->noContent();
+    }
+
+    public function publicOrganizationMemberIds(string $login): ?array
+    {
+        $ids = collect();
+
+        for ($page = 1; $page <= 10; $page++) {
+            $response = $this->request()->get('orgs/'.rawurlencode($login).'/public_members', ['per_page' => self::PerPage, 'page' => $page]);
+
+            if ($response->notFound()) {
+                return null;
+            }
+
+            $ids = $ids->concat($response->throw()->collect()->mapInto(Fluent::class)->map(fn (Fluent $member): string => $member->string('id')->value()));
+
+            if (! str_contains($response->header('Link'), 'rel="next"')) {
+                return array_values($ids->unique()->all());
+            }
         }
 
-        if ($response->forbidden() && str_contains($response->fluent()->string('message')->value(), 'OAuth App access restrictions')) {
-            return GitHubOrganizationMembership::Restricted;
-        }
-
-        $membership = $response->throw()->fluent();
-
-        return $membership->string('state')->value() === 'active'
-            && in_array($membership->string('role')->value(), ['admin', 'member'], true)
-            && (string) $membership->integer('organization.id') === $githubId
-            ? GitHubOrganizationMembership::Member
-            : GitHubOrganizationMembership::NotMember;
+        return null;
     }
 
     /**
@@ -112,14 +123,104 @@ final readonly class HttpGitHubProvider implements GitHubProvider
         return $response->json('data.viewer.hasSponsorsListing') === true;
     }
 
+    /**
+     * GitHub often gives no total, so it is counted from up to a thousand events of the history when GitHub has none: a
+     * one-time tier once, and a monthly tier for each month it was held, started months included. A payment that failed or was refunded still
+     * counts. An equal total goes to the bigger tier.
+     *
+     * @return list<Sponsor>
+     */
+    public function publicSponsors(string $organization): array
+    {
+        $token = config('services.github.sponsors_token');
+        assert(is_string($token));
+
+        $sponsorships = $this->graphql($token, <<<'GRAPHQL'
+            query ($login: String!) {
+              organization(login: $login) {
+                sponsorshipsAsMaintainer(first: 100, activeOnly: false, includePrivate: false) {
+                  nodes {
+                    tier { monthlyPriceInCents }
+                    sponsorEntity {
+                      ... on User { login databaseId totalSponsorshipAmountAsSponsorInCents(sponsorableLogins: [$login]) }
+                      ... on Organization { login databaseId totalSponsorshipAmountAsSponsorInCents(sponsorableLogins: [$login]) }
+                    }
+                  }
+                }
+              }
+            }
+            GRAPHQL, ['login' => $organization])->collect('organization.sponsorshipsAsMaintainer.nodes')->mapInto(Fluent::class);
+
+        $activities = collect();
+        $cursor = null;
+
+        for ($page = 1; $page <= 10; $page++) {
+            $connection = $this->graphql($token, <<<'GRAPHQL'
+                query ($login: String!, $after: String) {
+                  organization(login: $login) {
+                    sponsorsActivities(first: 100, after: $after, period: ALL, orderBy: {field: TIMESTAMP, direction: ASC}) {
+                      pageInfo { hasNextPage endCursor }
+                      nodes {
+                        action
+                        timestamp
+                        sponsor { ... on User { login } ... on Organization { login } }
+                        sponsorsTier { monthlyPriceInCents isOneTime }
+                      }
+                    }
+                  }
+                }
+                GRAPHQL, ['login' => $organization, 'after' => $cursor])->scope('organization.sponsorsActivities');
+
+            $activities = $activities->concat($connection->collect('nodes')->mapInto(Fluent::class));
+
+            if (! $connection->boolean('pageInfo.hasNextPage')) {
+                break;
+            }
+
+            $cursor = $connection->string('pageInfo.endCursor')->value();
+        }
+
+        $paidFromHistory = $activities
+            ->groupBy(fn (Fluent $activity): string => $activity->string('sponsor.login')->value())
+            ->map(fn (Collection $sponsorActivities): int => $this->paidFromHistory(...$sponsorActivities->all()));
+
+        return array_values($sponsorships
+            ->filter(fn (Fluent $sponsorship): bool => $sponsorship->has('sponsorEntity.login'))
+            ->sortByDesc(fn (Fluent $sponsorship): int => $sponsorship->integer('tier.monthlyPriceInCents'))
+            ->unique(fn (Fluent $sponsorship): string => $sponsorship->string('sponsorEntity.login')->value())
+            ->map(fn (Fluent $sponsorship): array => [
+                'login' => $sponsorship->string('sponsorEntity.login')->value(),
+                'github_id' => $sponsorship->string('sponsorEntity.databaseId')->value(),
+                'amount_in_cents' => $sponsorship->integer('sponsorEntity.totalSponsorshipAmountAsSponsorInCents')
+                    ?: $paidFromHistory->get($sponsorship->string('sponsorEntity.login')->value(), 0),
+                'tier_in_cents' => $sponsorship->integer('tier.monthlyPriceInCents'),
+            ])
+            ->sortBy([
+                fn (array $first, array $second): int => $second['amount_in_cents'] <=> $first['amount_in_cents'],
+                fn (array $first, array $second): int => $second['tier_in_cents'] <=> $first['tier_in_cents'],
+            ])
+            ->map(fn (array $sponsor): array => [
+                'login' => $sponsor['login'],
+                'github_id' => $sponsor['github_id'],
+                'amount_in_cents' => $sponsor['amount_in_cents'],
+            ])
+            ->all());
+    }
+
     public function followingIds(string $login, int $maxPages): array
     {
-        return $this->accountIds("users/{$login}/following", $maxPages);
+        $accounts = $this->accounts("users/{$login}/following", $maxPages);
+        $ids = fn (bool $organizations): array => array_values(array_map(
+            fn (array $account): string => (string) $account['id'],
+            array_filter($accounts, fn (array $account): bool => ($account['type'] === 'Organization') === $organizations),
+        ));
+
+        return ['users' => $ids(false), 'organizations' => $ids(true)];
     }
 
     public function followerIds(string $login, int $maxPages): array
     {
-        return $this->accountIds("users/{$login}/followers", $maxPages);
+        return array_map(fn (array $account): string => (string) $account['id'], $this->accounts("users/{$login}/followers", $maxPages));
     }
 
     public function sshKeys(string $login): array
@@ -152,19 +253,30 @@ final readonly class HttpGitHubProvider implements GitHubProvider
     }
 
     /**
-     * @return list<PullRequest>
+     * @return list<Commit>
      */
-    public function closedPullRequests(string $repository, string $branch, int $page, int $perPage): array
+    public function commits(string $repository, string $branch, int $page, int $perPage): array
     {
-        /** @var list<PullRequest> */
-        return $this->request()->get("repos/{$repository}/pulls", [
-            'state' => 'closed',
-            'base' => $branch,
-            'sort' => 'updated',
-            'direction' => 'desc',
+        return array_values($this->request()->get("repos/{$repository}/commits", [
+            'sha' => $branch,
             'per_page' => $perPage,
             'page' => $page,
-        ])->throw()->json();
+        ])->throw()->collect()->mapInto(Fluent::class)->map(fn (Fluent $commit): array => [
+            'sha' => $commit->string('sha')->value(),
+            'message' => $commit->string('commit.message')->value(),
+            'url' => $commit->string('html_url')->value(),
+            'committed_at' => $commit->string('commit.committer.date')->value(),
+            'parents' => array_values($commit->collect('parents')->mapInto(Fluent::class)->map(fn (Fluent $parent): string => $parent->string('sha')->value())->all()),
+            'author' => $commit->get('author') === null ? [
+                'id' => null,
+                'login' => $commit->string('commit.author.name')->value(),
+                'avatar_url' => 'https://avatars.githubusercontent.com/u/10137',
+            ] : [
+                'id' => $commit->integer('author.id'),
+                'login' => $commit->string('author.login')->value(),
+                'avatar_url' => $commit->string('author.avatar_url')->value(),
+            ],
+        ])->all());
     }
 
     public function contributors(string $repository, int $page, int $perPage): array
@@ -249,6 +361,55 @@ final readonly class HttpGitHubProvider implements GitHubProvider
         return $this->request()->get("repos/{$repository}/languages")->throw()->json();
     }
 
+    /**
+     * @param  Fluent<array-key, mixed>  ...$activities
+     */
+    private function paidFromHistory(Fluent ...$activities): int
+    {
+        $paid = 0;
+        $monthlyPrice = 0;
+        $heldSince = null;
+
+        foreach ($activities as $activity) {
+            $action = $activity->string('action')->value();
+            $at = CarbonImmutable::parse($activity->string('timestamp')->value());
+
+            if ($heldSince instanceof CarbonImmutable && in_array($action, ['TIER_CHANGE', 'CANCELLED_SPONSORSHIP'], true)) {
+                $paid += $monthlyPrice * $this->monthsStarted($heldSince, $at);
+                $heldSince = null;
+            }
+
+            if (in_array($action, ['NEW_SPONSORSHIP', 'TIER_CHANGE'], true)) {
+                if ($activity->boolean('sponsorsTier.isOneTime')) {
+                    $paid += $activity->integer('sponsorsTier.monthlyPriceInCents');
+                } else {
+                    $monthlyPrice = $activity->integer('sponsorsTier.monthlyPriceInCents');
+                    $heldSince = $at;
+                }
+            }
+        }
+
+        return $heldSince instanceof CarbonImmutable ? $paid + $monthlyPrice * $this->monthsStarted($heldSince, CarbonImmutable::now()) : $paid;
+    }
+
+    private function monthsStarted(CarbonImmutable $from, CarbonImmutable $until): int
+    {
+        return (int) floor($from->diffInMonths($until)) + 1;
+    }
+
+    /**
+     * @param  array<string, string|null>  $variables
+     * @return Fluent<string, mixed>
+     */
+    private function graphql(string $token, string $query, array $variables): Fluent
+    {
+        $response = $this->request($token)->post('graphql', ['query' => $query, 'variables' => $variables])->throw();
+
+        throw_if($response->json('errors') !== null, RequestException::class, $response);
+
+        return $response->fluent('data');
+    }
+
     private function request(?string $token = null): PendingRequest
     {
         $request = Http::baseUrl('https://api.github.com')
@@ -287,28 +448,26 @@ final readonly class HttpGitHubProvider implements GitHubProvider
     }
 
     /**
-     * The IDs of the accounts in a paginated list, up to the given number of pages.
+     * The accounts in a paginated list, up to the given number of pages.
      *
-     * @return list<string>
+     * @return list<array{id: int, type: string}>
      */
-    private function accountIds(string $path, int $maxPages): array
+    private function accounts(string $path, int $maxPages): array
     {
-        $ids = [];
+        $accounts = [];
 
         for ($page = 1; $page <= $maxPages; $page++) {
-            /** @var list<array{id: int}> $accounts */
-            $accounts = $this->request()->get($path, ['per_page' => self::PerPage, 'page' => $page])->throw()->json();
+            /** @var list<array{id: int, type: string}> $pageAccounts */
+            $pageAccounts = $this->request()->get($path, ['per_page' => self::PerPage, 'page' => $page])->throw()->json();
 
-            foreach ($accounts as $account) {
-                $ids[] = (string) $account['id'];
-            }
+            array_push($accounts, ...$pageAccounts);
 
-            if (count($accounts) < self::PerPage) {
+            if (count($pageAccounts) < self::PerPage) {
                 break;
             }
         }
 
-        return $ids;
+        return $accounts;
     }
 
     /**

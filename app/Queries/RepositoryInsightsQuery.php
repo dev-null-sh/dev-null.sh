@@ -68,14 +68,14 @@ final readonly class RepositoryInsightsQuery
         }
 
         return [
-            'definition' => 'Up to ten recent pull requests merged into production, from the changelog. Merge time is not a verified deployment time.',
+            'definition' => 'Up to ten recent commits on production, from the changelog. Commit time is not a verified deployment time.',
             'complete' => false,
-            'coverage' => 'Changelog scans at most 1,000 closed PRs for the three latest UTC days with merges. This list is not an exhaustive count or guaranteed latest under truncation.',
-            'pull_requests' => collect($changelog['pullRequests'])->take(10)->map(fn (array $pullRequest): array => [
-                'title' => mb_substr($pullRequest['title'], 0, 300),
-                'url' => $pullRequest['url'],
-                'author' => $pullRequest['author']['login'],
-                'merged_at' => $pullRequest['merged_at'],
+            'coverage' => 'Changelog scans at most 1,000 commits for the three latest UTC days with commits on production. This list is not an exhaustive count or guaranteed latest under truncation.',
+            'commits' => collect($changelog['commits'])->take(10)->map(fn (array $commit): array => [
+                'title' => mb_substr($commit['title'], 0, 300),
+                'url' => $commit['url'],
+                'author' => $commit['author']['login'],
+                'committed_at' => $commit['committed_at'],
             ])->all(),
         ];
     }

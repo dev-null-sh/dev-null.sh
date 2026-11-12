@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Http\Requests\ListCommitContinuationRequest;
+use App\Http\Resources\ShownStreams;
 use App\Models\Commit;
 use App\Models\User;
 use App\Queries\CommitContinuationQuery;
@@ -15,6 +16,6 @@ final readonly class CommitContinuationController
 {
     public function index(ListCommitContinuationRequest $request, #[CurrentUser] ?User $user, Commit $commit, CommitContinuationQuery $continuation): JsonResponse
     {
-        return response()->json($continuation->get($commit, $user));
+        return response()->json(ShownStreams::continuation($continuation->get($commit, $user)));
     }
 }

@@ -5,8 +5,11 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Enums\OrganizationRole;
+use App\Enums\UserUpdate;
+use App\Events\ProfilesUpdated;
+use App\Events\UsersUpdated;
 use App\Exceptions\OrganizationMustHaveAnAdmin;
-use App\Models\Profile;
+use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 
@@ -19,16 +22,19 @@ final readonly class UpdateOrganizationMemberRole
      *
      * @throws OrganizationMustHaveAnAdmin
      */
-    public function handle(Profile $organization, User $member, OrganizationRole $role): void
+    public function handle(Organization $organization, User $member, OrganizationRole $role): void
     {
         DB::transaction(function () use ($organization, $member, $role): void {
-            Profile::query()->whereKey($organization->id)->lockForUpdate()->first();
+            Organization::query()->whereKey($organization->id)->lockForUpdate()->first();
 
             if ($role === OrganizationRole::Member && $organization->admins()->whereKeyNot($member->id)->doesntExist()) {
                 throw new OrganizationMustHaveAnAdmin($organization);
             }
 
             $organization->members()->updateExistingPivot($member->id, ['role' => $role]);
+
+            event(new UsersUpdated([$member->id, ...$organization->members()->pluck('users.id')], UserUpdate::Account));
+            event(new ProfilesUpdated([$organization->id]));
         });
     }
 }

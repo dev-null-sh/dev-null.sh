@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Services\GitHubProviders;
 
 use App\Contracts\Services\GitHubProvider;
-use App\Enums\GitHubOrganizationMembership;
 
 /**
  * A GitHub that knows nobody and holds nothing, so developing and testing never reach GitHub or spend its rate limit.
@@ -32,9 +31,14 @@ final readonly class NullGitHubProvider implements GitHubProvider
         return null;
     }
 
-    public function organizationMembership(string $token, string $handle, string $githubId): GitHubOrganizationMembership
+    public function isPublicMember(string $organizationGithubId, string $githubId): bool
     {
-        return GitHubOrganizationMembership::NotMember;
+        return false;
+    }
+
+    public function publicOrganizationMemberIds(string $login): ?array
+    {
+        return null;
     }
 
     public function hasSponsorsListing(string $token): ?bool
@@ -42,9 +46,14 @@ final readonly class NullGitHubProvider implements GitHubProvider
         return null;
     }
 
-    public function followingIds(string $login, int $maxPages): array
+    public function publicSponsors(string $organization): array
     {
         return [];
+    }
+
+    public function followingIds(string $login, int $maxPages): array
+    {
+        return ['users' => [], 'organizations' => []];
     }
 
     public function followerIds(string $login, int $maxPages): array
@@ -67,7 +76,7 @@ final readonly class NullGitHubProvider implements GitHubProvider
         return null;
     }
 
-    public function closedPullRequests(string $repository, string $branch, int $page, int $perPage): array
+    public function commits(string $repository, string $branch, int $page, int $perPage): array
     {
         return [];
     }

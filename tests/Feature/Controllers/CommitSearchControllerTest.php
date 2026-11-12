@@ -5,8 +5,19 @@ declare(strict_types=1);
 use App\Contracts\Services\EmbeddingProvider;
 use App\Contracts\Services\RelevanceProvider;
 use App\Models\Commit;
+use App\Models\User;
 
-it('returns the commits matching the query, to guests too, with what the card renders', function (): void {
+beforeEach(function (): void {
+    $this->actingAs(User::factory()->create());
+});
+
+it('is for members only, as each search pays for AI', function (): void {
+    $this->app['auth']->forgetGuards();
+
+    $this->getJson('/search/commits?q=feature')->assertUnauthorized();
+});
+
+it('returns the commits matching the query, with what the card renders', function (): void {
     $commit = Commit::factory()->create(['body' => 'Shipped a new feature', 'embedding' => embeddingVector(0)]);
     Commit::factory()->create(['body' => 'Something else', 'embedding' => embeddingVector(1)]);
 
@@ -18,7 +29,7 @@ it('returns the commits matching the query, to guests too, with what the card re
         ->assertJsonPath('commits.0.stars_count', 0)
         ->assertJsonPath('commits.0.starred', false)
         ->assertJsonPath('commits.0.replies_count', 0)
-        ->assertJsonPath('commits.0.user.id', $commit->user->id)
+        ->assertJsonPath('commits.0.author.id', $commit->user->id)
         ->assertJsonStructure(['commits' => [['body_segments', 'created_at']]])
         ->assertJsonMissingPath('commits.0.embedding');
 });
@@ -62,7 +73,7 @@ it('rejects overly long queries and out-of-range limits', function (string $quer
     'a limit over 100' => ['q=feature&limit=101'],
 ]);
 
-it('asks guests to slow down after 15 searches a minute', function (): void {
+it('asks people to slow down after 15 searches a minute', function (): void {
     for ($attempt = 0; $attempt < 15; $attempt++) {
         $this->getJson('/search/commits?q=ab')->assertOk();
     }

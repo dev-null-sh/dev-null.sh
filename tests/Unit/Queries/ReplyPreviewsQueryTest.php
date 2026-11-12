@@ -21,7 +21,7 @@ it('loads the reply previews of commits as commits, with what their cards show t
     expect($commits[0]->getRelation('replyPreview'))->toHaveCount(0)
         ->and($commits[1]->getRelation('replyPreview')->modelKeys())->toBe([$reply->id])
         ->and($commits[1]->getRelation('replyPreview')->sole()->starred)->toBeTrue()
-        ->and($commits[1]->getRelation('replyPreview')->sole()->relationLoaded('user'))->toBeTrue();
+        ->and($commits[1]->getRelation('replyPreview')->sole()->relationLoaded('author'))->toBeTrue();
 });
 
 it("counts a preview's replies as the web does, without the reply that continues its author's thread", function (): void {

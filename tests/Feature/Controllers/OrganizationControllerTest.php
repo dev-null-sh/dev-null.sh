@@ -5,11 +5,11 @@ declare(strict_types=1);
 use App\Actions\CreateCommitTopics;
 use App\Enums\OrganizationRole;
 use App\Models\Commit;
-use App\Models\Profile;
+use App\Models\Organization;
 use App\Models\User;
 
 it('shows an organization at the handle no user has, to guests too', function (): void {
-    $laravel = Profile::factory()->organization()->create([
+    $laravel = Organization::factory()->create([
         'github_id' => '958072',
         'handle' => 'laravel',
         'name' => 'Laravel',
@@ -28,16 +28,16 @@ it('shows an organization at the handle no user has, to guests too', function ()
             ->where('organization.website', 'https://laravel.com')
             ->missing('organization.github_id')
             ->missing('organization.github_synced_at')
-            ->where('lane', null));
+            ->where('organization.lane', null));
 });
 
 it('shows the organization in the lane its admins chose', function (array $attributes, int|string $lane): void {
-    Profile::factory()->organization()->create(['handle' => 'laravel', ...$attributes]);
+    Organization::factory()->create(['handle' => 'laravel', ...$attributes]);
 
     $this->get('/@laravel')
         ->assertOk()
         ->assertInertia(fn ($page) => $page
-            ->where('lane', $lane)
+            ->where('organization.lane', $lane)
             ->missing('organization.preferred_lane')
             ->missing('organization.lane_color'));
 })->with([
@@ -46,7 +46,7 @@ it('shows the organization in the lane its admins chose', function (array $attri
 ]);
 
 it('shows the admins of the organization but not its other members, first admin first, and where to claim it', function (): void {
-    $organization = Profile::factory()->organization()->create(['handle' => 'laravel']);
+    $organization = Organization::factory()->create(['handle' => 'laravel']);
     $first = User::factory()->create();
     $second = User::factory()->create();
     $organization->admins()->attach([$second->id => ['created_at' => now()], $first->id => ['created_at' => now()->subDay()]]);
@@ -55,7 +55,7 @@ it('shows the admins of the organization but not its other members, first admin 
     $this->get('/@laravel')
         ->assertOk()
         ->assertInertia(fn ($page) => $page
-            ->where('claimUrl', route('organization-admin.create', $organization))
+            ->where('claimUrl', route('organization-admin.store', $organization))
             ->where('settingsUrl', null)
             ->where('admins.0.id', $first->id)
             ->where('admins.0.handle', $first->profile->handle)
@@ -65,7 +65,7 @@ it('shows the admins of the organization but not its other members, first admin 
 });
 
 it('links its members to the settings of the organization, admins to its profile', function (): void {
-    $organization = Profile::factory()->organization()->create(['handle' => 'laravel']);
+    $organization = Organization::factory()->create(['handle' => 'laravel']);
     $admin = User::factory()->create();
     $member = User::factory()->create();
     $organization->admins()->attach($admin->id);
@@ -81,8 +81,28 @@ it('links its members to the settings of the organization, admins to its profile
         ->assertInertia(fn ($page) => $page->where('settingsUrl', null));
 });
 
+it('counts who follows the organization and says whether the viewer does', function (): void {
+    $organization = Organization::factory()->create(['handle' => 'laravel']);
+    $viewer = User::factory()->create();
+    $organization->followers()->attach(User::factory()->count(2)->create());
+    $viewer->followedOrganizations()->attach(Organization::factory()->create());
+
+    $this->actingAs($viewer)->get('/@laravel')
+        ->assertInertia(fn ($page) => $page->where('followersCount', 2)->where('isFollowing', false));
+
+    $organization->followers()->attach($viewer);
+
+    $this->actingAs($viewer)->get('/@laravel')
+        ->assertInertia(fn ($page) => $page->where('followersCount', 3)->where('isFollowing', true));
+
+    auth()->logout();
+
+    $this->get('/@laravel')
+        ->assertInertia(fn ($page) => $page->where('followersCount', 3)->where('isFollowing', false));
+});
+
 it('shows guests the link preview of the organization', function (): void {
-    $laravel = Profile::factory()->organization()->create([
+    $laravel = Organization::factory()->create([
         'handle' => 'laravel',
         'name' => 'Laravel',
         'bio' => 'The PHP framework for web artisans.',
@@ -100,7 +120,7 @@ it('shows guests the link preview of the organization', function (): void {
 });
 
 it('keeps the default link preview of an organization for signed-in users', function (): void {
-    Profile::factory()->organization()->create(['handle' => 'laravel']);
+    Organization::factory()->create(['handle' => 'laravel']);
 
     $this->actingAs(User::factory()->create())
         ->get('/@laravel')
@@ -116,7 +136,7 @@ it('does not find handles that are neither a user nor an organization', function
 
 it('shares what every page shares, like the signed-in user', function (): void {
     $viewer = User::factory()->create();
-    Profile::factory()->organization()->create(['handle' => 'laravel']);
+    Organization::factory()->create(['handle' => 'laravel']);
 
     $this->actingAs($viewer)->get('/@laravel')
         ->assertOk()
@@ -128,9 +148,9 @@ it('shares what every page shares, like the signed-in user', function (): void {
 });
 
 it('lists the commits and replies that mention the organization, newest first, to guests too', function (): void {
-    $laravel = Profile::factory()->organization()->create(['handle' => 'laravel']);
-    $symfony = Profile::factory()->organization()->create(['handle' => 'symfony']);
-    $mention = fn (Commit $commit, ?Profile $organization = null): Commit => tap($commit, fn () => resolve(CreateCommitTopics::class)->handle($commit, [($organization ?? $laravel)->handle => ($organization ?? $laravel)->id]));
+    $laravel = Organization::factory()->create(['handle' => 'laravel']);
+    $symfony = Organization::factory()->create(['handle' => 'symfony']);
+    $mention = fn (Commit $commit, ?Organization $organization = null): Commit => tap($commit, fn () => resolve(CreateCommitTopics::class)->handle($commit, [($organization ?? $laravel)->handle => ($organization ?? $laravel)->id]));
 
     $older = $mention(Commit::factory()->create(['body' => 'Thanks @laravel', 'created_at' => now()->subHour()]));
     $parent = Commit::factory()->create(['body' => 'Which framework?', 'created_at' => now()->subMinutes(30)]);
@@ -139,7 +159,7 @@ it('lists the commits and replies that mention the organization, newest first, t
     $mention(Commit::factory()->create(['body' => 'Deleted @laravel']))->delete();
     $mention(Commit::factory()->create(['body' => 'Thanks @symfony']), $symfony);
 
-    $this->get('/@laravel')
+    $this->get('/@laravel?tab=mentions')
         ->assertOk()
         ->assertInertia(fn ($page) => $page
             ->component('organization/show')
@@ -147,7 +167,7 @@ it('lists the commits and replies that mention the organization, newest first, t
             ->has('commits.data', 2)
             ->where('commits.data.0.id', $reply->id)
             ->where('commits.data.0.parent.id', $parent->id)
-            ->where('commits.data.0.parent.user.id', $parent->user_id)
+            ->where('commits.data.0.parent.author.id', $parent->user_id)
             ->where('commits.data.0.organization_mentions.laravel', $laravel->id)
             ->where('commits.data.1.id', $older->id));
 });
@@ -158,7 +178,7 @@ it('lists the mentions as the viewer may see them, without their muted authors',
     $blocked = User::factory()->create();
     $viewer->muting()->attach($muted);
     $viewer->blocking()->attach($blocked);
-    $laravel = Profile::factory()->organization()->create(['handle' => 'laravel']);
+    $laravel = Organization::factory()->create(['handle' => 'laravel']);
     $mention = fn (Commit $commit): Commit => tap($commit, fn () => resolve(CreateCommitTopics::class)->handle($commit, ['laravel' => $laravel->id]));
 
     $pending = $mention(Commit::factory()->for($viewer)->pending()->create(['body' => 'Pending @laravel']));
@@ -166,7 +186,7 @@ it('lists the mentions as the viewer may see them, without their muted authors',
     $mention(Commit::factory()->for($muted)->create(['body' => 'Muted @laravel']));
     $mention(Commit::factory()->for($blocked)->create(['body' => 'Blocked @laravel']));
 
-    $this->actingAs($viewer)->get('/@laravel')
+    $this->actingAs($viewer)->get('/@laravel?tab=mentions')
         ->assertOk()
         ->assertInertia(fn ($page) => $page
             ->component('organization/show')
@@ -177,7 +197,7 @@ it('lists the mentions as the viewer may see them, without their muted authors',
 });
 
 it('pages through the mentions with the tab in the link to the next page', function (): void {
-    $laravel = Profile::factory()->organization()->create(['handle' => 'laravel']);
+    $laravel = Organization::factory()->create(['handle' => 'laravel']);
 
     Commit::factory()->count(21)->sequence(fn ($sequence): array => ['created_at' => now()->subMinutes($sequence->index)])->create(['body' => 'Thanks @laravel'])
         ->each(fn (Commit $commit) => resolve(CreateCommitTopics::class)->handle($commit, ['laravel' => $laravel->id]));
@@ -191,13 +211,13 @@ it('pages through the mentions with the tab in the link to the next page', funct
 });
 
 it('keeps listing the commits that mentioned the organization before it was renamed', function (): void {
-    $organization = Profile::factory()->organization()->create(['handle' => 'laravel']);
+    $organization = Organization::factory()->create(['handle' => 'laravel']);
     $commit = Commit::factory()->create(['body' => 'Thanks @laravel']);
     resolve(CreateCommitTopics::class)->handle($commit, ['laravel' => $organization->id]);
 
-    $organization->forceFill(['handle' => 'laravel-php'])->save();
+    $organization->profile->forceFill(['handle' => 'laravel-php'])->save();
 
-    $this->get('/@laravel-php')
+    $this->get('/@laravel-php?tab=mentions')
         ->assertOk()
         ->assertInertia(fn ($page) => $page
             ->component('organization/show')
@@ -207,7 +227,7 @@ it('keeps listing the commits that mentioned the organization before it was rena
 });
 
 it('moves an organization for good to the handle in its own case, keeping the query string', function (): void {
-    Profile::factory()->organization()->create(['handle' => 'Laravel']);
+    Organization::factory()->create(['handle' => 'Laravel']);
 
     $this->get('/@laravel?tab=mentions')
         ->assertMovedPermanently()
@@ -218,23 +238,9 @@ it('moves an organization for good to the handle in its own case, keeping the qu
 });
 
 it('keeps the query string out of the handle it moves an organization to', function (): void {
-    Profile::factory()->organization()->create(['handle' => 'Laravel']);
+    Organization::factory()->create(['handle' => 'Laravel']);
 
     $this->get('/@laravel?user=evil')->assertRedirect('/@Laravel?user=evil');
     $this->get('/@laravel?user[]=a&user[]=b')->assertRedirect('/@Laravel?user[]=a&user[]=b');
     $this->get('/@laravel?tag=one&tag=two')->assertRedirect('/@Laravel?tag=one&tag=two');
-});
-
-it('opens each organization at its own case when a stale one holds the handle in another case', function (): void {
-    $lower = Profile::factory()->organization()->create(['handle' => 'laravel']);
-    $mixed = Profile::factory()->organization()->create(['handle' => 'Laravel']);
-
-    $this->get('/@laravel')->assertOk()->assertInertia(fn ($page) => $page->where('organization.id', $lower->id));
-    $this->get('/@Laravel')->assertOk()->assertInertia(fn ($page) => $page->where('organization.id', $mixed->id));
-
-    $location = (string) $this->get('/@LARAVEL')->assertMovedPermanently()->headers->get('Location');
-
-    expect($location)->toBeIn([url('/@laravel'), url('/@Laravel')]);
-
-    $this->get($location)->assertOk();
 });

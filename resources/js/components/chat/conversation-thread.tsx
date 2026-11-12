@@ -22,6 +22,7 @@ import {
     CallConsole,
     OrgCallConsole,
 } from '@/components/chat/call';
+import { MentionsBell } from '@/components/chat/mentions-bell';
 import {
     LiftedMessage,
     MessageImages,
@@ -80,7 +81,7 @@ import {
     toggleReaction,
 } from '@/lib/chat';
 import type { ChatTarget, PendingMessage } from '@/lib/chat';
-import { isBehindLatest } from '@/lib/chat-scroll';
+import { glideToPresent, isBehindLatest } from '@/lib/chat-scroll';
 import { formatCount } from '@/lib/numbers';
 import { pullsOf, statusMessageOf } from '@/lib/pulls';
 import { doubleTapReaction } from '@/lib/reactions';
@@ -88,6 +89,7 @@ import type { ReactionUsage } from '@/lib/reactions';
 import { isRemoteMuted, playPing } from '@/lib/remote-notifications';
 import { restoreScrollAnchor, scrollAnchorOf } from '@/lib/scroll-anchor';
 import type { ScrollAnchor } from '@/lib/scroll-anchor';
+import { watchSeenMentions } from '@/lib/seen-mentions';
 import {
     characterCount,
     cn,
@@ -192,8 +194,11 @@ export function ConversationThread({
     const [isScrolledBack, setIsScrolledBack] = useState(false);
     const [isJumping, setIsJumping] = useState(false);
     const jumpRequest = useRef<AbortController | null>(null);
+    const glideCancel = useRef<(() => void) | null>(null);
+    const isGliding = useRef(false);
 
     const messages = thread?.messages ?? noMessages;
+    const messagesRef = useRef(messages);
     const pending = thread?.pending ?? noPending;
     const latestId = messages.at(-1)?.id ?? 0;
     const head = thread?.head ?? 0;
@@ -379,11 +384,20 @@ export function ConversationThread({
         [user, current, members, messages, pinnedAuthors],
     );
 
-    useEffect(() => () => jumpRequest.current?.abort(), []);
+    useEffect(
+        () => () => {
+            jumpRequest.current?.abort();
+            glideCancel.current?.();
+        },
+        [],
+    );
 
     const jumpTo = useCallback(
-        async (id: number) => {
+        async (id: number): Promise<boolean> => {
             jumpRequest.current?.abort();
+            glideCancel.current?.();
+            glideCancel.current = null;
+            isGliding.current = false;
             const request = new AbortController();
             jumpRequest.current = request;
             anchor.current = null;
@@ -402,7 +416,7 @@ export function ConversationThread({
                 const found = await loadMessage(target, id, request.signal);
 
                 if (request.signal.aborted) {
-                    return;
+                    return false;
                 }
 
                 // Let the store's last page render before locating the original bubble.
@@ -413,7 +427,7 @@ export function ConversationThread({
                 }
 
                 if (request.signal.aborted) {
-                    return;
+                    return false;
                 }
 
                 bubble = scroller.current?.querySelector<HTMLElement>(
@@ -426,7 +440,7 @@ export function ConversationThread({
 
             if (!bubble) {
                 toast.error('Could not load this message. Try again.');
-                return;
+                return false;
             }
 
             anchor.current = null;
@@ -434,6 +448,8 @@ export function ConversationThread({
             bubble.scrollIntoView({ block: 'center', behavior: 'instant' });
             bubble.dataset.flash = '';
             window.setTimeout(() => delete bubble.dataset.flash, 1200);
+
+            return true;
         },
         [target],
     );
@@ -488,6 +504,39 @@ export function ConversationThread({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isVisible, latestId, thread?.isLoaded, targetKey(target)]);
 
+    useEffect(() => {
+        messagesRef.current = messages;
+    }, [messages]);
+
+    const orgId = current.kind === 'org' ? current.org.id : null;
+    const seenMentions = useRef<ReturnType<typeof watchSeenMentions> | null>(
+        null,
+    );
+    const mentionIds = (thread?.mentions ?? noMessages)
+        .map((message) => message.id)
+        .join();
+
+    useEffect(() => {
+        if (current.kind !== 'org' || !isVisible || scroller.current === null) {
+            return;
+        }
+
+        const watcher = watchSeenMentions(scroller.current, current.org);
+        seenMentions.current = watcher;
+
+        return () => {
+            watcher.stop();
+            seenMentions.current = null;
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [orgId, isVisible]);
+
+    useEffect(() => {
+        seenMentions.current?.track(
+            mentionIds === '' ? [] : mentionIds.split(',').map(Number),
+        );
+    }, [orgId, isVisible, mentionIds, messages]);
+
     useLayoutEffect(() => {
         const element = scroller.current;
 
@@ -522,7 +571,11 @@ export function ConversationThread({
             // Confirming the same optimistic reply must not interrupt its scroll.
             seenLatest.current = latestId;
         } else if (isPinned.current) {
-            element.scrollTop = 0;
+            // A glide already owns the viewport; it still keeps the seen pointer current.
+            if (!isGliding.current) {
+                element.scrollTop = 0;
+            }
+
             seenLatest.current = latestId;
         } else {
             if (anchor.current !== null) {
@@ -547,14 +600,41 @@ export function ConversationThread({
     useLayoutEffect(releasePinClearance, [releasePinClearance]);
 
     const releaseScrollAnchor = useCallback(() => {
+        const element = scroller.current;
+        const wasGliding = isGliding.current;
+
         // Let deliberate input own the viewport until the fold settles, including delayed automatic scroll events.
         anchor.current = null;
         sentAnchor.current = null;
         isFollowingSend.current = false;
         jumpRequest.current?.abort();
         jumpRequest.current = null;
+        glideCancel.current?.();
+        glideCancel.current = null;
+        isGliding.current = false;
         setIsJumping(false);
-    }, []);
+
+        if (!wasGliding || element === null) {
+            return;
+        }
+
+        // A cancel can land before the first frame, so trust the scroller rather than the state the glide was started with.
+        isPinned.current = isAtLatest(element);
+
+        if (!isPinned.current) {
+            anchor.current = scrollAnchorOf(element);
+        }
+
+        // The pinned branch may have advanced the seen pointer mid-glide without clearing the count.
+        setUnseen(
+            messagesRef.current.filter(
+                (message) =>
+                    message.id > seenLatest.current &&
+                    message.user_id !== user.id &&
+                    !message.event,
+            ).length,
+        );
+    }, [user.id]);
 
     // A row below the visible ones can still change height, as reactions or a link card arrive, and the scroller itself
     // shrinks as the composer grows or the keyboard opens. Anchored at its bottom, either would move what is being read,
@@ -623,8 +703,11 @@ export function ConversationThread({
             return;
         }
 
-        updateScrollPosition();
-        releasePinClearance();
+        // A glide owns the viewport until it lands or the user takes over.
+        if (!isGliding.current) {
+            updateScrollPosition();
+            releasePinClearance();
+        }
 
         // A correction during the reply fold is not an intentional scroll, even while it is close to the bottom.
         if (
@@ -641,7 +724,11 @@ export function ConversationThread({
         if (element.scrollTop === 0) {
             isFollowingSend.current = false;
         }
-        if (!isReplyResizing.current || anchor.current !== null) {
+        if (
+            !isGliding.current &&
+            (!isReplyResizing.current || anchor.current !== null)
+        ) {
+            // An anchor captured mid-glide would be restored by a later resize and fight the glide.
             anchor.current = scrollAnchorOf(element);
         }
 
@@ -669,16 +756,35 @@ export function ConversationThread({
         jumpRequest.current?.abort();
         jumpRequest.current = null;
         setIsJumping(false);
-        setIsBrowsingHistory(false);
-        setIsScrolledBack(false);
         anchor.current = null;
         sentAnchor.current = null;
         isFollowingSend.current = false;
         restoredScrollTop.current = null;
         isPinned.current = true;
+        glideCancel.current?.();
+        glideCancel.current = null;
         const element = scroller.current;
 
-        element?.scrollTo({ top: 0, behavior: 'instant' });
+        if (element === null) {
+            isGliding.current = false;
+            setIsBrowsingHistory(false);
+            setIsScrolledBack(false);
+
+            return;
+        }
+
+        // Keeping the shortcut visible until the glide lands avoids a blink at the start.
+        isGliding.current = true;
+        glideCancel.current = glideToPresent(element, {
+            onDone: () => {
+                isGliding.current = false;
+                setUnseen(0);
+                setIsBrowsingHistory(false);
+                setIsScrolledBack(false);
+                updateScrollPosition();
+                releasePinClearance();
+            },
+        });
     };
 
     return (
@@ -743,7 +849,10 @@ export function ConversationThread({
                     }
                 }}
                 onPointerDown={(event) => {
-                    if (event.target === event.currentTarget) {
+                    if (
+                        isGliding.current ||
+                        event.target === event.currentTarget
+                    ) {
                         releaseScrollAnchor();
                     }
                 }}
@@ -805,30 +914,33 @@ export function ConversationThread({
             </div>
 
             {(isBrowsingHistory || isScrolledBack || unseen > 0) && (
-                <button
-                    type="button"
-                    onClick={jumpToLatest}
-                    aria-label={
-                        isBrowsingHistory || unseen === 0
+                // Anchored to the top of the composer, so it rises with a growing draft instead of covering it.
+                <div className="relative h-0 shrink-0">
+                    <button
+                        type="button"
+                        onClick={jumpToLatest}
+                        aria-label={
+                            isBrowsingHistory || unseen === 0
+                                ? 'Back to present'
+                                : undefined
+                        }
+                        className="absolute bottom-10 left-1/2 flex min-h-9 -translate-x-1/2 items-center gap-1.5 rounded-md bg-primary px-3 py-2 text-xs font-medium whitespace-nowrap text-primary-foreground shadow-lg focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
+                    >
+                        {isJumping ? (
+                            <Spinner aria-hidden className="size-3.5" />
+                        ) : (
+                            <ArrowDown aria-hidden className="size-3.5" />
+                        )}
+                        {isBrowsingHistory || unseen === 0
                             ? 'Back to present'
-                            : undefined
-                    }
-                    className="absolute bottom-[calc(var(--composer-height,4rem)+2.5rem)] left-1/2 flex min-h-9 -translate-x-1/2 items-center gap-1.5 rounded-md bg-primary px-3 py-2 text-xs font-medium whitespace-nowrap text-primary-foreground shadow-lg focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
-                >
-                    {isJumping ? (
-                        <Spinner aria-hidden className="size-3.5" />
-                    ) : (
-                        <ArrowDown aria-hidden className="size-3.5" />
-                    )}
-                    {isBrowsingHistory || unseen === 0
-                        ? 'Back to present'
-                        : `${unseen} new`}
-                    {isJumping && (
-                        <span className="sr-only" role="status">
-                            Loading original message
-                        </span>
-                    )}
-                </button>
+                            : `${unseen} new`}
+                        {isJumping && (
+                            <span className="sr-only" role="status">
+                                Loading original message
+                            </span>
+                        )}
+                    </button>
+                </div>
             )}
 
             {isOpen && draft.attachments.isDraggingFiles && (
@@ -861,6 +973,17 @@ export function ConversationThread({
                     onReplySettled={settleReplyPreview}
                     isCompact={isCompact}
                     autoFocus={autoFocus}
+                    mentions={
+                        current.kind === 'org' && (
+                            <MentionsBell
+                                org={current.org}
+                                mentions={thread?.mentions ?? noMessages}
+                                count={thread?.mentions_count ?? 0}
+                                isCompact={isCompact}
+                                onJump={jumpTo}
+                            />
+                        )
+                    }
                     typing={
                         target.kind === 'org'
                             ? (thread?.typing ?? []).length > 0
@@ -1072,6 +1195,7 @@ const ThreadItem = memo(function ThreadItem({
                 >
                     <Link
                         href={show(item.author)}
+                        prefetch
                         className="flex min-w-0 items-center gap-1.5 rounded-sm text-xs text-muted-foreground"
                         title={item.author.name}
                     >
@@ -1650,6 +1774,7 @@ function Composer({
     isCompact,
     autoFocus,
     typing,
+    mentions,
     onSend,
     onReplySettled,
 }: {
@@ -1662,6 +1787,10 @@ function Composer({
     isCompact: boolean;
     autoFocus: boolean;
     typing: string | null;
+    /**
+     * The org's mentions bell, after Call.
+     */
+    mentions?: ReactNode;
     /**
      * Called as the user pushes, so the thread follows their own message down.
      */
@@ -1908,7 +2037,14 @@ function Composer({
                         />
                     </div>
                 )}
-                <div className="flex items-end gap-2">
+                <div
+                    className={cn(
+                        'flex items-end gap-x-2',
+                        !isVoicing &&
+                            'flex-wrap rounded-lg border border-input bg-card p-1 focus-within:border-primary',
+                        shownError !== null && 'border-destructive',
+                    )}
+                >
                     {isVoicing ? (
                         <VoiceNoteComposer
                             voiceNote={voiceNote}
@@ -1919,18 +2055,68 @@ function Composer({
                             <label htmlFor={id} className="sr-only">
                                 {placeholder}
                             </label>
+                            <div className="relative min-w-0 basis-full">
+                                <MentionTextarea
+                                    id={id}
+                                    ref={input}
+                                    members={members}
+                                    org={
+                                        target.kind === 'org'
+                                            ? target.org.id
+                                            : undefined
+                                    }
+                                    rows={1}
+                                    autoFocus={autoFocus}
+                                    value={body}
+                                    maxLength={maxLength}
+                                    onValueChange={(value) => {
+                                        stash.updateBody(value);
+                                        showError(null);
+                                        attachments.clearError();
+
+                                        if (value.trim() !== '') {
+                                            pingTyping(target);
+                                        }
+                                    }}
+                                    onFocus={moveCaretToEnd}
+                                    onPaste={onPaste}
+                                    onKeyDown={onKeyDown}
+                                    aria-invalid={
+                                        shownError !== null || undefined
+                                    }
+                                    className={cn(
+                                        'block field-sizing-content max-h-[min(10rem,calc(var(--visual-viewport-height,100dvh)/4))] min-h-10 w-full resize-none overflow-x-hidden bg-transparent px-3 py-2 text-base leading-snug outline-none focus-visible:outline-none md:text-[15px]',
+                                        {
+                                            'min-h-9 py-1.5 md:text-sm':
+                                                isCompact,
+                                        },
+                                    )}
+                                    data-test="message-input"
+                                />
+                                {body === '' && (
+                                    <span
+                                        aria-hidden
+                                        className={cn(
+                                            'pointer-events-none absolute inset-x-0 top-0 truncate px-3 py-2 text-base leading-snug text-muted-foreground md:text-[15px]',
+                                            { 'py-1.5 md:text-sm': isCompact },
+                                        )}
+                                    >
+                                        {placeholder}
+                                    </span>
+                                )}
+                            </div>
                             <ImagePickerButton
                                 count={attachments.images.length}
                                 reading={attachments.reading}
                                 onPick={attachments.pick}
                                 className={cn(
-                                    '-mx-1 shrink-0',
+                                    'shrink-0',
                                     isCompact ? 'size-9' : 'size-10',
                                 )}
                             />
                             <Tooltip>
                                 <TooltipTrigger asChild>
-                                    <span className="-mx-1 inline-flex shrink-0">
+                                    <span className="inline-flex shrink-0">
                                         <Button
                                             type="button"
                                             variant="ghost"
@@ -1979,7 +2165,7 @@ function Composer({
                                         }
                                         aria-label={pingLabel}
                                         className={cn(
-                                            '-mx-1 shrink-0 text-muted-foreground',
+                                            'shrink-0 text-muted-foreground',
                                             isCompact ? 'size-9' : 'size-10',
                                         )}
                                         data-test="send-ping"
@@ -1998,56 +2184,7 @@ function Composer({
                                 isCompact={isCompact}
                                 onClick={() => setIsConfirmingCall(true)}
                             />
-                            <div className="relative min-w-0 flex-1">
-                                <MentionTextarea
-                                    id={id}
-                                    ref={input}
-                                    members={members}
-                                    org={
-                                        target.kind === 'org'
-                                            ? target.org.id
-                                            : undefined
-                                    }
-                                    rows={1}
-                                    autoFocus={autoFocus}
-                                    value={body}
-                                    maxLength={maxLength}
-                                    onValueChange={(value) => {
-                                        stash.updateBody(value);
-                                        showError(null);
-                                        attachments.clearError();
-
-                                        if (value.trim() !== '') {
-                                            pingTyping(target);
-                                        }
-                                    }}
-                                    onFocus={moveCaretToEnd}
-                                    onPaste={onPaste}
-                                    onKeyDown={onKeyDown}
-                                    aria-invalid={
-                                        shownError !== null || undefined
-                                    }
-                                    className={cn(
-                                        'block field-sizing-content max-h-[min(10rem,calc(var(--visual-viewport-height,100dvh)/4))] min-h-10 w-full resize-none overflow-x-hidden rounded-lg border border-input bg-card px-4 py-2 text-base leading-snug outline-none focus-visible:border-primary focus-visible:outline-none aria-invalid:border-destructive md:text-[15px]',
-                                        {
-                                            'min-h-9 py-1.5 md:text-sm':
-                                                isCompact,
-                                        },
-                                    )}
-                                    data-test="message-input"
-                                />
-                                {body === '' && (
-                                    <span
-                                        aria-hidden
-                                        className={cn(
-                                            'pointer-events-none absolute inset-x-px top-px truncate px-4 py-2 text-base leading-snug text-muted-foreground md:text-[15px]',
-                                            { 'py-1.5 md:text-sm': isCompact },
-                                        )}
-                                    >
-                                        {placeholder}
-                                    </span>
-                                )}
-                            </div>
+                            {mentions}
                         </>
                     )}
                     <Button
@@ -2062,8 +2199,13 @@ function Composer({
                         // Pushing keeps the keyboard open, so the next message can follow right away.
                         onPointerDown={(event) => event.preventDefault()}
                         className={cn(
-                            'shrink-0',
+                            'ml-auto shrink-0',
                             isCompact ? 'h-9 min-w-16' : 'h-10 min-w-20',
+                            !isVoicing &&
+                                trimmed === '' &&
+                                !hasImages &&
+                                !attachments.reading &&
+                                'invisible',
                         )}
                     >
                         Push
@@ -2089,18 +2231,12 @@ function AccessBar({
     isCompact: boolean;
     onDropped?: () => void;
 }) {
-    const [isSettling, setIsSettling] = useState(false);
-
-    const settle = async (isMerging: boolean) => {
-        setIsSettling(true);
-        const isSettled = await settleRequest(partner, isMerging);
-        setIsSettling(false);
-
-        if (!isSettled) {
-            toast.error('Could not update the request. Try again.');
-
-            return;
-        }
+    const settle = (isMerging: boolean) => {
+        void settleRequest(partner, isMerging).then((isSettled) => {
+            if (!isSettled) {
+                toast.error('Could not update the request. Try again.');
+            }
+        });
 
         if (!isMerging) {
             onDropped?.();
@@ -2129,16 +2265,14 @@ function AccessBar({
                         <Button
                             variant="outline"
                             className="min-w-16"
-                            disabled={isSettling}
-                            onClick={() => void settle(false)}
+                            onClick={() => settle(false)}
                             data-test="drop-request"
                         >
                             Drop
                         </Button>
                         <Button
                             className="min-w-20"
-                            disabled={isSettling}
-                            onClick={() => void settle(true)}
+                            onClick={() => settle(true)}
                             data-test="merge-request"
                         >
                             Merge

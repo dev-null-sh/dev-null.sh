@@ -9,6 +9,7 @@ use App\Enums\Feature;
 use App\Exceptions\CommitProcessingFailed;
 use App\Jobs\DetectCommitLanguage;
 use App\Models\Commit;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Cache;
 use Locale;
@@ -16,13 +17,13 @@ use ResourceBundle;
 use Throwable;
 
 /**
- * @phpstan-type CachedTranslations array{source_language: string, translations: array<string, string>, expires_at: int}
+ * @phpstan-type CachedTranslations array{source_language: string, translations: array<string, string>, expires_at: int, translated_at?: int}
  */
 final readonly class CommitTranslations
 {
     public const int TTL_SECONDS = 604800;
 
-    public function __construct(private Features $features)
+    public function __construct(private Features $features, private EncodedText $encodedText)
     {
         //
     }
@@ -34,7 +35,10 @@ final readonly class CommitTranslations
 
     public function key(Commit $commit): string
     {
-        return 'commit-translations:v1:'.hash('sha256', $commit->body);
+        // Previously detected as indeterminate: encoded posts need fresh detection, without evicting other translations.
+        $encoding = $this->encodedText->decode($commit->body) === null ? '' : 'encoded:';
+
+        return 'commit-translations:v1:'.$encoding.hash('sha256', $commit->body);
     }
 
     /** @return list<string> */
@@ -81,6 +85,27 @@ final readonly class CommitTranslations
         }
     }
 
+    /**
+     * The commits whose text was translated, or had its language found, since the given time: what a page that may
+     * have missed being told reads again.
+     *
+     * @param  Collection<int, Commit>  $commits
+     * @return list<string>
+     */
+    public function translatedSince(Collection $commits, CarbonImmutable $since): array
+    {
+        if (! $this->enabled()) {
+            return [];
+        }
+
+        /** @var array<string, CachedTranslations|null> $cached */
+        $cached = Cache::many($commits->map($this->key(...))->unique()->all());
+
+        return array_values($commits
+            ->filter(fn (Commit $commit): bool => ($cached[$this->key($commit)]['translated_at'] ?? 0) > $since->getTimestampMs())
+            ->modelKeys());
+    }
+
     /** @return array<string, mixed>|null */
     public function display(Commit $commit, ?string $language = null, bool $includePending = false): ?array
     {
@@ -106,7 +131,12 @@ final readonly class CommitTranslations
         return [
             'language' => $language,
             'source_language' => $source,
-            'source_name' => $source === null ? null : Locale::getDisplayLanguage($source, 'en'),
+            'source_name' => match ($source) {
+                null => null,
+                'binary' => 'Binary',
+                'morse' => 'Morse code',
+                default => Locale::getDisplayLanguage($source, 'en'),
+            },
             'available' => $source !== $language && $source !== 'und',
             'translated' => $body === null ? null : resolve(CommitBodies::class)->segments($body),
         ];

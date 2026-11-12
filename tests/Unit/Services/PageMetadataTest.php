@@ -5,7 +5,7 @@ declare(strict_types=1);
 use App\Actions\DeleteUser;
 use App\Enums\CommitStatus;
 use App\Models\Commit;
-use App\Models\Profile;
+use App\Models\Organization;
 use App\Models\User;
 use App\Services\PageMetadata;
 
@@ -38,7 +38,7 @@ it('omits public metadata for commits that are not public', function (Closure $s
     'pending' => [fn (Commit $commit): bool => $commit->update(['status' => CommitStatus::Pending])],
     'rejected' => [fn (Commit $commit): bool => $commit->update(['status' => CommitStatus::Rejected])],
     'deleted with author' => [fn (Commit $commit): ?bool => $commit->delete()],
-    'authorless' => [fn (Commit $commit): bool => $commit->update(['user_id' => null])],
+    'authorless' => [fn (Commit $commit): bool => $commit->update(['user_id' => null, 'author_id' => null])],
 ]);
 
 it('omits an authorless parent from the metadata of a surviving reply', function (): void {
@@ -60,6 +60,23 @@ it('omits an authorless parent from the metadata of a surviving reply', function
     expect($metadata['structuredData'])->not->toHaveKey('isPartOf');
 });
 
+it('describes a commit from an organization, which has no feed', function (): void {
+    $organization = Organization::factory()->create(['handle' => 'laravel', 'name' => 'Laravel']);
+    $commit = Commit::factory()->create(['author_id' => $organization->id])->loadPublicPreview()->loadCount('stars');
+
+    $metadata = resolve(PageMetadata::class)->commit($commit);
+
+    expect($metadata['title'])->toStartWith('Laravel (@laravel) on /dev/null: “')
+        ->and($metadata['url'])->toBe(route('commit.show', ['profile' => 'laravel', 'commit' => $commit]))
+        ->and($metadata)->not->toHaveKey('feed')
+        ->and($metadata['structuredData']['author'])->toBe([
+            '@type' => 'Organization',
+            'name' => 'Laravel',
+            'alternateName' => '@laravel',
+            'url' => route('user.show', ['user' => 'laravel']),
+        ]);
+});
+
 it('omits public metadata for unsaved or partial commits', function (Closure $factory): void {
     $commit = $factory()->loadPublicPreview();
 
@@ -68,11 +85,11 @@ it('omits public metadata for unsaved or partial commits', function (Closure $fa
         ->and($commit->isDirty('replies_count'))->toBeFalse();
 })->with([
     'unsaved' => fn (): Commit => Commit::factory()->make(['user_id' => null]),
-    'partial' => fn (): Commit => Commit::query()->findOrFail(Commit::factory()->pending()->create()->id, ['id', 'user_id', 'parent_id', 'status', 'deleted_at']),
+    'partial' => fn (): Commit => Commit::query()->findOrFail(Commit::factory()->pending()->create()->id, ['id', 'author_id', 'parent_id', 'status', 'deleted_at']),
 ]);
 
 it('describes an organization from its GitHub profile', function (): void {
-    $organization = Profile::factory()->organization()->create([
+    $organization = Organization::factory()->create([
         'handle' => 'laravel',
         'name' => 'Laravel',
         'avatar_url' => 'https://avatars.githubusercontent.com/u/958072',
@@ -101,7 +118,7 @@ it('describes an organization from its GitHub profile', function (): void {
 });
 
 it('describes an organization without a name, description, avatar, or website of its own', function (): void {
-    $organization = Profile::factory()->organization()->create([
+    $organization = Organization::factory()->create([
         'handle' => 'laravel',
         'name' => 'laravel',
         'avatar_url' => null,

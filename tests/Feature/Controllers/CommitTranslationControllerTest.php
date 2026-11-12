@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Actions\CreateCommitTranslation;
+use App\Contracts\Services\ModerationProvider;
 use App\Contracts\Services\TranslationProvider;
 use App\Enums\CommitStatus;
 use App\Enums\Feature;
@@ -33,7 +34,7 @@ it('shares translations between readers and identical posts without changing the
 
     $this->actingAs(User::factory()->create())
         ->withHeader('Accept-Language', 'en-GB,en;q=0.9')
-        ->get(route('commit.show', ['user' => $duplicate->user, 'commit' => $duplicate]))
+        ->get(route('commit.show', ['profile' => $duplicate->user, 'commit' => $duplicate]))
         ->assertOk()->assertInertia(fn ($page) => $page
         ->where('commit.body', 'Guten morgen')
         ->where('commit.translation.language', 'en')
@@ -43,6 +44,103 @@ it('shares translations between readers and identical posts without changing the
         ->assertOk()->assertJsonPath('translation.translated.body_segments.0.text', 'Good morning');
 
     expect($first->refresh()->body)->toBe('Guten morgen');
+});
+
+it('detects encoded posts locally and translates them even into their decoded language', function (string $text, string $source, string $name, string $decoded): void {
+    $this->mock(TranslationProvider::class)->shouldReceive('translate')->once()->with($decoded, 'en')
+        ->andReturn(['source_language' => 'en', 'body' => $decoded]);
+    $commit = Commit::factory()->create(['body' => $text]);
+    // An earlier language detector may already have hidden Translate for this exact post.
+    Cache::put('commit-translations:v1:'.hash('sha256', $text), [
+        'source_language' => 'und', 'translations' => [], 'expires_at' => now()->addWeek()->getTimestamp(),
+    ], 604800);
+
+    dispatch_sync(new DetectCommitLanguage($commit->id));
+
+    $this->getJson(route('commit-translation.show', [$commit, 'language' => 'en']))
+        ->assertOk()->assertJsonPath('translation.source_language', $source)
+        ->assertJsonPath('translation.source_name', $name)
+        ->assertJsonPath('translation.available', true)
+        ->assertJsonPath('translation.translated', null);
+
+    $this->actingAs(User::factory()->create())
+        ->postJson(route('commit-translation.store', $commit), ['language' => 'en'])
+        ->assertOk()->assertJsonPath('translation.translated.body_segments.0.text', $decoded);
+    $this->postJson(route('commit-translation.store', $commit), ['language' => 'en'])
+        ->assertOk()->assertJsonPath('translation.translated.body_segments.0.text', $decoded);
+
+    expect($commit->refresh()->body)->toBe($text);
+})->with([
+    'binary' => ['01001000 01100101 01101100 01101100 01101111 00100000 01010111 01101111 01110010 01101100 01100100', 'binary', 'Binary', 'Hello World'],
+    'Morse' => ['.... . .-.. .-.. --- / .-- --- .-. .-.. -..', 'morse', 'Morse code', 'Hello world'],
+]);
+
+it('translates decoded text into the requested language while retaining its encoding label', function (string $text, string $decoded, string $source, string $detected): void {
+    $this->mock(TranslationProvider::class)->shouldReceive('translate')->once()->with($decoded, 'nl')
+        ->andReturn(['source_language' => $detected, 'body' => 'Hallo wereld']);
+    $commit = Commit::factory()->create(['body' => $text]);
+
+    $this->actingAs(User::factory()->create())
+        ->postJson(route('commit-translation.store', $commit), ['language' => 'nl'])
+        ->assertOk()->assertJsonPath('translation.source_language', $source)
+        ->assertJsonPath('translation.language', 'nl')
+        ->assertJsonPath('translation.translated.body_segments.0.text', 'Hallo wereld');
+
+    expect(resolve(CommitTranslations::class)->cached($commit)['translations']['nl'])->toBe('Hallo wereld');
+})->with([
+    'binary' => ['01001000 01101001', 'Hi', 'binary'],
+    'Morse' => ['.... ..', 'Hi', 'morse'],
+])->with(['detected language' => 'en', 'undetermined language' => 'und']);
+
+it('still decodes binary when its contents have no natural language', function (string $body): void {
+    $this->mock(TranslationProvider::class)->shouldReceive('translate')->once()->with('😀', 'en')
+        ->andReturn(['source_language' => 'und', 'body' => $body]);
+    $commit = Commit::factory()->create(['body' => '11110000 10011111 10011000 10000000']);
+
+    $this->actingAs(User::factory()->create())
+        ->postJson(route('commit-translation.store', $commit), ['language' => 'en'])
+        ->assertOk()->assertJsonPath('translation.available', true)
+        ->assertJsonPath('translation.translated.body_segments.0.text', '😀');
+
+    expect(resolve(CommitTranslations::class)->cached($commit)['translations']['en'])->toBe('😀');
+})->with([
+    'empty response' => '',
+    'whitespace response' => '   ',
+    'oversized whitespace response' => str_repeat(' ', 16001),
+    'Unicode whitespace response' => "\u{00A0}\u{2003}\u{3000}",
+    'oversized Unicode whitespace response' => str_repeat("\u{00A0}", 16001),
+]);
+
+it('does not translate or cache unsafe decoded content', function (string $text, string $decoded, bool $flagged): void {
+    Exceptions::fake();
+    $this->mock(TranslationProvider::class)->shouldNotReceive('translate');
+    $moderation = $this->mock(ModerationProvider::class);
+    $moderation->shouldReceive('moderate')->once()->with($decoded)->andReturn($flagged ? ['harassment' => 0.9] : []);
+
+    if (! $flagged) {
+        $moderation->shouldReceive('isHarmful')->once()->with($decoded)->andReturnTrue();
+    }
+
+    $commit = Commit::factory()->create(['body' => $text]);
+
+    $this->actingAs(User::factory()->create())
+        ->postJson(route('commit-translation.store', $commit), ['language' => 'en'])
+        ->assertServiceUnavailable()->assertJsonPath('message', 'Could not translate this commit. Try again.');
+
+    expect(resolve(CommitTranslations::class)->cached($commit))->toBeNull();
+})->with(['binary' => ['01001000 01001001', 'HI'], 'Morse' => ['.... ..', 'Hi']])->with([true, false]);
+
+it('fails closed when decoded content cannot be moderated', function (): void {
+    Exceptions::fake();
+    $this->mock(TranslationProvider::class)->shouldNotReceive('translate');
+    $this->mock(ModerationProvider::class)->shouldReceive('moderate')->once()->andThrow(new RuntimeException('Unavailable'));
+    $commit = Commit::factory()->create(['body' => '.... ..']);
+
+    $this->actingAs(User::factory()->create())
+        ->postJson(route('commit-translation.store', $commit), ['language' => 'en'])
+        ->assertServiceUnavailable();
+
+    expect(resolve(CommitTranslations::class)->cached($commit))->toBeNull();
 });
 
 it('keeps target languages and exact source text separate', function (): void {
@@ -60,6 +158,17 @@ it('keeps target languages and exact source text separate', function (): void {
             ->assertOk()->assertJsonPath('translation.language', $language)
             ->assertJsonPath('translation.translated.body_segments.0.text', $expected);
     }
+});
+
+it('translates posts written in languages that are not translation targets', function (): void {
+    $this->mock(TranslationProvider::class)->shouldReceive('translate')->once()->with('Quod erat demonstrandum', 'en')
+        ->andReturn(['source_language' => 'la', 'body' => 'Which was to be demonstrated']);
+    $commit = Commit::factory()->create(['body' => 'Quod erat demonstrandum']);
+
+    $this->actingAs(User::factory()->create())
+        ->postJson(route('commit-translation.store', $commit), ['language' => 'en'])
+        ->assertOk()->assertJsonPath('translation.source_name', 'Latin')
+        ->assertJsonPath('translation.translated.body_segments.0.text', 'Which was to be demonstrated');
 });
 
 it('expires translations after seven days even when readers keep requesting them', function (): void {
@@ -87,7 +196,7 @@ it('does not offer translation for the readers language or indeterminate text', 
     new DetectCommitLanguage($commit->id)->handle(resolve(CreateCommitTranslation::class));
 
     $this->withHeader('Accept-Language', 'en-US,en;q=0.9')
-        ->get(route('commit.show', ['user' => $commit->user, 'commit' => $commit]))
+        ->get(route('commit.show', ['profile' => $commit->user, 'commit' => $commit]))
         ->assertOk()->assertInertia(fn ($page) => $page
         ->where('commit.translation.available', false)
         ->where('commit.translation.translated', null));
@@ -98,7 +207,7 @@ it('detects unfamiliar posts in the background without translating on a page rea
     $this->mock(TranslationProvider::class)->shouldNotReceive('translate');
     $commit = Commit::factory()->create(['body' => 'Guten morgen']);
 
-    $this->get(route('commit.show', ['user' => $commit->user, 'commit' => $commit]))
+    $this->get(route('commit.show', ['profile' => $commit->user, 'commit' => $commit]))
         ->assertOk()->assertInertia(fn ($page) => $page
         ->where('commit.translation.source_language', null)
         ->where('commit.translation.translated', null));
@@ -112,7 +221,7 @@ it('shows translations of a post to its readers but never to its author', functi
         ->andReturn(['source_language' => 'de', 'body' => 'Good morning']);
     $commit = Commit::factory()->create(['body' => 'Guten morgen']);
     $reader = User::factory()->create();
-    $url = route('commit.show', ['user' => $commit->user, 'commit' => $commit]);
+    $url = route('commit.show', ['profile' => $commit->user, 'commit' => $commit]);
 
     if ($detected) {
         $this->actingAs($reader)->postJson(route('commit-translation.store', $commit), ['language' => 'en'])->assertOk();
@@ -136,7 +245,7 @@ it('hides translations everywhere and stops queueing detection once an admin swi
     $this->mock(TranslationProvider::class)->shouldReceive('translate')->once()
         ->andReturn(['source_language' => 'de', 'body' => 'Good morning']);
     $commit = Commit::factory()->create(['body' => 'Guten morgen']);
-    $url = route('commit.show', ['user' => $commit->user, 'commit' => $commit]);
+    $url = route('commit.show', ['profile' => $commit->user, 'commit' => $commit]);
 
     $this->actingAs(User::factory()->create())
         ->postJson(route('commit-translation.store', $commit), ['language' => 'en'])
@@ -164,7 +273,7 @@ it('skips language detection jobs that were already queued when the feature is s
     config(['queue.default' => 'database']);
     $this->mock(TranslationProvider::class)->shouldNotReceive('translate');
     $commit = Commit::factory()->create(['body' => 'Guten morgen']);
-    $this->get(route('commit.show', ['user' => $commit->user, 'commit' => $commit]))->assertOk();
+    $this->get(route('commit.show', ['profile' => $commit->user, 'commit' => $commit]))->assertOk();
     $this->assertDatabaseHas('jobs', ['queue' => 'translations']);
 
     resolve(Features::class)->update(Feature::Translations, false);
@@ -188,7 +297,7 @@ it('keeps posts readable when detection cannot be queued and dispatches again af
     Exceptions::fake();
     config(['queue.default' => 'unavailable']);
     $commit = Commit::factory()->create(['body' => 'Guten morgen']);
-    $url = route('commit.show', ['user' => $commit->user, 'commit' => $commit]);
+    $url = route('commit.show', ['profile' => $commit->user, 'commit' => $commit]);
 
     $this->get($url)->assertOk()->assertInertia(fn ($page) => $page
         ->where('commit.body', 'Guten morgen')
@@ -214,7 +323,7 @@ it('isolates language detection from default workers and retries transient failu
         return ['source_language' => 'de', 'body' => ''];
     });
     $commit = Commit::factory()->create(['body' => 'Guten morgen']);
-    $url = route('commit.show', ['user' => $commit->user, 'commit' => $commit]);
+    $url = route('commit.show', ['profile' => $commit->user, 'commit' => $commit]);
     $this->get($url)->assertOk();
 
     $this->artisan('queue:work', ['connection' => 'database', '--queue' => 'default', '--once' => true])->assertSuccessful();
@@ -270,7 +379,7 @@ it('hides cached translations when an author views their post after it returns t
         ->postJson(route('commit-translation.store', $commit), ['language' => 'en'])->assertOk();
     $commit->update(['status' => CommitStatus::Pending]);
 
-    $this->get(route('commit.show', ['user' => $commit->user, 'commit' => $commit]))
+    $this->get(route('commit.show', ['profile' => $commit->user, 'commit' => $commit]))
         ->assertOk()->assertInertia(fn ($page) => $page
         ->where('commit.body', 'Guten morgen')
         ->where('commit.translation', null));
@@ -341,10 +450,10 @@ it('holds the translation lock throughout a slow provider retry', function (): v
     expect(Cache::lock($key, 90)->get())->toBeTrue();
 });
 
-it('reports why provider answers are rejected without logging their contents', function (Closure $answer, string $reason, string $message = 'Could not translate this commit. Try again.'): void {
+it('reports why provider answers are rejected without logging their contents', function (Closure $answer, string $reason, string $message = 'Could not translate this commit. Try again.', string $text = 'Guten morgen'): void {
     Exceptions::fake();
     $this->mock(TranslationProvider::class)->shouldReceive('translate')->once()->andReturnUsing($answer);
-    $commit = Commit::factory()->create(['body' => 'Guten morgen']);
+    $commit = Commit::factory()->create(['body' => $text]);
 
     $this->actingAs(User::factory()->create())
         ->postJson(route('commit-translation.store', $commit), ['language' => 'en'])
@@ -358,8 +467,11 @@ it('reports why provider answers are rejected without logging their contents', f
     'wrong shape' => [fn (): never => throw new InvalidTranslation('invalid_response_shape'), 'invalid_response_shape'],
     'unsupported language' => [fn (): array => ['source_language' => 'invented', 'body' => 'Sensitive translation'], 'unsupported_source_language', 'The translation service returned an unsupported source language. Try again.'],
     'regional language code' => [fn (): array => ['source_language' => 'de-DE', 'body' => 'Sensitive translation'], 'unsupported_source_language', 'The translation service returned an unsupported source language. Try again.'],
+    'uppercase language code' => [fn (): array => ['source_language' => 'DE', 'body' => 'Sensitive translation'], 'unsupported_source_language', 'The translation service returned an unsupported source language. Try again.'],
+    'language code with a trailing newline' => [fn (): array => ['source_language' => "de\n", 'body' => 'Sensitive translation'], 'unsupported_source_language', 'The translation service returned an unsupported source language. Try again.'],
     'blank translation' => [fn (): array => ['source_language' => 'de', 'body' => '   '], 'empty_translation'],
     'oversized translation' => [fn (): array => ['source_language' => 'de', 'body' => str_repeat('x', 16001)], 'translation_too_long'],
+    'oversized undetermined encoded translation' => [fn (): array => ['source_language' => 'und', 'body' => str_repeat('x', 16001)], 'translation_too_long', 'Could not translate this commit. Try again.', '.... ..'],
 ]);
 
 it('retries language detection after a malformed answer and accepts an empty detection body', function (): void {
@@ -447,7 +559,7 @@ it('uses the saved target language instead of the browser language', function ()
     ], 604800);
 
     $this->actingAs($reader)->withHeader('Accept-Language', 'en-US,en;q=0.9')
-        ->get(route('commit.show', ['user' => $commit->user, 'commit' => $commit]))
+        ->get(route('commit.show', ['profile' => $commit->user, 'commit' => $commit]))
         ->assertOk()->assertInertia(fn ($page) => $page
         ->where('commit.translation.language', 'ja')
         ->where('commit.translation.available', true)
@@ -464,7 +576,7 @@ it('follows the browser language when the preference is unset', function (): voi
     ], 604800);
 
     $this->actingAs($reader)->withHeader('Accept-Language', 'ja-JP,ja;q=0.9')
-        ->get(route('commit.show', ['user' => $commit->user, 'commit' => $commit]))
+        ->get(route('commit.show', ['profile' => $commit->user, 'commit' => $commit]))
         ->assertOk()->assertInertia(fn ($page) => $page
         ->where('commit.translation.language', 'ja')
         ->where('commit.translation.available', true));
@@ -480,7 +592,7 @@ it('uses the saved preference to hide translation for matching source languages'
     ], 604800);
 
     $this->actingAs($reader)->withHeader('Accept-Language', 'en-US')
-        ->get(route('commit.show', ['user' => $commit->user, 'commit' => $commit]))
+        ->get(route('commit.show', ['profile' => $commit->user, 'commit' => $commit]))
         ->assertOk()->assertInertia(fn ($page) => $page
         ->where('commit.translation.language', 'ja')
         ->where('commit.translation.available', false));
@@ -496,7 +608,7 @@ it('lets readers translate on demand after disabling automatic translations with
     $this->actingAs($other)->postJson(route('commit-translation.store', $commit), ['language' => 'en'])->assertOk();
 
     $this->actingAs($reader)->withHeader('Accept-Language', 'en')
-        ->get(route('commit.show', ['user' => $commit->user, 'commit' => $commit]))
+        ->get(route('commit.show', ['profile' => $commit->user, 'commit' => $commit]))
         ->assertInertia(fn ($page) => $page
             ->where('auth.automaticTranslation', false)
             ->where('commit.body', '今天发布了新版本。')
@@ -505,6 +617,22 @@ it('lets readers translate on demand after disabling automatic translations with
     $this->postJson(route('commit-translation.store', $commit), ['language' => 'en'])
         ->assertOk()->assertJsonPath('translation.translated.body_segments.0.text', 'Released a new version today.');
 
-    $this->actingAs($other)->get(route('commit.show', ['user' => $commit->user, 'commit' => $commit]))
+    $this->actingAs($other)->get(route('commit.show', ['profile' => $commit->user, 'commit' => $commit]))
         ->assertInertia(fn ($page) => $page->where('auth.automaticTranslation', true));
+});
+
+it("reads a finished translation again in each reader's own language, without translating anything itself", function (): void {
+    $this->mock(TranslationProvider::class)->shouldReceive('translate')->once()->with('Guten morgen', 'pt')
+        ->andReturn(['source_language' => 'de', 'body' => 'Bom dia']);
+    $commit = Commit::factory()->create(['body' => 'Guten morgen']);
+    resolve(CreateCommitTranslation::class)->handle($commit, 'pt');
+
+    $this->getJson(route('commit-translation.show', [$commit, 'language' => 'pt']))
+        ->assertOk()->assertHeader('Cache-Control', 'no-store, private')
+        ->assertJsonPath('translation.translated.body_segments.0.text', 'Bom dia');
+    $this->getJson(route('commit-translation.show', [$commit, 'language' => 'en']))
+        ->assertOk()
+        ->assertJsonPath('translation.language', 'en')
+        ->assertJsonPath('translation.translated', null);
+    $this->getJson(route('commit-translation.show', Commit::factory()->pending()->create()).'?language=en')->assertNotFound();
 });

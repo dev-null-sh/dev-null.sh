@@ -4,9 +4,13 @@ declare(strict_types=1);
 
 use App\Actions\CreateTomFriendship;
 use App\Ai\Tools\CommunityStats;
+use App\Contracts\Services\GitHubProvider;
+use App\Enums\OrganizationRole;
 use App\Models\Commit;
 use App\Models\Message;
+use App\Models\Organization;
 use App\Models\User;
+use Illuminate\Http\Client\ConnectionException;
 use Laravel\Ai\Tools\Request;
 
 it('counts current onboarded members and signups within the requested rolling window', function (): void {
@@ -140,6 +144,82 @@ it('treats location patterns as literal text rather than SQL or regular expressi
     expect($result['count'])->toBe(0);
 })->with(['.*', '%%', "Portugal' OR 1=1 --"]);
 
+it('groups public location strings without returning account identities or inferring countries', function (): void {
+    User::factory()->count(3)->sequence(['location' => ' Portugal '], ['location' => 'PORTUGAL'], ['location' => 'Lisbon, Portugal'])->create();
+    User::factory()->withBlankProfile()->create();
+    User::factory()->create(['location' => '   ']);
+    User::factory()->notOnboarded()->create(['location' => 'Portugal']);
+    User::factory()->create(['location' => 'Portugal', 'github_id' => CreateTomFriendship::GITHUB_ID]);
+    User::factory()->create(['location' => 'Portugal'])->delete();
+    foreach (range(1, 10) as $number) {
+        User::factory()->create(['location' => 'Z place '.sprintf('%02d', $number)]);
+    }
+
+    $result = json_decode(new CommunityStats()->handle(new Request(['metric' => 'locations'])), true);
+
+    expect($result['population'])->toBe(15);
+    expect($result['rows'])->toHaveCount(10);
+    expect($result['rows'][0])->toBe(['location' => 'portugal', 'members' => 2]);
+    expect($result['rows'][1])->toBe(['location' => 'lisbon, portugal', 'members' => 1]);
+    expect($result['rows'][9])->toBe(['location' => 'z place 08', 'members' => 1]);
+});
+
+it('counts public GitHub organization members by stable identity not private local membership', function (): void {
+    $public = User::factory()->create(['github_id' => '101']);
+    $private = User::factory()->create(['github_id' => '102']);
+    User::factory()->notOnboarded()->create(['github_id' => '103']);
+    User::factory()->create(['github_id' => '104'])->delete();
+    User::factory()->create(['github_id' => CreateTomFriendship::GITHUB_ID]);
+    Organization::factory()->create(['handle' => 'example'])->members()->attach($private, ['role' => OrganizationRole::Member]);
+    $this->mock(GitHubProvider::class)->shouldReceive('publicOrganizationMemberIds')->with('example')
+        ->andReturn(['101', '103', '104', '999', CreateTomFriendship::GITHUB_ID]);
+
+    $result = new CommunityStats()->handle(new Request(['metric' => 'github_organization', 'term' => 'EXAMPLE']));
+
+    expect(json_decode($result, true))->toMatchArray(['count' => 1, 'population' => 2, 'term' => 'example']);
+    expect($result)->not->toContain($public->id, $public->handle, $private->handle, '"101"');
+});
+
+it('does not turn unavailable organization statistics into zero or cache the failure', function (bool $throws): void {
+    $provider = $this->mock(GitHubProvider::class);
+    $expectation = $provider->shouldReceive('publicOrganizationMemberIds')->with('example')->once();
+    if ($throws) {
+        $expectation->andThrow(new ConnectionException);
+    } else {
+        $expectation->andReturnNull();
+    }
+
+    expect(new CommunityStats()->handle(new Request(['metric' => 'github_organization', 'term' => 'example'])))->toContain('unavailable');
+
+    $this->mock(GitHubProvider::class)->shouldReceive('publicOrganizationMemberIds')->with('example')->once()->andReturn([]);
+    $result = json_decode(new CommunityStats()->handle(new Request(['metric' => 'github_organization', 'term' => 'example'])), true);
+    expect($result['count'])->toBe(0);
+})->with([false, true]);
+
+it('counts public posts and replies rather than authors and respects calendar boundaries', function (): void {
+    $this->travelTo(now('UTC')->setDate(2026, 10, 22)->setTime(12, 0));
+    $author = User::factory()->create();
+    $root = Commit::factory()->for($author)->create(['created_at' => '2026-10-19 23:59:59']);
+    Commit::factory()->for($author)->for($root, 'parent')->create(['created_at' => '2026-10-20 00:00:00']);
+    Commit::factory()->for($author)->create(['created_at' => '2026-10-20 23:59:59']);
+    Commit::factory()->for($author)->create(['author_id' => Organization::factory()->create()->id, 'created_at' => '2026-10-21 12:00:00']);
+    Commit::factory()->for($author)->create(['created_at' => now()]);
+    Commit::factory()->for($author)->create(['created_at' => now()->addSecond()]);
+    Commit::factory()->pending()->create();
+    Commit::factory()->rejected()->create();
+    Commit::factory()->create(['deleted_at' => now()]);
+    Commit::factory()->for(User::factory()->notOnboarded())->create();
+    Commit::factory()->for(User::factory()->create(['github_id' => CreateTomFriendship::GITHUB_ID]))->create();
+
+    foreach ([['2026-10-20', '2026-10-20', 2], ['2026-10-20', '2026-10-21', 3], ['2026-10-22', '2026-10-22', 1], [null, null, 5]] as [$start, $end, $count]) {
+        $arguments = $start === null ? [] : ['start_date' => $start, 'end_date' => $end];
+        $result = json_decode(new CommunityStats()->handle(new Request(['metric' => 'commits', ...$arguments])), true);
+
+        expect($result)->toMatchArray(['count' => $count, 'start_date' => $start, 'end_date' => $end, 'timezone' => 'UTC']);
+        expect($result['definition'])->toContain('posts and replies', 'including organization posts');
+    }
+});
+
 it('expires aggregate caches and preserves the original observation time while cached', function (): void {
     $user = User::factory()->create();
     $request = new Request(['metric' => 'members']);
@@ -164,6 +244,11 @@ it('refuses unsupported metrics, periods and combined filters', function (array 
     [['metric' => 'location', 'term' => str_repeat('x', 81)], 'Provide one location'],
     [['metric' => 'bio_language', 'term' => 'english'], 'Unsupported language'],
     [['metric' => 'members', 'term' => 'Portugal'], 'Combined filters'],
+    [['metric' => 'follower_ranking'], 'Unsupported metric'],
+    [['metric' => 'github_organization', 'term' => ''], 'Provide one GitHub organization'],
+    [['metric' => 'github_organization', 'term' => '../users/example'], 'Provide one GitHub organization'],
+    [['metric' => 'github_organization', 'term' => str_repeat('x', 40)], 'Provide one GitHub organization'],
+    [['metric' => 'commits', 'days' => 7], 'omit days'],
 ]);
 
 it('bounds community queries per reply', function (): void {

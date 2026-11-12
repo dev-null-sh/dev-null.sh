@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Enums\UserUpdate;
+use App\Events\UsersUpdated;
 use App\Models\User;
 
 final readonly class CreateUserMute
@@ -21,5 +23,9 @@ final readonly class CreateUserMute
             'created_at' => $now,
             'updated_at' => $now,
         ]);
+
+        event(new UsersUpdated([$user->id], UserUpdate::Notifications));
+        event(new UsersUpdated([$user->id], UserUpdate::Account));
+        event(new UsersUpdated([$user->id], UserUpdate::Relationships));
     }
 }

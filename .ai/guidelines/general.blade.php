@@ -23,6 +23,7 @@
 - After changes, before reporting completion or pushing, run `composer test:lint`, `composer test:types`, `composer test:type-coverage`, and `bun run test:unit`.
 - Run the full PHP suite with code coverage using the CI command: `php -d memory_limit=-1 vendor/bin/pest --parallel --ci --coverage --exactly=100.0 --passthru-php="'-d' 'memory_limit=-1'"`. The `--ci` flag prevents local test-impact analysis from skipping tests. Targeted tests alone are not a substitute for the coverage check.
 - Fix failures introduced by the changes. Never lower coverage thresholds or exclude code just to pass. Report pre-existing failures or environment blockers explicitly; do not claim a check passed when it failed or could not run.
+- When the local PostgreSQL has pgvector older than 0.8, ignore the tests that skip with `pgvectorLacksIterativeScan()` and the coverage that they leave out (`RelatedCommitController`, `Api/RelatedCommitController`, `ListRelatedCommitsRequest`, `ListApiRelatedCommitsRequest`, `RelatedCommitsQuery`). Do not upgrade the extension and do not change code to reach 100% for them; CI runs them on `pgvector/pgvector:pg18`.
 
 ## Mac app
 

@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Enums\OrgEvent;
 use App\Models\Conversation;
 use App\Models\Message;
+use App\Models\Profile;
 use App\Models\User;
 use App\Models\UserTimeout;
 use Illuminate\Support\Facades\RateLimiter;
@@ -102,7 +103,7 @@ it('lets site admins add anyone with remotes on', function (): void {
     expect(Conversation::query()->sole()->roleOf($nuno)?->value)->toBe('contributor');
 });
 
-it('caps an org at a hundred people', function (): void {
+it('caps an org at 256 people', function (): void {
     $members = array_map(fn (User $member): string => $member->handle, followersOf($this->user, Conversation::MAX_MEMBERS));
 
     signedApiRequest($this->keyPair, 'POST', route('api-org.store'), ['members' => $members])
@@ -124,6 +125,7 @@ it('refuses an org it cannot start', function (Closure $data, array $fields): vo
     'no members' => [fn (User $nuno): array => ['name' => 'core'], ['members']],
     'an empty list' => [fn (User $nuno): array => ['members' => []], ['members']],
     'someone who does not exist' => [fn (User $nuno): array => ['members' => [$nuno->handle, 'nobody-by-that-name']], ['members.1']],
+    'a developer not on /dev/null yet' => [fn (User $nuno): array => ['members' => [$nuno->handle, Profile::factory()->create()->handle]], ['members.1']],
     'the same person twice' => [fn (User $nuno): array => ['members' => [$nuno->handle, $nuno->handle]], ['members.0', 'members.1']],
     'a long name' => [fn (User $nuno): array => ['name' => Str::repeat('a', 61), 'members' => [$nuno->handle]], ['name']],
 ]);

@@ -4,8 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests;
 
-use App\Enums\OrganizationRole;
-use App\Models\Profile;
+use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Auth\Access\Response;
 use Illuminate\Foundation\Http\FormRequest;
@@ -22,8 +21,8 @@ final class DeleteOrganizationMemberRequest extends FormRequest
         assert($user instanceof User);
 
         return match (true) {
-            ! $this->organization()->roleOf($user) instanceof OrganizationRole || ! $this->organization()->roleOf($this->member()) instanceof OrganizationRole => Response::denyAsNotFound(),
-            ! $user->is($this->member()) && $this->organization()->roleOf($user) !== OrganizationRole::Admin => Response::deny('Only admins can remove members.'),
+            ! $this->organization()->isMember($user) || ! $this->organization()->isMember($this->member()) => Response::denyAsNotFound(),
+            ! $user->is($this->member()) && ! $this->organization()->isAdmin($user) => Response::deny('Only admins can remove members.'),
             default => Response::allow(),
         };
     }
@@ -42,7 +41,7 @@ final class DeleteOrganizationMemberRequest extends FormRequest
     public function after(): array
     {
         return [function (Validator $validator): void {
-            $isLastAdmin = $this->organization()->roleOf($this->member()) === OrganizationRole::Admin
+            $isLastAdmin = $this->organization()->isAdmin($this->member())
                 && $this->organization()->admins()->whereKeyNot($this->member()->id)->doesntExist();
 
             if ($isLastAdmin) {
@@ -51,10 +50,10 @@ final class DeleteOrganizationMemberRequest extends FormRequest
         }];
     }
 
-    public function organization(): Profile
+    public function organization(): Organization
     {
         $organization = $this->route('organization');
-        assert($organization instanceof Profile);
+        assert($organization instanceof Organization);
 
         return $organization;
     }

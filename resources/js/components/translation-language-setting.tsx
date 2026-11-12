@@ -16,6 +16,7 @@ import UserTranslationLanguageController from '@/actions/App/Http/Controllers/Us
 import Heading from '@/components/heading';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
+import { usePicked } from '@/hooks/use-picked';
 import { searchTranslationLanguages } from '@/lib/translation-languages';
 import type { TranslationLanguage } from '@/lib/translation-languages';
 import { cn } from '@/lib/utils';
@@ -28,7 +29,9 @@ export default function TranslationLanguageSetting({
     languages: TranslationLanguage[];
 }) {
     const { auth } = usePage().props;
-    const [savingAutomatic, setSavingAutomatic] = useState(false);
+    const { picked, pick } = usePicked<boolean>();
+    const savingAutomatic = picked !== null;
+    const isAutomatic = picked ?? auth.automaticTranslation;
     const toggleAutomatic = () => {
         if (savingAutomatic) {
             return;
@@ -36,12 +39,11 @@ export default function TranslationLanguageSetting({
 
         router.put(
             update.url(),
-            { enabled: !auth.automaticTranslation },
+            { enabled: !isAutomatic },
             {
                 preserveScroll: true,
                 only: ['auth'],
-                onStart: () => setSavingAutomatic(true),
-                onFinish: () => setSavingAutomatic(false),
+                onFinish: pick(!isAutomatic),
                 onError: () =>
                     toast.error(
                         'Could not save automatic translation. Please try again.',
@@ -196,22 +198,20 @@ export default function TranslationLanguageSetting({
                 <button
                     type="button"
                     role="switch"
-                    aria-checked={auth.automaticTranslation}
+                    aria-checked={isAutomatic}
                     aria-labelledby="automatic-translation-label"
                     aria-describedby="automatic-translation-description"
                     aria-disabled={savingAutomatic}
                     onClick={toggleAutomatic}
                     className={cn(
                         'mt-0.5 inline-flex h-6 w-11 shrink-0 items-center rounded-full border border-transparent p-0.5 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
-                        auth.automaticTranslation
-                            ? 'bg-primary'
-                            : 'bg-muted-foreground/30',
+                        isAutomatic ? 'bg-primary' : 'bg-muted-foreground/30',
                     )}
                 >
                     <span
                         className={cn(
                             'size-4.5 rounded-full bg-background shadow-sm transition-transform motion-reduce:transition-none',
-                            auth.automaticTranslation && 'translate-x-5',
+                            isAutomatic && 'translate-x-5',
                         )}
                     />
                 </button>

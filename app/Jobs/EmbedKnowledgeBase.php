@@ -32,7 +32,7 @@ final class EmbedKnowledgeBase implements ShouldBeUnique, ShouldQueue
 
     /**
      * Unchanged sections reuse their stored vectors, so a run without changes makes no OpenAI requests. A failed
-     * import leaves the stored sections untouched, and the next scheduled run picks it up again.
+     * import leaves the stored sections untouched, and the next import picks it up again.
      */
     public function handle(UpdateKnowledgeBaseSections $action): void
     {

@@ -41,7 +41,7 @@ dataset('rate limits', [
     ],
     'people lookups' => [
         fn (): array => [
-            ['GET', route('user-search.index', ['q' => 'nuno'])],
+            ['GET', route('profile-search.index', ['q' => 'nuno'])],
             ['GET', route('mention-suggestion.index', ['q' => 'nuno'])],
             ['GET', route('user-preview.show', User::factory()->create())],
             ['GET', route('mention.preview', User::factory()->create())],
@@ -110,7 +110,7 @@ it('renders the too many requests page when exporting too often', function (): v
 
 it('shares a people lookup limit per guest IP without limiting other visitors', function (): void {
     $user = User::factory()->create(['handle' => 'octocat']);
-    $search = route('user-search.index', ['q' => 'octo']);
+    $search = route('profile-search.index', ['q' => 'octo']);
     $preview = route('user-preview.show', $user);
     $mentionPreview = route('mention.preview', $user);
     $requests = [$search, $preview, $mentionPreview];
@@ -171,7 +171,7 @@ it('shares the JSON star budget across commits and replies without consuming oth
 
     $this->put(route('commit-pin.update', $ownCommit))->assertRedirect();
     $this->post(route('user-follow.store', $commit->user))->assertRedirect();
-    $this->getJson(route('user-search.index', ['q' => $commit->user->handle]))->assertOk();
+    $this->getJson(route('profile-search.index', ['q' => $commit->user->handle]))->assertOk();
     $this->get(route('export'))->assertOk();
 
     $this->actingAs(User::factory()->create())

@@ -4,8 +4,7 @@ declare(strict_types=1);
 
 namespace App\Queries;
 
-use App\Enums\ProfileType;
-use App\Models\Profile;
+use App\Models\Organization;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
@@ -16,7 +15,7 @@ final readonly class OrganizationSuggestionsQuery
      * The organizations whose handle or name matches the term, the closest matches first. Only organizations that
      * already have a page, so typing never asks GitHub, and none for a bare "@".
      *
-     * @return Collection<int, Profile>
+     * @return Collection<int, Organization>
      */
     public function get(string $term, int $limit = 3): Collection
     {
@@ -32,16 +31,17 @@ final readonly class OrganizationSuggestionsQuery
 
         $escaped = str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $term);
 
-        return Profile::query()
-            ->where('type', ProfileType::Organization)
+        return Organization::query()
+            ->select('organizations.*')
+            ->join('profiles', 'profiles.id', '=', 'organizations.id')
             ->where(fn (Builder $query): Builder => $query
-                ->whereRaw("LOWER(handle) LIKE ? ESCAPE '!'", ["%{$escaped}%"])
-                ->orWhereRaw("LOWER(name) LIKE ? ESCAPE '!'", ["%{$escaped}%"]))
+                ->whereRaw("LOWER(profiles.handle) LIKE ? ESCAPE '!'", ["%{$escaped}%"])
+                ->orWhereRaw("LOWER(profiles.name) LIKE ? ESCAPE '!'", ["%{$escaped}%"]))
             ->orderByRaw(
-                "CASE WHEN LOWER(handle) = ? THEN 0 WHEN LOWER(handle) LIKE ? ESCAPE '!' THEN 1 WHEN LOWER(name) LIKE ? ESCAPE '!' THEN 2 ELSE 3 END",
+                "CASE WHEN profiles.handle = ? THEN 0 WHEN profiles.handle LIKE ? ESCAPE '!' THEN 1 WHEN LOWER(profiles.name) LIKE ? ESCAPE '!' THEN 2 ELSE 3 END",
                 [$term, "{$escaped}%", "{$escaped}%"],
             )
-            ->orderBy('handle')
+            ->orderBy('profiles.handle')
             ->limit($limit)
             ->get()
             ->toBase();

@@ -6,6 +6,7 @@ use App\Enums\OrgEvent;
 use App\Enums\OrgRole;
 use App\Models\Conversation;
 use App\Models\Message;
+use App\Models\Profile;
 use App\Models\User;
 use App\Models\UserTimeout;
 
@@ -42,12 +43,15 @@ it('says why people cannot be added', function (): void {
     signedApiRequest($this->keyPair, 'POST', route('api-org-member.store', $org), ['members' => ['nobody-by-that-name'], 'share_history' => true])
         ->assertUnprocessable()
         ->assertJsonValidationErrors('members.0');
+    signedApiRequest($this->keyPair, 'POST', route('api-org-member.store', $org), ['members' => [Profile::factory()->create()->handle], 'share_history' => true])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('members.0');
     signedApiRequest($this->keyPair, 'POST', route('api-org-member.store', $org), ['members' => [$nuno->handle]])
         ->assertUnprocessable()
         ->assertJsonValidationErrors('share_history');
 });
 
-it('caps an org at a hundred people', function (): void {
+it('caps an org at 256 people', function (): void {
     $followers = followersOf($this->user, Conversation::MAX_MEMBERS);
     [$last, $extra] = array_slice($followers, -2);
     $org = createOrg($this->user, array_slice($followers, 0, -2));

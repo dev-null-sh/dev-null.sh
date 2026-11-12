@@ -21,6 +21,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property-read string $id
  * @property-read string $recipient_id
  * @property-read string $actor_id
+ * @property-read string|null $organization_id
  * @property-read NotificationType $type
  * @property-read string|null $commit_id
  * @property-read string|null $subject_id
@@ -31,7 +32,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
  * @property-read User $recipient
- * @property-read User $actor
+ * @property-read Profile $actor
+ * @property-read Organization|null $organization
  * @property-read Commit|null $commit
  * @property-read string $group_id
  * @property-read int $event_count
@@ -39,7 +41,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property-read int $unread_count
  * @property-read string|null $second_actor_id
  * @property-read string|null $third_actor_id
- * @property-read Collection<int, User> $actors
+ * @property-read Collection<int, Profile> $actors
  */
 #[Hidden([
     'key',
@@ -65,6 +67,7 @@ final class Notification extends Model
             'id' => 'string',
             'recipient_id' => 'string',
             'actor_id' => 'string',
+            'organization_id' => 'string',
             'type' => NotificationType::class,
             'commit_id' => 'string',
             'subject_id' => 'string',
@@ -100,11 +103,23 @@ final class Notification extends Model
     }
 
     /**
-     * @return BelongsTo<User, $this>
+     * Whoever did it, a user or an organization, with the user or the organization it is.
+     *
+     * @return BelongsTo<Profile, $this>
      */
     public function actor(): BelongsTo
     {
-        return $this->belongsTo(User::class);
+        return $this->belongsTo(Profile::class)->with(['user', 'organization']);
+    }
+
+    /**
+     * The organization the recipient hears about it for, as one of its members, or null when it is their own.
+     *
+     * @return BelongsTo<Organization, $this>
+     */
+    public function organization(): BelongsTo
+    {
+        return $this->belongsTo(Organization::class);
     }
 
     /**

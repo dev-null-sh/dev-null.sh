@@ -84,5 +84,6 @@ it('returns only requested identifiers no longer visible in the log', function (
     expect($query->missing(Log::Following, $viewer, $ids))->toBe([$deleted->id, $stranger->id, $hidden->id, $reply->id]);
     expect($query->missing(Log::Latest, null, [$visible->id, $deleted->id]))->toBe([$deleted->id]);
     expect($query->missing(Log::Latest, $viewer, []))->toBe([]);
-    expect($query->missing(Log::Trending, $viewer, $ids))->toBe([]);
+    // Trending keeps what it drew, except what the viewer can no longer see at all.
+    expect($query->missing(Log::Trending, $viewer, $ids))->toBe([$deleted->id]);
 });

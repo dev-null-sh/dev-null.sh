@@ -18,7 +18,8 @@ final readonly class TrafficController
     {
         return Inertia::render('operations/traffic', [
             'trafficRange' => ['from' => $request->from()->toDateString(), 'to' => $request->to()->toDateString()],
-            'traffic' => Inertia::defer(fn (): ?array => $analytics->traffic($request->from(), $request->to())),
+            'trafficFilters' => (object) $request->filters(),
+            'traffic' => Inertia::defer(fn (): ?array => $analytics->traffic($request->from(), $request->to(), $request->filters())),
         ]);
     }
 }

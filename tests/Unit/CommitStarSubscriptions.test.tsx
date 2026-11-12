@@ -1,0 +1,295 @@
+import assert from 'node:assert/strict';
+import type { ReactElement } from 'react';
+import { afterEach, beforeEach, test, vi } from 'vite-plus/test';
+import type { Commit } from '../../resources/js/types';
+import { fakeConnection, joinAll } from './FakeRealtime';
+import { hookHarness } from './HookHarness';
+
+const harness = hookHarness();
+vi.doMock('react', async () => ({
+    ...(await vi.importActual('react')),
+    ...harness.react,
+    useCallback: (callback: unknown, deps: unknown[]) => {
+        const ref = harness.react.useRef({ callback, deps }) as {
+            current: { callback: unknown; deps: unknown[] };
+        };
+        if (deps.some((dep, at) => !Object.is(dep, ref.current.deps[at])))
+            ref.current = { callback, deps };
+        return ref.current.callback;
+    },
+}));
+const { CommitStarPolling } =
+    await import('../../resources/js/components/commit-star-polling');
+const { deletedResources } =
+    await import('../../resources/js/lib/deleted-resources');
+const { connectRealtime } = await import('../../resources/js/lib/realtime');
+const { sharedValue } =
+    await import('../../resources/js/hooks/use-shared-state');
+const { commitStateKey } = await import('../../resources/js/lib/commit-state');
+let report: (
+    entries: { target: HTMLElement; isIntersecting: boolean }[],
+) => void;
+let reads: string[][];
+let fake: ReturnType<typeof fakeConnection>;
+let context: {
+    subscribe: (s: {
+        id: string;
+        element: HTMLElement;
+        prepare: () =>
+            | ((state: Pick<Commit, 'id' | 'stars_count' | 'starred'>) => void)
+            | null;
+    }) => () => void;
+};
+const element = () =>
+    ({
+        getBoundingClientRect: () => ({
+            width: 10,
+            height: 10,
+            top: 0,
+            bottom: 10,
+            left: 0,
+            right: 10,
+        }),
+    }) as HTMLElement;
+function render() {
+    const tree = harness.render(CommitStarPolling, {
+        children: null,
+    }) as ReactElement<{ value: typeof context }>;
+    context = tree.props.value;
+}
+beforeEach(() => {
+    vi.useFakeTimers();
+    reads = [];
+    vi.stubGlobal('window', {
+        innerWidth: 100,
+        innerHeight: 100,
+        setInterval,
+        clearInterval,
+    });
+    vi.stubGlobal('document', {
+        hidden: false,
+        addEventListener() {},
+        removeEventListener() {},
+    });
+    vi.stubGlobal(
+        'IntersectionObserver',
+        class {
+            constructor(callback: typeof report) {
+                report = callback;
+            }
+            observe() {}
+            unobserve() {}
+            disconnect() {}
+        },
+    );
+    vi.stubGlobal('fetch', async (url: string) => {
+        reads.push(
+            [...new URL(url, 'http://localhost').searchParams]
+                .filter(([key]) => key.startsWith('ids['))
+                .map(([, value]) => value),
+        );
+        return Response.json({ commits: [] });
+    });
+    fake = fakeConnection();
+    connectRealtime(fake.connection);
+    render();
+    render();
+});
+afterEach(() => {
+    harness.unmount();
+    deletedResources.restoreCommit('a');
+    deletedResources.restoreCommit('b');
+    connectRealtime(null);
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+});
+
+test('scrolling in one card does not reconcile every already-visible card again', async () => {
+    const a = element();
+    const b = element();
+    context.subscribe({ id: 'a', element: a, prepare: () => null });
+    context.subscribe({ id: 'b', element: b, prepare: () => null });
+    report([{ target: a, isIntersecting: true }]);
+    render();
+    joinAll(fake);
+    await vi.advanceTimersByTimeAsync(300);
+    reads.length = 0;
+    report([{ target: b, isIntersecting: true }]);
+    render();
+    fake.joined.get('commits.b')?.join();
+    await vi.advanceTimersByTimeAsync(300);
+    assert.deepEqual(reads.flat(), ['b']);
+    reads.length = 0;
+    report([{ target: b, isIntersecting: true }]);
+    render();
+    await vi.advanceTimersByTimeAsync(300);
+    assert.deepEqual(reads, []);
+    fake.joined.get('commits.a')?.emit('engagement');
+    await vi.advanceTimersByTimeAsync(300);
+    assert.deepEqual(reads.flat(), ['a']);
+});
+
+test('returning on screen recovers a deletion whose visibility event was missed', async () => {
+    const a = element();
+    context.subscribe({ id: 'a', element: a, prepare: () => null });
+    report([{ target: a, isIntersecting: true }]);
+    render();
+    joinAll(fake);
+    await vi.advanceTimersByTimeAsync(300);
+    deletedResources.restoreCommit('a');
+    report([{ target: a, isIntersecting: false }]);
+    render();
+    fake.joined.get('commits.a')?.emit('visibility', { ids: ['a'] });
+    reads.length = 0;
+    report([{ target: a, isIntersecting: true }]);
+    render();
+    await vi.advanceTimersByTimeAsync(300);
+    assert.deepEqual(reads.flat(), ['a']);
+    assert.equal(deletedResources.hasCommit('a'), true);
+});
+
+test('a failed card recovery read does not mark a visible commit unavailable', async () => {
+    vi.stubGlobal('fetch', async () => new Response(null, { status: 503 }));
+    const a = element();
+    context.subscribe({ id: 'a', element: a, prepare: () => null });
+    report([{ target: a, isIntersecting: true }]);
+    render();
+    joinAll(fake);
+    await vi.advanceTimersByTimeAsync(300);
+    assert.equal(deletedResources.hasCommit('a'), false);
+});
+
+for (const status of [429, 503]) {
+    test(`a ${status} card read retries on the safety poll while its socket stays joined`, async () => {
+        let failing = false;
+        let stars = -1;
+        let requests = 0;
+        vi.stubGlobal('fetch', async () => {
+            requests++;
+            if (failing) return new Response(null, { status });
+            return Response.json({
+                commits: [
+                    {
+                        id: 'a',
+                        stars_count: requests,
+                        starred: false,
+                        pasteis_count: 4,
+                        replies_count: 2,
+                    },
+                ],
+            });
+        });
+        const a = element();
+        context.subscribe({
+            id: 'a',
+            element: a,
+            prepare: () => (state) => {
+                stars = state.stars_count;
+            },
+        });
+        report([{ target: a, isIntersecting: true }]);
+        render();
+        joinAll(fake);
+        await vi.advanceTimersByTimeAsync(300);
+        assert.equal(stars, 1);
+        failing = true;
+        fake.joined.get('commits.a')?.emit('engagement');
+        await vi.advanceTimersByTimeAsync(300);
+        assert.equal(requests, 2);
+        assert.equal(deletedResources.hasCommit('a'), false);
+        failing = false;
+        await vi.advanceTimersByTimeAsync(30_000);
+        assert.equal(requests, 3);
+        assert.equal(stars, 3);
+        await vi.advanceTimersByTimeAsync(30_000);
+        assert.equal(requests, 3);
+    });
+}
+
+test('a failed first batch preserves later batches for the safety retry', async () => {
+    let failing = true;
+    vi.stubGlobal('fetch', async (url: string) => {
+        const ids = [...new URL(url, 'http://localhost').searchParams]
+            .filter(([key]) => key.startsWith('ids['))
+            .map(([, value]) => value);
+        reads.push(ids);
+        return failing
+            ? new Response(null, { status: 503 })
+            : Response.json({
+                  commits: ids.map((id) => ({
+                      id,
+                      stars_count: 1,
+                      starred: false,
+                      pasteis_count: 0,
+                      replies_count: 0,
+                  })),
+              });
+    });
+    const entries = Array.from({ length: 101 }, (_, at) => {
+        const target = element();
+        context.subscribe({
+            id: `batch-${at}`,
+            element: target,
+            prepare: () => null,
+        });
+        return { target, isIntersecting: true };
+    });
+    report(entries);
+    render();
+    joinAll(fake);
+    await vi.advanceTimersByTimeAsync(300);
+    assert.deepEqual(
+        reads.map((ids) => ids.length),
+        [100],
+    );
+    failing = false;
+    await vi.advanceTimersByTimeAsync(30_000);
+    assert.deepEqual(
+        reads.map((ids) => ids.length),
+        [100, 100, 1],
+    );
+    assert.equal(new Set(reads.slice(1).flat()).size, 101);
+});
+
+test('a replacement trigger keeps both stars and pasteis current through the shared card read', async () => {
+    let stars = 0;
+    const id = 'replacement-card';
+    vi.stubGlobal('fetch', async () =>
+        Response.json({
+            commits: [
+                {
+                    id,
+                    stars_count: 3,
+                    starred: true,
+                    pasteis_count: 7,
+                    replies_count: 2,
+                },
+            ],
+        }),
+    );
+    const old = element();
+    const stop = context.subscribe({ id, element: old, prepare: () => null });
+    report([{ target: old, isIntersecting: true }]);
+    render();
+    joinAll(fake);
+    await vi.advanceTimersByTimeAsync(300);
+    stop();
+    const replacement = element();
+    context.subscribe({
+        id,
+        element: replacement,
+        prepare: () => (state) => {
+            stars = state.stars_count;
+        },
+    });
+    report([
+        { target: old, isIntersecting: false },
+        { target: replacement, isIntersecting: true },
+    ]);
+    render();
+    fake.joined.get(`commits.${id}`)?.emit('engagement');
+    await vi.advanceTimersByTimeAsync(300);
+
+    assert.equal(stars, 3);
+    assert.equal(sharedValue(commitStateKey('pasteis_count', id)), 7);
+});

@@ -153,12 +153,27 @@ test('leaves organization mentions as plain text in static bodies', () => {
     assert.equal(html, 'Thanks @laravel!');
 });
 
-test('leaves mentions without captured identities as plain text', () => {
+test('links mentions of anyone else to their page, which looks them up on GitHub', () => {
     const html = renderToStaticMarkup(
-        <LinkifiedText text="Thanks @original!" mentions={null} />,
+        <LinkifiedText text="Thanks @Original!" mentions={null} />,
     );
 
-    assert.equal(html, 'Thanks @original!');
+    assert.equal(
+        html,
+        'Thanks <a rel="nofollow" class="font-medium text-primary hover:underline" data-test="handle-mention" href="/@Original">@Original</a>!',
+    );
+});
+
+test('leaves mentions of anyone else as text where only captured ones link, as in remotes', () => {
+    const html = renderToStaticMarkup(
+        <LinkifiedText
+            text="Thanks @Original!"
+            mentions={null}
+            linksEveryMention={false}
+        />,
+    );
+
+    assert.equal(html, 'Thanks @Original!');
 });
 
 test('keeps captured mention identities in regular bodies alongside highlighted code', () => {
@@ -182,7 +197,7 @@ test('keeps captured mention identities in regular bodies alongside highlighted 
     assert.ok(html.includes(`href="/mentions/${id}"`));
     assert.ok(html.includes('>@ORIGINAL</a>'));
     assert.equal(html.match(/data-test="mention"/g)?.length, 1);
-    assert.ok(html.includes('and @unknown!'));
+    assert.match(html, /and <a[^>]*href="\/@unknown"[^>]*>@unknown<\/a>!/);
     assert.match(html, /<code[^>]*>@ORIGINAL<\/code>/);
     assert.match(
         html,

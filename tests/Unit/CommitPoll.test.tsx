@@ -11,7 +11,7 @@ import type { Poll } from '../../resources/js/types';
 const mentionedId = '019a2b3c-4d5e-7f60-8a9b-0c1d2e3f4a5b';
 const commit = {
     id: '019a2b3c-0000-7000-8000-000000000001',
-    user_id: '019a2b3c-0000-7000-8000-000000000002',
+    author: { id: '019a2b3c-0000-7000-8000-000000000002' },
     status: 'approved' as const,
     mentions: { alice: mentionedId },
 };
@@ -71,7 +71,7 @@ for (const results of [false, true]) {
         assert.match(markup, /<code[^>]*>rm -rf<\/code>/);
         assert.ok(markup.includes(`href="/mentions/${mentionedId}"`));
         assert.equal(markup.match(/data-test="mention"/g)?.length, 1);
-        assert.ok(markup.includes('or @bob'));
+        assert.match(markup, /or <a[^>]*href="\/@bob"[^>]*>@bob<\/a>/);
     });
 }
 

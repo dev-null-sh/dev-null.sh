@@ -24,8 +24,15 @@ final readonly class UpdateKnowledgeBaseSections
     {
         $sections = collect($this->markdownSections->split(File::get(base_path($source))));
 
-        $stored = KnowledgeBaseSection::query()->where('source', $source)->get()
-            ->mapWithKeys(fn (KnowledgeBaseSection $section): array => [$this->key($section->headings, $section->content) => $section->embedding]);
+        $stored = KnowledgeBaseSection::query()->where('source', $source)->orderBy('position')->get();
+
+        if ($stored->mapWithKeys(fn (KnowledgeBaseSection $section): array => [
+            $section->position => ['headings' => $section->headings, 'content' => $section->content],
+        ])->all() === $sections->all()) {
+            return 0;
+        }
+
+        $stored = $stored->mapWithKeys(fn (KnowledgeBaseSection $section): array => [$this->key($section->headings, $section->content) => $section->embedding]);
 
         $embeddings = $sections->map(fn (array $section): ?array => $stored->get($this->key($section['headings'], $section['content'])));
         $changed = $sections->filter(fn (array $section, int $position): bool => $embeddings[$position] === null);

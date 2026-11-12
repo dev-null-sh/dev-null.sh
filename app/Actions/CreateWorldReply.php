@@ -28,7 +28,8 @@ final readonly class CreateWorldReply
     }
 
     /**
-     * @world answers an approved hello world, once. A pending one waits until it is approved.
+     * @world answers an approved hello world, once, greeting its author, an organization's like anyone's. A pending one
+     * waits until it is approved.
      */
     public function handle(Commit $commit): void
     {
@@ -43,15 +44,15 @@ final readonly class CreateWorldReply
                 return;
             }
 
-            $author = $commit->user;
+            $author = $commit->author;
 
-            if (! $author instanceof User) {
+            if (! $author instanceof Profile) {
                 return;
             }
 
             $world = $this->world();
 
-            if (! $world instanceof User || $author->is($world)) {
+            if (! $world instanceof User || $commit->user_id === $world->id) {
                 return;
             }
 
@@ -60,6 +61,7 @@ final readonly class CreateWorldReply
             }
 
             $reply = $world->commits()->create([
+                'user_id' => $world->id,
                 'body' => "Hello, {$author->name}.",
                 'parent_id' => $commit->id,
                 'root_id' => $commit->threadRootId(),
@@ -86,7 +88,7 @@ final readonly class CreateWorldReply
         }
 
         return DB::transaction(function (): User {
-            Profile::query()->create([
+            $profile = Profile::query()->create([
                 'type' => ProfileType::User,
                 'github_id' => self::GITHUB_ID,
                 'handle' => self::HANDLE,
@@ -94,7 +96,7 @@ final readonly class CreateWorldReply
                 'bio' => 'I answer to hello world.',
             ]);
 
-            return User::query()->create(['github_id' => self::GITHUB_ID, 'onboarded_at' => now()]);
+            return User::query()->create(['id' => $profile->id, 'github_id' => self::GITHUB_ID, 'onboarded_at' => now()]);
         });
     }
 }
