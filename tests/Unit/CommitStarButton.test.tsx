@@ -72,7 +72,7 @@ for (const status of ['approved', 'pending', 'rejected'] as const) {
     assert.match(body, /disabled=""/);
     assert.match(
         body,
-        /data-test="own-star-count"[^>]*><svg[^>]*>.*?<\/svg><\/button>/,
+        /data-test="own-star-count"[^>]*><svg[^>]*>.*?<\/svg>.*?<\/button>/,
     );
 });
 
@@ -87,19 +87,22 @@ for (const user of [null, { id: 'viewer' }]) {
     });
 }
 
- test('unstarred commits show only the star in the star control', async () => {
+ test('unstarred commits reserve the count slot outside the star control', async () => {
     const body = await render({ id: 'viewer' }, { stars_count: 0 });
 
-    assert.match(
-        body,
-        /data-test="star-commit-button"[^>]*><svg[^>]*>.*?<\/svg><\/button>/,
+    assert.ok(
+        body.includes(
+            'has-[[data-test=star-count]:empty]:mr-[calc(0.25rem+1ch)]',
+        ),
     );
+    assert.ok(body.includes('empty:hidden'));
+    assert.match(body, /data-test="star-count"[^>]*><\/span>/);
 });
 
  test('starred commits keep the count slot inside the star control', async () => {
     const body = await render({ id: 'viewer' }, { stars_count: 1 });
 
-    assert.doesNotMatch(body, /mr-\[calc/);
+    assert.doesNotMatch(body, / mr-\[calc/);
     assert.match(body, /data-test="star-count"[^>]*>1<\/span>/);
 });
 

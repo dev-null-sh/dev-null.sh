@@ -6,6 +6,7 @@ import CommitStarController from '@/actions/App/Http/Controllers/CommitStarContr
 import { ActionTooltip } from '@/components/action-tooltip';
 import { CommitStarPollingContext } from '@/components/commit-star-polling';
 import { CommitStargazersDialog } from '@/components/commit-stargazers-dialog';
+import { OdometerCount } from '@/components/odometer-count';
 import { StarredRemovalContext } from '@/components/starred-removal-context';
 import { useCommitNotFound } from '@/hooks/use-deleted-resources';
 import { useOwnsCommit } from '@/hooks/use-owns-commit';
@@ -13,7 +14,7 @@ import { refreshSharedState, useSharedState } from '@/hooks/use-shared-state';
 import { signIn } from '@/lib/auth';
 import { createCommitStarMutations } from '@/lib/commit-star-mutations';
 import { commitStateKey } from '@/lib/commit-state';
-import { formatCount, formatExactCount } from '@/lib/numbers';
+import { formatExactCount } from '@/lib/numbers';
 import { toastWhenThrottled } from '@/lib/throttle';
 import { cn } from '@/lib/utils';
 import type { Commit } from '@/types';
@@ -169,7 +170,7 @@ export function CommitStarButton({
                 aria-keyshortcuts={keyShortcut}
                 aria-label={starLabel(starred, count)}
                 className={cn(
-                    'group/star inline-flex items-center gap-1 rounded-md px-1.5 py-1 font-mono text-[13px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
+                    'group/star inline-flex items-center gap-1 rounded-md px-1.5 py-1 font-mono text-[13px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground has-[[data-test=star-count]:empty]:mr-[calc(0.25rem+1ch)]',
                     starred && 'text-primary hover:text-primary',
                     className,
                 )}
@@ -183,14 +184,7 @@ export function CommitStarButton({
                         isAnimating && 'motion-safe:animate-star-pop',
                     )}
                 />
-                {count > 0 && (
-                    <span
-                        data-test="star-count"
-                        className="min-w-[1ch] text-left tabular-nums"
-                    >
-                        {formatCount(count)}
-                    </span>
-                )}
+                <OdometerCount value={count} emptyWhenZero />
             </button>
         </ActionTooltip>
     );
@@ -232,14 +226,7 @@ function StarCount({
                     data-test="own-star-count"
                 >
                     <Star aria-hidden className="size-4" />
-                    {count > 0 && (
-                        <span
-                            data-test="star-count"
-                            className="min-w-[1ch] text-left tabular-nums"
-                        >
-                            {formatCount(count)}
-                        </span>
-                    )}
+                    <OdometerCount value={count} emptyWhenZero />
                 </button>
             </CommitStargazersDialog>
         </ActionTooltip>
