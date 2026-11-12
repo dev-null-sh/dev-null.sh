@@ -38,6 +38,7 @@ final readonly class UpdateMessage
             // Read under a lock so overlapping edits serialize: the second one diffs against the first one's
             // committed mentions instead of a stale snapshot, and no badge is left behind.
             $previousMentions = array_values(Message::query()->whereKey($message->id)->lockForUpdate()->value('mentions') ?? []);
+            $message->refresh();
 
             $linkPreview = $url === null ? null : LinkPreview::query()->firstOrCreate(['url_hash' => hash('sha256', $url)], ['url' => $url]);
 
