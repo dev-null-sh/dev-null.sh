@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\EventTheme;
 use App\Enums\PushPreference;
 use App\Models\User;
 use App\Services\CommitTranslations;
@@ -15,8 +16,9 @@ final readonly class UserSettingsController
 {
     /**
      * What the web's settings show only the user: their timezone and the language commits are translated into, `null`
-     * to follow the device, whether commits are translated automatically, the languages they may pick from, whether
-     * the web shows them its admin pages, which the app only links to, and what they want pushed to their phones.
+     * to follow the device, whether commits are translated automatically, the event theme they picked, the languages
+     * they may pick from, whether the web shows them its admin pages, which the app only links to, and what they want
+     * pushed to their phones.
      */
     public function show(#[CurrentUser] User $user, CommitTranslations $translations): JsonResponse
     {
@@ -25,6 +27,7 @@ final readonly class UserSettingsController
             'show_local_time' => $user->show_local_time,
             'translation_language' => $user->translation_language,
             'automatic_translation' => $user->automatic_translation ?? true,
+            'event_theme' => EventTheme::choiceFrom($user->event_theme ?? null),
             'translation_languages' => collect($translations->languages())->map(fn (string $code): array => [
                 'code' => $code,
                 'name' => Locale::getDisplayLanguage($code, 'en'),
