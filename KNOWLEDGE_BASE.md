@@ -508,8 +508,9 @@ Settings → Appearance offers:
 - **Lane dimming:** on by default; other commits fade while the pointer rests on a commit or its author.
 - **Replies:** how many replies show under a commit before "Show more": 1, 3, 5, 10, 15, 20, or 25 (3 by default).
 - **Who to follow:** show or hide the suggestions.
+- **Event theme:** Auto, Default, Halloween, Christmas, or New Year. Auto turns a theme on from two days before its day to the day after, on your local date; Default keeps the usual colors.
 
-These appearance choices are saved in the browser, not on the account, so each browser keeps its own. Settings → Profile lets you choose one of six lane colors (Orange, Green, Violet, Teal, Rose, Ochre), a custom color, or the automatic color used around your identity and activity graph.
+These appearance choices are saved in the browser, not on the account, so each browser keeps its own. The event theme is the exception: once you pick one, it's saved on your account, so your other browsers and apps follow it. Until then, each browser keeps its own, and guests always do. Settings → Profile lets you choose one of six lane colors (Orange, Green, Violet, Teal, Rose, Ochre), a custom color, or the automatic color used around your identity and activity graph.
 
 Profile settings also let you share a timezone. Timestamps can show the author's local time as well as the viewer's when a timezone is shared. Leaving it unset uses the browser's timezone for your display without publishing your timezone. A separate, off-by-default setting shows your current local time on your profile, next to your location and website; it only applies while a timezone is set, and clearing the timezone turns it off. These /dev/null preferences are separate from your GitHub-managed profile information.
 
@@ -599,7 +600,7 @@ A signed request sees what the web shows you, such as your own pending commits a
 - pin a commit to your profile, or unpin it;
 - translate commits;
 - suggest people to mention and /dev/null issues to reference while writing;
-- sync from GitHub, save your lane color, timezone, and translation language, and turn automatic translation on or off;
+- sync from GitHub, save your lane color, timezone, translation language, and event theme, and turn automatic translation on or off;
 - list your devices and revoke them;
 - delete your account.
 
