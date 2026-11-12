@@ -1075,6 +1075,7 @@ function withRichInline(
                         {nested(groups.maskedLabel, 1, {
                             ...options,
                             isStatic: true,
+                            hashtags: [],
                         })}
                     </a>,
                 );

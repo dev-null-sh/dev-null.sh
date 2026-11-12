@@ -82,7 +82,7 @@ test('the counter discounts commit links but not issue links', () => {
     );
 });
 
-function renderPage(content: ReactElement): string {
+function renderPage(content: ReactElement, user: unknown = null): string {
     return renderToStaticMarkup(
         <App
             initialComponent={() => content}
@@ -91,7 +91,7 @@ function renderPage(content: ReactElement): string {
                     component: 'Commit',
                     url: '/',
                     version: null,
-                    props: { errors: {}, auth: { user: null, pasteis: null } },
+                    props: { errors: {}, auth: { user, pasteis: null } },
                     clearHistory: false,
                     encryptHistory: false,
                 } as unknown as ComponentProps<typeof App>['initialPage']
@@ -1256,4 +1256,24 @@ test('never nests an anchor inside a masked label', () => {
 
         assert.equal(markup.match(/<a[\s>]/g)?.length, 1, text);
     }
+});
+
+test('keeps hashtags plain inside masked labels when signed in', () => {
+    const user = { id: 1 };
+
+    const topLevel = renderPage(
+        <LinkifiedText text="#topic" mentions={null} />,
+        user,
+    );
+
+    assert.ok(topLevel.includes('data-test="hashtag"'));
+
+    const masked = renderPage(
+        <LinkifiedText text="[#topic](https://example.com)" mentions={null} />,
+        user,
+    );
+
+    assert.equal(masked.match(/<a[\s>]/g)?.length, 1);
+    assert.ok(masked.includes('#topic'));
+    assert.ok(!masked.includes('data-test="hashtag"'));
 });
