@@ -26,6 +26,14 @@ final class ListApiCommitRepliesRequest extends FormRequest
     }
 
     /**
+     * The reply the client shows elsewhere, such as the continuation of the commit, as on the web.
+     */
+    public function exceptedReplyId(): ?string
+    {
+        return $this->string('except')->value() ?: null;
+    }
+
+    /**
      * Newest first continues the next_cursor of a reply preview, as on the web.
      *
      * @return array<string, list<string>>
@@ -34,6 +42,7 @@ final class ListApiCommitRepliesRequest extends FormRequest
     {
         return [
             'newest' => ['sometimes', 'boolean'],
+            'except' => ['sometimes', 'nullable', 'uuid'],
         ];
     }
 }

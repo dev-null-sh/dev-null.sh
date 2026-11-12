@@ -83,6 +83,7 @@ it('lists the latest commits of everyone, newest first', function (): void {
         'starred' => false,
         'pasteis_count' => 2,
         'deleted_at' => null,
+        'continuation_id' => null,
         'quoted_commit_id' => null,
         'quoted_commit' => null,
         'poll' => null,
