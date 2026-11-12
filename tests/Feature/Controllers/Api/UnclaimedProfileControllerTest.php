@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Models\Commit;
 use App\Models\Organization;
 use App\Models\Profile;
 use App\Models\User;
@@ -29,6 +30,7 @@ it('shows an unclaimed developer to anyone, but never where they are, with how m
                 'bio' => 'I am the Octocat.',
             ],
             'waiting_count' => 1,
+            'mention_count' => 0,
             'is_waiting' => false,
             'waiting_you_follow' => [],
         ]);
@@ -47,6 +49,17 @@ it('tells a signed request whether its user waits, and up to three people they f
         ->assertJsonPath('waiting_count', 6)
         ->assertJsonPath('is_waiting', true)
         ->assertJsonPath('waiting_you_follow', $followed->take(3)->map(fn (User $user): array => $user->only(['id', 'handle', 'name', 'avatar_url']))->all());
+});
+
+it('counts the approved commits that mention them, but not mentions in code or of a longer handle', function (): void {
+    Profile::factory()->create(['handle' => 'octocat']);
+    Commit::factory()->create(['body' => 'Thanks @octocat!']);
+    Commit::factory()->create(['body' => 'Paired with @OctoCat and @hubot today']);
+    Commit::factory()->create(['body' => 'Found @octocat-fan in the wild']);
+    Commit::factory()->create(['body' => 'Use `@octocat` in your config']);
+    Commit::factory()->pending()->create(['body' => 'Waiting on @octocat']);
+
+    $this->getJson(route('api-unclaimed-profile.show', 'octocat'))->assertJsonPath('mention_count', 2);
 });
 
 it('answers not found for a handle that is no unclaimed developer, without asking GitHub', function (Closure $handle): void {
