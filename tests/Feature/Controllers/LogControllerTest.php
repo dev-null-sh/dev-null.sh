@@ -245,6 +245,12 @@ it('sends guests to sign in with GitHub for the following log', function (): voi
         ->assertHeader('X-Inertia-Location', route('login'));
 });
 
+it('keeps the reload a deploy forces apart from the page in the browser cache', function (): void {
+    $this->get(route('log.show', Log::Latest), ['X-Inertia' => 'true', 'X-Inertia-Version' => 'before-the-deploy'])
+        ->assertConflict()
+        ->assertHeader('Vary', 'X-Inertia');
+});
+
 it('does not count newer commits on the trending log', function (?bool $signedIn): void {
     $older = Commit::factory()->create(['created_at' => now()->subMinute()]);
     Commit::factory()->create();

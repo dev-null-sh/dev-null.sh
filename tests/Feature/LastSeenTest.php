@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Actions\UpdateUserLastSeenAt;
+use App\Dto\MobileAuthorization;
 use App\Enums\ActiveDayApp;
 use App\Enums\Log;
 use App\Models\Commit;
@@ -111,6 +112,21 @@ it('records each app used in a day on one row, and counts the person once', func
     expect(DB::table('user_active_days')->where('user_id', $this->user->id)->get(['seen_at', 'web_app', 'native_mobile_app', 'mac_app', 'other_app'])->map(fn (object $row): array => (array) $row)->all())
         ->toBe([['seen_at' => '2026-10-19', 'web_app' => true, 'native_mobile_app' => true, 'mac_app' => false, 'other_app' => false]])
         ->and(DB::table('active_user_counts')->where('seen_at', '2026-10-19')->value('count'))->toBe(1);
+});
+
+it('records the lite mobile app for its web view and for its device', function (): void {
+    $seenOnLiteMobileApp = fn (User $user): ?bool => DB::table('user_active_days')->where('user_id', $user->id)->value('lite_mobile_app');
+    $other = User::factory()->create();
+    $keyPair = apiKeyPairFor($other);
+    Device::query()->where('user_id', $other->id)->update(['app_id' => MobileAuthorization::LiteMobileAppId]);
+
+    $this->actingAs($this->user)->withHeader('User-Agent', 'Mobile/15E148 DevNullLite/1.0.0')->get(route('log.show', Log::Following))->assertOk();
+    signedApiRequest($keyPair, 'GET', route('api-current-user.show'))->assertOk();
+
+    expect($seenOnLiteMobileApp($this->user))->toBeTrue()
+        ->and(DB::table('user_active_days')->where('user_id', $this->user->id)->value('web_app'))->toBeFalse()
+        ->and($seenOnLiteMobileApp($other))->toBeTrue()
+        ->and(DB::table('user_active_days')->where('user_id', $other->id)->value('other_app'))->toBeFalse();
 });
 
 it('neither writes nor locks the row of the day once the app is recorded', function (): void {

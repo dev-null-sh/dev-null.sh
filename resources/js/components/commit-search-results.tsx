@@ -2,7 +2,6 @@ import type { ReactNode } from 'react';
 import { CommitCard } from '@/components/commit-card';
 import { CommitSkeleton, EmptyFeed } from '@/components/commit-feed';
 import { GraphCanvas } from '@/components/graph-canvas';
-import { authorLaneColor } from '@/lib/utils';
 import type { Commit } from '@/types';
 
 export type SearchResultSet = { term: string; commits: Commit[] };
@@ -56,23 +55,13 @@ export function SearchResults({
                 </div>
             ) : (
                 <GraphCanvas>
-                    {results.commits.map((commit, index) => {
-                        const previous = results.commits[index - 1];
-
-                        return (
-                            <CommitCard
-                                key={commit.id}
-                                commit={commit}
-                                previousLane={
-                                    previous && authorLaneColor(previous.author)
-                                }
-                                graphAfter={previous?.id}
-                                endsWithDot={
-                                    index === results.commits.length - 1
-                                }
-                            />
-                        );
-                    })}
+                    {results.commits.map((commit) => (
+                        <CommitCard
+                            key={commit.id}
+                            commit={commit}
+                            endsWithDot
+                        />
+                    ))}
                 </GraphCanvas>
             )}
         </section>

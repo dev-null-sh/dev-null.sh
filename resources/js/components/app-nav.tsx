@@ -306,7 +306,7 @@ export function AppNav({
                             : LogController.show(auth.log)
                     }
                     viewTransition
-                    className="mb-8 grid shrink-0 grid-rows-[36px_20px] gap-y-1 rounded-md px-3"
+                    className="mb-14 grid shrink-0 grid-rows-[36px_0px] rounded-md px-3 nav-wide:mb-8 nav-wide:grid-rows-[36px_20px] nav-wide:gap-y-1"
                     aria-label={
                         auth.log === null
                             ? '/dev/null, go to the home page'
@@ -323,7 +323,7 @@ export function AppNav({
 
             <nav
                 aria-label="Main"
-                className="flex min-h-0 flex-1 scrollbar-none flex-col gap-1 overflow-y-auto [&>*]:shrink-0"
+                className="-mx-1 -mt-1 flex min-h-0 flex-1 scroll-py-1 scrollbar-none flex-col gap-1 overflow-y-auto p-1 [&>*]:shrink-0"
             >
                 {items.map((item) => (
                     <NavLink

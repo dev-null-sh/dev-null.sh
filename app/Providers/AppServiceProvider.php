@@ -9,6 +9,7 @@ use App\Contracts\Services\EmailDraftProvider;
 use App\Contracts\Services\EmbeddingProvider;
 use App\Contracts\Services\GitHubProvider;
 use App\Contracts\Services\HeadlineProvider;
+use App\Contracts\Services\HumanVerificationProvider;
 use App\Contracts\Services\LinkPreviewProvider;
 use App\Contracts\Services\ModerationProvider;
 use App\Contracts\Services\PushNotificationProvider;
@@ -30,6 +31,8 @@ use App\Services\GitHubProviders\HttpGitHubProvider;
 use App\Services\GitHubProviders\NullGitHubProvider;
 use App\Services\HeadlineProviders\NullHeadlineProvider;
 use App\Services\HeadlineProviders\OpenAIHeadlineProvider;
+use App\Services\HumanVerificationProviders\CloudflareHumanVerificationProvider;
+use App\Services\HumanVerificationProviders\LocalHumanVerificationProvider;
 use App\Services\LinkPreviewProviders\HttpLinkPreviewProvider;
 use App\Services\LinkPreviewProviders\NullLinkPreviewProvider;
 use App\Services\ModerationProviders\NullModerationProvider;
@@ -68,6 +71,7 @@ final class AppServiceProvider extends ServiceProvider
         EmbeddingProvider::class => OpenAIEmbeddingProvider::class,
         GitHubProvider::class => HttpGitHubProvider::class,
         HeadlineProvider::class => OpenAIHeadlineProvider::class,
+        HumanVerificationProvider::class => CloudflareHumanVerificationProvider::class,
         LinkPreviewProvider::class => HttpLinkPreviewProvider::class,
         ModerationProvider::class => OpenAIModerationProvider::class,
         PushNotificationProvider::class => WebPushNotificationProvider::class,
@@ -88,6 +92,7 @@ final class AppServiceProvider extends ServiceProvider
         EmbeddingProvider::class => NullEmbeddingProvider::class,
         GitHubProvider::class => NullGitHubProvider::class,
         HeadlineProvider::class => NullHeadlineProvider::class,
+        HumanVerificationProvider::class => LocalHumanVerificationProvider::class,
         LinkPreviewProvider::class => NullLinkPreviewProvider::class,
         ModerationProvider::class => NullModerationProvider::class,
         PushNotificationProvider::class => NullPushNotificationProvider::class,

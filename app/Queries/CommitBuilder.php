@@ -245,6 +245,16 @@ final class CommitBuilder extends Builder
     }
 
     /**
+     * The pending commits the AI has checked, or gave up on, like Commit::isBeingChecked().
+     */
+    public function awaitingModerator(): self
+    {
+        return $this->pending()->where(fn (self $query): self => $query
+            ->whereNotNull('ai_decision')
+            ->orWhere('created_at', '<=', now()->subMinutes(Commit::CHECKING_MINUTES)));
+    }
+
+    /**
      * Guests see how many stars a commit has, without having starred any. Stars are counted on the pivot table alone:
      * the relation would otherwise join the users table for every star.
      */

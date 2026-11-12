@@ -9,6 +9,8 @@ use Carbon\CarbonImmutable;
 use Firebase\JWT\JWT;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Http\Client\RequestException;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Http;
@@ -22,6 +24,7 @@ use Illuminate\Support\Str;
  * @phpstan-import-type SearchResults from GitHubProvider
  * @phpstan-import-type Issue from GitHubProvider
  * @phpstan-import-type RateLimit from GitHubProvider
+ * @phpstan-import-type Sponsor from GitHubProvider
  */
 final readonly class HttpGitHubProvider implements GitHubProvider
 {
@@ -118,6 +121,90 @@ final readonly class HttpGitHubProvider implements GitHubProvider
         }
 
         return $response->json('data.viewer.hasSponsorsListing') === true;
+    }
+
+    /**
+     * GitHub often gives no total, so it is counted from up to a thousand events of the history when GitHub has none: a
+     * one-time tier once, and a monthly tier for each month it was held, started months included. A payment that failed or was refunded still
+     * counts. An equal total goes to the bigger tier.
+     *
+     * @return list<Sponsor>
+     */
+    public function publicSponsors(string $organization): array
+    {
+        $token = config('services.github.sponsors_token');
+        assert(is_string($token));
+
+        $sponsorships = $this->graphql($token, <<<'GRAPHQL'
+            query ($login: String!) {
+              organization(login: $login) {
+                sponsorshipsAsMaintainer(first: 100, activeOnly: false, includePrivate: false) {
+                  nodes {
+                    tier { monthlyPriceInCents }
+                    sponsorEntity {
+                      ... on User { login databaseId totalSponsorshipAmountAsSponsorInCents(sponsorableLogins: [$login]) }
+                      ... on Organization { login databaseId totalSponsorshipAmountAsSponsorInCents(sponsorableLogins: [$login]) }
+                    }
+                  }
+                }
+              }
+            }
+            GRAPHQL, ['login' => $organization])->collect('organization.sponsorshipsAsMaintainer.nodes')->mapInto(Fluent::class);
+
+        $activities = collect();
+        $cursor = null;
+
+        for ($page = 1; $page <= 10; $page++) {
+            $connection = $this->graphql($token, <<<'GRAPHQL'
+                query ($login: String!, $after: String) {
+                  organization(login: $login) {
+                    sponsorsActivities(first: 100, after: $after, period: ALL, orderBy: {field: TIMESTAMP, direction: ASC}) {
+                      pageInfo { hasNextPage endCursor }
+                      nodes {
+                        action
+                        timestamp
+                        sponsor { ... on User { login } ... on Organization { login } }
+                        sponsorsTier { monthlyPriceInCents isOneTime }
+                      }
+                    }
+                  }
+                }
+                GRAPHQL, ['login' => $organization, 'after' => $cursor])->scope('organization.sponsorsActivities');
+
+            $activities = $activities->concat($connection->collect('nodes')->mapInto(Fluent::class));
+
+            if (! $connection->boolean('pageInfo.hasNextPage')) {
+                break;
+            }
+
+            $cursor = $connection->string('pageInfo.endCursor')->value();
+        }
+
+        $paidFromHistory = $activities
+            ->groupBy(fn (Fluent $activity): string => $activity->string('sponsor.login')->value())
+            ->map(fn (Collection $sponsorActivities): int => $this->paidFromHistory(...$sponsorActivities->all()));
+
+        return array_values($sponsorships
+            ->filter(fn (Fluent $sponsorship): bool => $sponsorship->has('sponsorEntity.login'))
+            ->sortByDesc(fn (Fluent $sponsorship): int => $sponsorship->integer('tier.monthlyPriceInCents'))
+            ->unique(fn (Fluent $sponsorship): string => $sponsorship->string('sponsorEntity.login')->value())
+            ->map(fn (Fluent $sponsorship): array => [
+                'login' => $sponsorship->string('sponsorEntity.login')->value(),
+                'github_id' => $sponsorship->string('sponsorEntity.databaseId')->value(),
+                'amount_in_cents' => $sponsorship->integer('sponsorEntity.totalSponsorshipAmountAsSponsorInCents')
+                    ?: $paidFromHistory->get($sponsorship->string('sponsorEntity.login')->value(), 0),
+                'tier_in_cents' => $sponsorship->integer('tier.monthlyPriceInCents'),
+            ])
+            ->sortBy([
+                fn (array $first, array $second): int => $second['amount_in_cents'] <=> $first['amount_in_cents'],
+                fn (array $first, array $second): int => $second['tier_in_cents'] <=> $first['tier_in_cents'],
+            ])
+            ->map(fn (array $sponsor): array => [
+                'login' => $sponsor['login'],
+                'github_id' => $sponsor['github_id'],
+                'amount_in_cents' => $sponsor['amount_in_cents'],
+            ])
+            ->all());
     }
 
     public function followingIds(string $login, int $maxPages): array
@@ -272,6 +359,55 @@ final readonly class HttpGitHubProvider implements GitHubProvider
     {
         /** @var array<string, int> */
         return $this->request()->get("repos/{$repository}/languages")->throw()->json();
+    }
+
+    /**
+     * @param  Fluent<array-key, mixed>  ...$activities
+     */
+    private function paidFromHistory(Fluent ...$activities): int
+    {
+        $paid = 0;
+        $monthlyPrice = 0;
+        $heldSince = null;
+
+        foreach ($activities as $activity) {
+            $action = $activity->string('action')->value();
+            $at = CarbonImmutable::parse($activity->string('timestamp')->value());
+
+            if ($heldSince instanceof CarbonImmutable && in_array($action, ['TIER_CHANGE', 'CANCELLED_SPONSORSHIP'], true)) {
+                $paid += $monthlyPrice * $this->monthsStarted($heldSince, $at);
+                $heldSince = null;
+            }
+
+            if (in_array($action, ['NEW_SPONSORSHIP', 'TIER_CHANGE'], true)) {
+                if ($activity->boolean('sponsorsTier.isOneTime')) {
+                    $paid += $activity->integer('sponsorsTier.monthlyPriceInCents');
+                } else {
+                    $monthlyPrice = $activity->integer('sponsorsTier.monthlyPriceInCents');
+                    $heldSince = $at;
+                }
+            }
+        }
+
+        return $heldSince instanceof CarbonImmutable ? $paid + $monthlyPrice * $this->monthsStarted($heldSince, CarbonImmutable::now()) : $paid;
+    }
+
+    private function monthsStarted(CarbonImmutable $from, CarbonImmutable $until): int
+    {
+        return (int) floor($from->diffInMonths($until)) + 1;
+    }
+
+    /**
+     * @param  array<string, string|null>  $variables
+     * @return Fluent<string, mixed>
+     */
+    private function graphql(string $token, string $query, array $variables): Fluent
+    {
+        $response = $this->request($token)->post('graphql', ['query' => $query, 'variables' => $variables])->throw();
+
+        throw_if($response->json('errors') !== null, RequestException::class, $response);
+
+        return $response->fluent('data');
     }
 
     private function request(?string $token = null): PendingRequest

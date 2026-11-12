@@ -9,7 +9,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 
 /**
- * @phpstan-type AppUsageDay array{date: string, web_app: int, native_mobile_app: int, mac_app: int, other_app: int}
+ * @phpstan-type AppUsageDay array{date: string, web_app: int, native_mobile_app: int, lite_mobile_app: int, mac_app: int, other_app: int}
  * @phpstan-type AppUsage array{days: list<AppUsageDay>, recorded_since: string|null}
  */
 final readonly class AppUsageQuery
@@ -23,11 +23,12 @@ final readonly class AppUsageQuery
      */
     public function get(CarbonImmutable $from, CarbonImmutable $to): array
     {
-        /** @var list<object{date: string, web_app: int, native_mobile_app: int, mac_app: int, other_app: int}> $rows */
+        /** @var list<object{date: string, web_app: int, native_mobile_app: int, lite_mobile_app: int, mac_app: int, other_app: int}> $rows */
         $rows = DB::select(<<<'SQL'
             select a.seen_at as date,
                 count(*) filter (where a.web_app) as web_app,
                 count(*) filter (where a.native_mobile_app) as native_mobile_app,
+                count(*) filter (where a.lite_mobile_app) as lite_mobile_app,
                 count(*) filter (where a.mac_app) as mac_app,
                 count(*) filter (where a.other_app) as other_app
             from user_active_days a
@@ -43,7 +44,7 @@ final readonly class AppUsageQuery
 
         /** @var string|null $recordedSince */
         $recordedSince = DB::table('user_active_days')
-            ->whereRaw('native_mobile_app or mac_app or other_app')
+            ->whereRaw('native_mobile_app or lite_mobile_app or mac_app or other_app')
             ->min('seen_at');
 
         return [
@@ -51,6 +52,7 @@ final readonly class AppUsageQuery
                 'date' => $row->date,
                 'web_app' => (int) $row->web_app,
                 'native_mobile_app' => (int) $row->native_mobile_app,
+                'lite_mobile_app' => (int) $row->lite_mobile_app,
                 'mac_app' => (int) $row->mac_app,
                 'other_app' => (int) $row->other_app,
             ], $rows),
