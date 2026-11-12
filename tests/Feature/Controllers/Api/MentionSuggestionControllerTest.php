@@ -24,6 +24,32 @@ it('suggests the people the user follows without a term, most recently followed 
         ->assertJsonMissingPath('data.0.email');
 });
 
+it('shares a suggested user timezone only when they opt in', function (): void {
+    $sharing = User::factory()->create([
+        'handle' => 'sharing',
+        'timezone' => 'America/Los_Angeles',
+        'show_local_time' => true,
+    ]);
+    $private = User::factory()->create([
+        'handle' => 'private',
+        'timezone' => 'Asia/Tokyo',
+        'show_local_time' => false,
+    ]);
+    $this->user->following()->attach([$sharing->id, $private->id]);
+
+    $users = collect(signedApiRequest($this->keyPair, 'GET', route('api-mention-suggestion.index'))
+        ->assertOk()
+        ->json('data'))->keyBy('handle');
+
+    expect($users['sharing'])->toMatchArray([
+        'timezone' => 'America/Los_Angeles',
+        'show_local_time' => true,
+    ])->and($users['private'])->toMatchArray([
+        'timezone' => null,
+        'show_local_time' => false,
+    ]);
+});
+
 it('suggests matches, people the user follows first, leaving out muted people and people across a block', function (): void {
     User::factory()->create(['handle' => 'taylor', 'name' => 'Taylor']);
     $followed = User::factory()->create(['handle' => 'taylorotwell', 'name' => 'Taylor Otwell']);

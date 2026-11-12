@@ -10,6 +10,7 @@ use App\Actions\UpdateOrgName;
 use App\Http\Requests\CreateOrgRequest;
 use App\Http\Requests\ShowOrgRequest;
 use App\Http\Requests\UpdateOrgRequest;
+use App\Http\Resources\ConversationResource;
 use App\Models\Conversation;
 use App\Models\User;
 use App\Queries\ConversationsQuery;
@@ -32,11 +33,25 @@ final readonly class OrgController
             'thread' => function () use ($user, $org, $threads, $action): array {
                 $thread = $threads->org($user, $org);
 
+                $thread['members'] = $thread['members']->map(function (array $member): array {
+                    $member['user'] = [
+                        ...$member['user']->toArray(),
+                        'timezone' => $member['user']->show_local_time ? $member['user']->timezone : null,
+                    ];
+
+                    return $member;
+                });
+
                 $action->handle($user, $org, $thread['messages']->last()->id ?? 0);
 
                 return $thread;
             },
-            'inbox' => fn (): array => $conversations->get($user),
+            'inbox' => function () use ($request, $user, $conversations): array {
+                $inbox = $conversations->get($user);
+                $inbox['conversations'] = ConversationResource::collection($inbox['conversations'])->resolve($request);
+
+                return $inbox;
+            },
             'partner' => null,
             'org' => ['id' => $org->id, 'name' => $org->name],
         ]);

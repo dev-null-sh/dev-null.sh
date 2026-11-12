@@ -7,6 +7,7 @@ namespace App\Http\Controllers;
 use App\Actions\UpdateConversationReadThrough;
 use App\Http\Requests\ListConversationsRequest;
 use App\Http\Requests\ShowConversationRequest;
+use App\Http\Resources\ConversationResource;
 use App\Models\Conversation;
 use App\Models\User;
 use App\Queries\ConversationsQuery;
@@ -20,7 +21,12 @@ final readonly class ConversationController
     public function index(ListConversationsRequest $request, #[CurrentUser] User $user, ConversationsQuery $conversations): Response
     {
         return Inertia::render('conversation/index', [
-            'inbox' => fn (): array => $conversations->get($user),
+            'inbox' => function () use ($request, $user, $conversations): array {
+                $inbox = $conversations->get($user);
+                $inbox['conversations'] = ConversationResource::collection($inbox['conversations'])->resolve($request);
+
+                return $inbox;
+            },
             'partner' => null,
             'thread' => null,
         ]);
@@ -44,8 +50,16 @@ final readonly class ConversationController
 
                 return $thread;
             },
-            'inbox' => fn (): array => $conversations->get($user),
-            'partner' => $partner,
+            'inbox' => function () use ($request, $user, $conversations): array {
+                $inbox = $conversations->get($user);
+                $inbox['conversations'] = ConversationResource::collection($inbox['conversations'])->resolve($request);
+
+                return $inbox;
+            },
+            'partner' => [
+                ...$partner->toArray(),
+                'timezone' => $partner->show_local_time ? $partner->timezone : null,
+            ],
         ]);
     }
 }
