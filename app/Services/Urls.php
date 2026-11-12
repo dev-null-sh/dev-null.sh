@@ -8,6 +8,11 @@ final readonly class Urls
 {
     public const int MAX_LENGTH = 2048;
 
+    /**
+     * What a prose link counts at most toward a commit's length.
+     */
+    public const int MAX_COUNTED_LENGTH = 23;
+
     private const int MAX_SHORTENED_PATH_LENGTH = 20;
 
     /**
@@ -69,7 +74,7 @@ final readonly class Urls
             $url = preg_match('/^https?:\/\//i', $match) === 1 ? $match : 'https://'.$match;
 
             if (! str_ends_with($url, '://') && mb_strlen($url) <= self::MAX_LENGTH) {
-                $length -= max(0, mb_strlen($match) - 23);
+                $length -= max(0, mb_strlen($match) - self::MAX_COUNTED_LENGTH);
             }
         }
 
