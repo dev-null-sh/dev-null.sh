@@ -38,11 +38,11 @@ final readonly class YouTube implements EmbedProvider
             return $this->video($query['v'], $query);
         }
 
-        if ($path === '/playlist' && is_string($query['list'] ?? null) && preg_match('#^[A-Za-z0-9_-]+$#', $query['list']) === 1) {
+        if (in_array($path, ['/playlist', '/embed/videoseries'], true) && is_string($query['list'] ?? null) && preg_match('#^[A-Za-z0-9_-]+$#', $query['list']) === 1) {
             return Embed::video('YouTube', $this->base().'/videoseries', ['list' => $query['list'], 'autoplay' => 1]);
         }
 
-        if (preg_match('#^/(embed|live|shorts)/('.self::VIDEO_ID.')$#', $path, $matches) === 1) {
+        if (preg_match('#^/(embed|live|shorts)/(?!videoseries$|live_stream$)('.self::VIDEO_ID.')$#', $path, $matches) === 1) {
             return $this->video($matches[2], $query, $matches[1] === 'shorts' ? '9 / 16' : '16 / 9');
         }
 

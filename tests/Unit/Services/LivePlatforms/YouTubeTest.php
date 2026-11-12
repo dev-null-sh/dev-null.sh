@@ -23,6 +23,8 @@ it('rejects links that are not a single YouTube video', function (string $url): 
     expect(resolve(YouTube::class)->accepts($url))->toBeFalse();
 })->with([
     'playlist' => 'https://www.youtube.com/playlist?list=PL590L5WQmH8fJ54F369BLDSqIwcs-TCfs',
+    'embedded playlist' => 'https://www.youtube.com/embed/videoseries?list=PL590L5WQmH8fJ54F369BLDSqIwcs-TCfs',
+    'embedded channel live stream' => 'https://www.youtube.com/embed/live_stream?channel=UCxBcwypKK-W3GHd_RZ9FZrQ',
     'twitch' => 'https://www.twitch.tv/octocat',
     'other site' => 'https://example.com/live',
     'not a link' => 'youtube',
