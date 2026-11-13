@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import ScheduledCommitController from '@/actions/App/Http/Controllers/ScheduledCommitController';
 import { ActionTooltip } from '@/components/action-tooltip';
-import { AuthorSwitcher } from '@/components/author-switcher';
+import { AuthorSwitcher, useAuthor } from '@/components/author-switcher';
 import { BodyCounter } from '@/components/body-counter';
 import {
     ImageDropOverlay,
@@ -151,7 +151,7 @@ function CommitComposerBody({
             : bodyCharacterCount(body),
     );
     const isFilled = hasImages || characterCount(body.trim()) >= minBodyLength;
-    const error = errors.body ?? errors.link_preview_url;
+    const error = errors.body ?? errors.link_preview_url ?? errors.author;
     const scheduleError =
         errors.scheduled_at ??
         (scheduledAt && !isExistingLocalTime(scheduledAt)
@@ -615,7 +615,7 @@ export function CommitComposer({
     const { isScheduling, scheduledAt, setScheduledAt, setIsScheduling } =
         schedule;
     const { user } = useUser();
-    const [author, setAuthor] = useState<OrganizationAuthor | null>(null);
+    const { author, setAuthor } = useAuthor();
     const stash = useStash(user.id, 'commit');
     const { body } = stash;
     const linkCard = useLinkCard(body);

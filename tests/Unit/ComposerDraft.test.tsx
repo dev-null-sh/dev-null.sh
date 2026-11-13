@@ -60,9 +60,19 @@ vi.doMock('react', () => ({
         ];
     },
 }));
+const organization = {
+    type: 'organization',
+    id: 'laravel',
+    handle: 'laravel',
+    lane: null,
+};
+const organizations = [organization];
 vi.doMock('@inertiajs/react', async () => ({
     ...(await vi.importActual('@inertiajs/react')),
-    usePage: () => ({ props: { auth: { user, isAdmin: false } }, flash }),
+    usePage: () => ({
+        props: { auth: { user, isAdmin: false, organizations } },
+        flash,
+    }),
     useHttp: () => http,
 }));
 vi.doMock('../../resources/js/hooks/use-user', () => ({
@@ -705,12 +715,6 @@ test('commands are not offered while the draft has images, a poll or a schedule'
 });
 
 test('schedules as the organization picked from the avatar', () => {
-    const organization = {
-        type: 'organization',
-        id: 'laravel',
-        handle: 'laravel',
-        lane: null,
-    };
     const node = () =>
         render().fields.find((element) => element.type === GraphRail)!.props
             .node as Element;
@@ -733,6 +737,25 @@ test('schedules as the organization picked from the avatar', () => {
             .toISOString()
             .replace(/\.\d{3}Z$/, '+00:00'),
     });
+});
+
+test('posts as themselves once the picked organization is no longer theirs', () => {
+    const node = () =>
+        render().fields.find((element) => element.type === GraphRail)!.props
+            .node as Element;
+
+    (node().props.onChange as (author: unknown) => void)(organization);
+    organizations.length = 0;
+
+    try {
+        assert.equal(node().props.author, null);
+        assert.equal(
+            'author' in render().form.props.transform({ body: draft.body }),
+            false,
+        );
+    } finally {
+        organizations.push(organization);
+    }
 });
 
 test('turning scheduling off clears the chosen time and commits now', () => {
