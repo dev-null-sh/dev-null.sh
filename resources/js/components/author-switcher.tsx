@@ -10,6 +10,7 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { UserAvatar } from '@/components/user-avatar';
+import { cn } from '@/lib/utils';
 import type { OrganizationAuthor, User } from '@/types';
 
 /**
@@ -22,12 +23,14 @@ export function AuthorSwitcher({
     onChange,
     children,
     fallback,
+    className,
 }: {
     user: User;
     author: OrganizationAuthor | null;
     onChange: (author: OrganizationAuthor | null) => void;
     children: ReactNode;
     fallback: ReactNode;
+    className?: string;
 }) {
     const { auth } = usePage().props;
 
@@ -39,7 +42,7 @@ export function AuthorSwitcher({
         <DropdownMenu>
             <DropdownMenuTrigger
                 aria-label={`Posting as @${(author ?? user).handle}. Choose who to post as`}
-                className="relative flex rounded-full"
+                className={cn('relative flex rounded-full', className)}
                 data-test="author-switcher"
             >
                 {children}
