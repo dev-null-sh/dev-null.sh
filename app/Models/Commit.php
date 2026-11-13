@@ -45,6 +45,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read CarbonInterface|null $deleted_at
  * @property-read int $stars_count
  * @property-read int $pasteis_count
+ * @property-read int $views_count
  * @property-read bool $starred
  * @property-read User|null $user
  * @property-read Profile|null $author
@@ -103,6 +104,7 @@ final class Commit extends Model
      */
     protected $attributes = [
         'pasteis_count' => 0,
+        'views_count' => 0,
     ];
 
     /**
@@ -123,6 +125,7 @@ final class Commit extends Model
             'root_id' => 'string',
             'hot_score' => 'float',
             'pasteis_count' => 'integer',
+            'views_count' => 'integer',
             'body' => 'string',
             'mentions' => 'array',
             'organization_mentions' => 'array',

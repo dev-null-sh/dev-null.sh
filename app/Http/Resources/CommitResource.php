@@ -25,9 +25,10 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * it also has preview_segments, the excerpt a list shows of a long commit, the poll, with what the user may see of
  * its votes, and the commit it quotes, or null once the user may no longer see that one, while quoted_commit_id still
  * says it quoted something. In a list, reply_preview is the newest reply or quote the web shows under it. As on the
- * web, the counts, link_preview, images, starred, parent, poll, quoted_commit and reply_preview are only
- * there when they were loaded, so ancestors and the commits of notifications come without some of them. The images of
- * a commit that isn't published yet have temporary URLs, since the app has no web session to load them with.
+ * web, the star and reply counts, link_preview, images, starred, parent, poll, quoted_commit and reply_preview are only
+ * there when they were loaded, so ancestors and the commits of notifications come without some of them. The view count
+ * is always included. The images of a commit that isn't published yet have temporary URLs, since the app has no web
+ * session to load them with.
  *
  * A deleted commit that still has replies stays in its thread as a tombstone: its id, parent_id, deleted_at and
  * replies_count, but never its author or body. Only signed requests are ever sent one.
@@ -61,6 +62,7 @@ final class CommitResource extends JsonResource
             'created_at' => $this->created_at->toIso8601ZuluString(),
             'stars_count' => $this->whenCounted('stars'),
             'replies_count' => $this->whenCounted('replies'),
+            'views_count' => $this->views_count,
             'link_preview' => $this->whenLoaded('linkPreview'),
             'images' => $this->whenLoaded('images', fn (): mixed => $this->status === CommitStatus::Approved || ! $this->imagesAreVisibleTo($request->user())
                 ? $this->images
