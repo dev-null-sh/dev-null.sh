@@ -1,7 +1,8 @@
 export class PickedImageError extends Error {}
 
 export const maxImages = 3;
-export const maxImageBytes = 10 * 1024 * 1024;
+// The server's File::max('10mb') allows 10,000 kilobytes.
+export const maxImageBytes = 10_000 * 1024;
 export const acceptedImageTypes = ['image/jpeg', 'image/png', 'image/webp'];
 export const invalidImageMessage =
     'Only JPEG, PNG, WebP, or HEIC images up to 50 MB.';
@@ -10,7 +11,7 @@ export const invalidImageMessage =
 const maxReadBytes = 50 * 1024 * 1024;
 
 // The server keeps at most 1,600 pixels per side, so a converted image loses
-// nothing it would keep and stays under maxImageBytes as WebP or PNG.
+// nothing it would keep, and a photo that size is a fraction of maxImageBytes.
 const maxConvertedDimension = 1600;
 
 const isHeic = (file: File): boolean =>
@@ -101,7 +102,7 @@ async function readPickedImage(file: File): Promise<File> {
 
     const copy = new File(chunks, file.name, { type: file.type });
 
-    return isHeic(copy) || bytes > maxImageBytes ? convert(copy) : copy;
+    return needsConversion(copy) ? convert(copy) : copy;
 }
 
 export async function readPickedImages(

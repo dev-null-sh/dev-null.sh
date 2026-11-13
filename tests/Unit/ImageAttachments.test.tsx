@@ -482,7 +482,7 @@ test('releases report previews on unmount but survives Strict Mode effect replay
     }
 });
 
-test('converts dropped and pasted HEIC photos and large images while others attach at once', async () => {
+test('reads a drop or paste with a HEIC photo or a large image in order, one read at a time', async () => {
     const bitmap = stubImageCodecs();
     const heicTo = vi.fn(() => Promise.resolve(bitmap));
     vi.doMock('heic-to', () => ({ heicTo }));
@@ -491,8 +491,8 @@ test('converts dropped and pasted HEIC photos and large images while others atta
         images: [],
         descriptions: [],
     };
-    const small = new File(['small'], 'small.png', { type: 'image/png' });
     const heic = new File(['heic'], 'IMG_0001.HEIC', { type: 'image/heic' });
+    const small = new File(['small'], 'small.png', { type: 'image/png' });
     const large = new File(
         [new Uint8Array(10 * 1024 * 1024 + 1)],
         'large.jpg',
@@ -501,12 +501,15 @@ test('converts dropped and pasted HEIC photos and large images while others atta
 
     try {
         render(draft).dropzone.onDrop(dropped([heic, small]));
-        assert.deepEqual(
-            draft.images.map((image) => image.name),
-            ['small.png'],
-        );
+        assert.deepEqual(draft.images, []);
         assert.equal(isReadingImages(draft.key), true);
-        render(draft);
+
+        render(draft).dropzone.onDrop(
+            dropped([
+                new File(['heic'], 'IMG_0002.HEIC', { type: 'image/heic' }),
+            ]),
+        );
+        assert.match(render(draft).error!, /Still adding images/);
         await vi.waitFor(() => assert.equal(isReadingImages(draft.key), false));
 
         render(draft).onPaste({
@@ -519,8 +522,8 @@ test('converts dropped and pasted HEIC photos and large images while others atta
         assert.deepEqual(
             draft.images.map(({ name, type }) => [name, type]),
             [
-                ['small.png', 'image/png'],
                 ['IMG_0001.webp', 'image/webp'],
+                ['small.png', 'image/png'],
                 ['large.webp', 'image/webp'],
             ],
         );

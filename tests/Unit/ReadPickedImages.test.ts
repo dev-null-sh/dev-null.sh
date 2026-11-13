@@ -9,12 +9,18 @@ function stubImageCodecs({
 } = {}) {
     const decoded: number[] = [];
     const canvases: { width: number; height: number }[] = [];
+    const drawn: unknown[][] = [];
+    const closed: number[] = [];
 
     Object.assign(globalThis, {
         createImageBitmap: (image: Blob) => {
             decoded.push(image.size);
 
-            return Promise.resolve({ width, height, close: () => {} });
+            return Promise.resolve({
+                width,
+                height,
+                close: () => closed.push(image.size),
+            });
         },
         OffscreenCanvas: class {
             width: number;
@@ -27,7 +33,10 @@ function stubImageCodecs({
             }
 
             getContext() {
-                return { drawImage: () => {} };
+                return {
+                    drawImage: (_image: unknown, ...target: unknown[]) =>
+                        drawn.push(target),
+                };
             }
 
             convertToBlob() {
@@ -38,7 +47,7 @@ function stubImageCodecs({
         },
     });
 
-    return { decoded, canvases };
+    return { decoded, canvases, drawn, closed };
 }
 
 afterEach(() => {
@@ -136,17 +145,19 @@ void test('stops reading providers once successful copies fill capacity', async 
     assert.match((errors[0] as Error).message, /Up to 3/);
 });
 
-void test('converts HEIC photos and images over 10 MB to the size the server keeps', async () => {
-    const { decoded, canvases } = stubImageCodecs();
+void test('converts HEIC photos and images over the server limit to the size it keeps', async () => {
+    const { decoded, canvases, drawn, closed } = stubImageCodecs();
     const heic = new File(['heic'], 'IMG_0001.HEIC', { type: 'image/heic' });
-    const large = new File(
-        [new Uint8Array(10 * 1024 * 1024 + 1)],
+    const over = new File(
+        [new Uint8Array(10_000 * 1024 + 1)],
         'screenshot.png',
         { type: 'image/png' },
     );
-    const small = new File(['small'], 'small.jpg', { type: 'image/jpeg' });
+    const atLimit = new File([new Uint8Array(10_000 * 1024)], 'at-limit.jpg', {
+        type: 'image/jpeg',
+    });
 
-    const { images, errors } = await readPickedImages([heic, large, small]);
+    const { images, errors } = await readPickedImages([heic, over, atLimit]);
 
     assert.deepEqual(errors, []);
     assert.deepEqual(
@@ -154,15 +165,20 @@ void test('converts HEIC photos and images over 10 MB to the size the server kee
         [
             ['IMG_0001.webp', 'image/webp'],
             ['screenshot.webp', 'image/webp'],
-            ['small.jpg', 'image/jpeg'],
+            ['at-limit.jpg', 'image/jpeg'],
         ],
     );
-    assert.deepEqual(decoded, [4, 10 * 1024 * 1024 + 1]);
+    assert.deepEqual(decoded, [4, 10_000 * 1024 + 1]);
     assert.deepEqual(canvases, [
         { width: 1600, height: 1200 },
         { width: 1600, height: 1200 },
     ]);
-    assert.equal(await images[2].text(), 'small');
+    assert.deepEqual(drawn, [
+        [0, 0, 1600, 1200],
+        [0, 0, 1600, 1200],
+    ]);
+    assert.deepEqual(closed, decoded);
+    assert.equal(images[2].size, 10_000 * 1024);
 });
 
 void test('recognizes a HEIC photo by its extension when it has no type', async () => {

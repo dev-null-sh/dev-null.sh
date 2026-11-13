@@ -98,11 +98,19 @@ export function useImageAttachments(
         });
     };
 
-    // Dropped and pasted images are attached at once, except HEIC photos and
-    // images over 10 MB, which are read and converted like picked ones.
+    // Dropped and pasted images attach at once, unless one of them is a HEIC
+    // photo or over the size limit: then all of them go through the reader that
+    // picked images use, which converts those, one read at a time.
     const add = (files: File[]) => {
-        void pick(files.filter(needsConversion));
-        attach(files.filter((file) => !needsConversion(file)));
+        if (disabled) return;
+
+        if (!files.some(needsConversion)) {
+            attach(files);
+        } else if (isReadingImages(draftKey)) {
+            setError('Still adding images. Try again once they appear.');
+        } else {
+            void pick(files);
+        }
     };
 
     return {
