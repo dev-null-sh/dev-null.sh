@@ -91,6 +91,11 @@ final readonly class NullGitHubProvider implements GitHubProvider
         return null;
     }
 
+    public function pullRequestDescription(string $repository, int $number): ?string
+    {
+        return null;
+    }
+
     public function createIssue(string $title, string $body, array $labels): array
     {
         $repository = config('services.github.repository');

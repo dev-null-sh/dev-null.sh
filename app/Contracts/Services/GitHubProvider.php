@@ -126,6 +126,11 @@ interface GitHubProvider
     public function issue(string $repository, int $number): ?array;
 
     /**
+     * The description of the pull request with the number, null when it has none or there is no such pull request.
+     */
+    public function pullRequestDescription(string $repository, int $number): ?string;
+
+    /**
      * Creates an issue on this repository, as the GitHub App installed on it.
      *
      * @param  list<string>  $labels

@@ -23,4 +23,33 @@ final readonly class PullRequestTitles
 
         return ['type' => null, 'breaking' => false, 'title' => $title];
     }
+
+    /**
+     * The title of a commit on production and the number of the pull request it came from. A squashed pull request
+     * ends its subject with "(#123)". A merge commit carries the title of its pull request on the line after its
+     * subject, and a merge with no title, such as "Merge branch 'main'", has none.
+     *
+     * @return array{title: string, pull_request: int|null}|null
+     */
+    public function ofCommit(string $message, int $parents): ?array
+    {
+        $lines = array_values(array_filter(array_map(trim(...), explode("\n", $message)), fn (string $line): bool => $line !== ''));
+        $subject = $lines[0] ?? '';
+
+        if ($parents > 1) {
+            if (! isset($lines[1])) {
+                return null;
+            }
+
+            preg_match('/^Merge pull request #(\d+)/', $subject, $matches);
+
+            return ['title' => $lines[1], 'pull_request' => isset($matches[1]) ? (int) $matches[1] : null];
+        }
+
+        if (preg_match('/^(.+) \(#(\d+)\)$/', $subject, $matches) === 1) {
+            return ['title' => $matches[1], 'pull_request' => (int) $matches[2]];
+        }
+
+        return ['title' => $subject, 'pull_request' => null];
+    }
 }

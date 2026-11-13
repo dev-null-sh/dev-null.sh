@@ -29,6 +29,7 @@ it('knows nobody and holds nothing', function (): void {
         ->and($provider->commits('dev-null-sh/dev-null.sh', 'production', 1, 100))->toBe([])
         ->and($provider->contributors('dev-null-sh/dev-null.sh', 1, 100))->toBe([])
         ->and($provider->issue('dev-null-sh/dev-null.sh', 1))->toBeNull()
+        ->and($provider->pullRequestDescription('dev-null-sh/dev-null.sh', 1))->toBeNull()
         ->and($provider->createIssue('Broken', 'Broken.', ['bug']))->toBe(['number' => 0, 'url' => 'https://github.com/dev-null-sh/dev-null.sh/issues'])
         ->and($provider->searchIssues('repo:dev-null-sh/dev-null.sh', 10, 'updated'))->toBe($noResults)
         ->and($provider->searchCommits('repo:dev-null-sh/dev-null.sh', 5))->toBe($noResults)

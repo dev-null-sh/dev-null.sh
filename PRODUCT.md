@@ -41,7 +41,7 @@ What exists, one line each (details in the knowledge base):
 - **Search:** developers by name, commits by meaning.
 - **Emails:** an occasional update the admins write to everyone, or to a filtered audience, with one-click unsubscribe. Never per-activity notifications.
 - **Safety:** mute, block, reports, and moderation.
-- **Bots:** Tom answers questions about /dev/null from the knowledge base, the public repository, and aggregate community statistics; World answers "hello world". They use @tom and @world until those GitHub owners sign in, then keep working as @devnull-tom and @devnull-world.
+- **Bots:** Tom answers questions about /dev/null from the knowledge base, the public repository, and aggregate community statistics, and posts a plain-words explanation of every commit that lands on `production`; World answers "hello world". They use @tom and @world until those GitHub owners sign in, then keep working as @devnull-tom and @devnull-world.
 - **Data:** JSON export and account deletion.
 
 Rules every feature must keep:
