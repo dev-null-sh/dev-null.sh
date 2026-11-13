@@ -42,12 +42,12 @@ export function UserModerationHistory({
                 ref={triggerRef}
                 type="button"
                 variant="ghost"
-                className="mt-3 h-auto min-h-8 justify-start gap-2 px-2 py-1.5 text-sm text-muted-foreground"
+                className="mt-3 h-auto min-h-8 justify-start gap-1.5 px-0 py-1.5 text-sm font-normal text-muted-foreground"
                 onClick={() => setOpen(true)}
                 aria-label="View moderation history"
                 data-test="moderation-history-trigger"
             >
-                <Gavel className="size-4" aria-hidden />
+                <Gavel className="size-5" aria-hidden />
                 <span>
                     {timeoutLabel} · {banLabel}
                 </span>
@@ -63,8 +63,8 @@ export function UserModerationHistory({
                 >
                     <DialogTitle>Moderation history</DialogTitle>
                     <DialogDescription>
-                        Only you can see this record of timeouts and bans on
-                        your account.
+                        This record of timeouts and bans is visible to you and
+                        site moderators.
                     </DialogDescription>
 
                     <div className="-mx-1 mt-2 divide-y rounded-md border px-3">
