@@ -515,7 +515,7 @@ export default function Show({
                         );
                     })}
                 </dl>
-                {isCurrentUser && moderationHistory && (
+                {moderationHistory && (isCurrentUser || moderation) && (
                     <UserModerationHistory history={moderationHistory} />
                 )}
                 {followersYouKnow && (

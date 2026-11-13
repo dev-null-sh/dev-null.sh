@@ -63,6 +63,7 @@ final readonly class UserController
         // viewer's relationship to them on the viewer's own.
         $profile = new Channel('profiles.'.$user->id);
         $relationship = fn (Closure $value): Closure|LiveProp => $currentUser instanceof User ? Inertia::live($value, UserUpdate::Account->value, new PrivateChannel($currentUser)) : $value;
+        $canSeeModerationHistory = $currentUser instanceof User && ($currentUser->is($user) || ($currentUser->isAdmin() && ! $user->isAdmin()));
 
         return Inertia::render('user/show', [
             'user' => Inertia::live(fn (): ?array => ShownStreams::user($getCountedUser()), 'profile', $profile),
@@ -83,9 +84,11 @@ final readonly class UserController
             'moderation' => $currentUser?->isAdmin() === true && ! $user->isAdmin()
                 ? fn (): array => $moderation->get([$user])[$user->id]
                 : null,
-            'moderationHistory' => $currentUser instanceof User
-                ? Inertia::live(fn (): ?array => $currentUser->is($user) ? $moderation->history($user) : null, UserUpdate::Account->value, new PrivateChannel($currentUser))
-                : fn (): null => null,
+            'moderationHistory' => match (true) {
+                $currentUser instanceof User && $currentUser->is($user) => Inertia::live(fn (): array => $moderation->history($user), UserUpdate::Account->value, new PrivateChannel($currentUser)),
+                $canSeeModerationHistory => fn (): array => $moderation->history($user),
+                default => fn (): null => null,
+            },
             'tab' => $request->tab(...),
             'pinnedCommit' => Inertia::live(fn (): ?array => ShownStreams::commit($request->tab() === 'commits' ? $pinned->get($user, $currentUser) : null), 'profile', $profile),
             'readme' => fn (): string|false|null => $request->tab() === 'readme' ? $readme->get($user) : null,
