@@ -76,9 +76,11 @@ it('may not be given by someone who is not an admin, nor to an admin', function 
     User::factory()->create(['handle' => 'admin']);
     User::factory()->create(['handle' => 'other-admin']);
     User::factory()->create(['handle' => 'someone']);
+    User::factory()->create(['handle' => 'maude']);
     User::factory()->create(['handle' => 'octocat']);
 
     config(['app.admins' => ['admin', 'other-admin']]);
+    config(['app.moderators' => ['maude']]);
 
     $this->actingAs(User::query()->whereRelation('profile', 'handle', $actor)->sole())
         ->post(route('user-timeout.store', ['user' => $target]), ['reason' => 'spam', 'duration' => 60])
@@ -89,6 +91,7 @@ it('may not be given by someone who is not an admin, nor to an admin', function 
     expect(UserTimeout::query()->count())->toBe(0);
 })->with([
     'by a user' => ['someone', 'octocat'],
+    'by a moderator' => ['maude', 'octocat'],
     'to another admin' => ['admin', 'other-admin'],
     'to themselves' => ['admin', 'admin'],
 ]);
