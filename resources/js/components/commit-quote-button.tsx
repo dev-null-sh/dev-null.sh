@@ -343,7 +343,8 @@ function QuoteComposer({
                                 message={
                                     errors.body ??
                                     errors.link_preview_url ??
-                                    errors.quoted_commit_id
+                                    errors.quoted_commit_id ??
+                                    errors.author
                                 }
                             />
 
