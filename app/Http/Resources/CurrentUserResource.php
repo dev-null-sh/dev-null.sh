@@ -4,11 +4,9 @@ declare(strict_types=1);
 
 namespace App\Http\Resources;
 
-use App\Enums\Feature;
 use App\Models\Organization;
 use App\Models\User;
 use App\Queries\ConversationsQuery;
-use App\Services\Features;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -18,8 +16,8 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * their profile was last mirrored from GitHub. The version of the terms in force, when they accepted, and whether it
  * was this version, so the app knows to ask. Their Remotes are `null` while turned off, as the web hides them, and
  * otherwise say who can push to them, whether they share pulls, what the site lets them choose, and the unread count
- * the web's nav shows. The organizations they are a member of, with their role in each, oldest membership first, and
- * whether posting as one is switched on, which the web's Post as menu needs.
+ * the web's nav shows. The organizations they are a member of, with their role in each, oldest membership first, which
+ * the web's Post as menu needs.
  *
  * @mixin User
  */
@@ -63,7 +61,6 @@ final class CurrentUserResource extends JsonResource
                     ...OrganizationResource::make($organization)->toArray($request),
                 ])
                 ->all(),
-            'can_post_as_organization' => resolve(Features::class)->enabled(Feature::OrganizationCommits),
         ];
     }
 }
