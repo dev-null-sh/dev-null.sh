@@ -3,10 +3,15 @@ import type { Commit } from '@/types';
 export class CommitSearchResults {
     term: string;
     commits: Commit[];
+    /**
+     * Whether the search itself was down, so the page can say so instead of claiming nothing matched.
+     */
+    isUnavailable: boolean;
 
-    constructor(term: string, commits: Commit[]) {
+    constructor(term: string, commits: Commit[], isUnavailable = false) {
         this.term = term;
         this.commits = commits;
+        this.isUnavailable = isUnavailable;
     }
 
     latest(now = Date.now()): CommitSearchResults {
@@ -20,6 +25,7 @@ export class CommitSearchResults {
                     (a, b) =>
                         Date.parse(b.created_at) - Date.parse(a.created_at),
                 ),
+            this.isUnavailable,
         );
     }
 }

@@ -32,7 +32,11 @@ import {
 } from '@/hooks/use-recent-searches';
 import { signIn } from '@/lib/auth';
 import { searchCandidates } from '@/lib/chat';
-import { searchCommits, TooManySearches } from '@/lib/commit-search';
+import {
+    SearchUnavailable,
+    searchCommits,
+    TooManySearches,
+} from '@/lib/commit-search';
 import { useKeyLabels } from '@/lib/keyboard';
 import type { SearchAction } from '@/lib/search-actions';
 import { searchActions } from '@/lib/search-actions';
@@ -59,7 +63,12 @@ const commitDebounce = 350;
 
 const commitLimit = 5;
 
-type Found<T> = { term: string; items: T[]; throttled?: boolean };
+type Found<T> = {
+    term: string;
+    items: T[];
+    throttled?: boolean;
+    unavailable?: boolean;
+};
 
 type Option =
     | { kind: 'action'; id: string; action: SearchAction }
@@ -160,6 +169,7 @@ export function SearchDialog({
     const isThrottled =
         developers.isThrottled(developerTerm) ||
         commits.isThrottled(commitTerm);
+    const isCommitSearchDown = commits.isUnavailable(commitTerm);
     const foundNothing =
         !isEmpty &&
         !isAwaitingDeveloperName &&
@@ -183,10 +193,26 @@ export function SearchDialog({
             : [...recentOptions, ...topicOptions];
 
     useEffect(() => {
-        if (open && !isPicking && hasSearched && !isLoading && !isThrottled) {
+        if (
+            open &&
+            !isPicking &&
+            hasSearched &&
+            !isLoading &&
+            !isThrottled &&
+            !isCommitSearchDown
+        ) {
             rememberSearch(userId, term);
         }
-    }, [open, isPicking, hasSearched, isLoading, isThrottled, userId, term]);
+    }, [
+        open,
+        isPicking,
+        hasSearched,
+        isLoading,
+        isThrottled,
+        isCommitSearchDown,
+        userId,
+        term,
+    ]);
 
     const type = (value: string) => {
         setQuery(value);
@@ -333,6 +359,13 @@ export function SearchDialog({
                         >
                             error: too many searches, give it a few seconds
                         </p>
+                    ) : isCommitSearchDown ? (
+                        <p
+                            role="status"
+                            className="truncate px-5 pt-4 font-mono text-[13px] text-muted-foreground"
+                        >
+                            error: commit search is down, try again in a moment
+                        </p>
                     ) : (
                         foundNothing && (
                             <p
@@ -472,6 +505,7 @@ function useDebouncedSearch<T>(
                         term,
                         items: [],
                         throttled: error instanceof TooManySearches,
+                        unavailable: error instanceof SearchUnavailable,
                     });
                 })
                 .finally(() => {
@@ -499,6 +533,10 @@ function useDebouncedSearch<T>(
             current !== '' &&
             current === found.term &&
             found.throttled === true,
+        isUnavailable: (current: string) =>
+            current !== '' &&
+            current === found.term &&
+            found.unavailable === true,
     };
 }
 
