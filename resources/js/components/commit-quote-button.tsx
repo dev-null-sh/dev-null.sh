@@ -4,7 +4,7 @@ import type { KeyboardEvent } from 'react';
 import { useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import { ActionTooltip } from '@/components/action-tooltip';
-import { AuthorSwitcher } from '@/components/author-switcher';
+import { AuthorSwitcher, useAuthor } from '@/components/author-switcher';
 import { BodyCounter } from '@/components/body-counter';
 import {
     ImageDropOverlay,
@@ -50,7 +50,7 @@ import {
 } from '@/lib/commit';
 import { hasModKey, useKeyLabels } from '@/lib/keyboard';
 import { characterCount, cn, isRejectedSubmission } from '@/lib/utils';
-import type { Commit, OrganizationAuthor } from '@/types';
+import type { Commit } from '@/types';
 
 export function CommitQuoteButton({
     commit,
@@ -125,13 +125,7 @@ function QuoteComposer({
     onClose: () => void;
 }) {
     const { user } = useUser();
-    const { auth } = usePage().props;
-    const [picked, setAuthor] = useState<OrganizationAuthor | null>(null);
-    // Removed from the organization since picking it, they post as themselves again.
-    const author =
-        auth.organizations.find(
-            (organization) => organization.id === picked?.id,
-        ) ?? null;
+    const { author, picked, setAuthor } = useAuthor();
     const markCommitDeleted = useMarkCommitDeleted();
     const id = `quote-${commit.id}`;
     const {
