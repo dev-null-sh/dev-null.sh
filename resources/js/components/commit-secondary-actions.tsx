@@ -28,6 +28,7 @@ import { useCopyLink } from '@/components/copy-link-button';
 import {
     followVisitOptions,
     onFollowHttpException,
+    prepareFollowingUpdate,
     useIsFollowing,
 } from '@/components/follow-button';
 import { useOrganizationFollow } from '@/components/organization-follow-button';
@@ -66,6 +67,7 @@ import {
 } from '@/components/user-safety-menu';
 import { signIn } from '@/lib/auth';
 import { sendMessage } from '@/lib/chat';
+import { toastWhenThrottled } from '@/lib/throttle';
 import { cn } from '@/lib/utils';
 import type {
     Commit,
@@ -524,7 +526,8 @@ function CommitAuthorItems({
 
 /**
  * Commits don't say whether you follow the organization they are from, so the item asks once the menu opens, and waits
- * for the answer before offering to follow or unfollow it.
+ * for the answer before offering to follow or unfollow it. The answer updates every follow control for the organization,
+ * unless a follow was clicked while it was out. A failed read leaves the item disabled, and reopening the menu asks again.
  */
 function CommitOrganizationItems({
     organization,
@@ -536,16 +539,15 @@ function CommitOrganizationItems({
         props: { auth, log, commits },
     } = usePage<{ commits?: CursorPaginated<Commit> }>();
     const isSignedIn = auth.user !== null;
-    const [initialIsFollowing, setInitialIsFollowing] = useState<
-        boolean | null
-    >(null);
-    const isLoading = isSignedIn && initialIsFollowing === null;
+    const [isLoaded, setIsLoaded] = useState(false);
+    const isLoading = isSignedIn && !isLoaded;
     const { isFollowing, toggle } = useOrganizationFollow(
         organization,
-        initialIsFollowing ?? false,
+        false,
         followVisitOptions(component, log, commits),
     );
 
+    const { id } = organization;
     const url = OrganizationFollowController.show(organization).url;
 
     useEffect(() => {
@@ -553,18 +555,36 @@ function CommitOrganizationItems({
             return;
         }
 
-        fetch(url, {
-            headers: {
-                Accept: 'application/json',
-                'X-Requested-With': 'XMLHttpRequest',
-            },
-        })
-            .then((response) => response.json())
-            .then(({ isFollowing }: { isFollowing: boolean }) =>
-                setInitialIsFollowing(isFollowing),
-            )
-            .catch(() => undefined);
-    }, [url, isSignedIn]);
+        const load = () => {
+            const update = prepareFollowingUpdate({ id }, load);
+
+            fetch(url, {
+                headers: {
+                    Accept: 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            })
+                .then(async (response) => {
+                    if (!response.ok) {
+                        toastWhenThrottled(response);
+
+                        return;
+                    }
+
+                    const { isFollowing } = (await response.json()) as {
+                        isFollowing: unknown;
+                    };
+
+                    if (typeof isFollowing === 'boolean') {
+                        update(isFollowing);
+                        setIsLoaded(true);
+                    }
+                })
+                .catch(() => undefined);
+        };
+
+        load();
+    }, [id, url, isSignedIn]);
 
     return (
         <DropdownMenuItem
