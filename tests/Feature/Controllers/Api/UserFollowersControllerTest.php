@@ -12,6 +12,21 @@ it('lists the followers of a user only to signed requests, like the web to membe
     $this->getJson('/api/v1/users/octocat/followers')->assertUnauthorized();
 });
 
+it("links the profiles each follower's bio mentions, as their profile does", function (): void {
+    $user = User::factory()->create();
+    User::factory()->create(['handle' => 'TaylorOtwell']);
+    $linked = User::factory()->create(['bio' => 'Thanks @taylorotwell']);
+    $plain = User::factory()->create(['bio' => 'Ships on Fridays.', 'company' => null]);
+    $user->followers()->attach($linked, ['created_at' => now()->subMinute()]);
+    $user->followers()->attach($plain);
+
+    $response = signedApiRequest(apiKeyPairFor(User::factory()->create()), 'GET', route('api-user-followers.index', $user))
+        ->assertOk()
+        ->assertJsonPath('data.1.bio_profiles', ['taylorotwell' => 'TaylorOtwell']);
+
+    expect(json_decode($response->getContent(), flags: JSON_THROW_ON_ERROR)->data[0]->bio_profiles)->toEqual(new stdClass());
+});
+
 it('lists the followers of a user, newest follow first', function (): void {
     $user = User::factory()->create(['handle' => 'octocat']);
     $earlier = User::factory()->create(['bio' => 'Ships on Fridays.']);
@@ -101,10 +116,11 @@ it('loads a page of followers without a query per follower', function (): void {
     // The first signed request also syncs the user's keys with GitHub...
     $queries();
 
-    $user->followers()->attach(User::factory()->create());
+    User::factory()->create(['handle' => 'taylorotwell']);
+    $user->followers()->attach(User::factory()->create(['bio' => 'Thanks @taylorotwell']));
     $withOne = $queries();
 
-    $user->followers()->attach(User::factory()->count(5)->create());
+    $user->followers()->attach(User::factory()->count(5)->create(['bio' => 'Thanks @taylorotwell']));
 
     expect($queries())->toBe($withOne);
 });
