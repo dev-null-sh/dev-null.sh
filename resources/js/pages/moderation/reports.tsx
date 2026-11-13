@@ -326,17 +326,24 @@ export default function Reports({
                                             </Button>
                                             {report.commit.escalated_at !=
                                             null ? (
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    onClick={() =>
-                                                        undoEscalate(report)
-                                                    }
-                                                    data-test="undo-escalation-button"
-                                                >
-                                                    <Undo2 />
-                                                    Undo escalation
-                                                </Button>
+                                                auth.isAdmin ? (
+                                                    <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                                                        <Flag className="size-3.5" />
+                                                        Escalated
+                                                    </span>
+                                                ) : (
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() =>
+                                                            undoEscalate(report)
+                                                        }
+                                                        data-test="undo-escalation-button"
+                                                    >
+                                                        <Undo2 />
+                                                        Undo escalation
+                                                    </Button>
+                                                )
                                             ) : (
                                                 !auth.isAdmin && (
                                                     <Button

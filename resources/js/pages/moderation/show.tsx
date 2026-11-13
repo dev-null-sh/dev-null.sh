@@ -126,16 +126,32 @@ function ModerationActions({
                     Reject
                     <Keycap label="x" className="bg-muted" />
                 </Button>
-                {commit.escalated_at != null ? (
+                {!showReason && (
                     <Button
-                        variant="outline"
+                        variant="ghost"
                         size="sm"
-                        onClick={onUndoEscalate}
-                        data-test="undo-escalation-button"
+                        onClick={() => setShowReason(true)}
                     >
-                        <Undo2 />
-                        Undo escalation
+                        Add reason
                     </Button>
+                )}
+                {commit.escalated_at != null ? (
+                    auth.isAdmin ? (
+                        <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                            <Flag className="size-3.5" />
+                            Escalated
+                        </span>
+                    ) : (
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={onUndoEscalate}
+                            data-test="undo-escalation-button"
+                        >
+                            <Undo2 />
+                            Undo escalation
+                        </Button>
+                    )
                 ) : (
                     !auth.isAdmin && (
                         <Button
@@ -149,15 +165,6 @@ function ModerationActions({
                             Escalate to admin
                         </Button>
                     )
-                )}
-                {!showReason && (
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setShowReason(true)}
-                    >
-                        Add reason
-                    </Button>
                 )}
             </div>
             {showReason && (
