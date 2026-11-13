@@ -30,11 +30,14 @@ export type UseStashReturn = {
 const listeners = new Set<() => void>();
 const pending = new Map<string, string>();
 const images = new Map<string, StoredImages>();
+const pendingImageWrites = new Map<string, StoredImages>();
+const clearedImagePrefixes = new Set<string>();
 const restoredImageKeys = new Set<string>();
 const noImages: StoredImages = { images: [], descriptions: [] };
 let timeout: ReturnType<typeof setTimeout> | undefined;
 let isListeningForPageHide = false;
 let isLoadingImages = false;
+let imageStorageRestored = false;
 
 const prefixFor = (userId: string): string => `stash:${userId}:`;
 
@@ -75,7 +78,20 @@ const loadImages = (): void => {
     isLoadingImages = true;
 
     void readStoredImages().then((stored) => {
+        if (stored === null) {
+            isLoadingImages = false;
+
+            return;
+        }
+
+        imageStorageRestored = true;
         stored.forEach((draft, key) => {
+            if (
+                [...clearedImagePrefixes].some((prefix) => key.startsWith(prefix))
+            ) {
+                return;
+            }
+
             const restored = draft.images
                 .map((file, index) => ({
                     file,
@@ -84,7 +100,26 @@ const loadImages = (): void => {
                 .filter(({ file }) => pickImages([], [file]).images.length > 0)
                 .slice(0, maxImages);
 
-            if (!images.has(key) && restored.length > 0) {
+            const pending = pendingImageWrites.get(key);
+
+            if (pending && pending.images.length > 0) {
+                // Edits made before the read completed are additions to the unseen draft.
+                const combined = [
+                    ...restored,
+                    ...pending.images.map((file, index) => ({
+                        file,
+                        description: pending.descriptions[index] ?? '',
+                    })),
+                ].slice(0, maxImages);
+                const merged = {
+                    images: combined.map((entry) => entry.file),
+                    descriptions: combined.map((entry) => entry.description),
+                };
+
+                images.set(key, merged);
+                pendingImageWrites.set(key, merged);
+                restoredImageKeys.add(key);
+            } else if (!images.has(key) && restored.length > 0) {
                 images.set(key, {
                     images: restored.map((entry) => entry.file),
                     descriptions: restored.map((entry) => entry.description),
@@ -93,7 +128,15 @@ const loadImages = (): void => {
             }
         });
 
+        pendingImageWrites.forEach((draft, key) => {
+            writeStoredImages(key, draft.images, draft.descriptions);
+        });
+        pendingImageWrites.clear();
+        isLoadingImages = false;
+
         notify();
+    }).catch(() => {
+        isLoadingImages = false;
     });
 };
 
@@ -132,12 +175,27 @@ const storeImages = (
     key: string,
     next: File[],
     descriptions: string[] = [],
+    discard = false,
 ): void => {
     if (next.length === 0) {
         restoredImageKeys.delete(key);
     }
 
-    if (next.length === 0 && images.get(key)?.images.length === 0) {
+    if (!imageStorageRestored && next.length === 0 && !discard) {
+        revokeObjectUrls(imagesFor(key).images);
+        images.delete(key);
+        pendingImageWrites.delete(key);
+        loadImages();
+        notify();
+
+        return;
+    }
+
+    if (
+        !discard &&
+        next.length === 0 &&
+        images.get(key)?.images.length === 0
+    ) {
         return;
     }
 
@@ -147,7 +205,15 @@ const storeImages = (
 
     const nextDescriptions = next.map((_, index) => descriptions[index] ?? '');
     images.set(key, { images: next, descriptions: nextDescriptions });
-    writeStoredImages(key, next, nextDescriptions);
+    if (imageStorageRestored) {
+        writeStoredImages(key, next, nextDescriptions);
+    } else {
+        pendingImageWrites.set(key, {
+            images: next,
+            descriptions: nextDescriptions,
+        });
+        loadImages();
+    }
     notify();
 };
 
@@ -171,6 +237,10 @@ export function discardSeriesStash(userId: string): void {
 
 export function clearStashes(userId: string): void {
     const prefix = prefixFor(userId);
+    clearedImagePrefixes.add(prefix);
+    [...pendingImageWrites.keys()]
+        .filter((key) => key.startsWith(prefix))
+        .forEach((key) => pendingImageWrites.delete(key));
     cancelImageReads(prefix);
 
     [...pending.keys(), ...storedKeys()]
@@ -253,7 +323,7 @@ export function useStash(userId: string, name: string): UseStashReturn {
         updateExcludedRecipientIds([]);
         setIsDraftRestored(false);
         discardBody(key);
-        storeImages(key, []);
+        storeImages(key, [], [], true);
     };
 
     return {
