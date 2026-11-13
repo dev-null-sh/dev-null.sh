@@ -409,7 +409,7 @@ Route::middleware('auth')->group(function (): void {
         ->name('organization-member.index');
     Route::post('organizations/{organization}/settings/members', [OrganizationMemberController::class, 'store'])
         ->whereUuid('organization')
-        ->middleware('throttle:30,1')
+        ->middleware('throttle:30,1,organization-members:')
         ->name('organization-member.store');
     Route::put('organizations/{organization}/settings/members/{member:handle}', [OrganizationMemberController::class, 'update'])
         ->whereUuid('organization')

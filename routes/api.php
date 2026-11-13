@@ -355,7 +355,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         // Organization Members: who belongs to it, and the roles its admins give them...
         Route::get('organizations/{handle}/members', [OrganizationMemberController::class, 'index'])->name('api-organization-member.index');
         Route::post('organizations/{handle}/members', [OrganizationMemberController::class, 'store'])
-            ->middleware('throttle:30,1')
+            ->middleware('throttle:30,1,organization-members:')
             ->name('api-organization-member.store');
         Route::put('organizations/{handle}/members/{member:handle}', [OrganizationMemberController::class, 'update'])->name('api-organization-member.update');
         Route::delete('organizations/{handle}/members/{member:handle}', [OrganizationMemberController::class, 'destroy'])->name('api-organization-member.destroy');

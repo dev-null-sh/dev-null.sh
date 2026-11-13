@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Actions\DeleteOrganizationMember;
 use App\Actions\UpdateOrganizationMemberRole;
 use App\Enums\OrganizationRole;
+use App\Models\Commit;
 use App\Models\Organization;
 use App\Models\User;
 
@@ -107,6 +108,25 @@ it('only lets admins add members', function (): void {
     signedApiRequest(apiKeyPairFor($user), 'POST', route('api-organization-member.store', $user->handle), ['handle' => $user->handle])->assertNotFound();
 
     expect($organization->roleOf($user))->toBeNull();
+});
+
+it('shares the web’s 30 member adds a minute, apart from other limits', function (): void {
+    [$organization, $admin] = apiOrganizationWithAdminAndMember();
+    $keyPair = apiKeyPairFor($admin);
+    $ownCommit = Commit::factory()->for($admin)->create();
+
+    foreach (range(1, 30) as $attempt) {
+        $this->actingAs($admin)->postJson(route('commit-pastel.store', $ownCommit))->assertForbidden();
+    }
+
+    foreach (range(1, 15) as $attempt) {
+        $this->postJson(route('organization-member.store', $organization), ['handle' => ''])->assertUnprocessable();
+        signedApiRequest($keyPair, 'POST', route('api-organization-member.store', 'laravel'), ['handle' => ''])->assertUnprocessable();
+    }
+
+    signedApiRequest($keyPair, 'POST', route('api-organization-member.store', 'laravel'), ['handle' => ''])
+        ->assertTooManyRequests()
+        ->assertJsonPath('code', 'rate_limited');
 });
 
 it('lets admins make a member an admin, and an admin a member again', function (): void {
