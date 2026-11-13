@@ -47,3 +47,18 @@ it('may not approve a commit as a non admin', function (): void {
 
     expect($commit->refresh()->status)->toBe(CommitStatus::Pending);
 });
+
+it('may approve a commit as a moderator', function (): void {
+    config(['app.moderators' => ['maude']]);
+
+    $moderator = User::factory()->create(['handle' => 'maude']);
+    $commit = Commit::factory()->pending()->create();
+
+    $response = $this->actingAs($moderator)
+        ->fromRoute('moderation.show')
+        ->post(route('commit-approval.store', $commit));
+
+    $response->assertRedirectToRoute('moderation.show');
+
+    expect($commit->refresh()->status)->toBe(CommitStatus::Approved);
+});

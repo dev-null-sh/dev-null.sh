@@ -16,4 +16,5 @@ enum NotificationType: string
     case LeveledUp = 'leveled_up';
     case FirstCommit = 'first_commit';
     case TimedOut = 'timed_out';
+    case Escalated = 'escalated';
 }

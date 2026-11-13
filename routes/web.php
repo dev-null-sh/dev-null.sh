@@ -18,6 +18,7 @@ use App\Http\Controllers\CommitApprovalController;
 use App\Http\Controllers\CommitChangeController;
 use App\Http\Controllers\CommitContinuationController;
 use App\Http\Controllers\CommitController;
+use App\Http\Controllers\CommitEscalationController;
 use App\Http\Controllers\CommitImageController;
 use App\Http\Controllers\CommitLinkPreviewController;
 use App\Http\Controllers\CommitOpenGraphImageController;
@@ -609,6 +610,8 @@ Route::middleware('auth')->group(function (): void {
         ->name('commit-approval.store');
     Route::post('moderation/{commit}/rejection', [CommitRejectionController::class, 'store'])
         ->name('commit-rejection.store');
+    Route::post('moderation/{commit}/escalation', [CommitEscalationController::class, 'store'])->name('commit-escalation.store');
+    Route::delete('moderation/{commit}/escalation', [CommitEscalationController::class, 'destroy'])->name('commit-escalation.destroy');
     Route::put('moderation', [ModerationController::class, 'update'])->name('moderation.update');
     Route::get('moderation/people', [ModeratedUserController::class, 'index'])->name('moderated-user.index');
     Route::get('moderation/bulk', [BulkActivityController::class, 'index'])->name('bulk-activity.index');

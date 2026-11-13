@@ -80,10 +80,15 @@ it('serves images of pending commits to their author', function (bool $download)
 
 it('serves images of pending commits to moderators', function (): void {
     config(['app.admins' => ['admin']]);
+    config(['app.moderators' => ['maude']]);
 
     $image = storedCommitImage(Commit::factory()->pending()->create());
 
     $this->actingAs(User::factory()->create(['handle' => 'admin']))
+        ->get(route('commit-image.show', $image))
+        ->assertOk();
+
+    $this->actingAs(User::factory()->create(['handle' => 'maude']))
         ->get(route('commit-image.show', $image))
         ->assertOk();
 });

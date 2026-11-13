@@ -77,6 +77,7 @@ final class CommitResource extends JsonResource
             ...resolve(CommitBodies::class)->segments($this->body),
             'mentions' => resolve(Mentions::class)->positions($this->body, $this->organization_mentions ?? []),
             'status' => $this->status,
+            'escalated_at' => $this->escalated_at?->toIso8601ZuluString(),
             'is_pinned' => $this->author?->user?->pinned_commit_id === $this->id,
             'starred' => $this->whenHas('starred'),
             'pasteis_count' => $this->pasteis_count,

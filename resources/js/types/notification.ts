@@ -79,4 +79,10 @@ export type Notification =
           commit_id: string;
           subject_id: null;
           commit: Omit<Commit, 'author'>;
+      })
+    | (BaseNotification & {
+          type: 'escalated';
+          commit_id: string;
+          subject_id: null;
+          commit: Commit;
       });

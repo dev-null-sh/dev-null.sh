@@ -81,6 +81,7 @@ final class HandleInertiaRequests extends Middleware
     public function share(Request $request): array
     {
         $isAdmin = $request->user()?->isAdmin() ?? false;
+        $canModerate = $request->user()?->canModerate() ?? false;
         $user = $request->user();
         $showsWhoToFollow = $user instanceof User && $request->cookie('who_to_follow') !== 'false';
         $context = match (true) {
@@ -134,6 +135,7 @@ final class HandleInertiaRequests extends Middleware
                     ->map(fn (Organization $organization): array => ['type' => 'organization', ...$organization->toArray()])
                     ->all() : [], UserUpdate::Account),
                 'isAdmin' => $isAdmin,
+                'canModerate' => $canModerate,
                 'automaticTranslation' => $live(fn (): bool => $user->automatic_translation ?? true, UserUpdate::Account),
                 // The language translations are read in, saved or from the browser, so a change saved elsewhere reaches
                 // the translations already shown.
@@ -157,7 +159,7 @@ final class HandleInertiaRequests extends Middleware
             ],
             // Guests see how many developers are here, next to the sign-in button...
             'developersCount' => fn (): ?int => $user instanceof User ? null : resolve(DevelopersCountQuery::class)->get(),
-            'hasUnmoderatedCommits' => $isAdmin ? $live(fn (): bool => Commit::query()->awaitingModerator()->exists(), UserUpdate::Moderation) : false,
+            'hasUnmoderatedCommits' => $canModerate ? $live(fn (): bool => Commit::query()->awaitingModerator()->exists(), UserUpdate::Moderation) : false,
             // The lite mobile app, which draws its own tab bar (see resources/js/lib/lite-mobile-app.ts). Any browser can send this
             // token, so it only ever changes the UI...
             'isLiteMobileApp' => str_contains((string) $request->userAgent(), 'DevNullLite/'),

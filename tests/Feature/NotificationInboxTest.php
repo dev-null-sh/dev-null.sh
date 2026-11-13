@@ -434,6 +434,19 @@ it('keeps moderation decisions independent from conversation groups', function (
             ->where('notifications.data.0.reason', 'Please remove the access token.'));
 });
 
+it('filters escalations into their own inbox tab', function (): void {
+    $user = User::factory()->create();
+    $commit = Commit::factory()->for($user)->create();
+    Notification::factory()->for($user, 'recipient')->for($commit, 'commit')->create([
+        'type' => NotificationType::Escalated,
+    ]);
+    Notification::factory()->for($user, 'recipient')->replied()->create();
+
+    $this->actingAs($user)->get(route('notification.index', ['type' => 'escalations']))
+        ->assertInertia(fn ($page) => $page->has('notifications.data', 1)
+            ->where('notifications.data.0.type', 'escalated')->where('notifications.data.0.event_count', 1));
+});
+
 it('shows timeout notifications with their reason and duration', function (): void {
     $user = User::factory()->create();
 

@@ -41,7 +41,7 @@ final readonly class ModerationController
                 ->oldest()
                 ->oldest('id')
                 ->cursorPaginate(20)
-                ->through($this->forModerators(...)))),
+                ->through($this->forModerators(...))))->matchOn('id'),
             // Of the commits a queue showed, those no longer waiting: decided, deleted or gone.
             'decidedCommitIds' => Inertia::optional(function () use ($request): array {
                 $waiting = Commit::query()->pending()->whereKey($request->loaded())->pluck('id');
