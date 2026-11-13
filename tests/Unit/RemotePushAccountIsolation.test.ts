@@ -59,7 +59,7 @@ for (const cleanup of [false, true]) {
                 setItem: (key: string, value: string) => storage.set(key, value),
                 removeItem: (key: string) => storage.delete(key),
             } },
-            document: { cookie: 'XSRF-TOKEN=fixture' },
+            document: { cookie: 'XSRF-TOKEN=fixture', querySelector: () => null },
             Notification: { permission: 'granted', requestPermission: async () => 'granted' },
             navigator: { locks, serviceWorker: { getRegistration: async () => registration } },
             fetch: async (_url: string, options: RequestInit) => {
@@ -137,7 +137,7 @@ for (const phase of ['native', 'request'] as const) void test(`a stopped passive
             setItem: (key: string, value: string) => storage.set(key, value),
             removeItem: (key: string) => storage.delete(key),
         } }),
-        document: Object.assign(events, { cookie: '' }),
+        document: Object.assign(events, { cookie: '', querySelector: () => null }),
         Notification: { permission: 'granted', requestPermission: async () => 'granted' },
         Audio: class { pause() {} },
         navigator: { locks, serviceWorker: { getRegistration: async () => ({ pushManager: { getSubscription: async () => {
