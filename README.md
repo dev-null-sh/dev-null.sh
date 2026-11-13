@@ -4,7 +4,7 @@
         <a href="https://github.com/dev-null-sh/dev-null.sh/actions"><img alt="GitHub Workflow Status (production)" src="https://img.shields.io/github/actions/workflow/status/dev-null-sh/dev-null.sh/tests.yml?branch=production&label=Tests"></a>
         <a href="https://dev-null.sh"><img alt="Website" src="https://img.shields.io/badge/website-dev--null.sh-ff8a4c"></a>
         <a href="https://github.com/dev-null-sh/dev-null.sh/graphs/contributors"><img alt="Contributors" src="https://img.shields.io/github/contributors/dev-null-sh/dev-null.sh"></a>
-        <a href="composer.json"><img alt="License" src="https://img.shields.io/badge/license-MIT-blue"></a>
+        <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-MIT-blue"></a>
     </p>
 </p>
 
@@ -49,4 +49,4 @@ The database is loopback-only and uses trust authentication and relaxed durabili
 
 ## License
 
-/dev/null is open-sourced software licensed under the **[MIT license](composer.json)**.
+/dev/null is open-sourced software licensed under the **[MIT license](LICENSE)**.
