@@ -29,7 +29,17 @@ final readonly class Features
 
     public function available(Feature $feature, ?User $user): bool
     {
-        return $this->enabled($feature) && (! $this->adminOnly($feature) || ($user?->canModerate() ?? false));
+        if (! $this->enabled($feature)) {
+            return false;
+        }
+
+        if (! $this->adminOnly($feature)) {
+            return true;
+        }
+
+        return $feature === Feature::Guilds
+            ? ($user?->canModerate() ?? false)
+            : ($user?->isAdmin() ?? false);
     }
 
     /** @return list<array{name: string, enabled: bool, admin_only: bool}> */

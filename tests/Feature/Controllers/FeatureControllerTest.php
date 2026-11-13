@@ -114,3 +114,17 @@ it('rejects an invalid audience without changing access', function (): void {
         ->assertUnprocessable()->assertJsonValidationErrors('admin_only');
     $this->assertDatabaseCount('features', 0);
 });
+
+it('keeps other admin-only features restricted to admins', function (): void {
+    config(['app.admins' => ['admin'], 'app.moderators' => ['maude']]);
+    $admin = User::factory()->create(['handle' => 'admin']);
+    $moderator = User::factory()->create(['handle' => 'maude']);
+
+    $this->actingAs($admin)->put(route('feature.update', Feature::Translations), ['enabled' => true, 'admin_only' => true])->assertRedirect();
+
+    $features = app(Features::class);
+    expect($features->available(Feature::Translations, $admin))->toBeTrue()
+        ->and($features->available(Feature::Translations, $moderator))->toBeFalse()
+        ->and($features->available(Feature::Guilds, $moderator))->toBeTrue()
+        ->and($features->available(Feature::Guilds, $admin))->toBeTrue();
+});
