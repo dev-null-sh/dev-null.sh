@@ -19,6 +19,7 @@ use App\Http\Controllers\CommitChangeController;
 use App\Http\Controllers\CommitContinuationController;
 use App\Http\Controllers\CommitController;
 use App\Http\Controllers\CommitImageController;
+use App\Http\Controllers\CommitLaunchController;
 use App\Http\Controllers\CommitLinkPreviewController;
 use App\Http\Controllers\CommitOpenGraphImageController;
 use App\Http\Controllers\CommitPastelController;
@@ -66,6 +67,7 @@ use App\Http\Controllers\InboxController;
 use App\Http\Controllers\IssueController;
 use App\Http\Controllers\IssueSuggestionController;
 use App\Http\Controllers\JoinLinkController;
+use App\Http\Controllers\LaunchPassengerController;
 use App\Http\Controllers\LinkController;
 use App\Http\Controllers\LiveStreamController;
 use App\Http\Controllers\LocalSessionController;
@@ -339,6 +341,9 @@ Route::get('commits/{commit}/translation', [CommitTranslationController::class, 
 Route::get('commits/{commit}/poll', [CommitPollController::class, 'show'])
     ->middleware('throttle:live-reads')
     ->name('commit-poll.show');
+Route::get('commits/{commit}/launch', [CommitLaunchController::class, 'show'])
+    ->middleware('throttle:live-reads')
+    ->name('commit-launch.show');
 Route::get('commits/{commit}/replies', [CommitReplyController::class, 'index'])
     ->withTrashed()
     ->name('commit-reply.index');
@@ -475,6 +480,12 @@ Route::middleware('auth')->group(function (): void {
     Route::post('commits/{commit}/star', [CommitStarController::class, 'store'])
         ->middleware('throttle:stars')
         ->name('commit-star.store');
+    Route::post('commits/{commit}/launch/passengers', [LaunchPassengerController::class, 'store'])
+        ->middleware('throttle:stars')
+        ->name('launch-passenger.store');
+    Route::delete('commits/{commit}/launch/passengers', [LaunchPassengerController::class, 'destroy'])
+        ->middleware('throttle:stars')
+        ->name('launch-passenger.destroy');
     Route::post('commits/{commit}/pasteis', [CommitPastelController::class, 'store'])
         ->middleware('throttle:60,1')
         ->name('commit-pastel.store');

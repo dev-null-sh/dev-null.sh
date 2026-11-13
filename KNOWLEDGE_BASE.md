@@ -245,6 +245,14 @@ Sources: [composer](resources/js/components/commit-composer.tsx), [commit model]
 
 Livestream history: the team settled on calling posts **commits** and their list a **log** on [day one at 2:56:00](https://www.youtube.com/watch?v=6zCNQa3hNm0&t=10560s). At [3:02:19](https://www.youtube.com/watch?v=6zCNQa3hNm0&t=10939s), they agreed to rename the post model too, rather than changing only the UI. These are naming decisions, not timestamps proving the rename had finished.
 
+### Launch posts
+
+On the web, put `/shipit` on its own final line in the composer and press Enter to select launch mode. Write what you shipped, optionally add a link or images, and press **Ship it** to publish. The command itself is removed from the draft; selecting launch mode never publishes automatically. Canceling launch mode keeps your text. The mode is stashed with the draft and shared between the inline composer and its dialog. Launches use the same moderation as other commits. Scheduling is unavailable in launch mode.
+
+A launch is a commit with `CommitType::Launch`; ordinary commits use `CommitType::Standard`. Its public card contains a ship. Signed-in readers can press **All aboard** to board as a passenger with their avatar as their face, or press **You're aboard** to step ashore. The author appears in the wheelhouse with their avatar and a captain’s hat, and cannot board their own launch. Boarding is separate from stars and can only happen once per person. Passengers stand on decks in little colored outfits. More passengers lower the ship in the water and make it wobble. At most sixteen avatars are rendered, with a `+N` label for the rest. Reduced motion disables the movements.
+
+Guests can see an approved launch and its public crew; boarding asks them to sign in. Hidden and deleted commits cannot be boarded. Blocks with the author prevent access, and blocked or banned passengers are omitted from the viewer's crew. Boarding is included in account exports and removed when the account is deleted.
+
 ### Translating commits
 
 Public commits and replies offer **Translate** when their detected language differs from the reader's translation language. Choose a translation language in **Settings → Profile**, searching by its English or native name (for example, Hungarian or magyar), independently of the device language, or leave **Browser language (automatic)** selected to follow the browser. This private preference is saved to the account, included in the data export, and erased with the account. Regional variants share a language, such as English for `en-US` and `en-GB`. Language detection runs in the background for posts being read; undetermined posts initially offer Translate rather than guessing. Code-only or indeterminate text is not offered once detected. Generating translations requires sign-in and is limited to ten requests per minute.

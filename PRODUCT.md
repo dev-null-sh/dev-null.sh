@@ -34,6 +34,7 @@ What exists, one line each (details in the knowledge base):
 - **Commits:** text with code, images, link cards and embedded players, or a poll; replies, quotes, threads, scheduling, translation.
 - **Logs:** Following, Latest, and Trending.
 - **Engagement:** follows, stars, saved commits, pins, mentions, and pastéis (an opt-in daily allowance of pastries).
+- **Launch posts:** `/shipit` selects a launch commit for celebrating a release; readers board its public ship as passengers, separately from stars. The author is the captain. Boarding respects moderation and blocks, and survives reloads.
 - **Profiles:** mirrored from GitHub, with an activity graph, streaks, achievements, a Unix rank, and a live marker while you stream on YouTube.
 - **Organization pages:** GitHub organizations get a page mirrored from GitHub once an approved commit mentions them, and `@organization` mentions link to it. Their members post commits as the organization, which readers see from the organization alone.
 - **Remotes:** private one-to-one and group messages (orgs), and calls, one-to-one or in an org.

@@ -206,6 +206,7 @@ it('exports the commits someone posted for an organization', function (): void {
         'quoted_commit_id' => null,
         'body' => 'Laravel 13 is out',
         'status' => 'approved',
+        'type' => 'standard',
         'images' => [],
         'created_at' => $commit->created_at->toIso8601String(),
         'deleted_at' => null,

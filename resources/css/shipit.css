@@ -1,0 +1,251 @@
+.launch-sea {
+    --launch-water: #168591;
+    position: relative;
+    height: 272px;
+    overflow: hidden;
+    isolation: isolate;
+    background: linear-gradient(
+        transparent 72%,
+        color-mix(in srgb, var(--launch-water) 9%, transparent)
+    );
+}
+.dark .launch-sea {
+    --launch-water: #71ced1;
+}
+.launch-vessel {
+    position: absolute;
+    bottom: 20px;
+    left: calc(50% - 120px);
+    width: 240px;
+    height: 100px;
+    translate: 0 var(--launch-sink, 0px);
+    transition: translate 900ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.launch-bob {
+    position: relative;
+    width: 100%;
+    height: 100%;
+}
+.launch-hull {
+    position: absolute;
+    inset: 0;
+    width: 240px;
+    height: 100px;
+}
+.launch-passengers {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+.launch-passenger-slot {
+    position: absolute;
+    width: 26px;
+    height: 40px;
+}
+.launch-person {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 26px;
+    height: 40px;
+    offset-path: path('M -150 0 C -95 -10 -45 5 0 0');
+    offset-distance: 100%;
+    offset-anchor: 0 0;
+    offset-rotate: 0deg;
+}
+.launch-passenger-face {
+    position: absolute;
+    z-index: 1;
+    top: 0;
+    left: 1px;
+    box-shadow: 0 0 0 1px var(--background);
+}
+.launch-person::before {
+    content: '';
+    position: absolute;
+    bottom: 5px;
+    left: 4px;
+    width: 18px;
+    height: 16px;
+    border-radius: 7px 7px 3px 3px;
+    background: var(--passenger-shirt);
+}
+.launch-person::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 7px;
+    width: 12px;
+    height: 7px;
+    border-left: 4px solid #34445b;
+    border-right: 4px solid #34445b;
+}
+.launch-passenger-deck {
+    position: absolute;
+    left: 8px;
+    width: 169px;
+    height: 4px;
+    border: 1px solid var(--foreground);
+    background: var(--background);
+}
+.launch-passenger-deck::before,
+.launch-passenger-deck::after {
+    content: '';
+    position: absolute;
+    top: 3px;
+    width: 2px;
+    height: 38px;
+    background: var(--foreground);
+}
+.launch-passenger-deck::before {
+    left: 0;
+}
+.launch-passenger-deck::after {
+    right: 0;
+}
+.launch-passenger-railing {
+    position: absolute;
+    z-index: 2;
+    left: 8px;
+    width: 169px;
+    height: 11px;
+    border-top: 1.5px solid var(--foreground);
+    background: repeating-linear-gradient(
+        90deg,
+        var(--foreground) 0 1px,
+        transparent 1px 26px
+    );
+    pointer-events: none;
+}
+.launch-excess {
+    position: absolute;
+    top: -106px;
+    left: 54px;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 8px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--background);
+    color: var(--muted-foreground);
+    font: 11px var(--font-mono);
+}
+.launch-waves {
+    position: absolute;
+    bottom: 5px;
+    color: var(--launch-water);
+    pointer-events: none;
+}
+.launch-smoke {
+    position: absolute;
+    left: 187px;
+    top: 4px;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--muted-foreground);
+    opacity: 0;
+}
+.launch-smoke-later {
+    animation-delay: 900ms !important;
+}
+.launch-captain {
+    position: absolute;
+    top: 22px;
+    left: 181px;
+    z-index: 1;
+    display: flex;
+    width: 30px;
+    height: 36px;
+    align-items: end;
+    justify-content: center;
+}
+.launch-captain-hat {
+    position: absolute;
+    top: 0;
+    width: 28px;
+    height: 14px;
+    border: 1px solid #22354c;
+    border-bottom: 4px solid #22354c;
+    border-radius: 7px 7px 2px 2px;
+    background: #fffdf5;
+}
+.launch-captain-hat::after {
+    content: '⚓';
+    position: absolute;
+    inset: -1px 0 0;
+    text-align: center;
+    color: #22354c;
+    font-size: 10px;
+    line-height: 11px;
+}
+@media (prefers-reduced-motion: no-preference) {
+    .launch-bob {
+        animation: launch-bob 2400ms ease-in-out infinite;
+    }
+    .launch-overloaded .launch-bob {
+        animation: launch-wobble 1600ms ease-in-out infinite;
+    }
+    .launch-person {
+        animation: launch-board 900ms cubic-bezier(0.4, 0, 0.2, 1) both;
+    }
+    .launch-smoke {
+        animation: launch-smoke 1800ms ease-out infinite;
+    }
+    .launch-waves {
+        animation: launch-tide 2200ms ease-in-out infinite;
+    }
+}
+@keyframes launch-board {
+    from {
+        opacity: 0;
+        offset-distance: 0%;
+    }
+    to {
+        opacity: 1;
+        offset-distance: 100%;
+    }
+}
+@keyframes launch-bob {
+    0%,
+    100% {
+        transform: translateY(1px) rotate(-1deg);
+    }
+    50% {
+        transform: translateY(-3px) rotate(1deg);
+    }
+}
+@keyframes launch-wobble {
+    0%,
+    100% {
+        transform: rotate(-4deg);
+    }
+    50% {
+        transform: rotate(4deg);
+    }
+}
+@keyframes launch-smoke {
+    0% {
+        opacity: 0.35;
+        transform: translate(0, 0) scale(0.5);
+    }
+    100% {
+        opacity: 0;
+        transform: translate(-25px, -25px) scale(2);
+    }
+}
+@keyframes launch-tide {
+    0%,
+    100% {
+        transform: translateY(1px);
+    }
+    50% {
+        transform: translateY(-2px);
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    .launch-vessel {
+        transition: none;
+    }
+}
