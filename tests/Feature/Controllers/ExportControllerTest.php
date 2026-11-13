@@ -12,6 +12,7 @@ use App\Enums\ModerationReason;
 use App\Enums\NotificationType;
 use App\Enums\OrganizationRole;
 use App\Enums\PushPlatform;
+use App\Models\BanEvent;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\CommitReport;
@@ -92,7 +93,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
     $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
 
     expect($data)->toBe([
-        'schema_version' => 8,
+        'schema_version' => 9,
         'exported_at' => now()->toIso8601String(),
         'profile' => [
             'github_id' => $user->github_id,
@@ -157,6 +158,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
         'push_subscriptions' => [],
         'devices' => [],
         'timeouts' => [],
+        'ban_events' => [],
         'sessions' => [],
     ]);
     expect($response->streamedContent())->not->toContain('never-export-this-token')
@@ -185,6 +187,27 @@ it('exports when the user accepted the commit rules and their timeouts, without 
                 'created_at' => $second->created_at->toIso8601String(),
             ],
         ]);
+});
+
+it('exports the user ban history without exposing moderators or other users', function (): void {
+    $user = User::factory()->create();
+    $first = BanEvent::factory()->create([
+        'github_id' => $user->github_id,
+        'reason' => ModerationReason::Harassment,
+        'created_at' => now()->subDay(),
+    ]);
+    $second = BanEvent::factory()->create([
+        'github_id' => $user->github_id,
+        'reason' => ModerationReason::Spam,
+    ]);
+    BanEvent::factory()->create();
+
+    $data = json_decode($this->actingAs($user)->get(route('export'))->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
+
+    expect($data['ban_events'])->toBe([
+        ['reason' => $first->reason->value, 'created_at' => $first->created_at->toIso8601String()],
+        ['reason' => $second->reason->value, 'created_at' => $second->created_at->toIso8601String()],
+    ]);
 });
 
 it('exports the remotes the user muted, without the mutes of others', function (): void {
