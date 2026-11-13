@@ -39,7 +39,7 @@ final readonly class TrendingLogQuery implements LogQuery
         return Commit::query()
             ->joinSub($draw, 'draw', 'draw.drawn_id', '=', 'commits.id')
             ->withVisibleReplyCount($user)
-            ->withReplyPreviews($user)
+            ->withReplyPreviews($user, inLog: true)
             ->withCardDataFor($user)
             ->addSelect(['draw.trending_seed', 'draw.trending_score'])
             ->orderByDesc('trending_seed')

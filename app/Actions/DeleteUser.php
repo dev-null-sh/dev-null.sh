@@ -14,6 +14,7 @@ use App\Models\CommitImage;
 use App\Models\CommitReport;
 use App\Models\Conversation;
 use App\Models\ConversationParticipant;
+use App\Models\Guild;
 use App\Models\Headline;
 use App\Models\Message;
 use App\Models\MessageImage;
@@ -111,6 +112,8 @@ final readonly class DeleteUser
             $vanishing->chunk(100)->each(fn (Collection $commits) => event(new CommitsUpdated($commits, CommitUpdate::Visibility)));
             event(new UsersUpdated($notified, UserUpdate::Notifications));
             event(new UsersUpdated($partners, UserUpdate::Inbox));
+            event(new UsersUpdated($guildMembers, UserUpdate::Guilds));
+            event(new UsersUpdated($guildMembers, UserUpdate::Relationships));
 
             foreach ($translationKeys as $key) {
                 Cache::forget($key);

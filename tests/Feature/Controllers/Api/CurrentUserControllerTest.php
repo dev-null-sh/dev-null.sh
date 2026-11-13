@@ -2,9 +2,11 @@
 
 declare(strict_types=1);
 
+use App\Enums\OrganizationRole;
 use App\Models\Commit;
 use App\Models\Device;
 use App\Models\Notification;
+use App\Models\Organization;
 use App\Models\User;
 
 it('returns the signed-in user with their unread notifications and their pastéis', function (): void {
@@ -73,6 +75,7 @@ it('returns the signed-in user with their unread notifications and their pastéi
                     'everyone' => false,
                     'unread_count' => 0,
                 ],
+                'organizations' => [],
             ],
             'unread_notifications_count' => 1,
         ]);
@@ -97,6 +100,40 @@ it('returns what the web shows only the user on their profile settings', functio
         ->assertJsonPath('data.automatic_lane', 4)
         ->assertJsonPath('data.sponsors_url', 'https://example.test/sponsor/octocat')
         ->assertJsonPath('data.github_synced_at', '2026-10-01T09:30:00Z');
+});
+
+it("returns the organizations the user can post as, oldest membership first, like the web's Post as menu", function (): void {
+    $user = User::factory()->create();
+    $keyPair = apiKeyPairFor($user);
+    $laravel = Organization::factory()->create(['handle' => 'laravel', 'name' => 'Laravel']);
+    $pest = Organization::factory()->create(['handle' => 'pestphp']);
+
+    $pest->members()->attach($user->id, ['role' => OrganizationRole::Member]);
+    $this->travel(-1)->days();
+    $laravel->members()->attach($user->id, ['role' => OrganizationRole::Admin]);
+    $this->travelBack();
+    Organization::factory()->create()->members()->attach(User::factory()->create()->id, ['role' => OrganizationRole::Admin]);
+
+    $response = signedApiRequest($keyPair, 'GET', route('api-current-user.show'));
+
+    $response->assertOk()
+        ->assertJsonPath('data.organizations.0', [
+            'type' => 'organization',
+            'id' => $laravel->id,
+            'role' => 'admin',
+            'handle' => 'laravel',
+            'name' => 'Laravel',
+            'avatar_url' => $laravel->avatar_url,
+            'bio' => $laravel->bio,
+            'location' => $laravel->location,
+            'website' => $laravel->website,
+            'github_url' => 'https://github.com/laravel',
+            'html_url' => route('user.show', ['user' => 'laravel']),
+            'lane' => null,
+        ])
+        ->assertJsonPath('data.organizations.1.handle', 'pestphp')
+        ->assertJsonPath('data.organizations.1.role', 'member')
+        ->assertJsonCount(2, 'data.organizations');
 });
 
 it('keeps those to the signed-in user, even on their own profile', function (): void {

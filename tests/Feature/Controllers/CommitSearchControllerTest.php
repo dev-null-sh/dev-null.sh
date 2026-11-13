@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Contracts\Services\EmbeddingProvider;
 use App\Contracts\Services\RelevanceProvider;
 use App\Models\Commit;
+use App\Models\Guild;
 use App\Models\User;
 
 beforeEach(function (): void {
@@ -45,6 +46,21 @@ it('drops the candidates the decision model calls irrelevant', function (): void
         ->assertOk()
         ->assertJsonCount(1, 'commits')
         ->assertJsonPath('commits.0.id', $relevant->id);
+});
+
+it('omits muted guild topics from search even for followed authors while retaining literal lookalikes', function (): void {
+    config(['app.admins' => ['admin']]);
+    $admin = User::factory()->create(['handle' => 'admin']);
+    $author = User::factory()->create();
+    $admin->following()->attach($author);
+    $guild = Guild::factory()->create(['handle' => 'rust']);
+    $hidden = Commit::factory()->for($author)->create(['body' => 'Learning #RuSt', 'embedding' => embeddingVector(0)]);
+    $visible = Commit::factory()->for($author)->create(['body' => 'Literal `#rust` and #rustlang', 'embedding' => embeddingVector(1)]);
+
+    $this->actingAs($admin)->put(route('guild-mute.update', $guild), ['muted' => true])->assertRedirect();
+    $this->getJson('/search/commits?q=rust')->assertOk()->assertJsonCount(1, 'commits')->assertJsonPath('commits.0.id', $visible->id);
+    $this->put(route('guild-mute.update', $guild), ['muted' => false])->assertRedirect();
+    $this->getJson('/search/commits?q=rust')->assertOk()->assertJsonCount(2, 'commits')->assertJsonPath('commits.0.id', $hidden->id);
 });
 
 it('returns no more than the requested limit', function (): void {

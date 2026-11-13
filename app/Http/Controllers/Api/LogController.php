@@ -10,6 +10,7 @@ use App\Http\Resources\CommitResource;
 use App\Models\Commit;
 use App\Models\User;
 use App\Queries\LatestLogCommitsQuery;
+use App\Queries\LogCommitsQuery;
 use App\Queries\ReplyPreviewsQuery;
 use App\Queries\SuggestedCommitsQuery;
 use Illuminate\Container\Attributes\CurrentUser;
@@ -26,7 +27,7 @@ final readonly class LogController
     public function show(ShowLogRequest $request, #[CurrentUser] User $user, Log $log, LatestLogCommitsQuery $latest, SuggestedCommitsQuery $suggested, ReplyPreviewsQuery $replyPreviews): AnonymousResourceCollection
     {
         $since = $request->since();
-        $commits = $log->query()->builder($user)->cursorPaginate(20, cursor: $request->cursor($log));
+        $commits = resolve(LogCommitsQuery::class)->paginate($log, $user, cursor: $request->cursor($log));
 
         $replyPreviews->load($commits->items(), $user);
 

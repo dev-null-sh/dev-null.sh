@@ -5,6 +5,8 @@ declare(strict_types=1);
 use App\Actions\CreateCommitReport;
 use App\Actions\CreateCommitTranslation;
 use App\Actions\CreateExport;
+use App\Actions\CreateGuildReport;
+use App\Actions\DeleteGuild;
 use App\Actions\DeleteUser;
 use App\Actions\UpdateDevicePushToken;
 use App\Contracts\Services\TranslationProvider;
@@ -17,6 +19,7 @@ use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\CommitReport;
 use App\Models\Device;
+use App\Models\Guild;
 use App\Models\Message;
 use App\Models\MessageVoice;
 use App\Models\Notification;
@@ -151,7 +154,11 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
         'dismissed_suggestions' => [],
         'organizations' => [],
         'followed_organizations' => [],
+        'guilds' => [],
+        'guild_preferences' => [],
         'pending_follows' => [],
+        'guild_reports' => [],
+        'guild_moderator_removals' => [],
         'messages' => [],
         'reports' => [],
         'remote_mutes' => [],
@@ -733,4 +740,40 @@ it('exports subscription metadata without delivery endpoints', function (): void
     $subscription = $user->pushSubscriptions()->create(['endpoint_hash' => 'browser', 'endpoint' => 'https://fcm.googleapis.com/wp/private']);
     $export = resolve(CreateExport::class)->handle($user);
     expect($export['push_subscriptions'])->toBe([['id' => $subscription->id]]);
+});
+
+it('exports only the users guilds without internal paths or identifiers', function (): void {
+    $user = User::factory()->create();
+    Guild::factory()->create(['user_id' => $user->id, 'handle' => 'jobs', 'name' => 'Job Board', 'description' => 'Hiring.', 'emoji' => '💼', 'icon_path' => 'guild-icons/private-path.webp']);
+    Guild::factory()->create(['user_id' => $user->id, 'handle' => 'rust']);
+    Guild::factory()->create(['name' => 'Someone else']);
+
+    $response = $this->actingAs($user)->get(route('export'))->assertOk();
+    $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
+
+    expect($data['guilds'])->toHaveCount(2)
+        ->and($data['guilds'][0])->toBe([
+            'handle' => 'jobs', 'name' => 'Job Board', 'description' => 'Hiring.', 'emoji' => '💼',
+            'icon' => route('guild-icon.show', 'jobs'),
+            'created_at' => now()->toIso8601String(), 'updated_at' => now()->toIso8601String(),
+        ])
+        ->and($data['guilds'][1]['icon'])->toBeNull()
+        ->and($response->streamedContent())->not->toContain('guild-icons/private-path.webp', 'Someone else');
+});
+
+it('exports only the users guild reports and moderator removals', function (): void {
+    $user = User::factory()->create();
+    $guild = Guild::factory()->create(['handle' => 'jobs']);
+    resolve(CreateGuildReport::class)->handle($user, $guild, 'My private report.');
+    $guild->members()->attach($user, ['joined_at' => now(), 'muted_at' => now()]);
+    $guild->members()->attach(User::factory()->create(), ['joined_at' => now()]);
+    resolve(CreateGuildReport::class)->handle(User::factory()->create(), $guild, 'Someone elses report.');
+    resolve(DeleteGuild::class)->handle(Guild::factory()->create(['user_id' => $user->id, 'handle' => 'rust']));
+    resolve(DeleteGuild::class)->handle(Guild::factory()->create(['handle' => 'php']));
+
+    $data = json_decode($this->actingAs($user)->get(route('export'))->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
+
+    expect($data['guild_reports'])->toBe([['handle' => 'jobs', 'details' => 'My private report.', 'created_at' => now()->toIso8601String()]])
+        ->and($data['guild_preferences'])->toBe([['handle' => 'jobs', 'joined_at' => now()->toDateTimeString(), 'muted_at' => now()->toDateTimeString()]])
+        ->and(array_column($data['guild_moderator_removals'], 'handle'))->toBe(['rust']);
 });

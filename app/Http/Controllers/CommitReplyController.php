@@ -25,7 +25,7 @@ final readonly class CommitReplyController
      */
     public function index(ListCommitRepliesRequest $request, #[CurrentUser] ?User $user, Commit $commit, CommitRepliesQuery $replies): JsonResponse
     {
-        $page = $replies->paginate($commit, $user, $request->boolean('newest'), $request->integer('limit', CommitRepliesQuery::PER_PAGE), $request->exceptedReplyId(), $request->replyIds());
+        $page = $replies->paginate($commit, $user, $request->boolean('newest'), $request->integer('limit', CommitRepliesQuery::PER_PAGE), $request->exceptedReplyId(), $request->replyIds(), $request->boolean('in_log'));
 
         return response()->json($request->replyIds() === null ? ShownStreams::page($page) : [
             'data' => ShownStreams::commits($page->items()),
