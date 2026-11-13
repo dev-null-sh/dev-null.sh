@@ -12,6 +12,7 @@ let states: { id: string; is_following: boolean; is_dismissed: boolean }[];
 let visibility: EventTarget & { hidden: boolean };
 let reads: string[][];
 let topUps: number;
+let reloads: { only?: string[]; reset?: string[] }[];
 let fake: ReturnType<typeof fakeConnection>;
 
 vi.doMock('react', async () => ({
@@ -35,10 +36,13 @@ vi.doMock('@inertiajs/react', async () => ({
             suggestedUsers = update(suggestedUsers);
         },
         reload: (options: {
+            only?: string[];
+            reset?: string[];
             onBeforeUpdate?: () => void;
             onFinish?: () => void;
         }) => {
             topUps++;
+            reloads.push({ only: options.only, reset: options.reset });
             options.onBeforeUpdate?.();
             options.onFinish?.();
         },
@@ -79,6 +83,7 @@ beforeEach(() => {
     );
     reads = [];
     topUps = 0;
+    reloads = [];
     visibility = Object.assign(new EventTarget(), {
         hidden: false,
         cookie: '',
@@ -293,4 +298,31 @@ test('restoring an old list removes a dismissed suggestion again', async () => {
         suggestedUsers.some(({ id }) => id === 'e'),
         false,
     );
+});
+
+test('stars imported after the suggestions loaded pick them again, replacing the rows', async () => {
+    render();
+    joinAll(fake);
+    await settle();
+
+    fake.joined.get('private-users.viewer')?.emit('github-stars');
+    await settle();
+
+    assert.deepEqual(reloads, [
+        { only: ['suggestedUsers'], reset: ['suggestedUsers'] },
+    ]);
+});
+
+test('stars imported with no suggestions shown yet pick some', async () => {
+    suggestedUsers = [];
+    render();
+    joinAll(fake);
+    await settle();
+
+    fake.joined.get('private-users.viewer')?.emit('github-stars');
+    await settle();
+
+    assert.deepEqual(reloads, [
+        { only: ['suggestedUsers'], reset: ['suggestedUsers'] },
+    ]);
 });

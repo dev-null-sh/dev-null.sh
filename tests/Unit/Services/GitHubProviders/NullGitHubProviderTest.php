@@ -23,6 +23,7 @@ it('knows nobody and holds nothing', function (): void {
         ->and($provider->publicSponsors('dev-null-sh'))->toBe([])
         ->and($provider->followingIds('octocat', 10))->toBe(['users' => [], 'organizations' => []])
         ->and($provider->followerIds('octocat', 10))->toBe([])
+        ->and($provider->starredOwnerIds('octocat', 3))->toBe([])
         ->and($provider->sshKeys('octocat'))->toBe([])
         ->and($provider->avatar('https://avatars.githubusercontent.com/u/583231'))->toBeNull()
         ->and($provider->readme('octocat'))->toBeNull()

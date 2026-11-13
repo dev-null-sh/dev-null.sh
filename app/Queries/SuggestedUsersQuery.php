@@ -42,9 +42,9 @@ final readonly class SuggestedUsersQuery
         SQL;
 
     /**
-     * People the user does not follow yet: a mix of people their follows already follow and a few
-     * popular people picked from the 20 most followed. On a profile or discussion page, relevant developers come
-     * first. The regular suggestions fill any remaining places.
+     * People the user does not follow yet: a mix of people their follows already follow, people whose repositories
+     * they starred on GitHub, and a few popular people picked from the 20 most followed. On a profile or discussion
+     * page, relevant developers come first. The regular suggestions fill any remaining places.
      *
      * The day's candidates are split into pages of that mix, and each round shows the next page,
      * going back to the first one after the last.
@@ -86,9 +86,21 @@ final readonly class SuggestedUsersQuery
                     'users.id',
                 )
                 ->select(['users.*', 'network.followed_by_following_count'])
-                ->addSelect(['followers_count' => $this->followersCount($following), 'follows_you' => $this->followsUser($user)])
+                ->addSelect(['followers_count' => $this->followersCount($following), 'follows_you' => $this->followsUser($user), 'starred_repositories_count' => $this->starredRepositoriesCount($user)])
                 ->whereIn('users.id', $this->committers($user))
                 ->orderByDesc('followed_by_following_count')
+                ->orderByDesc('followers_count')
+                ->latest('users.id')
+                ->limit($limit * 10)
+                ->get();
+
+            $starred = $this->candidates($user, $followingIds)
+                ->joinSub($this->starredOwners($user)->select(['github_id', 'repositories_count']), 'starred', 'starred.github_id', '=', 'users.github_id')
+                ->select(['users.*', 'starred.repositories_count as starred_repositories_count'])
+                // Counted here rather than taken from the network, which stops at so many, so it holds for anyone in both.
+                ->addSelect(['followed_by_following_count' => $this->followedByFollowing($user, $following)->selectRaw('count(*)'), 'followers_count' => $this->followersCount($following), 'follows_you' => $this->followsUser($user)])
+                ->whereIn('users.id', $this->committers($user))
+                ->orderByDesc('starred.repositories_count')
                 ->orderByDesc('followers_count')
                 ->latest('users.id')
                 ->limit($limit * 10)
@@ -98,8 +110,9 @@ final readonly class SuggestedUsersQuery
             $popularPool = User::query()
                 ->fromSub($this->candidates($user, $followingIds)
                     ->whereNotExists($this->followedByFollowing($user, $following))
+                    ->whereNotIn('users.github_id', $this->starredOwners($user)->select('github_id'))
                     ->select('users.*')
-                    ->selectRaw('0 as followed_by_following_count')
+                    ->selectRaw('0 as followed_by_following_count, 0 as starred_repositories_count')
                     ->addSelect(['followers_count' => $this->followersCount($following), 'follows_you' => $this->followsUser($user)])
                     ->orderByDesc('followers_count')
                     ->latest('users.id'), 'users')
@@ -109,7 +122,7 @@ final readonly class SuggestedUsersQuery
                 ->limit(20)
                 ->get();
 
-            $pages = $this->pages($randomizer, $network, $popularPool, $limit);
+            $pages = $this->pages($randomizer, $this->alternate($network, $starred), $popularPool, $limit);
 
             if ($contextual->isNotEmpty()) {
                 /** @var Collection<int, User> $general */
@@ -165,7 +178,7 @@ final readonly class SuggestedUsersQuery
             )
             ->select('users.*')
             ->selectRaw('0 as followed_by_following_count')
-            ->addSelect(['followers_count' => $this->followersCount($following), 'follows_you' => $this->followsUser($viewer)])
+            ->addSelect(['followers_count' => $this->followersCount($following), 'follows_you' => $this->followsUser($viewer), 'starred_repositories_count' => $this->starredRepositoriesCount($viewer)])
             ->orderByDesc('followers_count')
             ->latest('users.id')
             ->limit($limit * 5)
@@ -207,6 +220,34 @@ final readonly class SuggestedUsersQuery
         }
 
         return array_map(fn (array $page): Collection => new Collection($page), $pages);
+    }
+
+    /**
+     * One from each in turn, starting with the people whose repositories the user starred, so a page holding a single
+     * person from the network still has one of them and a large network doesn't push them past the first pages.
+     * Someone in both keeps their place among the starred.
+     *
+     * @param  Collection<int, User>  $network
+     * @param  Collection<int, User>  $starred
+     * @return Collection<int, User>
+     */
+    private function alternate(Collection $network, Collection $starred): Collection
+    {
+        $network = array_values($network->whereNotIn('id', $starred->pluck('id'))->all());
+        $starred = array_values($starred->all());
+        $alternated = [];
+
+        for ($index = 0; $index < max(count($network), count($starred)); $index++) {
+            if (isset($starred[$index])) {
+                $alternated[] = $starred[$index];
+            }
+
+            if (isset($network[$index])) {
+                $alternated[] = $network[$index];
+            }
+        }
+
+        return new Collection($alternated);
     }
 
     /**
@@ -257,6 +298,25 @@ final readonly class SuggestedUsersQuery
         return $followers->newPivotQuery()
             ->selectRaw('count(*) > 0')
             ->whereColumn($followers->getQualifiedRelatedPivotKeyName(), 'users.id');
+    }
+
+    /**
+     * The people whose repositories the user starred on GitHub, by GitHub ID.
+     */
+    private function starredOwners(User $user): QueryBuilder
+    {
+        return DB::table('starred_github_owners')->where('user_id', $user->id);
+    }
+
+    /**
+     * How many of the candidate's repositories the user starred, 0 for none. There is a row at most, so the sum is
+     * its count.
+     */
+    private function starredRepositoriesCount(User $user): QueryBuilder
+    {
+        return $this->starredOwners($user)
+            ->selectRaw('coalesce(sum(repositories_count), 0)')
+            ->whereColumn('starred_github_owners.github_id', 'users.github_id');
     }
 
     private function committers(User $user): CommitBuilder

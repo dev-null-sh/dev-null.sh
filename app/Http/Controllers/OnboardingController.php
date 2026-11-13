@@ -25,7 +25,7 @@ final readonly class OnboardingController
         return Inertia::render('onboarding/show', [
             'preferredLane' => $user->preferredLane(),
             'automaticLane' => $user->automaticLane(),
-            'suggestions' => fn (): Collection => $suggested->get($user, limit: 5),
+            'suggestions' => Inertia::live(fn (): Collection => $suggested->get($user, limit: 5), on: UserUpdate::GitHubStars->value, channel: new PrivateChannel($user)),
             'githubImport' => Inertia::live(fn (): ?array => $this->githubImport($request, $user), on: UserUpdate::Onboarding->value, channel: new PrivateChannel($user)),
             'commitScriptUrl' => route('cli-script.show'),
         ]);
