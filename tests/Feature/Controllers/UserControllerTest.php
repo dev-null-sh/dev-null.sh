@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 use App\Contracts\Services\GitHubProvider;
 use App\Enums\Log;
+use App\Enums\ModerationReason;
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Models\BanEvent;
 use App\Models\Commit;
 use App\Models\LinkPreview;
 use App\Models\Organization;
 use App\Models\User;
+use App\Models\UserTimeout;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -49,6 +52,35 @@ it('renders a user profile', function (): void {
             ->where('commits.data.0.stars_count', 0)
             ->where('commits.data.0.starred', false)
             ->where('commits.data.1.body', 'Older'));
+});
+
+it('shows the profile owner their moderation history', function (): void {
+    $user = User::factory()->create(['handle' => 'octocat']);
+    UserTimeout::factory()->create([
+        'github_id' => $user->github_id,
+        'reason' => ModerationReason::LowEffort,
+        'created_at' => now()->subDays(2),
+        'ends_at' => now()->subDay(),
+    ]);
+    BanEvent::query()->create([
+        'github_id' => $user->github_id,
+        'reason' => ModerationReason::Spam,
+    ]);
+
+    $this->actingAs($user)
+        ->get(route('user.show', $user))
+        ->assertInertia(fn ($page) => $page
+            ->where('moderationHistory.timeoutsCount', 1)
+            ->where('moderationHistory.bansCount', 1)
+            ->where('moderationHistory.timeouts.0.reason', 'Low-effort posts')
+            ->where('moderationHistory.timeouts.0.duration', '1 day')
+            ->where('moderationHistory.bans.0.reason', 'Spam or self-promotion'));
+
+    $viewer = User::factory()->create();
+
+    $this->actingAs($viewer)
+        ->get(route('user.show', $user))
+        ->assertInertia(fn ($page) => $page->where('moderationHistory', null));
 });
 
 it('says which accounts the bio and company mention are on dev/null', function (): void {

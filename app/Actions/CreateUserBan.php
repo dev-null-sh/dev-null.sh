@@ -6,6 +6,7 @@ namespace App\Actions;
 
 use App\Enums\ModerationReason;
 use App\Models\Ban;
+use App\Models\BanEvent;
 use App\Models\ScheduledCommit;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -25,6 +26,8 @@ final readonly class CreateUserBan
     {
         $ban = DB::transaction(function () use ($user, $reason): Ban {
             $ban = Ban::query()->updateOrCreate(['github_id' => $user->github_id], ['reason' => $reason]);
+
+            BanEvent::query()->create(['github_id' => $user->github_id, 'reason' => $reason]);
 
             $user->update(['banned_at' => $ban->created_at]);
 

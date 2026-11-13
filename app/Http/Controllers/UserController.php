@@ -80,7 +80,12 @@ final readonly class UserController
             'activity' => fn (): array => $activity->get($user, $currentUser),
             'streaks' => $getStreaks,
             'achievements' => fn (): array => $achievements->get($user, $currentUser, $getStreaks()),
-            'moderation' => fn (): ?array => $currentUser?->isAdmin() === true && ! $user->isAdmin() ? $moderation->get([$user])[$user->id] : null,
+            'moderation' => $currentUser?->isAdmin() === true && ! $user->isAdmin()
+                ? fn (): array => $moderation->get([$user])[$user->id]
+                : null,
+            'moderationHistory' => $currentUser instanceof User
+                ? Inertia::live(fn (): ?array => $currentUser->is($user) ? $moderation->history($user) : null, UserUpdate::Account->value, new PrivateChannel($currentUser))
+                : fn (): null => null,
             'tab' => $request->tab(...),
             'pinnedCommit' => Inertia::live(fn (): ?array => ShownStreams::commit($request->tab() === 'commits' ? $pinned->get($user, $currentUser) : null), 'profile', $profile),
             'readme' => fn (): string|false|null => $request->tab() === 'readme' ? $readme->get($user) : null,
