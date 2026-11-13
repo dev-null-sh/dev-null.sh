@@ -340,6 +340,16 @@ final class User extends Authenticatable
     }
 
     /**
+     * Ban decisions go by GitHub account, so they outlive the user and apply again after a new signup.
+     *
+     * @return HasMany<BanEvent, $this>
+     */
+    public function banEvents(): HasMany
+    {
+        return $this->hasMany(BanEvent::class, 'github_id', 'github_id');
+    }
+
+    /**
      * The timeout the user is in right now, the one that ends last if moderators gave more than one.
      */
     public function activeTimeout(): ?UserTimeout

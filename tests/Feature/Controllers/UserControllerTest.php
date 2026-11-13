@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 use App\Contracts\Services\GitHubProvider;
 use App\Enums\Log;
+use App\Enums\ModerationReason;
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Models\BanEvent;
 use App\Models\Commit;
 use App\Models\LinkPreview;
 use App\Models\Organization;
 use App\Models\User;
+use App\Models\UserTimeout;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -49,6 +52,49 @@ it('renders a user profile', function (): void {
             ->where('commits.data.0.stars_count', 0)
             ->where('commits.data.0.starred', false)
             ->where('commits.data.1.body', 'Older'));
+});
+
+it('shows the profile owner and site moderators the user moderation history', function (): void {
+    $user = User::factory()->create(['handle' => 'octocat']);
+    UserTimeout::factory()->create([
+        'github_id' => $user->github_id,
+        'reason' => ModerationReason::LowEffort,
+        'created_at' => now()->subDays(2),
+        'ends_at' => now()->subDay(),
+    ]);
+    BanEvent::query()->create([
+        'github_id' => $user->github_id,
+        'reason' => ModerationReason::Spam,
+    ]);
+    $inertiaHeaders = [
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request()),
+    ];
+
+    $this->actingAs($user);
+
+    $this->get(route('user.show', $user), $inertiaHeaders)
+        ->assertJsonPath('props.moderationHistory.timeoutsCount', 1)
+        ->assertJsonPath('props.moderationHistory.bansCount', 1)
+        ->assertJsonPath('props.moderationHistory.timeouts.0.reason', 'Low-effort posts')
+        ->assertJsonPath('props.moderationHistory.timeouts.0.duration', '1 day')
+        ->assertJsonPath('props.moderationHistory.bans.0.reason', 'Spam or self-promotion');
+
+    config(['app.admins' => ['admin']]);
+    $moderator = User::factory()->create(['handle' => 'admin']);
+
+    $this->actingAs($moderator);
+
+    $this->get(route('user.show', $user), $inertiaHeaders)
+        ->assertJsonPath('props.moderationHistory.timeoutsCount', 1)
+        ->assertJsonPath('props.moderationHistory.bansCount', 1);
+
+    $viewer = User::factory()->create();
+
+    $this->actingAs($viewer);
+
+    $this->get(route('user.show', $user), $inertiaHeaders)
+        ->assertJsonPath('props.moderationHistory', null);
 });
 
 it('says which accounts the bio and company mention are on dev/null', function (): void {

@@ -48,7 +48,7 @@ final class NotificationBuilder extends Builder
                             ->whereColumn('organization_members.organization_id', 'notifications.organization_id')
                             ->whereColumn('organization_members.user_id', 'notifications.recipient_id')))
                     ->offset(0)))
-            ->orWhere('type', NotificationType::LeveledUp))
+            ->orWhereIn('type', [NotificationType::LeveledUp, NotificationType::TimedOut]))
             ->withoutSilencedActors();
     }
 
