@@ -56,3 +56,24 @@ it('sends guests to sign in', function (): void {
 
     expect($organization->followers()->count())->toBe(0);
 });
+
+it('tells the user whether they follow an organization', function (): void {
+    $user = User::factory()->create();
+    $followed = Organization::factory()->create();
+    $other = Organization::factory()->create();
+    $user->followedOrganizations()->attach($followed);
+
+    $this->actingAs($user)
+        ->getJson(route('organization-follow.show', $followed))
+        ->assertOk()
+        ->assertExactJson(['isFollowing' => true]);
+
+    $this->actingAs($user)
+        ->getJson(route('organization-follow.show', $other))
+        ->assertOk()
+        ->assertExactJson(['isFollowing' => false]);
+});
+
+it('tells guests nothing about follows', function (): void {
+    $this->getJson(route('organization-follow.show', Organization::factory()->create()))->assertUnauthorized();
+});

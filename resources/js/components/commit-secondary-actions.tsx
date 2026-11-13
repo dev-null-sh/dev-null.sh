@@ -12,10 +12,11 @@ import {
     Volume2,
     VolumeX,
 } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Ref } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import ConversationController from '@/actions/App/Http/Controllers/ConversationController';
+import OrganizationFollowController from '@/actions/App/Http/Controllers/OrganizationFollowController';
 import UserBlockController from '@/actions/App/Http/Controllers/UserBlockController';
 import UserFollowController from '@/actions/App/Http/Controllers/UserFollowController';
 import UserMuteController from '@/actions/App/Http/Controllers/UserMuteController';
@@ -29,6 +30,7 @@ import {
     onFollowHttpException,
     useIsFollowing,
 } from '@/components/follow-button';
+import { useOrganizationFollow } from '@/components/organization-follow-button';
 import { QuotedCommit } from '@/components/quoted-commit';
 import { SearchDialog } from '@/components/search-dialog';
 import { Button } from '@/components/ui/button';
@@ -65,7 +67,12 @@ import {
 import { signIn } from '@/lib/auth';
 import { sendMessage } from '@/lib/chat';
 import { cn } from '@/lib/utils';
-import type { Commit, CursorPaginated, User } from '@/types';
+import type {
+    Commit,
+    CursorPaginated,
+    OrganizationAuthor,
+    User,
+} from '@/types';
 
 type PendingAction = 'send' | 'block' | 'report' | 'delete';
 
@@ -339,6 +346,12 @@ function CommitMoreMenu({
                             />
                         </>
                     )}
+                    {author.type === 'organization' && (
+                        <>
+                            <DropdownMenuSeparator />
+                            <CommitOrganizationItems organization={author} />
+                        </>
+                    )}
                     {(canReport || canDelete) && <DropdownMenuSeparator />}
                     {canReport && (
                         <DropdownMenuItem
@@ -506,5 +519,66 @@ function CommitAuthorItems({
                 </>
             )}
         </>
+    );
+}
+
+/**
+ * Commits don't say whether you follow the organization they are from, so the item asks once the menu opens, and waits
+ * for the answer before offering to follow or unfollow it.
+ */
+function CommitOrganizationItems({
+    organization,
+}: {
+    organization: OrganizationAuthor;
+}) {
+    const {
+        component,
+        props: { auth, log, commits },
+    } = usePage<{ commits?: CursorPaginated<Commit> }>();
+    const isSignedIn = auth.user !== null;
+    const [initialIsFollowing, setInitialIsFollowing] = useState<
+        boolean | null
+    >(null);
+    const isLoading = isSignedIn && initialIsFollowing === null;
+    const { isFollowing, toggle } = useOrganizationFollow(
+        organization,
+        initialIsFollowing ?? false,
+        followVisitOptions(component, log, commits),
+    );
+
+    const url = OrganizationFollowController.show(organization).url;
+
+    useEffect(() => {
+        if (!isSignedIn) {
+            return;
+        }
+
+        fetch(url, {
+            headers: {
+                Accept: 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+        })
+            .then((response) => response.json())
+            .then(({ isFollowing }: { isFollowing: boolean }) =>
+                setInitialIsFollowing(isFollowing),
+            )
+            .catch(() => undefined);
+    }, [url, isSignedIn]);
+
+    return (
+        <DropdownMenuItem
+            disabled={isLoading}
+            onSelect={isSignedIn ? toggle : signIn}
+            data-test="follow-commit-organization"
+        >
+            {isFollowing ? <UserCheck /> : <UserPlus />}
+            <span
+                className="min-w-0 truncate"
+                title={`@${organization.handle}`}
+            >
+                {isFollowing ? 'Unfollow' : 'Follow'} @{organization.handle}
+            </span>
+        </DropdownMenuItem>
     );
 }
