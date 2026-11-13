@@ -110,7 +110,7 @@ final readonly class GitHubReadmeQuery
     {
         return preg_replace_callback(
             '~<img\b[^>]*?\ssrc="\K(?![a-z][a-z0-9+.-]*:|//)[^"]+~i',
-            fn (array $match): string => "https://raw.githubusercontent.com/{$login}/{$login}/HEAD/".ltrim(preg_replace('~^(?:\./)+~', '', $match[0]) ?? $match[0], '/'),
+            fn (array $match): string => "https://raw.githubusercontent.com/{$login}/{$login}/HEAD/".mb_ltrim(preg_replace('~^(?:\./)+~', '', $match[0]) ?? $match[0], '/'),
             $html,
         ) ?? $html;
     }
