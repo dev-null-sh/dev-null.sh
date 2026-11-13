@@ -272,3 +272,62 @@ it('lets members reply to a pinned message from before their history', function 
         ->assertCreated()
         ->assertJsonPath('message.reply_to.body', 'deploy runbook');
 });
+
+it('lets a member reword their own org message within three minutes', function (): void {
+    Queue::fake();
+    $mark = User::factory()->create();
+    [$nuno] = followersOf($mark, 1);
+    $org = createOrg($mark, [$nuno]);
+    $message = pushToOrg($nuno, $org, 'ship it?');
+
+    $this->actingAs($nuno)
+        ->putJson(route('org-message.update', [$org, $message]), ['body' => 'ship it!'])
+        ->assertOk()
+        ->assertJsonPath('message.body', 'ship it!');
+
+    expect($message->refresh()->edited_at)->not->toBeNull();
+});
+
+it('hides org message edits by other members as missing', function (): void {
+    $mark = User::factory()->create();
+    [$nuno, $taylor] = followersOf($mark, 2);
+    $org = createOrg($mark, [$nuno, $taylor]);
+    $message = pushToOrg($nuno, $org, 'you cannot rewrite me');
+
+    $this->actingAs($taylor)
+        ->putJson(route('org-message.update', [$org, $message]), ['body' => 'rewritten'])
+        ->assertNotFound();
+});
+
+it('resyncs mention badges when an org message is reworded', function (): void {
+    $mark = User::factory()->create();
+    [$nuno, $taylor] = followersOf($mark, 2);
+    $org = createOrg($mark, [$nuno, $taylor]);
+    $message = pushToOrg($nuno, $org, 'hello there');
+
+    $this->actingAs($nuno)
+        ->putJson(route('org-message.update', [$org, $message]), ['body' => "hello {$taylor->mention()}"])
+        ->assertOk();
+
+    expect($message->mentionedUsers()->where('user_id', $taylor->id)->exists())->toBeTrue();
+
+    $this->actingAs($nuno)
+        ->putJson(route('org-message.update', [$org, $message]), ['body' => 'hello there again'])
+        ->assertOk();
+
+    expect($message->mentionedUsers()->where('user_id', $taylor->id)->exists())->toBeFalse();
+});
+
+it('keeps a cleared mention badge cleared through later edits', function (): void {
+    $mark = User::factory()->create();
+    [$nuno, $taylor] = followersOf($mark, 2);
+    $org = createOrg($mark, [$nuno, $taylor]);
+    $message = pushToOrg($nuno, $org, "ping {$taylor->mention()} about this");
+    $message->mentionedUsers()->detach($taylor->id);
+
+    $this->actingAs($nuno)
+        ->putJson(route('org-message.update', [$org, $message]), ['body' => "ping {$taylor->mention()} about this!!"])
+        ->assertOk();
+
+    expect($message->mentionedUsers()->where('user_id', $taylor->id)->exists())->toBeFalse();
+});

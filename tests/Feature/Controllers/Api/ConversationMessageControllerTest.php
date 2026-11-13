@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Enums\RemotesFrom;
+use App\Jobs\UnfurlLink;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\User;
@@ -209,4 +210,91 @@ it('rejects requests that are not signed', function (): void {
     $nuno = User::factory()->withRemotes()->create();
 
     $this->getJson(route('api-conversation-message.index', $nuno))->assertUnauthorized();
+});
+
+it('lets the author reword a message within three minutes', function (): void {
+    Queue::fake();
+    $nuno = User::factory()->withRemotes()->create(['handle' => 'nunomaduro']);
+    $message = sendChatMessage($this->user, $nuno, 'did @octocat see the PR?');
+
+    $this->actingAs($this->user)
+        ->putJson(route('conversation-message.update', [$nuno, $message]), ['body' => 'did you see the fix?'])
+        ->assertOk()
+        ->assertJsonPath('message.body', 'did you see the fix?')
+        ->assertJsonPath('message.edited_at', $message->refresh()->edited_at->toJSON());
+
+    expect($message->mentions)->toBe([]);
+});
+
+it('hides message edits by other people as missing', function (): void {
+    $nuno = User::factory()->withRemotes()->create();
+    $message = sendChatMessage($nuno, $this->user, 'you cannot rewrite me');
+
+    $this->actingAs($this->user)
+        ->putJson(route('conversation-message.update', [$nuno, $message]), ['body' => 'rewritten'])
+        ->assertNotFound();
+
+    expect($message->refresh()->body)->toBe('you cannot rewrite me');
+});
+
+it('refuses edits once the partner blocks the author', function (): void {
+    $nuno = User::factory()->withRemotes()->create();
+    sendChatMessage($this->user, $nuno, 'see you at 8');
+    $message = sendChatMessage($this->user, $nuno, 'bring snacks');
+    $nuno->blocking()->attach($this->user);
+
+    $this->actingAs($this->user)
+        ->putJson(route('conversation-message.update', [$nuno, $message]), ['body' => 'rewritten after the block'])
+        ->assertNotFound();
+
+    expect($message->refresh()->body)->toBe('bring snacks');
+});
+
+it('freezes a message once its edit window closes', function (): void {
+    $nuno = User::factory()->withRemotes()->create();
+    $message = sendChatMessage($this->user, $nuno, 'typo here');
+
+    $this->travel(4)->minutes();
+
+    $this->actingAs($this->user)
+        ->putJson(route('conversation-message.update', [$nuno, $message]), ['body' => 'fixed'])
+        ->assertForbidden()
+        ->assertJsonPath('message', 'Messages can only be edited for 3 minutes after pushing.');
+});
+
+it('requires a body to edit', function (): void {
+    $nuno = User::factory()->withRemotes()->create();
+    $message = sendChatMessage($this->user, $nuno, 'typo here');
+
+    $this->actingAs($this->user)
+        ->putJson(route('conversation-message.update', [$nuno, $message]), ['body' => ''])
+        ->assertUnprocessable();
+});
+
+it('lets a caption be cleared while images remain', function (): void {
+    Storage::fake();
+    $nuno = User::factory()->withRemotes()->create();
+    $this->actingAs($this->user)->post(route('conversation-message.store', $nuno), [
+        'body' => 'the diff',
+        'client_id' => Str::uuid()->toString(),
+        'images' => [UploadedFile::fake()->image('screenshot.png', 40, 20)],
+    ])->assertCreated();
+    $message = Message::query()->latest('id')->firstOrFail();
+
+    $this->actingAs($this->user)
+        ->putJson(route('conversation-message.update', [$nuno, $message]), ['body' => ''])
+        ->assertOk()
+        ->assertJsonPath('message.body', '');
+});
+
+it('unfurls a link added by an edit', function (): void {
+    Queue::fake();
+    $nuno = User::factory()->withRemotes()->create();
+    $message = sendChatMessage($this->user, $nuno, 'look at this');
+
+    $this->actingAs($this->user)
+        ->putJson(route('conversation-message.update', [$nuno, $message]), ['body' => 'look at this https://laravel.com'])
+        ->assertOk();
+
+    Queue::assertPushed(UnfurlLink::class);
 });
