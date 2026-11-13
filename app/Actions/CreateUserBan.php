@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Enums\ModerationReason;
+use App\Enums\UserUpdate;
+use App\Events\UsersUpdated;
 use App\Models\Ban;
 use App\Models\BanEvent;
 use App\Models\ScheduledCommit;
@@ -33,6 +35,8 @@ final readonly class CreateUserBan
 
             return $ban;
         });
+
+        event(new UsersUpdated([$user->id], UserUpdate::Account));
 
         ScheduledCommit::query()->where('user_id', $user->id)->whereNull('submitted_at')->whereNull('canceled_at')
             ->each(fn (ScheduledCommit $scheduled): bool => $this->deleteScheduledCommit->handle($user, $scheduled));
