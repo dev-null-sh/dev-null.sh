@@ -2,6 +2,7 @@ import { Link } from '@inertiajs/react';
 import { Fragment } from 'react';
 import UserFollowersYouKnowController from '@/actions/App/Http/Controllers/UserFollowersYouKnowController';
 import { UserAvatar } from '@/components/user-avatar';
+import { UserPreview } from '@/components/user-preview';
 import { show } from '@/routes/user';
 import type { User } from '@/types';
 
@@ -58,13 +59,15 @@ export function FollowersYouKnow({
                 {named.map((person, index) => (
                     <Fragment key={person.id}>
                         {index > 0 && (others > 0 ? ', ' : ' and ')}
-                        <Link
-                            href={show(person)}
-                            prefetch
-                            className="font-mono text-[13px] font-medium wrap-anywhere text-foreground hover:underline"
-                        >
-                            @{person.handle}
-                        </Link>
+                        <UserPreview user={person}>
+                            <Link
+                                href={show(person)}
+                                prefetch
+                                className="font-mono text-[13px] font-medium wrap-anywhere text-foreground hover:underline"
+                            >
+                                @{person.handle}
+                            </Link>
+                        </UserPreview>
                     </Fragment>
                 ))}
                 {others > 0 && (
