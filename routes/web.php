@@ -135,6 +135,7 @@ use App\Http\Controllers\UnclaimedProfileController;
 use App\Http\Controllers\UnsubscriptionController;
 use App\Http\Controllers\UserActivityGraphController;
 use App\Http\Controllers\UserAutomaticTranslationController;
+use App\Http\Controllers\UserAvatarController;
 use App\Http\Controllers\UserBanController;
 use App\Http\Controllers\UserBlockController;
 use App\Http\Controllers\UserController;
@@ -245,6 +246,8 @@ Route::middleware([RememberIntendedUrl::class, RedirectToHandleCase::class])->gr
     // A handle no user has may be an organization's, an unclaimed developer's, or one to look up on GitHub. Bindings
     // run before the rest of the route's middleware, like the one sharing the page's props, so the page goes through
     // that rest first, like any page.
+    Route::get('@{user:handle}/avatar', [UserAvatarController::class, 'show'])
+        ->name('user.avatar');
     Route::get('@{user:handle}', [UserController::class, 'show'])
         ->missing(function (Request $request): mixed {
             $router = resolve(Router::class);
@@ -654,6 +657,11 @@ Route::middleware('auth')->group(function (): void {
     Route::put('settings/profile', [UserProfileController::class, 'update'])
         ->middleware('throttle:profile-syncs')
         ->name('user-profile.update');
+    Route::patch('settings/profile', [UserProfileController::class, 'updateDetails'])
+        ->name('user-profile.details.update');
+    Route::get('settings/profile/dev-null-username', [UserProfileController::class, 'checkDevNullUsername'])
+        ->middleware('throttle:30,1')
+        ->name('user-profile.dev-null-username.check');
     Route::get('settings/export', ExportController::class)
         ->middleware(['throttle:exports', 'throttle:5,1'])
         ->name('export');

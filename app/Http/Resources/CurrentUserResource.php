@@ -11,7 +11,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
  * The signed-in user: their public profile, plus what only they see on the web's profile settings. That is the lane or
- * custom color they chose (`null` for Automatic) and the one Automatic gives them, their GitHub Sponsors page, and when
+ * custom color they chose (`null` for Automatic) and the one Automatic gives them, their Sponsors page, and when
  * their profile was last mirrored from GitHub. The version of the terms in force, when they accepted, and whether it
  * was this version, so the app knows to ask. Their Remotes are `null` while turned off, as the web hides them, and
  * otherwise say who can push to them, whether they share pulls, what the site lets them choose, and the unread count
@@ -36,7 +36,7 @@ final class CurrentUserResource extends JsonResource
             'pasteis_received' => $this->pasteis_received,
             'preferred_lane' => $this->preferredLane(),
             'automatic_lane' => $this->automaticLane(),
-            'sponsors_url' => $this->has_sponsors_listing ? "https://github.com/sponsors/{$this->handle}" : null,
+            'sponsors_url' => $this->sponsors_url,
             'github_synced_at' => $this->github_synced_at?->toIso8601ZuluString(),
             'terms_version' => config('legal.terms_version'),
             'terms_accepted_at' => $this->terms_accepted_at?->toIso8601ZuluString(),

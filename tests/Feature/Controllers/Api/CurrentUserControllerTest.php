@@ -38,6 +38,8 @@ it('returns the signed-in user with their unread notifications and their pastéi
             'data' => [
                 'id' => $user->id,
                 'handle' => 'octocat',
+                'dev_null_username' => null,
+                'display_handle' => 'octocat',
                 'name' => 'The Octocat',
                 'avatar_url' => 'https://avatars.githubusercontent.com/u/583231',
                 'bio' => 'I am the Octocat.',
@@ -82,6 +84,7 @@ it('returns what the web shows only the user on their profile settings', functio
         'handle' => 'octocat',
         'preferred_lane' => 1,
         'has_sponsors_listing' => true,
+        'sponsors_url' => 'https://example.test/sponsor/octocat',
         'github_synced_at' => '2026-10-01 09:30:00',
     ]);
     $keyPair = apiKeyPairFor($user);
@@ -92,7 +95,7 @@ it('returns what the web shows only the user on their profile settings', functio
         ->assertJsonPath('data.lane', 1)
         ->assertJsonPath('data.preferred_lane', 1)
         ->assertJsonPath('data.automatic_lane', 4)
-        ->assertJsonPath('data.sponsors_url', 'https://github.com/sponsors/octocat')
+        ->assertJsonPath('data.sponsors_url', 'https://example.test/sponsor/octocat')
         ->assertJsonPath('data.github_synced_at', '2026-10-01T09:30:00Z');
 });
 

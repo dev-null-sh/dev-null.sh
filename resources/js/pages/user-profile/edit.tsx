@@ -1,5 +1,5 @@
 import { Form, Head, Link, router } from '@inertiajs/react';
-import { ArrowUpRight, Download, RefreshCw } from 'lucide-react';
+import { ArrowUpRight, Download, RefreshCw, Save } from 'lucide-react';
 import ExportController from '@/actions/App/Http/Controllers/ExportController';
 import UserProfileController from '@/actions/App/Http/Controllers/UserProfileController';
 import ActivityGraphEmbed from '@/components/activity-graph-embed';
@@ -49,10 +49,10 @@ export default function Edit({
             <section className="px-4 py-6 sm:px-6">
                 <Heading
                     title="Profile information"
-                    description="Mirrored from GitHub when you sign in. To change any of it, change it on GitHub, then sync it here."
+                    description="Edit your profile details here. Syncing from GitHub overwrites these values. Your Dev-Null username is shown instead of your GitHub username."
                 />
 
-                <GitHubProfile />
+                <GitHubProfile showSaveButton={false} />
 
                 <div className="mt-5 flex flex-wrap gap-2">
                     <Button asChild>
@@ -64,6 +64,14 @@ export default function Edit({
                             Edit on GitHub
                             <ArrowUpRight />
                         </a>
+                    </Button>
+                    <Button
+                        type="submit"
+                        form="profile-details-form"
+                        data-test="save-profile-details-button"
+                    >
+                        <Save />
+                        Save profile
                     </Button>
                     <Form
                         {...UserProfileController.update.form()}
@@ -147,7 +155,7 @@ export default function Edit({
                 />
                 <p className="mb-5 text-sm text-muted-foreground">
                     Other people's replies are excluded. Your export is a JSON
-                    file. Your profile is still managed on GitHub.
+                    file.
                 </p>
                 <Button variant="outline" asChild>
                     <a href={ExportController.url()}>

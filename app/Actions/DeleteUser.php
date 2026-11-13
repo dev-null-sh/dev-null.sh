@@ -73,6 +73,11 @@ final readonly class DeleteUser
 
             // Report creation holds shared reporter and commit locks until its attachment paths are saved.
             $imagePaths = [...$this->reportImagePaths($user), ...$this->imagePaths($user), ...$this->scheduledImagePaths($user), ...$this->messageImagePaths($user), ...$this->messageVoicePaths($user)];
+
+            if ($user->avatar_upload_path !== null) {
+                $imagePaths[] = $user->avatar_upload_path;
+            }
+
             resolve(DeleteStoredFiles::class)->retain($imagePaths);
 
             DB::table('commit_topics')->whereIn('commit_id', $this->touchedCommits($user)->select('id'))->delete();

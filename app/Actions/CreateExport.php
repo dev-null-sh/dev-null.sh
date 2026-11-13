@@ -78,11 +78,12 @@ final readonly class CreateExport
     public function handle(User $user): array
     {
         return [
-            'schema_version' => 9,
+            'schema_version' => 11,
             'exported_at' => now()->toIso8601String(),
             'profile' => [
                 'github_id' => $user->github_id,
                 'handle' => $user->handle,
+                'dev_null_username' => $user->dev_null_username,
                 'name' => $user->name,
                 'email' => $user->email,
                 'avatar_url' => $user->avatar_url,
@@ -91,6 +92,7 @@ final readonly class CreateExport
                 'website' => $user->website,
                 'company' => $user->company,
                 'has_sponsors_listing' => $user->has_sponsors_listing,
+                'sponsors_url' => $user->sponsors_url,
                 'preferred_lane' => $user->preferred_lane,
                 'timezone' => $user->timezone,
                 'show_local_time' => $user->show_local_time,

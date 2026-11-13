@@ -13,6 +13,7 @@ use App\Models\Profile;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Storage;
 use Laravel\Socialite\Two\User as GitHubUser;
 
 it('creates a user from github', function (): void {
@@ -150,13 +151,19 @@ it('marks users with a sponsors listing, asking with their own token', function 
     ]));
 
     expect($user->has_sponsors_listing)->toBeTrue()
+        ->and($user->sponsors_url)->toBe("https://github.com/sponsors/{$user->handle}")
         ->and($user->github_synced_at->toDateTimeString())->toBe(now()->toDateTimeString());
 });
 
 it('unmarks users without a sponsors listing', function (): void {
+    Storage::fake();
+    Storage::disk()->put('profile-avatars/custom.webp', 'custom avatar');
+
     $existing = User::factory()->create([
         'github_id' => '583231',
         'has_sponsors_listing' => true,
+        'sponsors_url' => 'https://github.com/sponsors/octocat',
+        'avatar_upload_path' => 'profile-avatars/custom.webp',
     ]);
 
     $github = $this->mock(GitHubProvider::class);
@@ -168,7 +175,10 @@ it('unmarks users without a sponsors listing', function (): void {
         'id' => '583231',
     ]));
 
-    expect($existing->refresh()->has_sponsors_listing)->toBeFalse();
+    expect($existing->refresh())
+        ->has_sponsors_listing->toBeFalse()
+        ->sponsors_url->toBeNull()
+        ->avatar_upload_path->toBeNull();
 });
 
 it('keeps the last known sponsors listing when github cannot say', function (): void {
@@ -180,6 +190,7 @@ it('keeps the last known sponsors listing when github cannot say', function (): 
     $existing = User::factory()->create([
         'github_id' => '583231',
         'has_sponsors_listing' => true,
+        'sponsors_url' => 'https://example.test/sponsor/octocat',
     ]);
 
     $action = resolve(UpdateOrCreateUser::class);
@@ -192,6 +203,7 @@ it('keeps the last known sponsors listing when github cannot say', function (): 
     expect($existing->refresh())
         ->handle->toBe('octocat')
         ->has_sponsors_listing->toBeTrue()
+        ->sponsors_url->toBe('https://github.com/sponsors/octocat')
         ->github_synced_at->toDateTimeString()->toBe(now()->toDateTimeString());
 
     expect($stale->refresh()->handle)->toBe('_renamed-1');

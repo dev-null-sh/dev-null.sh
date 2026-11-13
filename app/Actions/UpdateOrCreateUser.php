@@ -18,6 +18,7 @@ final readonly class UpdateOrCreateUser
         private GitHubProvider $github,
         private UpdateStaleHandles $updateStaleHandles,
         private CreateFollowsFromPendingFollows $createFollowsFromPendingFollows,
+        private DeleteStoredFiles $deleteStoredFiles,
     ) {
         //
     }
@@ -56,8 +57,21 @@ final readonly class UpdateOrCreateUser
             ], [
                 'company' => $profile->company,
                 'email' => $email === '' ? null : $email,
-                ...($hasSponsorsListing === null ? [] : ['has_sponsors_listing' => $hasSponsorsListing]),
+                ...($hasSponsorsListing === null ? [] : [
+                    'has_sponsors_listing' => $hasSponsorsListing,
+                ]),
             ]);
+
+            if ($user->avatar_upload_path !== null) {
+                $this->deleteStoredFiles->retain([$user->avatar_upload_path]);
+            }
+
+            $user->forceFill([
+                'avatar_upload_path' => null,
+                'sponsors_url' => ($hasSponsorsListing ?? $user->has_sponsors_listing)
+                    ? "https://github.com/sponsors/{$profile->handle}"
+                    : null,
+            ])->save();
 
             if ($user->wasRecentlyCreated) {
                 $this->createFollowsFromPendingFollows->handle($user);

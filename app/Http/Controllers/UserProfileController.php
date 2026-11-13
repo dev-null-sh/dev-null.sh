@@ -5,9 +5,13 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Actions\UpdateUserProfile;
+use App\Actions\UpdateUserProfileDetails;
+use App\Http\Requests\CheckDevNullUsernameRequest;
+use App\Http\Requests\UpdateUserProfileDetailsRequest;
 use App\Models\User;
 use App\Services\CommitTranslations;
 use Illuminate\Container\Attributes\CurrentUser;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -45,5 +49,22 @@ final readonly class UserProfileController
         ]);
 
         return back();
+    }
+
+    public function updateDetails(UpdateUserProfileDetailsRequest $request, #[CurrentUser] User $user, UpdateUserProfileDetails $action): RedirectResponse
+    {
+        $action->handle($user, $request->profileAttributes(), $request->avatar());
+
+        Inertia::flash('toast', [
+            'type' => 'success',
+            'message' => 'Profile saved.',
+        ]);
+
+        return back();
+    }
+
+    public function checkDevNullUsername(CheckDevNullUsernameRequest $request): JsonResponse
+    {
+        return response()->json(['available' => true]);
     }
 }

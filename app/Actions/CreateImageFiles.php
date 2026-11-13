@@ -37,9 +37,9 @@ final readonly class CreateImageFiles
      * @param  array<int, string|null>  $descriptions
      * @return list<array{path: string, width: int, height: int, description: string|null, position: int}>
      */
-    public function handle(array $images, array $descriptions = [], string $directory = 'commit-images', bool $encrypted = false): array
+    public function handle(array $images, array $descriptions = [], string $directory = 'commit-images', bool $encrypted = false, string $attribute = 'images'): array
     {
-        $optimized = array_map($this->optimize(...), array_slice($images, 0, CreateCommitImages::MAX_IMAGES));
+        $optimized = array_map(fn (UploadedFile $file): ProcessedImage => $this->optimize($file, $attribute), array_slice($images, 0, CreateCommitImages::MAX_IMAGES));
 
         $files = [];
 
@@ -76,7 +76,7 @@ final readonly class CreateImageFiles
     /**
      * GD is used explicitly since, unlike Imagick, it never writes the source's metadata back out.
      */
-    private function optimize(UploadedFile $file): ProcessedImage
+    private function optimize(UploadedFile $file, string $attribute): ProcessedImage
     {
         $info = @getimagesize($file->getRealPath());
 
@@ -84,7 +84,7 @@ final readonly class CreateImageFiles
             || ! in_array($info[2], self::ALLOWED_TYPES, true)
             || $info[0] > CreateCommitImages::MAX_SOURCE_DIMENSION
             || $info[1] > CreateCommitImages::MAX_SOURCE_DIMENSION) {
-            throw $this->invalid();
+            throw $this->invalid($attribute);
         }
 
         $image = Image::fromUpload($file)
@@ -96,16 +96,16 @@ final readonly class CreateImageFiles
         try {
             $image->toBytes();
         } catch (ImageException) {
-            throw $this->invalid();
+            throw $this->invalid($attribute);
         }
 
         return $image;
     }
 
-    private function invalid(): ValidationException
+    private function invalid(string $attribute): ValidationException
     {
         return ValidationException::withMessages([
-            'images' => 'Images must be JPEG, PNG, or WebP files of at most '.CreateCommitImages::MAX_SOURCE_DIMENSION.' pixels per side.',
+            $attribute => 'Images must be JPEG, PNG, or WebP files of at most '.CreateCommitImages::MAX_SOURCE_DIMENSION.' pixels per side.',
         ]);
     }
 }

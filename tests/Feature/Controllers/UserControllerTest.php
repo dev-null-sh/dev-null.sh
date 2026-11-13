@@ -18,7 +18,11 @@ use Illuminate\Support\Str;
 use Inertia\Testing\AssertableInertia;
 
 it('renders a user profile', function (): void {
-    $user = User::factory()->create(['handle' => 'octocat', 'preferred_lane' => 4]);
+    $user = User::factory()->create([
+        'handle' => 'octocat',
+        'dev_null_username' => 'octocat-dev',
+        'preferred_lane' => 4,
+    ]);
     $viewer = User::factory()->create();
 
     $user->followers()->attach($viewer);
@@ -36,6 +40,7 @@ it('renders a user profile', function (): void {
             ->component('user/show')
             ->where('user.id', $user->id)
             ->where('user.handle', 'octocat')
+            ->where('user.display_handle', 'octocat-dev')
             ->where('user.lane', 4)
             ->where('user.commits_count', 2)
             ->where('user.followers_count', 1)
@@ -138,15 +143,19 @@ it('only lets guests see the local time of users who opted in', function (): voi
             ->where('user.show_local_time', false));
 });
 
-it('renders whether the user can be sponsored on github', function (): void {
-    $user = User::factory()->create(['has_sponsors_listing' => true]);
+it('renders the user-supplied sponsors link', function (): void {
+    $user = User::factory()->create([
+        'has_sponsors_listing' => true,
+        'sponsors_url' => 'https://example.test/sponsor',
+    ]);
 
     $response = $this->actingAs(User::factory()->create())
         ->get(route('user.show', $user));
 
     $response->assertOk()
         ->assertInertia(fn ($page) => $page
-            ->where('user.has_sponsors_listing', true));
+            ->where('user.has_sponsors_listing', true)
+            ->where('user.sponsors_url', 'https://example.test/sponsor'));
 });
 
 it('does not count the user relations or activity when reloading only commits', function (string $tab): void {

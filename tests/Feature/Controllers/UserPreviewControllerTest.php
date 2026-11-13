@@ -34,6 +34,21 @@ it('returns a summary of the user for the user preview', function (): void {
         ->assertJsonMissingPath('user.github_id');
 });
 
+it('shows the Dev-Null username in previews and falls back to the GitHub username', function (?string $username, string $displayHandle): void {
+    $user = User::factory()->create([
+        'handle' => 'octocat',
+        'dev_null_username' => $username,
+    ]);
+
+    $this->getJson('/@octocat/preview')
+        ->assertOk()
+        ->assertJsonPath('user.handle', 'octocat')
+        ->assertJsonPath('user.display_handle', $displayHandle);
+})->with([
+    'Dev-Null username' => ['octo-cat', 'octo-cat'],
+    'GitHub fallback' => [null, 'octocat'],
+]);
+
 it('says which accounts the bio mentions are on dev/null', function (bool $guest): void {
     Organization::factory()->create(['handle' => 'Laravel']);
     User::factory()->create(['handle' => 'octocat', 'bio' => 'Building @laravel, previously @nobody']);

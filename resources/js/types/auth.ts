@@ -16,6 +16,8 @@ export type LiveStream = {
 export type User = {
     id: string;
     handle: string;
+    dev_null_username?: string | null;
+    display_handle?: string;
     name: string;
     avatar_url: string | null;
     bio: string | null;
@@ -23,6 +25,7 @@ export type User = {
     website: string | null;
     company: string | null;
     has_sponsors_listing: boolean;
+    sponsors_url?: string | null;
     has_github_account: boolean;
     lane: Lane;
     timezone: string | null;

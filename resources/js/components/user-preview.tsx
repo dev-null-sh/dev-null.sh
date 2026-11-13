@@ -321,7 +321,7 @@ export function UserPreview({
                     <div
                         ref={previewRef}
                         role="dialog"
-                        aria-label={`About @${previewUser.handle}`}
+                        aria-label={`About @${previewUser.display_handle ?? previewUser.dev_null_username ?? previewUser.handle}`}
                         onPointerEnter={(event) => {
                             if (event.pointerType !== 'mouse') {
                                 return;
@@ -389,6 +389,8 @@ function UserPreviewContent({
         props: { auth, log, commits },
     } = usePage<{ commits?: CursorPaginated<Commit> }>();
     const isCurrentUser = auth.user?.id === user.id;
+    const displayHandle =
+        user.display_handle ?? user.dev_null_username ?? user.handle;
     const lane = laneColor(user.lane);
     const stream = useLiveStream(user);
 
@@ -473,8 +475,8 @@ function UserPreviewContent({
                                     onMouseLeave={onMouseLeave}
                                     aria-label={
                                         isFollowing
-                                            ? `Unfollow @${user.handle}`
-                                            : `${data.followsYou ? 'Follow back' : 'Follow'} @${user.handle}`
+                                            ? `Unfollow @${displayHandle}`
+                                            : `${data.followsYou ? 'Follow back' : 'Follow'} @${displayHandle}`
                                     }
                                     data-test="user-preview-follow-button"
                                 >
@@ -503,7 +505,7 @@ function UserPreviewContent({
                     aria-hidden
                     className="size-2 shrink-0 rounded-full bg-(--lane)"
                 />
-                <span className="truncate">@{user.handle}</span>
+                <span className="truncate">@{displayHandle}</span>
                 {data?.followsYou && (
                     <span className="ml-1 shrink-0 rounded-sm bg-muted px-1.5 py-0.5 font-sans text-xs">
                         Follows you
@@ -534,7 +536,7 @@ function UserPreviewContent({
                 {data?.isUnavailable ? (
                     <p className="text-muted-foreground">
                         {data.isBlocking
-                            ? `You blocked @${user.handle}.`
+                            ? `You blocked @${displayHandle}.`
                             : 'This profile is unavailable.'}
                     </p>
                 ) : data ? (

@@ -22,6 +22,12 @@ import { toastWhenThrottled } from '@/lib/throttle';
 import { cn } from '@/lib/utils';
 import type { Commit, CursorPaginated, User } from '@/types';
 
+type DisplayableUser = Pick<User, 'handle'> &
+    Partial<Pick<User, 'dev_null_username' | 'display_handle'>>;
+
+const displayHandle = (user: DisplayableUser): string =>
+    user.display_handle ?? user.dev_null_username ?? user.handle;
+
 /**
  * A follow changes the Following log, but never the draw or loaded pages of another log.
  */
@@ -156,7 +162,7 @@ export function onFollowHttpException(
     }
 
     rememberBlock(user);
-    toast.error(`You can't follow @${user.handle}.`);
+    toast.error(`You can't follow @${displayHandle(user)}.`);
 
     return false;
 }
@@ -267,6 +273,7 @@ export function FollowButton({
     } = usePage<{ commits?: CursorPaginated<Commit> }>();
     const { isFollowing, callbacks } = useFollow(user, initialIsFollowing);
     const { isJustToggled, markToggled, onMouseLeave } = useFollowHover();
+    const handle = displayHandle(user);
 
     if (auth.user === null) {
         return (
@@ -274,7 +281,7 @@ export function FollowButton({
                 size={size}
                 className={className}
                 onClick={signIn}
-                aria-label={`Follow @${user.handle}`}
+                aria-label={`Follow @${handle}`}
                 data-test="follow-button"
             >
                 Follow
@@ -301,8 +308,8 @@ export function FollowButton({
                 {...callbacks}
                 aria-label={
                     isFollowing
-                        ? `Unfollow @${user.handle}`
-                        : `${followsYou ? 'Follow back' : 'Follow'} @${user.handle}`
+                        ? `Unfollow @${handle}`
+                        : `${followsYou ? 'Follow back' : 'Follow'} @${handle}`
                 }
                 data-test="follow-button"
                 onClick={(event) => {
@@ -350,6 +357,7 @@ export function FollowIconButton({
     } = usePage<{ commits?: CursorPaginated<Commit> }>();
     const { isFollowing, callbacks } = useFollow(user, initialIsFollowing);
     const Icon = isFollowing ? UserCheck : UserPlus;
+    const handle = displayHandle(user);
 
     return (
         <Tooltip>
@@ -369,8 +377,8 @@ export function FollowIconButton({
                     onSuccess={() => router.flushAll()}
                     aria-label={
                         isFollowing
-                            ? `Unfollow @${user.handle}`
-                            : `Follow @${user.handle}${followsYou ? ' back' : ''}`
+                            ? `Unfollow @${handle}`
+                            : `Follow @${handle}${followsYou ? ' back' : ''}`
                     }
                     className={cn(
                         'shrink-0 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
@@ -387,10 +395,10 @@ export function FollowIconButton({
             </TooltipTrigger>
             <TooltipContent>
                 {isFollowing
-                    ? `Following @${user.handle}`
+                    ? `Following @${handle}`
                     : followsYou
-                      ? `Follow @${user.handle} back`
-                      : `Follow @${user.handle}`}
+                      ? `Follow @${handle} back`
+                      : `Follow @${handle}`}
             </TooltipContent>
         </Tooltip>
     );

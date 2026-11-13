@@ -27,6 +27,8 @@ test('to array', function (): void {
             'has_sponsors_listing',
             'timezone',
             'show_local_time',
+            'dev_null_username',
+            'sponsors_url',
             'lane',
             'has_github_account',
             'live',

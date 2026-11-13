@@ -7,6 +7,8 @@ use App\Models\User;
 use GuzzleHttp\Psr7\Response as Psr7Response;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\Client\Response;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 
 it('renders profile settings page', function (): void {
     $user = User::factory()->create();
@@ -16,7 +18,174 @@ it('renders profile settings page', function (): void {
 
     $response->assertOk()
         ->assertInertia(fn ($page) => $page
-            ->component('user-profile/edit'));
+            ->component('user-profile/edit')
+            ->where('auth.user.handle', $user->handle)
+            ->where('auth.user.dev_null_username', null)
+            ->where('auth.user.display_handle', $user->handle));
+});
+
+it('saves editable profile details and a normalized Dev-Null username', function (): void {
+    $user = User::factory()->create(['handle' => 'octocat']);
+
+    $response = $this->actingAs($user)
+        ->fromRoute('user-profile.edit')
+        ->patch(route('user-profile.details.update'), [
+            'dev_null_username' => '  Octo-Cat  ',
+            'name' => 'The Octocat',
+            'bio' => 'Building things.',
+            'company' => '@dev-null',
+            'location' => 'The Internet',
+            'website' => 'https://example.test',
+            'sponsors_url' => 'https://github.com/sponsors/octocat',
+        ]);
+
+    $response->assertRedirectToRoute('user-profile.edit')
+        ->assertInertiaFlash('toast', [
+            'type' => 'success',
+            'message' => 'Profile saved.',
+        ]);
+
+    expect($user->refresh())
+        ->dev_null_username->toBe('octo-cat')
+        ->name->toBe('The Octocat')
+        ->bio->toBe('Building things.')
+        ->company->toBe('@dev-null')
+        ->location->toBe('The Internet')
+        ->website->toBe('https://example.test')
+        ->sponsors_url->toBe('https://github.com/sponsors/octocat');
+});
+
+it('allows a user to clear their Dev-Null username', function (): void {
+    $user = User::factory()->create([
+        'dev_null_username' => 'octo-cat',
+        'sponsors_url' => 'https://example.test/sponsor',
+    ]);
+
+    $this->actingAs($user)
+        ->fromRoute('user-profile.edit')
+        ->patch(route('user-profile.details.update'), [
+            'dev_null_username' => '',
+            'name' => $user->name,
+            'bio' => $user->bio,
+            'company' => $user->company,
+            'location' => $user->location,
+            'website' => $user->website,
+            'sponsors_url' => '',
+        ])
+        ->assertRedirectToRoute('user-profile.edit');
+
+    expect($user->refresh())
+        ->dev_null_username->toBeNull()
+        ->sponsors_url->toBeNull();
+});
+
+it('rejects non-http profile links', function (): void {
+    $user = User::factory()->create([
+        'website' => 'https://example.test',
+        'sponsors_url' => 'https://example.test/sponsor',
+    ]);
+
+    $this->actingAs($user)
+        ->fromRoute('user-profile.edit')
+        ->patch(route('user-profile.details.update'), [
+            'dev_null_username' => $user->dev_null_username,
+            'name' => $user->name,
+            'bio' => $user->bio,
+            'company' => $user->company,
+            'location' => $user->location,
+            'website' => 'javascript:alert(1)',
+            'sponsors_url' => 'javascript:alert(1)',
+        ])
+        ->assertSessionHasErrors(['website', 'sponsors_url']);
+
+    expect($user->refresh())
+        ->website->toBe('https://example.test')
+        ->sponsors_url->toBe('https://example.test/sponsor');
+});
+
+it('rejects duplicate and invalid Dev-Null usernames', function (string $username): void {
+    $user = User::factory()->create(['dev_null_username' => 'taken']);
+    $other = User::factory()->create();
+
+    $response = $this->actingAs($other)
+        ->fromRoute('user-profile.edit')
+        ->patch(route('user-profile.details.update'), [
+            'dev_null_username' => $username,
+            'name' => $other->name,
+            'bio' => $other->bio,
+            'company' => $other->company,
+            'location' => $other->location,
+            'website' => $other->website,
+            'sponsors_url' => $other->sponsors_url,
+        ]);
+
+    $response->assertSessionHasErrors('dev_null_username');
+    expect($other->refresh()->dev_null_username)->toBeNull();
+})->with(['TAKEN', 'not_a_valid_name']);
+
+it('checks Dev-Null username availability while preserving the current username', function (): void {
+    User::factory()->create(['dev_null_username' => 'taken']);
+    $user = User::factory()->create(['dev_null_username' => 'current-name']);
+
+    $this->actingAs($user)
+        ->getJson(route('user-profile.dev-null-username.check', ['dev_null_username' => 'new-name']))
+        ->assertOk()
+        ->assertJson(['available' => true]);
+
+    $this->getJson(route('user-profile.dev-null-username.check', ['dev_null_username' => 'current-name']))
+        ->assertOk()
+        ->assertJson(['available' => true]);
+
+    $this->getJson(route('user-profile.dev-null-username.check', ['dev_null_username' => 'TAKEN']))
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('dev_null_username');
+
+    $this->getJson(route('user-profile.dev-null-username.check', ['dev_null_username' => 'not_a_valid_name']))
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('dev_null_username');
+});
+
+it('requires authentication to save a Dev-Null username', function (): void {
+    $response = $this->patch(route('user-profile.details.update'));
+
+    $response->assertRedirectToRoute('home');
+});
+
+it('stores and serves an uploaded profile image', function (): void {
+    Storage::fake();
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->fromRoute('user-profile.edit')
+        ->patch(route('user-profile.details.update'), [
+            'dev_null_username' => $user->dev_null_username,
+            'name' => $user->name,
+            'bio' => $user->bio,
+            'company' => $user->company,
+            'location' => $user->location,
+            'website' => $user->website,
+            'sponsors_url' => $user->sponsors_url,
+            'avatar' => UploadedFile::fake()->image('avatar.png'),
+        ])
+        ->assertRedirectToRoute('user-profile.edit');
+
+    $user->refresh();
+
+    $path = $user->avatar_upload_path;
+
+    expect($path)->toStartWith('profile-avatars/')
+        ->and($user->avatar_url)->toBe(route('user.avatar', [
+            'user' => $user,
+            'v' => hash('xxh3', $path),
+        ]));
+    Storage::disk()->assertExists($path);
+
+    $this->get(route('user.avatar', ['user' => $user, 'v' => hash('xxh3', $path)]))
+        ->assertOk()
+        ->assertHeader('Content-Type', 'image/webp')
+        ->assertHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    $this->get(route('user.avatar', ['user' => $user, 'v' => 'stale-version']))
+        ->assertNotFound();
 });
 
 it('renders the chosen and automatic lanes', function (?int $preferredLane): void {
@@ -107,10 +276,32 @@ it('renders when the profile was last synced from github', function (?string $sy
 })->with([null, '2026-10-01 09:30:00']);
 
 it('may sync the profile from github', function (): void {
-    $user = User::factory()->create(['github_id' => '583231', 'handle' => 'old-handle', 'bio' => 'Old bio']);
+    Storage::fake();
+    Storage::disk()->put('profile-avatars/old.webp', 'old image');
+    $user = User::factory()->create([
+        'github_id' => '583231',
+        'handle' => 'old-handle',
+        'dev_null_username' => 'my-dev-null',
+        'name' => 'Custom name',
+        'bio' => 'Old bio',
+        'company' => 'Custom company',
+        'location' => 'Custom location',
+        'website' => 'https://custom.example.test',
+        'has_sponsors_listing' => true,
+        'sponsors_url' => 'https://custom.example.test/sponsor',
+        'avatar_upload_path' => 'profile-avatars/old.webp',
+    ]);
 
     $github = $this->mock(GitHubProvider::class);
-    $github->shouldReceive('account')->with($user->github_id)->andReturn(['login' => 'octocat', 'bio' => 'New bio']);
+    $github->shouldReceive('account')->with($user->github_id)->andReturn([
+        'login' => 'octocat',
+        'name' => 'Synced name',
+        'avatar_url' => 'https://avatars.githubusercontent.com/u/583231?v=4',
+        'bio' => 'Synced bio',
+        'company' => '@github',
+        'location' => 'San Francisco',
+        'blog' => 'github.blog',
+    ]);
     $github->shouldReceive('login')->with($user->github_id)->andReturn('octocat');
     $github->shouldReceive('sshKeys')->with('octocat')->andReturn([]);
 
@@ -126,7 +317,15 @@ it('may sync the profile from github', function (): void {
 
     expect($user->refresh())
         ->handle->toBe('octocat')
-        ->bio->toBe('New bio')
+        ->dev_null_username->toBe('my-dev-null')
+        ->name->toBe('Synced name')
+        ->bio->toBe('Synced bio')
+        ->company->toBe('@github')
+        ->location->toBe('San Francisco')
+        ->website->toBe('https://github.blog')
+        ->sponsors_url->toBe('https://github.com/sponsors/octocat')
+        ->avatar_upload_path->toBeNull()
+        ->avatar_url->toBe('https://avatars.githubusercontent.com/u/583231?v=4')
         ->github_synced_at->toDateTimeString()->toBe(now()->toDateTimeString());
 });
 

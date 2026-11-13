@@ -50,6 +50,7 @@ it('mirrors the github profile of the user', function (): void {
         ->website->toBe('https://github.blog')
         ->email->toBe('private@example.com')
         ->has_sponsors_listing->toBeTrue()
+        ->sponsors_url->toBe('https://github.com/sponsors/octocat')
         ->github_synced_at->toDateTimeString()->toBe(now()->toDateTimeString());
 });
 

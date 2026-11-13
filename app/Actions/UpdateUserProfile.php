@@ -27,6 +27,7 @@ final readonly class UpdateUserProfile
         private UpdateUserSshKeys $updateUserSshKeys,
         private UpdateStaleHandles $updateStaleHandles,
         private GitHubReadmeQuery $readme,
+        private DeleteStoredFiles $deleteStoredFiles,
     ) {
         //
     }
@@ -47,13 +48,21 @@ final readonly class UpdateUserProfile
             DB::transaction(function () use ($user, $profile): void {
                 $this->updateStaleHandles->handle($profile->handle, $user->github_id);
 
+                if ($user->avatar_upload_path !== null) {
+                    $this->deleteStoredFiles->retain([$user->avatar_upload_path]);
+                }
+
                 $user->profile->update([
                     ...$profile->attributes(),
                     'github_synced_at' => now(),
                 ]);
 
                 // The email is left alone: the public API only has the public one, sign-in also knows the private one.
-                $user->update(['company' => $profile->company]);
+                $user->update([
+                    'company' => $profile->company,
+                    'avatar_upload_path' => null,
+                    'sponsors_url' => $user->has_sponsors_listing ? "https://github.com/sponsors/{$profile->handle}" : null,
+                ]);
 
                 event(new UsersUpdated([$user->id], UserUpdate::Account));
                 event(new ProfilesUpdated([$user->id]));

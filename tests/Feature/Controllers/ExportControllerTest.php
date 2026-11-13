@@ -62,9 +62,11 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
     $user = User::factory()->create([
         'name' => 'Zoë Example',
         'bio' => "Building tools.\nKeeping them small.",
+        'dev_null_username' => 'zoe-dev',
         'email' => 'zoe@example.test',
         'company' => null,
         'has_sponsors_listing' => true,
+        'sponsors_url' => 'https://github.com/sponsors/zoe-dev',
         'preferred_lane' => 3,
         'timezone' => 'Europe/Budapest',
         'show_local_time' => true,
@@ -93,11 +95,12 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
     $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
 
     expect($data)->toBe([
-        'schema_version' => 9,
+        'schema_version' => 11,
         'exported_at' => now()->toIso8601String(),
         'profile' => [
             'github_id' => $user->github_id,
             'handle' => $user->handle,
+            'dev_null_username' => 'zoe-dev',
             'name' => 'Zoë Example',
             'email' => 'zoe@example.test',
             'avatar_url' => $user->avatar_url,
@@ -106,6 +109,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
             'website' => $user->website,
             'company' => null,
             'has_sponsors_listing' => true,
+            'sponsors_url' => 'https://github.com/sponsors/zoe-dev',
             'preferred_lane' => 3,
             'timezone' => 'Europe/Budapest',
             'show_local_time' => true,

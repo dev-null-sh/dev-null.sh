@@ -32,6 +32,7 @@ use LogicException;
  * @property-read string $id
  * @property-read string $github_id
  * @property-read string $handle
+ * @property-read string|null $dev_null_username
  * @property-read string $name
  * @property-read string|null $email
  * @property-read string|null $avatar_url
@@ -39,6 +40,8 @@ use LogicException;
  * @property-read string|null $location
  * @property-read string|null $website
  * @property-read string|null $company
+ * @property-read string|null $avatar_upload_path
+ * @property-read string|null $sponsors_url
  * @property-read bool $has_sponsors_listing
  * @property-read int|null $preferred_lane
  * @property-read string|null $lane_color
@@ -99,6 +102,7 @@ use LogicException;
     'profile',
     'github_id',
     'email',
+    'avatar_upload_path',
     'remember_token',
     'translation_language',
     'automatic_translation',
@@ -202,8 +206,11 @@ final class User extends Authenticatable
         return [
             'id' => 'string',
             'github_id' => 'string',
+            'dev_null_username' => 'string',
             'email' => 'string',
             'company' => 'string',
+            'avatar_upload_path' => 'string',
+            'sponsors_url' => 'string',
             'has_sponsors_listing' => 'boolean',
             'preferred_lane' => 'integer',
             'lane_color' => 'string',
@@ -548,7 +555,17 @@ final class User extends Authenticatable
      */
     public function openGraphIdentity(): array
     {
-        return [$this->name, $this->handle, $this->avatar_url, $this->lane()];
+        return [
+            $this->name,
+            $this->displayHandle(),
+            $this->avatar_url,
+            $this->lane(),
+        ];
+    }
+
+    public function displayHandle(): string
+    {
+        return $this->dev_null_username ?? $this->handle;
     }
 
     public function mention(): string
@@ -558,7 +575,11 @@ final class User extends Authenticatable
 
     public function nameWithHandle(): string
     {
-        return $this->profile->nameWithHandle();
+        $handle = $this->displayHandle();
+
+        return $this->name === $handle
+            ? '@'.$handle
+            : $this->name.' (@'.$handle.')';
     }
 
     public function isFollowing(self $user): bool
@@ -707,6 +728,17 @@ final class User extends Authenticatable
      */
     public function getAttribute($key): mixed
     {
+        if ($key === 'avatar_url') {
+            $avatarUploadPath = parent::getAttribute('avatar_upload_path');
+
+            if (is_string($avatarUploadPath)) {
+                return route('user.avatar', [
+                    'user' => $this,
+                    'v' => hash('xxh3', $avatarUploadPath),
+                ]);
+            }
+        }
+
         return in_array($key, Profile::USER_ATTRIBUTES, true) ? $this->profile->getAttribute($key) : parent::getAttribute($key);
     }
 

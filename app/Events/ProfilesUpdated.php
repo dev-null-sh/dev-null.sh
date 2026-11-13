@@ -11,7 +11,7 @@ use Illuminate\Contracts\Events\ShouldDispatchAfterCommit;
 
 /**
  * Sent once the transaction commits, on each public profile's channel, when what its page shows about it changed:
- * its counts, its pinned commit, or its live stream. Stream details stay in the viewer-authorized read response.
+ * its identity, counts, pinned commit, or live stream. Stream details stay in the viewer-authorized read response.
  */
 final class ProfilesUpdated implements ShouldBroadcast, ShouldDispatchAfterCommit, ShouldRescue
 {

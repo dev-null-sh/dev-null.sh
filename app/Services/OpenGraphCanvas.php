@@ -10,6 +10,7 @@ use App\Models\Profile;
 use App\Models\User;
 use GdImage;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Storage;
 use RuntimeException;
 
 /**
@@ -96,7 +97,7 @@ final readonly class OpenGraphCanvas
         $this->roundedSquare($x - 10, $y - 10, $size + 20, $corner + 10, $lane);
         $this->roundedSquare($x - 6, $y - 6, $size + 12, $corner + 6, self::SHELL);
 
-        $source = $this->download($owner->avatar_url);
+        $source = $this->download($owner->avatar_url, $owner instanceof User ? $owner->avatar_upload_path : null);
 
         if (! $source instanceof GdImage) {
             $this->roundedSquare($x, $y, $size, $corner, $lane);
@@ -313,9 +314,11 @@ final readonly class OpenGraphCanvas
         return array_values(array_filter($lines, fn (string $line): bool => $line !== ''));
     }
 
-    private function download(?string $url): ?GdImage
+    private function download(?string $url, ?string $path = null): ?GdImage
     {
-        $body = $url === null ? null : $this->github->avatar($url);
+        $body = $path !== null
+            ? Storage::disk()->get($path)
+            : ($url === null ? null : $this->github->avatar($url));
 
         if ($body === null || @getimagesizefromstring($body) === false) {
             return null;
