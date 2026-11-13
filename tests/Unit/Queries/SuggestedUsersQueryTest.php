@@ -227,6 +227,17 @@ it('goes back to the first suggestions after the last round', function (): void 
         ->and($query->get($user, round: 3)->pluck('id')->all())->toBe($query->get($user, round: 1)->pluck('id')->all());
 });
 
+it('reaches further down both rankings before going back to the first suggestions', function (): void {
+    $user = User::factory()->create();
+    $everyone = [...vouchedFor($user, 31)->modelKeys(), ...popularUsers(44)->modelKeys()];
+
+    $query = resolve(SuggestedUsersQuery::class);
+    $suggested = collect(range(0, 24))->flatMap(fn (int $round): array => $query->get($user, round: $round)->pluck('id')->all());
+
+    expect($suggested->sort()->values()->all())->toBe(collect($everyone)->sort()->values()->all())
+        ->and($query->get($user, round: 25)->pluck('id')->all())->toBe($query->get($user)->pluck('id')->all());
+});
+
 it('tops up the last round so it never shows fewer people', function (): void {
     $user = User::factory()->create();
     $popular = popularUsers(4);
