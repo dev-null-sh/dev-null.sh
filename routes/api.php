@@ -79,6 +79,7 @@ use App\Http\Controllers\Api\UserFollowersController;
 use App\Http\Controllers\Api\UserFollowingController;
 use App\Http\Controllers\Api\UserLaneController;
 use App\Http\Controllers\Api\UserLiveController;
+use App\Http\Controllers\Api\UserModerationHistoryController;
 use App\Http\Controllers\Api\UserMuteController;
 use App\Http\Controllers\Api\UserPasteisModeController;
 use App\Http\Controllers\Api\UserProfileController;
@@ -186,6 +187,9 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
 
         // User Settings: what the web's settings show only the user...
         Route::get('me/settings', [UserSettingsController::class, 'show'])->name('api-user-settings.show');
+
+        // User Moderation History: the timeouts and bans the web shows on the user's own profile...
+        Route::get('me/moderation-history', [UserModerationHistoryController::class, 'show'])->name('api-user-moderation-history.show');
 
         // User Timezone and Translation, as the web's settings save them...
         Route::put('me/timezone', [UserTimezoneController::class, 'update'])->name('api-user-timezone.update');
