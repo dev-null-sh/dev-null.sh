@@ -14,7 +14,7 @@ use Carbon\CarbonInterface;
 
 /**
  * @phpstan-type UserModeration array{timeoutsCount: int, timeout: array{reason: string, endsAt: CarbonInterface}|null, ban: array{reason: string, bannedAt: CarbonInterface}|null, reasons: array<int|string, string>, durations: array<int|string, string>}
- * @phpstan-type UserModerationHistory array{timeoutsCount: int, bansCount: int, timeouts: list<array{reason: string, duration: string, startedAt: CarbonInterface, endsAt: CarbonInterface}>, bans: list<array{reason: string, bannedAt: CarbonInterface}>}
+ * @phpstan-type UserModerationHistory array{timeoutsCount: int, bansCount: int, timeouts: list<array{id: string, reason: string, duration: string, startedAt: CarbonInterface, endsAt: CarbonInterface}>, bans: list<array{id: string, reason: string, bannedAt: CarbonInterface}>}
  */
 final readonly class UserModerationQuery
 {
@@ -32,12 +32,14 @@ final readonly class UserModerationQuery
             'timeoutsCount' => $timeouts->count(),
             'bansCount' => $bans->count(),
             'timeouts' => array_values($timeouts->map(fn (UserTimeout $timeout): array => [
+                'id' => $timeout->id,
                 'reason' => $timeout->reason->label(),
                 'duration' => $timeout->duration(),
                 'startedAt' => $timeout->created_at,
                 'endsAt' => $timeout->ends_at,
             ])->all()),
             'bans' => array_values($bans->map(fn (BanEvent $ban): array => [
+                'id' => $ban->id,
                 'reason' => $ban->reason->label(),
                 'bannedAt' => $ban->created_at,
             ])->all()),

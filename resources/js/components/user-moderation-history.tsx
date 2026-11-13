@@ -13,12 +13,14 @@ export type UserModerationHistory = {
     timeoutsCount: number;
     bansCount: number;
     timeouts: {
+        id: string;
         reason: string;
         duration: string;
         startedAt: string;
         endsAt: string;
     }[];
     bans: {
+        id: string;
         reason: string;
         bannedAt: string;
     }[];
@@ -79,9 +81,9 @@ export function UserModerationHistory({
                             </div>
                             {history.timeouts.length > 0 ? (
                                 <ul className="mt-2 divide-y">
-                                    {history.timeouts.map((timeout, index) => (
+                                    {history.timeouts.map((timeout) => (
                                         <li
-                                            key={`${timeout.startedAt}-${index}`}
+                                            key={timeout.id}
                                             className="py-3 first:pt-2 last:pb-1"
                                         >
                                             <div className="flex items-start justify-between gap-3">
@@ -132,9 +134,9 @@ export function UserModerationHistory({
                             </div>
                             {history.bans.length > 0 ? (
                                 <ul className="mt-2 divide-y">
-                                    {history.bans.map((ban, index) => (
+                                    {history.bans.map((ban) => (
                                         <li
-                                            key={`${ban.bannedAt}-${index}`}
+                                            key={ban.id}
                                             className="py-3 first:pt-2 last:pb-1"
                                         >
                                             <p className="text-sm font-medium">

@@ -117,7 +117,7 @@ const filterOptions: {
     {
         type: 'moderation',
         label: 'Moderation',
-        empty: 'No moderation updates. Approved and rejected commits show up here.',
+        empty: 'No moderation updates. Approved, rejected, and timeout notices show up here.',
     },
 ];
 
