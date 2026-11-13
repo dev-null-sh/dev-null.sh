@@ -11,6 +11,10 @@
             <meta name="theme-color" content="{{ $appearance === 'dark' ? '#111112' : '#f6f7f8' }}">
         @endif
 
+        @isset($oembedUrl)
+            <link rel="alternate" type="application/json+oembed" href="{{ $oembedUrl }}" title="Commit on /dev/null">
+        @endisset
+
         @isset($preview)
             <meta name="robots" content="{{ $preview['robots'] }}">
             <link rel="canonical" href="{{ $preview['url'] }}">

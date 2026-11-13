@@ -20,10 +20,16 @@ export function QuotedCommit({
     commit,
     isPreview = false,
     label = 'Quoting',
+    embedded,
 }: {
     commit: QuotedCommitData | DeletedCommit | null;
     isPreview?: boolean;
     label?: string;
+    /**
+     * For a quote shown on another site, like in a commit embed: it's a plain link to the commit on /dev/null, dated
+     * as given, and reads nothing again from the page.
+     */
+    embedded?: { href: string; date: string };
 }) {
     const now = useNow();
     if (commit === null || isDeleted(commit)) {
@@ -63,7 +69,8 @@ export function QuotedCommit({
                     title={formatFullDateTime(commit.created_at)}
                     className="shrink-0 font-mono text-xs text-muted-foreground"
                 >
-                    {formatRelativeTime(commit.created_at, now)}
+                    {embedded?.date ??
+                        formatRelativeTime(commit.created_at, now)}
                 </time>
                 <CommitStatusBadge commit={commit} size="small" isStatic />
             </span>
@@ -74,18 +81,38 @@ export function QuotedCommit({
             />
             {commit.images && <CommitImages images={commit.images} />}
             {commit.poll && (
-                <CommitPoll commit={commit} poll={commit.poll} isStatic />
+                <CommitPoll
+                    commit={commit}
+                    poll={commit.poll}
+                    isStatic
+                    voteUrl={embedded?.href}
+                />
             )}
             {commit.link_preview && (
                 <LinkPreview
                     refreshUrl={CommitLinkPreviewController.show.url(commit.id)}
                     preview={commit.link_preview}
                     isStatic
-                    source={{ commitId: commit.id }}
+                    source={embedded ? undefined : { commitId: commit.id }}
                 />
             )}
         </>
     );
+
+    if (embedded) {
+        return (
+            <a
+                href={embedded.href}
+                className={cn(
+                    className,
+                    'transition-colors hover:bg-accent focus-visible:bg-accent',
+                )}
+                data-test="quoted-commit"
+            >
+                {content}
+            </a>
+        );
+    }
 
     if (isPreview) {
         return (

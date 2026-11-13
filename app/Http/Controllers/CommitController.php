@@ -60,7 +60,14 @@ final readonly class CommitController
             'ancestors' => fn (): array => ShownStreams::commits($ancestors->get($commit, $currentUser)),
             'continuation' => fn (): array => ShownStreams::continuation($getContinuation()),
             'replies' => fn (): ?CursorPaginator => $getContinuation()->commits->isEmpty() ? ShownStreams::page($getReplies()) : null,
-        ])->withViewData(['preview' => $preview]);
+        ])->withViewData([
+            'preview' => $preview,
+            // A link from the embed dialog points oEmbed consumers to its card. Its raw query is kept as is, in the
+            // order it was signed in.
+            'oembedUrl' => $request->has(['embed', 'signature']) && ! $request->inertia()
+                ? route('oembed.show', ['url' => $request->getSchemeAndHttpHost().$request->getRequestUri(), 'format' => 'json'])
+                : null,
+        ]);
     }
 
     public function store(CreateCommitRequest $request, #[CurrentUser] User $user, CreateCommit $action, UserAchievementsQuery $achievements): RedirectResponse

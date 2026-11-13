@@ -10,6 +10,7 @@ use App\Models\CommitReport;
 use App\Models\Notification;
 use App\Models\Profile;
 use App\Models\User;
+use App\Queries\CommitEmbedQuery;
 use Illuminate\Pagination\CursorPaginator;
 use Illuminate\Support\Collection;
 
@@ -52,6 +53,34 @@ final class ShownStreams
     }
 
     /**
+     * An embed's commits, each shown as a card or kept as its tombstone, with their replies under them.
+     *
+     * @param  array{id: string, tombstone: string|null, commit: Commit|null, replies: list<mixed>, more: int}  $node
+     * @return array<string, mixed>
+     */
+    public static function embedNode(array $node): array
+    {
+        $commit = self::commit($node['commit']);
+        $quoted = $node['commit']?->relationLoaded('quotedCommit') === true ? $node['commit']->quotedCommit : null;
+
+        // A quote the card couldn't show itself, not public or from an author who turned embeds off, reads unavailable,
+        // its content left out of the page; a deleted one stays deleted.
+        if (is_array($commit) && array_key_exists('quoted_commit', $commit)
+            && (! $quoted instanceof Commit || CommitEmbedQuery::tombstone($quoted) === 'unavailable')) {
+            $commit['quoted_commit'] = null;
+        }
+
+        return [
+            ...$node,
+            'commit' => $commit,
+            'replies' => array_map(
+                fn (mixed $reply): array => self::embedNode($reply), // @phpstan-ignore argument.type
+                $node['replies'],
+            ),
+        ];
+    }
+
+    /**
      * @return array<mixed>|null
      */
     public static function commit(?Commit $commit): ?array
@@ -68,6 +97,8 @@ final class ShownStreams
 
         if (is_array($shown['author'] ?? null) && $commit->relationLoaded('author') && $commit->author instanceof Profile) {
             $shown['author'] = self::authored($shown['author'], $commit->author);
+            // Whether its "…" menu offers to embed it: approved, and its author allows embeds.
+            $shown['embeddable'] = CommitEmbedQuery::tombstone($commit) === null;
         }
 
         if (is_array($shown['quoted_commit'] ?? null) && $commit->relationLoaded('quotedCommit')) {

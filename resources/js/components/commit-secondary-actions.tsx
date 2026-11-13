@@ -2,6 +2,7 @@ import type { VisitOptions } from '@inertiajs/core';
 import { router, usePage } from '@inertiajs/react';
 import {
     Ban,
+    CodeXml,
     Ellipsis,
     Flag,
     LinkIcon,
@@ -19,6 +20,7 @@ import ConversationController from '@/actions/App/Http/Controllers/ConversationC
 import UserBlockController from '@/actions/App/Http/Controllers/UserBlockController';
 import UserFollowController from '@/actions/App/Http/Controllers/UserFollowController';
 import UserMuteController from '@/actions/App/Http/Controllers/UserMuteController';
+import { CommitEmbedDialog } from '@/components/commit-embed-dialog';
 import {
     CommitReportDialog,
     useCanReport,
@@ -67,7 +69,7 @@ import { sendMessage } from '@/lib/chat';
 import { cn } from '@/lib/utils';
 import type { Commit, CursorPaginated, User } from '@/types';
 
-type PendingAction = 'send' | 'block' | 'report' | 'delete';
+type PendingAction = 'send' | 'embed' | 'block' | 'report' | 'delete';
 
 export function CommitSecondaryActions({
     commit,
@@ -99,6 +101,9 @@ export function CommitSecondaryActions({
         auth.user !== null &&
         auth.remotes !== null &&
         commit.status === 'approved';
+    // Only members create embeds, of approved commits whose author allows them.
+    const canEmbed = auth.user !== null && commit.embeddable === true;
+    const [isEmbedding, setIsEmbedding] = useState(false);
 
     const pickRecipient = () => {
         setRecipient(null);
@@ -142,12 +147,15 @@ export function CommitSecondaryActions({
                     commit={commit}
                     keyShortcut={keyShortcut}
                     canSend={canSend}
+                    canEmbed={canEmbed}
                     canReport={canReport}
                     canDelete={onDelete !== undefined}
                     triggerRef={shareTriggerRef}
                     onPending={(action) => {
                         if (action === 'send') {
                             pickRecipient();
+                        } else if (action === 'embed') {
+                            setIsEmbedding(true);
                         } else if (action === 'block') {
                             setIsConfirmingBlock(true);
                         } else if (action === 'report') {
@@ -170,6 +178,13 @@ export function CommitSecondaryActions({
                     commit={commit}
                     open={isReporting}
                     onOpenChange={setIsReporting}
+                />
+            )}
+            {canEmbed && isEmbedding && (
+                <CommitEmbedDialog
+                    commit={commit}
+                    open={isEmbedding}
+                    onOpenChange={setIsEmbedding}
                 />
             )}
             {canSend && isPickerMounted && (
@@ -242,6 +257,7 @@ function CommitMoreMenu({
     commit,
     keyShortcut,
     canSend,
+    canEmbed,
     canReport,
     canDelete,
     triggerRef,
@@ -250,6 +266,7 @@ function CommitMoreMenu({
     commit: Commit;
     keyShortcut?: string;
     canSend: boolean;
+    canEmbed: boolean;
     canReport: boolean;
     canDelete: boolean;
     triggerRef: Ref<HTMLButtonElement>;
@@ -326,6 +343,17 @@ function CommitMoreMenu({
                         >
                             <Send />
                             Send in Remotes
+                        </DropdownMenuItem>
+                    )}
+                    {canEmbed && (
+                        <DropdownMenuItem
+                            onSelect={() => {
+                                pending.current = 'embed';
+                            }}
+                            data-test="embed-commit"
+                        >
+                            <CodeXml />
+                            Embed commit
                         </DropdownMenuItem>
                     )}
                     {author.type === 'user' && author.id !== auth.user?.id && (
