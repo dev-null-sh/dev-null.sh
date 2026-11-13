@@ -39,7 +39,7 @@ export function bodyWithHashtag(body: string, handle: string): string {
         // Keep exact hashtag boundaries in sync with App\Services\Hashtags.
         return [
             ...prose.matchAll(
-                /(?<![\p{L}\p{M}\p{N}_&\/#>-])#(\p{L}[\p{L}\p{M}\p{N}_]*)/gu,
+                /(?<![\p{L}\p{M}\p{N}_&/#>-])#(\p{L}[\p{L}\p{M}\p{N}_]*)/gu,
             ),
         ].some((match) => match[1].toLowerCase() === handle);
     });
