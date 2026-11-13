@@ -172,6 +172,8 @@ it('only lets admins change roles, of members', function (): void {
     signedApiRequest(apiKeyPairFor($admin), 'PUT', route('api-organization-member.update', ['handle' => 'nobody', 'member' => $member->handle]), ['role' => 'admin'])->assertNotFound();
     signedApiRequest(apiKeyPairFor($admin), 'PUT', route('api-organization-member.update', ['handle' => $admin->handle, 'member' => $member->handle]), ['role' => 'admin'])->assertNotFound();
     signedApiRequest(apiKeyPairFor($admin), 'PUT', route('api-organization-member.update', apiMemberRoute($member)), ['role' => 'owner'])->assertJsonValidationErrors('role');
+    signedApiRequest(apiKeyPairFor($admin), 'PUT', route('api-organization-member.update', apiMemberRoute($member)), ['role' => ['admin']])->assertJsonValidationErrors('role');
+    signedApiRequest(apiKeyPairFor($admin), 'PUT', route('api-organization-member.update', apiMemberRoute($admin)), ['role' => ['member']])->assertJsonValidationErrors('role');
 
     expect($organization->roleOf($member))->toBe(OrganizationRole::Member)
         ->and($organization->roleOf($user))->toBeNull();
