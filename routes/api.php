@@ -61,6 +61,8 @@ use App\Http\Controllers\Api\OrgPinController;
 use App\Http\Controllers\Api\OrgPingController;
 use App\Http\Controllers\Api\OrgReadController;
 use App\Http\Controllers\Api\OrgTypingController;
+use App\Http\Controllers\Api\PendingFollowController;
+use App\Http\Controllers\Api\ProfileLookupController;
 use App\Http\Controllers\Api\ProfileSearchController;
 use App\Http\Controllers\Api\RelatedCommitController;
 use App\Http\Controllers\Api\RemoteCandidateController;
@@ -69,6 +71,7 @@ use App\Http\Controllers\Api\ScheduledCommitSubmissionController;
 use App\Http\Controllers\Api\StarredCommitController;
 use App\Http\Controllers\Api\SuggestedUserController;
 use App\Http\Controllers\Api\SuggestionDismissalController;
+use App\Http\Controllers\Api\UnclaimedProfileController;
 use App\Http\Controllers\Api\UserAutomaticTranslationController;
 use App\Http\Controllers\Api\UserBlockController;
 use App\Http\Controllers\Api\UserCommitController;
@@ -132,6 +135,8 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             ->name('api-organization-commit.index');
         Route::get('organizations/{handle}/mentions', [OrganizationMentionController::class, 'index'])
             ->name('api-organization-mention.index');
+        Route::get('unclaimed-profiles/{handle}', [UnclaimedProfileController::class, 'show'])
+            ->name('api-unclaimed-profile.show');
     });
 
     // The Mac app's latest release, which its update check compares with, unsigned so it sends nothing about anyone...
@@ -336,6 +341,23 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         Route::delete('users/{user:handle}/follow', [UserFollowController::class, 'destroy'])
             ->middleware('throttle:follows')
             ->name('api-user-follow.destroy');
+
+        // Waiting to follow a developer who isn't on /dev/null yet...
+        Route::post('profiles/{profile}/pending-follow', [PendingFollowController::class, 'store'])
+            ->whereUuid('profile')
+            ->middleware('throttle:follows')
+            ->name('api-pending-follow.store');
+        Route::delete('profiles/{profile}/pending-follow', [PendingFollowController::class, 'destroy'])
+            ->whereUuid('profile')
+            ->middleware('throttle:follows')
+            ->name('api-pending-follow.destroy');
+
+        // Profile Lookup: a handle nobody here has, looked up on GitHub, sharing the web's budget...
+        Route::get('profile-lookups/{handle}', [ProfileLookupController::class, 'show'])
+            ->name('api-profile-lookup.show');
+        Route::post('profile-lookups', [ProfileLookupController::class, 'store'])
+            ->middleware('throttle:profile-lookups')
+            ->name('api-profile-lookup.store');
 
         // Organization Follow...
         Route::post('organizations/{handle}/follow', [OrganizationFollowController::class, 'store'])
