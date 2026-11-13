@@ -98,9 +98,9 @@ export function useImageAttachments(
         });
     };
 
-    // Dropped and pasted images attach at once, unless one of them is a HEIC
-    // photo or over the size limit: then all of them go through the reader that
-    // picked images use, which converts those, one read at a time.
+    // Dropped and pasted images attach at once, unless one of them is a HEIC or
+    // DNG photo or over the size limit: then all of them go through the reader
+    // that picked images use, which converts those, one read at a time.
     const add = (files: File[]) => {
         if (disabled) return;
 

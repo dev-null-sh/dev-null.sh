@@ -336,7 +336,7 @@ test('keeps valid images around an oversized selection and displays the error', 
     };
     const first = new File(['first'], 'first.png', { type: 'image/png' });
     const oversized = new File(
-        [new Uint8Array(50 * 1024 * 1024 + 1)],
+        [new Uint8Array(100 * 1024 * 1024 + 1)],
         'large.png',
         {
             type: 'image/png',
@@ -356,7 +356,7 @@ test('keeps valid images around an oversized selection and displays the error', 
         ['first', 'last'],
     );
     assert.deepEqual(draft.descriptions, ['', '']);
-    assert.match(attachments.error!, /50 MB/);
+    assert.match(attachments.error!, /100 MB/);
     assert.equal(attachments.isReading(), false);
 
     attachments.clearError();
@@ -378,7 +378,7 @@ test('rejected files do not consume the last available attachment slot', async (
         descriptions: ['first', 'second'],
     };
     const oversized = new File(
-        [new Uint8Array(50 * 1024 * 1024 + 1)],
+        [new Uint8Array(100 * 1024 * 1024 + 1)],
         'large.png',
         {
             type: 'image/png',
@@ -393,7 +393,7 @@ test('rejected files do not consume the last available attachment slot', async (
         ['existing.png', 'existing.png', 'valid.png'],
     );
     assert.deepEqual(draft.descriptions, ['first', 'second', '']);
-    assert.match(render(draft).error!, /50 MB/);
+    assert.match(render(draft).error!, /100 MB/);
 });
 
 test('late read errors belong to the originating hook instance', async () => {
