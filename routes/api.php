@@ -49,6 +49,8 @@ use App\Http\Controllers\Api\OrganizationAdminController;
 use App\Http\Controllers\Api\OrganizationCommitController;
 use App\Http\Controllers\Api\OrganizationController;
 use App\Http\Controllers\Api\OrganizationFollowController;
+use App\Http\Controllers\Api\OrganizationLaneController;
+use App\Http\Controllers\Api\OrganizationMemberController;
 use App\Http\Controllers\Api\OrganizationMentionController;
 use App\Http\Controllers\Api\OrgArchiveController;
 use App\Http\Controllers\Api\OrgCallController;
@@ -349,6 +351,17 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         Route::post('organizations/{handle}/claim', [OrganizationAdminController::class, 'store'])
             ->middleware('throttle:10,1')
             ->name('api-organization-admin.store');
+
+        // Organization Members: who belongs to it, and the roles its admins give them...
+        Route::get('organizations/{handle}/members', [OrganizationMemberController::class, 'index'])->name('api-organization-member.index');
+        Route::post('organizations/{handle}/members', [OrganizationMemberController::class, 'store'])
+            ->middleware('throttle:30,1')
+            ->name('api-organization-member.store');
+        Route::put('organizations/{handle}/members/{member:handle}', [OrganizationMemberController::class, 'update'])->name('api-organization-member.update');
+        Route::delete('organizations/{handle}/members/{member:handle}', [OrganizationMemberController::class, 'destroy'])->name('api-organization-member.destroy');
+
+        // Organization Lane: the color its admins choose...
+        Route::put('organizations/{handle}/lane', [OrganizationLaneController::class, 'update'])->name('api-organization-lane.update');
 
         // Who to Follow...
         Route::get('me/suggested-users', [SuggestedUserController::class, 'index'])->name('api-suggested-user.index');
