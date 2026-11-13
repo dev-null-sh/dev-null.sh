@@ -142,12 +142,14 @@ function entryFor(channel: RealtimeChannel, socket: RealtimeConnection) {
 
 /**
  * Listens for events on a channel, calling `onSync` whenever the channel is joined, at first and after every
- * reconnection, since updates sent in between were never heard. Returns the function that stops listening.
+ * reconnection, since updates sent in between were never heard. `readAt` is when what it listens for was read, if after
+ * the page. Returns the function that stops listening.
  */
 export function listen(
     channel: RealtimeChannel,
     events: Record<string, RealtimeHandler>,
     onSync?: () => void,
+    readAt?: number,
 ): () => void {
     const socket = connection;
 
@@ -186,7 +188,7 @@ export function listen(
 
         if (
             entry.isSubscribed &&
-            mayHaveMissed(entry, Object.keys(events), pageRead)
+            mayHaveMissed(entry, Object.keys(events), readAt ?? pageRead)
         ) {
             queueMicrotask(sync);
         }

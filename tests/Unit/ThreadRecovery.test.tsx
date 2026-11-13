@@ -25,7 +25,7 @@ vi.doMock('@inertiajs/react', async () => ({
     router: { restore: () => undefined, on: () => () => {}, reload: () => {} },
 }));
 
-const { connectRealtime } = await import('../../resources/js/lib/realtime');
+const { commitChannel, connectRealtime, listen, userChannel } = await import('../../resources/js/lib/realtime');
 const { useThread } = await import('../../resources/js/components/commit-thread');
 
 const reply = (id: string) =>
@@ -40,8 +40,8 @@ let thread: ReturnType<typeof useThread>;
 
 type Initial = { data: ThreadCommit[]; next_cursor: null; prev_cursor: null };
 
-function Probe(props: { initial: Initial }) {
-    thread = useThread(root, props.initial, true);
+function Probe(props: { initial?: Initial }) {
+    thread = useThread(root, props.initial, props.initial !== undefined);
 
     return null;
 }
@@ -98,7 +98,7 @@ async function settle() {
     }
 }
 
-let props = { initial: initialOf(['r1', 'r2']) };
+let props: { initial?: Initial } = { initial: initialOf(['r1', 'r2']) };
 
 const shownIds = () => thread.replies?.map((shown) => shown.id);
 
@@ -151,4 +151,64 @@ test('catching up on many changes reads again only what was loaded, leaving a la
     assert.deepEqual(shownIds(), ['r1', 'r2']);
     assert.equal(thread.hasMore, true);
     assert.ok(replyReads.length - before <= 2, `read ${replyReads.length - before} pages`);
+});
+
+test('opening a thread reads its replies once, though the channels it listens on were joined before', async () => {
+    props = {};
+    server = ['r1', 'r2'];
+    listen(userChannel('me'), {});
+    listen(commitChannel('root'), {});
+    joinAll(fake);
+    await vi.advanceTimersByTimeAsync(1_000);
+    void harness.render(Probe, props);
+    thread.toggle();
+    await settle();
+
+    assert.deepEqual(shownIds(), ['r1', 'r2']);
+    assert.equal(replyReads.length, 1);
+});
+
+test('a reply posted while a slow thread was opening shows once its replies land', async () => {
+    props = {};
+    server = ['r1'];
+    listen(userChannel('me'), {});
+    listen(commitChannel('root'), {});
+    joinAll(fake);
+    await vi.advanceTimersByTimeAsync(1_000);
+    const answer = globalThis.fetch;
+    let postedAt = Infinity;
+    let isHeld = false;
+    let land = () => {};
+    vi.stubGlobal('fetch', async (input: string, init?: RequestInit) => {
+        const url = new URL(input, 'http://localhost');
+
+        if (url.pathname === '/commits/changes') {
+            const replies = Number(url.searchParams.get('since')) <= postedAt ? ['r2'] : [];
+
+            return Response.json({ changes: { root: { changed: replies.length > 0, replies, truncated: false } } });
+        }
+
+        const response = answer(input, init);
+
+        if (isHeld || !url.searchParams.has('limit')) {
+            return response;
+        }
+
+        isHeld = true;
+
+        return new Promise<Response>((resolve) => {
+            land = () => resolve(response);
+        });
+    });
+    void harness.render(Probe, props);
+    thread.toggle();
+    await vi.advanceTimersByTimeAsync(1_000);
+    server = ['r1', 'r2'];
+    postedAt = Date.now();
+    fake.joined.get('commits.root')?.emit('visibility', { ids: ['r2'] });
+    await vi.advanceTimersByTimeAsync(20_000);
+    land();
+    await settle();
+
+    assert.deepEqual(shownIds(), ['r1', 'r2']);
 });
