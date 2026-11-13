@@ -1,5 +1,6 @@
 import { Form, Head, Link, router } from '@inertiajs/react';
 import { ArrowUpRight, Download, RefreshCw, Save } from 'lucide-react';
+import { useState } from 'react';
 import ExportController from '@/actions/App/Http/Controllers/ExportController';
 import UserProfileController from '@/actions/App/Http/Controllers/UserProfileController';
 import ActivityGraphEmbed from '@/components/activity-graph-embed';
@@ -41,6 +42,8 @@ export default function Edit({
 }) {
     const { user } = useUser();
     const now = useNow();
+    const [profileSaveProcessing, setProfileSaveProcessing] = useState(false);
+    const [profileSyncVersion, setProfileSyncVersion] = useState(0);
 
     return (
         <>
@@ -52,7 +55,11 @@ export default function Edit({
                     description="Edit your profile details here. Syncing from GitHub overwrites these values. Your Dev-Null username is shown instead of your GitHub username."
                 />
 
-                <GitHubProfile showSaveButton={false} />
+                <GitHubProfile
+                    showSaveButton={false}
+                    onProcessingChange={setProfileSaveProcessing}
+                    syncVersion={profileSyncVersion}
+                />
 
                 <div className="mt-5 flex flex-wrap gap-2">
                     <Button asChild>
@@ -68,10 +75,12 @@ export default function Edit({
                     <Button
                         type="submit"
                         form="profile-details-form"
+                        disabled={profileSaveProcessing}
+                        aria-busy={profileSaveProcessing}
                         data-test="save-profile-details-button"
                     >
-                        <Save />
-                        Save profile
+                        {profileSaveProcessing ? <Spinner /> : <Save />}
+                        {profileSaveProcessing ? 'Saving profile...' : 'Save profile'}
                     </Button>
                     <Form
                         {...UserProfileController.update.form()}
@@ -80,6 +89,7 @@ export default function Edit({
                             preserveScroll: true,
                         }}
                         onSuccess={(page) => {
+                            setProfileSyncVersion((version) => version + 1);
                             router.flushAll();
 
                             if (page.props.suggestedUsers === undefined) {

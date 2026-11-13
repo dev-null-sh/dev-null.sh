@@ -6,16 +6,48 @@ import InputError from '@/components/input-error';
 import { UserAvatar } from '@/components/user-avatar';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { Spinner } from '@/components/ui/spinner';
 import { useUser } from '@/hooks/use-user';
 
 type UsernameCheck =
     | { status: 'idle' | 'checking' }
     | { status: 'available' | 'invalid' | 'error'; message: string };
 
-export function GitHubProfile({ showSaveButton = true }: { showSaveButton?: boolean }) {
+function ProcessingReporter({
+    processing,
+    onChange,
+}: {
+    processing: boolean;
+    onChange: (processing: boolean) => void;
+}) {
+    useEffect(() => onChange(processing), [onChange, processing]);
+
+    return null;
+}
+
+export function GitHubProfile({
+    showSaveButton = true,
+    onProcessingChange,
+    syncVersion = 0,
+}: {
+    showSaveButton?: boolean;
+    onProcessingChange?: (processing: boolean) => void;
+    syncVersion?: number;
+}) {
     const { user } = useUser();
     const [devNullUsername, setDevNullUsername] = useState(user.dev_null_username ?? '');
     const [usernameCheck, setUsernameCheck] = useState<UsernameCheck>({ status: 'idle' });
+    const profileFormKey = JSON.stringify([
+        syncVersion,
+        user.dev_null_username,
+        user.name,
+        user.bio,
+        user.company,
+        user.location,
+        user.website,
+        user.sponsors_url,
+        user.avatar_url,
+    ]);
 
     useEffect(() => {
         setDevNullUsername(user.dev_null_username ?? '');
@@ -104,13 +136,20 @@ export function GitHubProfile({ showSaveButton = true }: { showSaveButton?: bool
 
             <Form
                 {...UserProfileController.updateDetails.form()}
+                key={profileFormKey}
                 id="profile-details-form"
                 options={{ preserveScroll: true }}
                 onSuccess={() => router.flushAll()}
                 className="mt-5 grid max-w-2xl gap-4 sm:grid-cols-2"
             >
-                {({ errors }) => (
+                {({ errors, processing }) => (
                     <>
+                        {onProcessingChange && (
+                            <ProcessingReporter
+                                processing={processing}
+                                onChange={onProcessingChange}
+                            />
+                        )}
                         <div className="grid gap-2">
                             <Label htmlFor="github-username">
                                 GitHub username
@@ -279,9 +318,14 @@ export function GitHubProfile({ showSaveButton = true }: { showSaveButton?: bool
                         </div>
                         {showSaveButton && (
                             <div className="sm:col-span-2">
-                                <Button type="submit" data-test="save-profile-details-button">
-                                    <Save />
-                                    Save profile
+                                <Button
+                                    type="submit"
+                                    disabled={processing}
+                                    aria-busy={processing}
+                                    data-test="save-profile-details-button"
+                                >
+                                    {processing ? <Spinner /> : <Save />}
+                                    {processing ? 'Saving profile...' : 'Save profile'}
                                 </Button>
                             </div>
                         )}

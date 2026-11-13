@@ -9,7 +9,6 @@ use App\Models\User;
 use Closure;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Contracts\Validation\ValidationRule;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Str;
 
 final readonly class DevNullUsername implements ValidationRule
@@ -34,25 +33,25 @@ final readonly class DevNullUsername implements ValidationRule
             return;
         }
 
-        $query = User::query()->where('dev_null_username', $value);
-
-        if ($this->user instanceof Authenticatable) {
-            $query->where($this->user->getAuthIdentifierName(), '!=', $this->user->getAuthIdentifier());
-        }
-
-        $displayedHandleQuery = Profile::query()
-            ->where('handle', $value)
-            ->where(fn (Builder $query): Builder => $query
-                ->whereHas('organization')
-                ->orWhereHas('user', fn (Builder $query): Builder => $query->whereNull('dev_null_username')));
-
-        if ($this->user instanceof User) {
-            $displayedHandleQuery->where('id', '!=', $this->user->getKey());
-        }
-
-        if ($query->exists() || $displayedHandleQuery->exists()) {
+        if (self::isClaimedByAnotherAccount($value, $this->user)) {
             $fail('validation.unique')->translate();
         }
+    }
+
+    public static function isClaimedByAnotherAccount(string $username, ?Authenticatable $user): bool
+    {
+        $userQuery = User::query()->where('dev_null_username', $username);
+        $profileQuery = Profile::query()->where('handle', $username);
+
+        if ($user instanceof Authenticatable) {
+            $userQuery->where($user->getAuthIdentifierName(), '!=', $user->getAuthIdentifier());
+        }
+
+        if ($user instanceof User) {
+            $profileQuery->where('id', '!=', $user->getKey());
+        }
+
+        return $userQuery->exists() || $profileQuery->exists();
     }
 
     public static function normalize(string $username): string

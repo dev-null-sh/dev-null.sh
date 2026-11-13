@@ -80,6 +80,41 @@ it('allows a user to clear their Dev-Null username', function (): void {
         ->sponsors_url->toBeNull();
 });
 
+it('does not allow clearing a Dev-Null username when another user claimed the GitHub handle', function (): void {
+    $user = User::factory()->create([
+        'handle' => 'alice',
+        'dev_null_username' => 'alice-custom',
+    ]);
+    $claimer = User::factory()->create([
+        'handle' => 'bob',
+        'dev_null_username' => 'alice',
+    ]);
+
+    $attributes = [
+        'dev_null_username' => '',
+        'name' => $user->name,
+        'bio' => $user->bio,
+        'company' => $user->company,
+        'location' => $user->location,
+        'website' => $user->website,
+        'sponsors_url' => $user->sponsors_url,
+    ];
+
+    $this->actingAs($user)
+        ->fromRoute('user-profile.edit')
+        ->patch(route('user-profile.details.update'), $attributes)
+        ->assertSessionHasErrors('dev_null_username');
+
+    expect($user->refresh()->dev_null_username)->toBe('alice-custom');
+
+    $claimer->forceFill(['dev_null_username' => 'bob-custom'])->save();
+
+    $this->patch(route('user-profile.details.update'), $attributes)
+        ->assertRedirectToRoute('user-profile.edit');
+
+    expect($user->refresh()->dev_null_username)->toBeNull();
+});
+
 it('rejects non-http profile links', function (): void {
     $user = User::factory()->create([
         'website' => 'https://example.test',
@@ -147,12 +182,16 @@ it('rejects a Dev-Null username that matches the GitHub username', function (): 
         ->assertJsonValidationErrors('dev_null_username');
 });
 
-it('rejects a Dev-Null username that matches another account displayed handle', function (): void {
+it('rejects a Dev-Null username that matches another GitHub handle', function (): void {
     User::factory()->create(['handle' => 'displayed-handle']);
+    User::factory()->create([
+        'handle' => 'hidden-handle',
+        'dev_null_username' => 'custom-display',
+    ]);
     Organization::factory()->create(['handle' => 'displayed-org']);
     $user = User::factory()->create();
 
-    foreach (['DISPLAYED-HANDLE', 'DISPLAYED-ORG'] as $username) {
+    foreach (['DISPLAYED-HANDLE', 'HIDDEN-HANDLE', 'DISPLAYED-ORG'] as $username) {
         $this->actingAs($user)
             ->fromRoute('user-profile.edit')
             ->patch(route('user-profile.details.update'), [

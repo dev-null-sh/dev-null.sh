@@ -13,6 +13,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Dimensions;
 use Illuminate\Validation\Rules\File;
+use Illuminate\Validation\Validator;
 use LogicException;
 
 final class UpdateUserProfileDetailsRequest extends FormRequest
@@ -50,6 +51,26 @@ final class UpdateUserProfileDetailsRequest extends FormRequest
                     ->maxHeight(CreateCommitImages::MAX_SOURCE_DIMENSION),
             ],
         ];
+    }
+
+    /**
+     * @return array<callable(Validator): void>
+     */
+    public function after(): array
+    {
+        return [function (Validator $validator): void {
+            $user = $this->user();
+
+            if ($validator->errors()->has('dev_null_username')
+                || $this->input('dev_null_username') !== null
+                || ! $user instanceof User) {
+                return;
+            }
+
+            if (DevNullUsername::isClaimedByAnotherAccount(DevNullUsername::normalize($user->handle), $user)) {
+                $validator->errors()->add('dev_null_username', 'Your GitHub username is already claimed by another account.');
+            }
+        }];
     }
 
     /**

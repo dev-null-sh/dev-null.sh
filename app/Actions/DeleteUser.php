@@ -48,7 +48,7 @@ final readonly class DeleteUser
     public function handle(User $user): void
     {
         DB::transaction(function () use ($user): void {
-            User::query()->whereKey($user->id)->lockForUpdate()->firstOrFail();
+            $user = User::query()->whereKey($user->id)->lockForUpdate()->firstOrFail();
 
             $this->updateCommitHotScores->handle($this->engagedCommitIds($user));
 
