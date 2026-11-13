@@ -55,6 +55,7 @@ use App\Http\Controllers\Api\OrgCallController;
 use App\Http\Controllers\Api\OrgCallIceServerController;
 use App\Http\Controllers\Api\OrgController;
 use App\Http\Controllers\Api\OrgMemberController;
+use App\Http\Controllers\Api\OrgMentionController;
 use App\Http\Controllers\Api\OrgMessageController;
 use App\Http\Controllers\Api\OrgMuteController;
 use App\Http\Controllers\Api\OrgPinController;
@@ -405,6 +406,9 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             Route::put('remotes/orgs/{org}/read', [OrgReadController::class, 'update'])
                 ->whereUuid('org')
                 ->name('api-org-read.update');
+            Route::delete('remotes/orgs/{org}/mentions', [OrgMentionController::class, 'destroy'])
+                ->whereUuid('org')
+                ->name('api-org-mention.destroy');
             Route::get('remotes/messages/{message}/link-preview', [MessageLinkPreviewController::class, 'show'])
                 ->whereNumber('message')
                 ->name('api-message-link-preview.show');
