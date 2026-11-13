@@ -125,7 +125,13 @@ function QuoteComposer({
     onClose: () => void;
 }) {
     const { user } = useUser();
-    const [author, setAuthor] = useState<OrganizationAuthor | null>(null);
+    const { auth } = usePage().props;
+    const [picked, setAuthor] = useState<OrganizationAuthor | null>(null);
+    // Removed from the organization since picking it, they post as themselves again.
+    const author =
+        auth.organizations.find(
+            (organization) => organization.id === picked?.id,
+        ) ?? null;
     const markCommitDeleted = useMarkCommitDeleted();
     const id = `quote-${commit.id}`;
     const {
@@ -259,9 +265,13 @@ function QuoteComposer({
                             author={author}
                             onChange={setAuthor}
                             fallback={
+                                // Once they picked an organization they can no longer post as, show who posts now.
                                 <UserAvatar
                                     user={user}
-                                    className="hidden size-10 sm:flex"
+                                    className={cn(
+                                        'size-8 shrink-0 sm:flex sm:size-10',
+                                        { hidden: picked === null },
+                                    )}
                                 />
                             }
                             className="shrink-0 self-start"
