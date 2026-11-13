@@ -61,6 +61,10 @@ const groups = (
             title: 'Anywhere',
             shortcuts: [
                 { keys: [[keys.mod, 'K'], ['/']], label: 'Search' },
+                {
+                    keys: [[keys.mod, 'B']],
+                    label: 'Collapse or expand sidebar',
+                },
                 { keys: [['?']], label: 'Show this list' },
             ],
         },
