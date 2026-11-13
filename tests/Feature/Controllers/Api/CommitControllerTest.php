@@ -7,6 +7,7 @@ use App\Enums\PollDuration;
 use App\Http\Requests\CreateApiCommitRequest;
 use App\Http\Requests\CreateCommitReplyRequest;
 use App\Jobs\ModerateCommit;
+use App\Jobs\UnfurlLink;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\LinkPreview;
@@ -631,6 +632,7 @@ it('validates a commit from a signed request', function (Closure $data, string $
     'unknown parent' => [fn (): array => ['body' => 'It was DNS.', 'parent_id' => '0199e3a4-0000-7000-8000-000000000000'], 'parent_id', 'That commit is no longer available to reply to.'],
     'hidden parent' => [fn (): array => ['body' => 'It was DNS.', 'parent_id' => Commit::factory()->pending()->create()->id], 'parent_id', 'That commit is no longer available to reply to.'],
     'deleted parent' => [fn (): array => ['body' => 'It was DNS.', 'parent_id' => tap(Commit::factory()->create())->delete()->id], 'parent_id', 'That commit is no longer available to reply to.'],
+    'a link card for a link not in the body' => [fn (): array => ['body' => 'Read https://example.com/first', 'link_preview_url' => 'https://example.com/other'], 'link_preview_url', 'The link card must be one of the links in the body.'],
 ]);
 
 it('may not reply to a commit across a block, as on the web', function (): void {
@@ -1026,3 +1028,32 @@ it('rejects commits and deletes that are not signed', function (): void {
     expect(Commit::query()->count())->toBe(1);
     $this->assertNotSoftDeleted($commit);
 });
+
+it('keeps the first link as the link card of a commit, reply or quote, unless the user chose another or none', function (Closure $target, array $choice, ?string $expected): void {
+    Queue::fake([UnfurlLink::class]);
+    $user = User::factory()->create();
+
+    signedApiRequest(apiKeyPairFor($user), 'POST', route('api-commit.store'), [
+        'body' => 'Shipped https://example.com/first and https://example.com/second',
+        ...$target(),
+        ...$choice,
+    ])->assertCreated();
+
+    $commit = $user->commits()->sole();
+
+    expect($commit->linkPreview?->url)->toBe($expected);
+
+    if ($expected === null) {
+        Queue::assertNotPushed(UnfurlLink::class);
+    } else {
+        Queue::assertPushed(UnfurlLink::class, fn (UnfurlLink $job): bool => $job->linkPreview->is($commit->linkPreview));
+    }
+})->with([
+    'a commit' => fn (): array => [],
+    'a reply' => fn (): array => ['parent_id' => Commit::factory()->create()->id],
+    'a quote' => fn (): array => ['quoted_commit_id' => Commit::factory()->create()->id],
+])->with([
+    'the first link' => [[], 'https://example.com/first'],
+    'another link' => [['link_preview_url' => 'https://example.com/second'], 'https://example.com/second'],
+    'no card' => [['link_preview_url' => null], null],
+]);
