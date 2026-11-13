@@ -319,6 +319,7 @@ it('shows a signed request the commit as its page shows it to its user', functio
                 'quoted_commit_id' => null,
                 'quoted_commit' => null,
                 'poll' => null,
+                'continuation_id' => null,
             ],
             'ancestors' => [[
                 'id' => $root->id,
@@ -345,6 +346,19 @@ it('shows a signed request the commit as its page shows it to its user', functio
             ]],
             'reply_participants' => [],
         ]);
+});
+
+it('shows a signed request the reply that continues the author thread', function (): void {
+    $keyPair = apiKeyPairFor(User::factory()->create());
+    $commit = Commit::factory()->create();
+    Commit::factory()->for($commit, 'parent')->create(['created_at' => now()->subMinutes(2)]);
+    $next = Commit::factory()->for($commit, 'parent')->for($commit->user)->create(['created_at' => now()->subMinute()]);
+    Commit::factory()->for($commit, 'parent')->for($commit->user)->create();
+
+    signedApiRequest($keyPair, 'GET', route('api-commit.show', $commit))
+        ->assertOk()
+        ->assertJsonPath('data.continuation_id', $next->id)
+        ->assertJsonPath('data.replies_count', 2);
 });
 
 it('shows a signed request the poll of a commit as the web does, with each share once the votes show', function (): void {

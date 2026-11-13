@@ -24,9 +24,10 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * and how many pastéis it was given, which the app only shows in pastéis mode, as the web does. Like the web's cards,
  * it also has preview_segments, the excerpt a list shows of a long commit, the poll, with what the user may see of
  * its votes, and the commit it quotes, or null once the user may no longer see that one, while quoted_commit_id still
- * says it quoted something. In a list, reply_preview is the newest reply or quote the web shows under it. As on the
- * web, the counts, link_preview, images, starred, parent, poll, quoted_commit and reply_preview are only
- * there when they were loaded, so ancestors and the commits of notifications come without some of them. The images of
+ * says it quoted something. In a list, reply_preview is the newest reply or quote the web shows under it, and
+ * continuation_id the author's reply that continues their thread. As on the web, the counts, link_preview, images,
+ * starred, parent, poll, quoted_commit, continuation_id and reply_preview are only there when they were loaded, so
+ * ancestors and the commits of notifications come without some of them. The images of
  * a commit that isn't published yet have temporary URLs, since the app has no web session to load them with.
  *
  * A deleted commit that still has replies stays in its thread as a tombstone: its id, parent_id, deleted_at and
@@ -85,6 +86,7 @@ final class CommitResource extends JsonResource
             'quoted_commit_id' => $this->quoted_commit_id,
             'quoted_commit' => $this->whenLoaded('quotedCommit', fn (Commit $quoted): self => self::make($quoted)),
             'poll' => $this->whenLoaded('poll', fn (Poll $poll): PollResource => PollResource::make($poll)),
+            'continuation_id' => $this->whenHas('continuation_id'),
             'reply_preview' => $this->whenLoaded('replyPreview', fn (Collection $replies): array => [
                 'data' => self::collection($replies),
                 'next_cursor' => data_get($this->getAttribute('reply_preview'), 'next_cursor'),

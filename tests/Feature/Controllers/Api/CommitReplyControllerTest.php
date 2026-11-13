@@ -36,6 +36,32 @@ it('lists visible replies oldest first with their own reply counts', function ()
         ->assertJsonPath('meta.next_cursor', null);
 });
 
+it('tells which reply continues the thread of each reply', function (): void {
+    $parent = Commit::factory()->create();
+    $reply = Commit::factory()->for($parent, 'parent')->create();
+    $next = Commit::factory()->for($reply, 'parent')->for($reply->user)->create();
+
+    signedApiRequest($this->keyPair, 'GET', route('api-commit-reply.index', $parent))
+        ->assertOk()
+        ->assertJsonPath('data.0.continuation_id', $next->id);
+});
+
+it('leaves out the reply it is asked to, as the web does', function (): void {
+    $parent = Commit::factory()->create();
+    $continuation = Commit::factory()->for($parent, 'parent')->for($parent->user)->create(['created_at' => now()->subMinute()]);
+    $other = Commit::factory()->for($parent, 'parent')->create();
+
+    signedApiRequest($this->keyPair, 'GET', route('api-commit-reply.index', [$parent, 'except' => $continuation->id]))
+        ->assertOk()
+        ->assertJsonPath('data.*.id', [$other->id]);
+});
+
+it('validates the reply to leave out', function (): void {
+    signedApiRequest($this->keyPair, 'GET', route('api-commit-reply.index', [Commit::factory()->create(), 'except' => 'not-a-uuid']))
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('except');
+});
+
 it('shows the stars and saves of each reply as the user sees them', function (): void {
     $parent = Commit::factory()->create();
     $starred = Commit::factory()->for($parent, 'parent')->create(['created_at' => now()->subMinutes(2)]);
