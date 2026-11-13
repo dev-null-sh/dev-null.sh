@@ -603,6 +603,7 @@ A signed request sees what the web shows you, such as your own pending commits a
 - suggest people to mention and /dev/null issues to reference while writing;
 - sync from GitHub, save your lane color, timezone, and translation language, and turn automatic translation on or off;
 - list your devices and revoke them;
+- download your data export, sharing the web's limit;
 - delete your account.
 
 Signed lists show each commit with its newest reply or quote. Add `?replies_per_page=` with 3, 5, 10, 15, 20, or 25 to show that many replies and quotes, like the replies choice in Settings → Appearance.
@@ -665,9 +666,9 @@ Choose **Download JSON** in Settings → Profile to export your account data. Th
 
 Other people's replies and received messages are not included as your authored data. Message images, message reactions, and scheduled commits are not included either. Reports you filed include their reason, details, and attachment references; reports filed by other people are excluded. Image and voice-note references are URLs, not an archive of the media files. Deleted commit entries do not restore content already erased after the undo window.
 
-The export does not expose session IDs, authentication tokens, private SSH keys, or other people's poll choices. Keep the downloaded JSON private because it includes personal account information. Exports are limited to **three per hour**.
+The export does not expose session IDs, authentication tokens, private SSH keys, or other people's poll choices. Keep the downloaded JSON private because it includes personal account information. An app can download the same file through the [signed API](#signed-api-and-devices). Exports are limited to **three per hour**, counted together on the web and in apps.
 
-Sources: [export settings](resources/js/pages/user-profile/edit.tsx), [export contents](app/Actions/CreateExport.php), [export download](app/Http/Controllers/ExportController.php), [rate limits](app/Providers/AppServiceProvider.php).
+Sources: [export settings](resources/js/pages/user-profile/edit.tsx), [export contents](app/Actions/CreateExport.php), [export download](app/Http/Controllers/ExportController.php), [export in the API](app/Http/Controllers/Api/ExportController.php), [rate limits](app/Providers/AppServiceProvider.php).
 
 ### Deleting your account
 
