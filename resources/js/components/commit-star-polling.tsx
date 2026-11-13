@@ -8,10 +8,20 @@ import {
 } from 'react';
 import type { ReactNode } from 'react';
 import { index } from '@/actions/App/Http/Controllers/CommitStarCountController';
+import { refreshSharedState, sharedValue } from '@/hooks/use-shared-state';
+import type { SharedValue } from '@/hooks/use-shared-state';
 import { createCommitStarMutations } from '@/lib/commit-star-mutations';
+import { commitStateKey, localCountVersion } from '@/lib/commit-state';
+import { deletedResources } from '@/lib/deleted-resources';
+import { coalesce, commitChannel, isListening, listen } from '@/lib/realtime';
 import type { Commit } from '@/types';
 
 type StarState = Pick<Commit, 'id' | 'stars_count' | 'starred'>;
+
+type CardState = StarState & {
+    pasteis_count: number;
+    replies_count: number;
+};
 
 type Subscription = {
     id: string;
@@ -24,16 +34,71 @@ export const CommitStarPollingContext = createContext<{
     mutations: ReturnType<typeof createCommitStarMutations>;
 } | null>(null);
 
+const fallbackPoll = 30_000;
+
+function isOnScreen(element: HTMLElement): boolean {
+    const bounds = element.getBoundingClientRect();
+
+    return !(
+        bounds.width === 0 ||
+        bounds.height === 0 ||
+        bounds.bottom <= 0 ||
+        bounds.top >= window.innerHeight ||
+        bounds.right <= 0 ||
+        bounds.left >= window.innerWidth
+    );
+}
+
+/**
+ * Keeps the counts of the cards on screen current. Each card on screen listens to its commit's channel, and what it
+ * hears is read again in one batch, through the same endpoint the optimistic stars settle against. Without live
+ * updates, the cards on screen are read every 30 seconds instead. Failed live reads retry on that safety interval too.
+ */
 export function CommitStarPolling({ children }: { children: ReactNode }) {
     const [mutations] = useState(createCommitStarMutations);
     const subscriptions = useRef(new Set<Subscription>());
-    const subscribe = useCallback((subscription: Subscription) => {
-        subscriptions.current.add(subscription);
+    const [observer, setObserver] = useState<IntersectionObserver | null>(null);
+    const [visible, setVisible] = useState<ReadonlySet<string>>(new Set());
+    const shown = useRef(visible);
+    const syncVisible = useRef<() => void>(() => {});
+    // Kept across the cards coming and going, so what was heard isn't forgotten when the cards on screen change.
+    const dirty = useRef(new Set<string>());
+    const subscribe = useCallback(
+        (subscription: Subscription) => {
+            subscriptions.current.add(subscription);
+            observer?.observe(subscription.element);
 
-        return () => {
-            subscriptions.current.delete(subscription);
-        };
-    }, []);
+            return () => {
+                subscriptions.current.delete(subscription);
+
+                if (
+                    ![...subscriptions.current].some(
+                        ({ id }) => id === subscription.id,
+                    )
+                ) {
+                    setVisible((current) => {
+                        if (!current.has(subscription.id)) {
+                            return current;
+                        }
+
+                        const next = new Set(current);
+                        next.delete(subscription.id);
+
+                        return next;
+                    });
+                }
+
+                if (
+                    ![...subscriptions.current].some(
+                        ({ element }) => element === subscription.element,
+                    )
+                ) {
+                    observer?.unobserve(subscription.element);
+                }
+            };
+        },
+        [observer],
+    );
 
     const context = useMemo(
         () => ({ subscribe, mutations }),
@@ -41,94 +106,217 @@ export function CommitStarPolling({ children }: { children: ReactNode }) {
     );
 
     useEffect(() => {
-        const controller = new AbortController();
-        const listeners = subscriptions.current;
-        let running = false;
+        const onScreen = new Set<HTMLElement>();
+        const next = new IntersectionObserver((entries) => {
+            entries.forEach(({ target, isIntersecting }) => {
+                if (isIntersecting) {
+                    onScreen.add(target as HTMLElement);
+                } else {
+                    onScreen.delete(target as HTMLElement);
+                }
+            });
 
-        const poll = async () => {
-            if (document.hidden || running) {
+            const ids = new Set(
+                [...subscriptions.current]
+                    .filter(({ element }) => onScreen.has(element))
+                    .map(({ id }) => id),
+            );
+            setVisible((current) =>
+                current.size === ids.size &&
+                [...ids].every((id) => current.has(id))
+                    ? current
+                    : ids,
+            );
+        });
+
+        subscriptions.current.forEach(({ element }) => next.observe(element));
+        setObserver(next);
+
+        return () => next.disconnect();
+    }, []);
+
+    const read = useCallback(async (ids: string[], signal: AbortSignal) => {
+        const listeners = subscriptions.current;
+        const updates = new Map<Subscription, (state: StarState) => void>();
+
+        for (const subscription of listeners) {
+            if (!ids.includes(subscription.id)) {
+                continue;
+            }
+
+            const update = subscription.prepare();
+
+            if (update) {
+                updates.set(subscription, update);
+            }
+        }
+
+        // Counts this page changed itself while the read was out stay as they are.
+        const versions = new Map(
+            ids.map((id) => [id, localCountVersion('replies_count', id)]),
+        );
+
+        for (let offset = 0; offset < ids.length; offset += 100) {
+            const batch = ids.slice(offset, offset + 100);
+            const response = await fetch(index.url({ query: { ids: batch } }), {
+                headers: { Accept: 'application/json' },
+                cache: 'no-store',
+                signal: AbortSignal.any([signal, AbortSignal.timeout(10_000)]),
+            });
+
+            if (!response.ok) {
+                throw new Error(`Card read failed with ${response.status}`);
+            }
+
+            const { commits } = (await response.json()) as {
+                commits: CardState[];
+            };
+            const states = new Map(commits.map((state) => [state.id, state]));
+
+            if (signal.aborted) {
                 return;
             }
 
-            const updates = new Map<Subscription, (state: StarState) => void>();
+            for (const [subscription, update] of updates) {
+                const state = states.get(subscription.id);
 
-            for (const subscription of listeners) {
-                const bounds = subscription.element.getBoundingClientRect();
+                if (state && listeners.has(subscription)) {
+                    update(state);
+                }
+            }
+
+            const counts = new Map<string, SharedValue>();
+
+            // Pastéis are only ever given, so an older read can never lower what an award just raised.
+            states.forEach((state) => {
+                counts.set(
+                    commitStateKey('pasteis_count', state.id),
+                    Math.max(
+                        state.pasteis_count,
+                        Number(
+                            sharedValue(
+                                commitStateKey('pasteis_count', state.id),
+                            ) ?? 0,
+                        ),
+                    ),
+                );
 
                 if (
-                    bounds.width === 0 ||
-                    bounds.height === 0 ||
-                    bounds.bottom <= 0 ||
-                    bounds.top >= window.innerHeight ||
-                    bounds.right <= 0 ||
-                    bounds.left >= window.innerWidth
+                    versions.get(state.id) ===
+                    localCountVersion('replies_count', state.id)
                 ) {
-                    continue;
+                    counts.set(
+                        commitStateKey('replies_count', state.id),
+                        state.replies_count,
+                    );
                 }
+            });
+            refreshSharedState(counts);
 
-                const update = subscription.prepare();
+            // This authorized read returns every visible requested commit, including on join recovery when a
+            // deletion event was missed. An omitted commit is unavailable; undo makes it available again.
+            batch.forEach((id) =>
+                states.has(id)
+                    ? deletedResources.restoreCommit(id)
+                    : deletedResources.markCommit(id),
+            );
+        }
+    }, []);
 
-                if (update) {
-                    updates.set(subscription, update);
-                }
+    useEffect(() => {
+        const controller = new AbortController();
+        const changed = dirty.current;
+        // What a hidden tab hears waits until it is shown, rather than being read for nobody or forgotten.
+        const refresh = coalesce(async () => {
+            if (document.hidden) {
+                return;
             }
 
-            const ids = [...new Set([...updates.keys()].map(({ id }) => id))];
-            running = true;
+            const ids = [...changed].filter((id) => shown.current.has(id));
+            ids.forEach((id) => changed.delete(id));
 
-            try {
-                for (let offset = 0; offset < ids.length; offset += 100) {
-                    const response = await fetch(
-                        index.url({
-                            query: { ids: ids.slice(offset, offset + 100) },
-                        }),
-                        {
-                            headers: { Accept: 'application/json' },
-                            cache: 'no-store',
-                            signal: AbortSignal.any([
-                                controller.signal,
-                                AbortSignal.timeout(10_000),
-                            ]),
-                        },
-                    );
-
-                    if (!response.ok) {
-                        return;
-                    }
-
-                    const { commits } = (await response.json()) as {
-                        commits: StarState[];
-                    };
-                    const states = new Map(
-                        commits.map((state) => [state.id, state]),
-                    );
-
-                    for (const [subscription, update] of updates) {
-                        const state = states.get(subscription.id);
-
-                        if (
-                            state &&
-                            listeners.has(subscription) &&
-                            !controller.signal.aborted
-                        ) {
-                            update(state);
-                        }
-                    }
-                }
-            } catch {
-                // Keep the last known counts until the next successful poll.
-            } finally {
-                running = false;
+            if (ids.length > 0) {
+                await read(ids, controller.signal).catch(() => {
+                    ids.forEach((id) => changed.add(id));
+                });
+            }
+        }, 300);
+        const onVisible = () => {
+            if (!document.hidden && changed.size > 0) {
+                refresh.request();
             }
         };
+        document.addEventListener('visibilitychange', onVisible);
+        onVisible();
+        const hear = (id: string) => () => {
+            changed.add(id);
+            refresh.request();
+        };
+        const stops = new Map<string, () => void>();
+        const sync = () => {
+            stops.forEach((stop, id) => {
+                if (!shown.current.has(id)) {
+                    stop();
+                    stops.delete(id);
+                }
+            });
+            shown.current.forEach((id) => {
+                if (stops.has(id)) {
+                    return;
+                }
 
-        const interval = window.setInterval(() => void poll(), 30_000);
+                stops.set(
+                    id,
+                    listen(
+                        commitChannel(id),
+                        {
+                            engagement: hear(id),
+                            visibility: hear(id),
+                        },
+                        hear(id),
+                    ),
+                );
+            });
+            onVisible();
+        };
+        syncVisible.current = sync;
+        sync();
+
+        const interval = window.setInterval(() => {
+            if (document.hidden) {
+                return;
+            }
+
+            const stale = [...shown.current].filter(
+                (id) =>
+                    (changed.has(id) || !isListening(commitChannel(id))) &&
+                    [...subscriptions.current].some(
+                        (subscription) =>
+                            subscription.id === id &&
+                            isOnScreen(subscription.element),
+                    ),
+            );
+
+            if (stale.length > 0) {
+                stale.forEach((id) => changed.add(id));
+                refresh.request();
+            }
+        }, fallbackPoll);
 
         return () => {
+            syncVisible.current = () => {};
+            stops.forEach((stop) => stop());
+            refresh.cancel();
             window.clearInterval(interval);
+            document.removeEventListener('visibilitychange', onVisible);
             controller.abort();
         };
-    }, []);
+    }, [read]);
+
+    useEffect(() => {
+        shown.current = visible;
+        syncVisible.current();
+    }, [visible]);
 
     return (
         <CommitStarPollingContext value={context}>

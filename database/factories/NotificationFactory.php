@@ -8,6 +8,7 @@ use App\Enums\NotificationType;
 use App\Models\Commit;
 use App\Models\Notification;
 use App\Models\User;
+use App\Models\UserTimeout;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -37,16 +38,17 @@ final class NotificationFactory extends Factory
                 'key' => match ($notification->type) {
                     NotificationType::Starred => 'starred:'.$notification->commit_id.':'.$notification->actor_id,
                     NotificationType::LeveledUp => 'leveled_up:'.$notification->level,
+                    NotificationType::TimedOut => 'timed_out:'.$notification->timeout_id,
                     default => $notification->type->value.':'.($notification->commit_id ?? $notification->actor_id),
                 },
             ]))
             ->afterCreating(function (Notification $notification): void {
                 if ($notification->type === NotificationType::Followed) {
-                    $notification->actor()->firstOrFail()->following()->syncWithoutDetaching([$notification->recipient_id]);
+                    User::query()->whereKey($notification->actor_id)->sole()->following()->syncWithoutDetaching([$notification->recipient_id]);
                 }
 
                 if ($notification->type === NotificationType::Starred) {
-                    $notification->actor()->firstOrFail()->starredCommits()->syncWithoutDetaching([$notification->commit_id]);
+                    User::query()->whereKey($notification->actor_id)->sole()->starredCommits()->syncWithoutDetaching([$notification->commit_id]);
                 }
             });
     }
@@ -60,6 +62,19 @@ final class NotificationFactory extends Factory
             'actor_id' => $attributes['recipient_id'],
             'type' => NotificationType::LeveledUp,
             'level' => $level,
+        ]);
+    }
+
+    public function timedOut(UserTimeout $timeout): self
+    {
+        $userId = User::query()->where('github_id', $timeout->github_id)->sole()->id;
+
+        return $this->state(fn (array $attributes): array => [
+            'recipient_id' => $userId,
+            'actor_id' => $userId,
+            'type' => NotificationType::TimedOut,
+            'timeout_id' => $timeout->id,
+            'key' => 'timed_out:'.$timeout->id,
         ]);
     }
 

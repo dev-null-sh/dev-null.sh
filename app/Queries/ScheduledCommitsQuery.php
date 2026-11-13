@@ -19,7 +19,7 @@ final readonly class ScheduledCommitsQuery
     public function builder(User $user): Builder
     {
         return ScheduledCommit::query()->where('user_id', $user->id)
-            ->whereNull('canceled_at')->with('commit')
+            ->whereNull('canceled_at')->with(['commit', 'author'])
             ->orderByRaw('submitted_at IS NOT NULL')->orderBy('scheduled_at')->orderBy('id');
     }
 }

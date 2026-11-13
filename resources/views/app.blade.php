@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" @class(['dark' => ($appearance ?? 'system') == 'dark'])>
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" @class(['dark' => ($appearance ?? 'system') == 'dark'])@isset($autoEventTheme) data-auto-event-theme="{{ $autoEventTheme }}"@endisset @isset($eventTheme) data-event-theme="{{ $eventTheme }}"@endisset>
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -45,6 +45,9 @@
                 <script type="application/ld+json">@json($preview['structuredData'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)</script>
             @endisset
         @else
+            @isset($robots)
+                <meta name="robots" content="{{ $robots }}">
+            @endisset
             <meta property="og:type" content="website">
             <meta property="og:site_name" content="/dev/null">
             <meta property="og:title" content="/dev/null">
@@ -80,6 +83,30 @@
             html.dark {
                 background-color: #111112;
                 color-scheme: dark;
+            }
+
+            html[data-event-theme='halloween'] {
+                background-color: #fbf5ee;
+            }
+
+            html[data-event-theme='halloween'].dark {
+                background-color: #120c14;
+            }
+
+            html[data-event-theme='christmas'] {
+                background-color: #f8f6f1;
+            }
+
+            html[data-event-theme='christmas'].dark {
+                background-color: #0e1512;
+            }
+
+            html[data-event-theme='newyear'] {
+                background-color: #faf7ef;
+            }
+
+            html[data-event-theme='newyear'].dark {
+                background-color: #0b0d17;
             }
         </style>
 

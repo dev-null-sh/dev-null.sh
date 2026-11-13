@@ -6,6 +6,7 @@ namespace App\Http\Controllers;
 
 use App\Actions\CreateScheduledCommit;
 use App\Actions\DeleteScheduledCommit;
+use App\Enums\UserUpdate;
 use App\Http\Requests\CreateScheduledCommitRequest;
 use App\Http\Requests\DeleteScheduledCommitRequest;
 use App\Http\Resources\ScheduledCommitResource;
@@ -13,6 +14,7 @@ use App\Models\ScheduledCommit;
 use App\Models\User;
 use App\Queries\ScheduledCommitsQuery;
 use Carbon\CarbonImmutable;
+use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\RedirectResponse;
@@ -25,14 +27,14 @@ final readonly class ScheduledCommitController
     public function index(Request $request, #[CurrentUser] User $user, ScheduledCommitsQuery $scheduled): Response
     {
         return Inertia::render('scheduled-commits/index', [
-            'scheduledCommits' => fn (): LengthAwarePaginator => $scheduled->builder($user)
-                ->paginate(20)->through(fn (ScheduledCommit $scheduledCommit): array => ScheduledCommitResource::make($scheduledCommit)->resolve($request)),
+            'scheduledCommits' => Inertia::live(fn (): LengthAwarePaginator => $scheduled->builder($user)
+                ->paginate(20)->through(fn (ScheduledCommit $scheduledCommit): array => ScheduledCommitResource::make($scheduledCommit)->resolve($request)), on: UserUpdate::ScheduledCommits->value, channel: new PrivateChannel($user)),
         ]);
     }
 
     public function store(CreateScheduledCommitRequest $request, #[CurrentUser] User $user, CreateScheduledCommit $action): RedirectResponse
     {
-        $action->handle($user, $request->string('body')->value(), CarbonImmutable::parse($request->string('scheduled_at')->value())->utc(), $request->images(), $request->imageDescriptions(), $request->poll(), $request->linkPreview());
+        $action->handle($user, $request->string('body')->value(), CarbonImmutable::parse($request->string('scheduled_at')->value())->utc(), $request->images(), $request->imageDescriptions(), $request->poll(), $request->linkPreview(), $request->organization());
 
         Inertia::flash('scheduled', true);
         Inertia::flash('toast', ['type' => 'success', 'message' => 'Commit scheduled. Only you can see it until it is submitted.']);

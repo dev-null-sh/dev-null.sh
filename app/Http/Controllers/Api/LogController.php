@@ -26,7 +26,7 @@ final readonly class LogController
     public function show(ShowLogRequest $request, #[CurrentUser] User $user, Log $log, LatestLogCommitsQuery $latest, SuggestedCommitsQuery $suggested, ReplyPreviewsQuery $replyPreviews): AnonymousResourceCollection
     {
         $since = $request->since();
-        $commits = $log->query()->builder($user)->cursorPaginate(20);
+        $commits = $log->query()->builder($user)->cursorPaginate(20, cursor: $request->cursor($log));
 
         $replyPreviews->load($commits->items(), $user);
 

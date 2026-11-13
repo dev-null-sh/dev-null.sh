@@ -320,7 +320,10 @@ test('keeps valid images around an oversized selection and displays the error', 
     attachments.clearError();
     const corrected = render(draft);
     assert.equal(corrected.error, null);
-    assert.deepEqual(corrected.images.map((image) => image.name), ['first.png', 'last.png']);
+    assert.deepEqual(
+        corrected.images.map((image) => image.name),
+        ['first.png', 'last.png'],
+    );
 });
 
 test('rejected files do not consume the last available attachment slot', async () => {
@@ -373,4 +376,66 @@ test('late read errors belong to the originating hook instance', async () => {
 
     assert.match(render(first, firstHarness).error!, /Could not read/);
     assert.equal(render(second, secondHarness).error, null);
+});
+
+test('releases removed and cleared report preview URLs while keeping retained files live', async () => {
+    const { objectUrlFor, useImagePreviewCleanup } =
+        await import('../../resources/js/components/commit-image-picker');
+    const revoke = vi.spyOn(URL, 'revokeObjectURL');
+    const first = new File(['first'], 'first.png', { type: 'image/png' });
+    const second = new File(['second'], 'second.png', { type: 'image/png' });
+    const firstUrl = objectUrlFor(first);
+    const secondUrl = objectUrlFor(second);
+    const renderCleanup = (images: File[]) => {
+        activeHarness.cursor = 0;
+        activeHarness.effectCursor = 0;
+        useImagePreviewCleanup(images);
+    };
+
+    try {
+        renderCleanup([first, second]);
+        renderCleanup([second]);
+        await Promise.resolve();
+        assert.deepEqual(revoke.mock.calls, [[firstUrl]]);
+        assert.equal(objectUrlFor(second), secondUrl);
+        renderCleanup([]);
+        await Promise.resolve();
+        assert.deepEqual(revoke.mock.calls, [[firstUrl], [secondUrl]]);
+        unmount(activeHarness);
+        await Promise.resolve();
+        assert.equal(revoke.mock.calls.length, 2);
+    } finally {
+        revoke.mockRestore();
+    }
+});
+
+test('releases report previews on unmount but survives Strict Mode effect replay', async () => {
+    const { objectUrlFor, useImagePreviewCleanup } =
+        await import('../../resources/js/components/commit-image-picker');
+    const revoke = vi.spyOn(URL, 'revokeObjectURL');
+    const file = new File(['image'], 'image.png', { type: 'image/png' });
+    const url = objectUrlFor(file);
+    const images = [file];
+    const renderCleanup = () => {
+        activeHarness.cursor = 0;
+        activeHarness.effectCursor = 0;
+        useImagePreviewCleanup(images);
+    };
+
+    try {
+        renderCleanup();
+        unmount(activeHarness);
+        renderCleanup();
+        await Promise.resolve();
+        assert.equal(revoke.mock.calls.length, 0);
+        assert.equal(objectUrlFor(file), url);
+        unmount(activeHarness);
+        await Promise.resolve();
+        assert.deepEqual(revoke.mock.calls, [[url]]);
+        const reopenedUrl = objectUrlFor(file);
+        assert.notEqual(reopenedUrl, url);
+        URL.revokeObjectURL(reopenedUrl);
+    } finally {
+        revoke.mockRestore();
+    }
 });

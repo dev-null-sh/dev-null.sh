@@ -55,7 +55,7 @@ export default function Show({
 
     return (
         <>
-            <Head title={`${commit.user.name}: “${excerpt}”`} />
+            <Head title={`${commit.author.name}: “${excerpt}”`} />
 
             <div className="sticky top-0 z-10 flex h-14 items-center gap-3 border-b bg-card px-4">
                 <button
@@ -178,7 +178,7 @@ function isSameAuthor(
     return (
         previous !== undefined &&
         !isDeleted(previous) &&
-        previous.user_id === commit.user_id
+        previous.author.id === commit.author.id
     );
 }
 

@@ -35,7 +35,7 @@ use Illuminate\Support\Facades\DB;
  */
 final readonly class UserAchievementsQuery
 {
-    public function __construct(private UserStreakQuery $streaks)
+    public function __construct(private UserStreakQuery $streaks, private ContributorsQuery $contributors)
     {
         //
     }
@@ -64,7 +64,7 @@ final readonly class UserAchievementsQuery
         $commitStats = (clone $visibleCommitsQuery)
             ->leftJoin('commits as parents', fn (JoinClause $join): JoinClause => $join
                 ->on('parents.id', '=', 'commits.parent_id')
-                ->where('parents.user_id', '!=', $user->id))
+                ->where('parents.author_id', '!=', $user->id))
             ->selectRaw("COUNT(*) as total_commits, MAX(CASE WHEN commits.body LIKE '%```%' THEN 1 ELSE 0 END) as has_syntax, COUNT(parents.id) as replies")
             ->first();
 
@@ -81,7 +81,7 @@ final readonly class UserAchievementsQuery
 
         // Stars given to visible commits by other developers, excluding self-stars
         $starsGivenCount = (int) $user->starredCommits()
-            ->where('commits.user_id', '!=', $user->id)
+            ->where('commits.author_id', '!=', $user->id)
             ->where(fn (CommitBuilder $query): CommitBuilder => $query->visibleTo($viewer))
             ->count();
 
@@ -90,6 +90,7 @@ final readonly class UserAchievementsQuery
         $hasUnfollowedTom = $user->followers()->where('github_id', CreateTomFriendship::GITHUB_ID)->exists()
             && ! $user->following()->where('github_id', CreateTomFriendship::GITHUB_ID)->exists();
         $isShellShocked = $user->created_at->lt('2026-10-21 14:00:00 UTC');
+        $repositoryCommits = $this->contributors->commits($user);
 
         // XP breakdown: 10 per commit, 15 per streak day, 5 per star received, 5 per reply, 2 per star given
         $commitsXp = $commitsCount * 10;
@@ -187,6 +188,14 @@ final readonly class UserAchievementsQuery
             Achievement::SuperSaiyan->value => [
                 'progress' => min($user->followers()->count(), Achievement::SuperSaiyan->target()),
                 'target' => Achievement::SuperSaiyan->target(),
+            ],
+            Achievement::Whoopsie->value => [
+                'progress' => in_array(mb_strtolower($user->handle), ['paulinevos', 'nunomaduro', 'brendt', 'mnapoli'], true) ? 1 : 0,
+                'target' => Achievement::Whoopsie->target(),
+            ],
+            Achievement::GitBlame->value => [
+                'progress' => min($repositoryCommits, Achievement::GitBlame->target()),
+                'target' => Achievement::GitBlame->target(),
             ],
         ];
 

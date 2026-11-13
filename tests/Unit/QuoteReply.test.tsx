@@ -12,26 +12,24 @@ import type { Commit } from '../../resources/js/types';
 
 const original = {
     id: 'original',
-    user_id: 'author',
     parent_id: null,
     quoted_commit_id: null,
     created_at: new Date().toISOString(),
     status: 'approved',
     body: 'The original commit',
     body_segments: [{ type: 'text', text: 'The original commit' }],
-    user: { id: 'author', name: 'Author', handle: 'author', lane: 1 },
+    author: { id: 'author', name: 'Author', handle: 'author', lane: 1 },
 } as Commit;
 
 const reply = (id: string, overrides: Partial<Commit>): Commit =>
     ({
         ...original,
         id,
-        user_id: id,
         body: `Body of ${id}`,
         body_segments: [{ type: 'text', text: `Body of ${id}` }],
         preview_segments: null,
         replies_count: 0,
-        user: { id, name: id, handle: id, lane: 2 },
+        author: { id, name: id, handle: id, lane: 2 },
         ...overrides,
     }) as Commit;
 
@@ -60,8 +58,8 @@ async function renderReplies(replies: Commit[], automaticTranslation = true) {
         page: {
             component: 'test',
             props: {
-                auth: {
-                    user: automaticTranslation ? null : original.user,
+                auth: { organizations: [],
+                    user: automaticTranslation ? null : original.author,
                     automaticTranslation,
                 },
                 errors: {},

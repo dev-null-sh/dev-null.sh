@@ -79,6 +79,12 @@ export default function Index({
     const message = (person: User) => open({ kind: 'direct', partner: person });
 
     const leave = () => visit(ConversationController.index());
+    const blocked = () =>
+        router.visit(ConversationController.index(), {
+            preserveScroll: true,
+            preserveState: true,
+            onSuccess: () => router.reload({ only: ['hotTopics'] }),
+        });
 
     return (
         <>
@@ -93,7 +99,7 @@ export default function Index({
             />
 
             {/* On phones the open keyboard scrolls the page under it, so the chat follows what is still visible. */}
-            <div className="flex min-h-0 bg-card max-md:fixed max-md:inset-x-0 max-md:top-[max(3.5rem,var(--visual-viewport-top,0px))] max-md:bottom-[max(var(--mobile-nav-height,4.5rem),var(--visual-viewport-bottom,0px))] md:h-svh max-md:[:root[data-keyboard-open]_&]:bottom-(--visual-viewport-bottom)">
+            <div className="flex min-h-0 bg-card max-md:fixed max-md:inset-x-0 max-md:top-[max(env(safe-area-inset-top),var(--visual-viewport-top,0px))] max-md:bottom-[max(var(--mobile-nav-height,4.5rem),var(--visual-viewport-bottom,0px))] md:h-svh max-md:[:root[data-keyboard-open]_&]:bottom-(--visual-viewport-bottom)">
                 <section
                     aria-label="Conversations"
                     className={cn(
@@ -169,8 +175,10 @@ export default function Index({
                         user={user}
                         activeKey={target === null ? null : targetKey(target)}
                         onOpen={open}
-                        onLeaveActive={leave}
-                        onBlocked={() => router.reload({ only: ['inbox'] })}
+                        onLeaveActive={blocked}
+                        onBlocked={() =>
+                            router.reload({ only: ['inbox', 'hotTopics'] })
+                        }
                         empty={
                             <EmptyInbox onCompose={() => setIsPicking(true)} />
                         }
@@ -188,6 +196,7 @@ export default function Index({
                                     partner={target.partner}
                                     user={user}
                                     onLeave={leave}
+                                    onBlocked={blocked}
                                 />
                             ) : (
                                 <header className="flex h-16 shrink-0 items-center gap-3 border-b px-4">
@@ -252,10 +261,12 @@ function ThreadHeader({
     partner,
     user,
     onLeave,
+    onBlocked,
 }: {
     partner: User;
     user: User;
     onLeave: () => void;
+    onBlocked: () => void;
 }) {
     const { threads } = useChat();
 
@@ -264,6 +275,7 @@ function ThreadHeader({
             <BackToRemotes />
             <Link
                 href={show(partner)}
+                prefetch
                 className="flex min-w-0 items-center gap-3 rounded-lg"
             >
                 <UserAvatar
@@ -293,6 +305,7 @@ function ThreadHeader({
                 user={user}
                 isArchived={threads[partner.handle]?.is_archived ?? false}
                 onLeave={onLeave}
+                onBlocked={onBlocked}
                 className="ml-auto size-9"
             />
         </header>

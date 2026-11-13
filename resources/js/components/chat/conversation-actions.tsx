@@ -117,9 +117,9 @@ export function ConversationActions({
 
     const mute = async (duration: MuteDuration) => {
         setIsSavingMute(true);
+        changeOpen(false, false);
         try {
             await setConversationMute(target, duration);
-            changeOpen(false, false);
             toast.success(
                 duration === 'off' ? `Unmuted ${title}.` : `Muted ${title}.`,
             );
@@ -229,7 +229,7 @@ export function ConversationActions({
                 >
                     {target.kind === 'direct' && (
                         <DropdownMenuItem asChild>
-                            <Link href={show(target.partner)}>
+                            <Link href={show(target.partner)} prefetch>
                                 <UserRound />
                                 View profile
                             </Link>

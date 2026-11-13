@@ -12,7 +12,6 @@ import type { Commit } from '../../resources/js/types/commit';
 
 const commit: Commit = {
     id: 'commit-1',
-    user_id: 'user-1',
     parent_id: null,
     hot_score: 41484.833333,
     quoted_commit_id: null,
@@ -26,7 +25,8 @@ const commit: Commit = {
     stars_count: 0,
     pasteis_count: 0,
     starred: false,
-    user: {
+    author: {
+        type: 'user',
         id: 'user-1',
         handle: 'octocat',
         name: 'Octocat',

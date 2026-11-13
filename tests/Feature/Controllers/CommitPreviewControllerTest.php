@@ -16,7 +16,7 @@ it('renders a draft the way the commit it becomes is rendered', function (): voi
     $commit = $user->commits()->sole();
 
     $preview->assertOk()
-        ->assertExactJson(['segments' => $commit->toArray()['body_segments'], 'mentions' => $commit->mentions]);
+        ->assertExactJson(['segments' => $commit->toArray()['body_segments'], 'mentions' => $commit->mentions, 'organization_mentions' => []]);
 });
 
 it('links the mentions of a draft to the people the commit would link', function (): void {

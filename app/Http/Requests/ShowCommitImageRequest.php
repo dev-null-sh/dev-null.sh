@@ -13,8 +13,8 @@ use Illuminate\Support\Facades\Storage;
 final class ShowCommitImageRequest extends FormRequest
 {
     /**
-     * Pending and rejected images never leave the server for anyone but their author and moderators, or the temporary
-     * URL the API gave one of them, until the commit is deleted.
+     * Pending and rejected images never leave the server for anyone but their author, the members of its organization
+     * and moderators, or the temporary URL the API gave one of them, until the commit is deleted.
      */
     public function authorize(): Response
     {

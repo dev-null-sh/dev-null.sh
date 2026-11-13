@@ -76,6 +76,16 @@ final class UserTimeout extends Model
     }
 
     /**
+     * The length of the timeout as it was recorded, including an early lift.
+     */
+    public function duration(): string
+    {
+        $minutes = max(1, (int) ceil($this->created_at->diffInSeconds($this->ends_at) / 60));
+
+        return CarbonInterval::minutes($minutes)->cascade()->forHumans(['parts' => 2, 'skip' => ['month', 'week']]);
+    }
+
+    /**
      * Rounded up to the minute, or to the hour past a day, so it never says less is left than there is.
      */
     private function remaining(): string

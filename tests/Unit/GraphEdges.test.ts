@@ -6,6 +6,7 @@ import {
     entranceDelay,
     entranceDraw,
     graphEdges,
+    isFolding,
     isOnScreen,
     leavingOf,
     nodeIdentity,
@@ -565,4 +566,42 @@ void test('keeps nothing of a line from another node, from where its node stood 
     assert.equal(drawnStretch(toNext, [fromAbove]), 0);
     assert.equal(drawnStretch(toNext, [aside]), 0);
     assert.equal(drawnStretch(toNext, []), 0);
+});
+
+void test('folds away the lines to and from folding replies, not the trunk running on past them', () => {
+    const edges = graphEdges([
+        node({ id: 'parent', y: 40 }),
+        node({ id: 'first', x: 64, y: 120, parent: 'parent' }),
+        node({ id: 'nested', x: 96, y: 200, parent: 'first' }),
+        node({ id: 'next', y: 300, after: 'parent' }),
+    ]);
+    const folding = new Set(['first', 'nested']);
+
+    assert.deepEqual(
+        edges
+            .filter((edge) => isFolding(edge, folding))
+            .map((edge) => `${edge.from}->${edge.to}`),
+        ['parent->first', 'first->nested'],
+    );
+    assert.equal(
+        edges.some((edge) => isFolding(edge, new Set())),
+        false,
+    );
+});
+
+void test('unrelated nodes do not affect the reply and continuation paths', () => {
+    const thread = [
+        node({ id: 'parent', y: 40 }),
+        node({ id: 'first', x: 100, y: 160, parent: 'parent' }),
+        node({ id: 'next', y: 400, after: 'parent' }),
+    ];
+    const baseline = graphEdges(thread).map((edge) => [edge.id, edge.d]);
+    const unrelated = Array.from({ length: 200 }, (_, index) =>
+        node({ id: `unrelated-${index}`, y: index * 10 }),
+    );
+
+    assert.deepEqual(
+        graphEdges([...thread, ...unrelated]).map((edge) => [edge.id, edge.d]),
+        baseline,
+    );
 });

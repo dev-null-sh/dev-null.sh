@@ -10,17 +10,17 @@ import type { Commit } from '../../resources/js/types';
 
 const commit = {
     id: 'commit',
-    user_id: 'author',
+    author: { id: 'author' },
     status: 'approved',
 } as Commit;
 
 async function desktopActionsClasses(isReply: boolean): Promise<string[]> {
     const result = await createInertiaApp<{
-        auth: { user: { id: string } | null };
+        auth: { organizations: [], user: { id: string } | null };
     }>({
         page: {
             component: 'actions',
-            props: { auth: { user: { id: 'viewer' } }, errors: {} },
+            props: { auth: { organizations: [], user: { id: 'viewer' } }, errors: {} },
             url: '/@author/commit',
             version: null,
             clearHistory: false,
@@ -42,11 +42,15 @@ async function desktopActionsClasses(isReply: boolean): Promise<string[]> {
 
     assert.ok(result);
 
-    const classes = /<div class="([^"]*md:flex[^"]*)"/.exec(result.body)?.[1];
+    const classes = /<div class="([^"]*transition-opacity md:opacity-0[^"]*)"/.exec(result.body)?.[1];
 
     assert.ok(classes);
 
-    return classes.split(' ');
+    const tokens = classes.split(' ');
+    assert.ok(tokens.includes('flex'));
+    assert.ok(!tokens.includes('hidden'));
+
+    return tokens;
 }
 
  test('reveals a commit’s actions while the commit is hovered or focused', async () => {

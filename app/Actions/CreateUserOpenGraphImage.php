@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Contracts\Services\GitHubProvider;
 use App\Models\User;
 use App\Services\OpenGraphCanvas;
 use Illuminate\Support\Facades\Cache;
@@ -19,6 +20,11 @@ final readonly class CreateUserOpenGraphImage
 
     private const int BIO_MAX_LINES = 3;
 
+    public function __construct(private GitHubProvider $github)
+    {
+        //
+    }
+
     public function handle(User $user): string
     {
         $user->loadPublicCounts();
@@ -32,8 +38,8 @@ final readonly class CreateUserOpenGraphImage
 
     private function render(User $user): string
     {
-        $canvas = new OpenGraphCanvas;
-        $lane = $canvas->lane($user);
+        $canvas = new OpenGraphCanvas($this->github);
+        $lane = $canvas->lane($user->lane());
         $width = OpenGraphCanvas::CONTENT_RIGHT - OpenGraphCanvas::CONTENT_X;
 
         $bio = $canvas->clamp(

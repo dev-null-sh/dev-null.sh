@@ -1,23 +1,36 @@
-import { Head, InfiniteScroll, router } from '@inertiajs/react';
+import { Head, InfiniteScroll, router, usePage } from '@inertiajs/react';
 import { Check, X } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { store as reject } from '@/actions/App/Http/Controllers/CommitRejectionController';
 import { destroy } from '@/actions/App/Http/Controllers/CommitReportController';
 import { CommitCard } from '@/components/commit-card';
 import { EmptyFeed } from '@/components/commit-feed';
+import { CommitPoster } from '@/components/commit-poster';
 import { GraphCanvas } from '@/components/graph-canvas';
 import { ModerationTabs } from '@/components/moderation-tabs';
 import { Button } from '@/components/ui/button';
 import { useMarkCommitDeleted } from '@/hooks/use-deleted-resources';
+import { idsOf, useRealtime } from '@/hooks/use-realtime';
 import AppLayout from '@/layouts/app-layout';
+import { reloadInBackground } from '@/lib/background-poll';
+import { changesSince, readAt } from '@/lib/commit-changes';
+import { userChannel } from '@/lib/realtime';
 import { formatFullDateTime } from '@/lib/utils';
 import type { Commit, CursorPaginated } from '@/types';
+
+type ReportChanges = { filed: string[]; dismissed: string[] };
 
 type Report = {
     id: string;
     reason: string;
     details: string | null;
+    attachments: {
+        url: string;
+        description: string | null;
+        width: number;
+        height: number;
+    }[];
     created_at: string;
     commit: Commit;
 };
@@ -29,37 +42,160 @@ export default function Reports({
     reports: CursorPaginated<Report>;
     reasons: Record<string, string>;
 }) {
-    const [busy, setBusy] = useState(false);
     const markCommitDeleted = useMarkCommitDeleted();
-    const resolve = (
-        route: ReturnType<typeof destroy> | ReturnType<typeof reject>,
-        onNotFound: () => void,
-    ) =>
-        router.visit(route, {
-            preserveScroll: true,
-            reset: ['reports'],
-            onStart: () => setBusy(true),
-            onFinish: () => setBusy(false),
-            onHttpException: (response) => {
-                if (response.status !== 404) {
+    const { auth, now } = usePage().props;
+    const [hasChanged, setHasChanged] = useState(false);
+    const [readSince] = useState(() => Math.min(now - 5_000, readAt()));
+    const changesOf = useRef<
+        ((since: number) => Promise<ReportChanges | null>) | null
+    >(null);
+
+    useEffect(() => {
+        const controller = new AbortController();
+        changesOf.current = async (since) => {
+            let changes: ReportChanges | null = null;
+
+            await reloadInBackground(
+                {
+                    only: ['reportChanges'],
+                    data: { since: Math.floor(since) },
+                    preserveUrl: true,
+                    onSuccess: (page) => {
+                        changes =
+                            (page.props.reportChanges as
+                                | ReportChanges
+                                | undefined) ?? null;
+                    },
+                },
+                controller.signal,
+            );
+
+            return changes;
+        };
+
+        return () => {
+            controller.abort();
+            changesOf.current = null;
+        };
+    }, []);
+
+    const takeOff = (ids: string[]) => {
+        const loaded = new Set(reports.data.map((report) => report.id));
+        const dismissed = new Set(ids.filter((id) => loaded.has(id)));
+
+        if (dismissed.size > 0) {
+            router.replaceProp('reports', (value: CursorPaginated<Report>) => ({
+                ...value,
+                data: value.data.filter((report) => !dismissed.has(report.id)),
+            }));
+        }
+    };
+
+    // A report another moderator dismissed leaves the queue where it is. New reports, and decisions on reported
+    // commits that may take them off, wait for a deliberate refresh, keeping the pages loaded until then.
+    useRealtime(
+        auth.user === null ? null : userChannel(auth.user.id),
+        ['moderation'],
+        (_event, payload) => {
+            const loaded = new Set(reports.data.map((report) => report.id));
+
+            takeOff(idsOf(payload, 'reports'));
+
+            const commits = new Set(idsOf(payload, 'commits'));
+
+            if (
+                idsOf(payload, 'reports').some((id) => !loaded.has(id)) ||
+                reports.data.some((report) => commits.has(report.commit.id))
+            ) {
+                setHasChanged(true);
+            }
+        },
+        (isFirst) => {
+            if (!isFirst) {
+                setHasChanged(true);
+
+                return;
+            }
+
+            // Read before listening: reports dismissed since leave where they are, and those filed since, or decisions
+            // on the commits it shows, are offered as a refresh.
+            const loaded = new Set(reports.data.map((report) => report.id));
+
+            void changesOf.current?.(readSince).then((changes) => {
+                if (changes === null) {
+                    setHasChanged(true);
+
                     return;
                 }
 
-                onNotFound();
+                takeOff(changes.dismissed);
 
-                return false;
-            },
+                if (changes.filed.some((id) => !loaded.has(id))) {
+                    setHasChanged(true);
+                }
+            });
+            void Promise.all(
+                reports.data.map((report) =>
+                    changesSince(report.commit.id, readSince),
+                ),
+            ).then((changes) => {
+                if (
+                    changes.some((change) => change === null || change.changed)
+                ) {
+                    setHasChanged(true);
+                }
+            });
+        },
+    );
+
+    const refreshQueue = () =>
+        router.reload({
+            only: ['reports'],
+            reset: ['reports'],
+            onSuccess: () => setHasChanged(false),
         });
+
+    const resolve = (
+        route: ReturnType<typeof destroy> | ReturnType<typeof reject>,
+        isResolved: (report: Report) => boolean,
+        onNotFound: () => void,
+    ) =>
+        router
+            .optimistic((props: { reports: CursorPaginated<Report> }) => ({
+                reports: {
+                    ...props.reports,
+                    data: props.reports.data.filter(
+                        (report) => !isResolved(report),
+                    ),
+                },
+            }))
+            .visit(route, {
+                preserveScroll: true,
+                reset: ['reports'],
+                onHttpException: (response) => {
+                    if (response.status !== 404) {
+                        return;
+                    }
+
+                    onNotFound();
+
+                    return false;
+                },
+            });
 
     /**
      * A dismissal is about the report, which leaves the queue once its commit is gone or no longer published, while the
      * commit itself may still be live.
      */
     const dismiss = (report: Report) =>
-        resolve(destroy(report.id), () => {
-            toast('This report is no longer in the queue.');
-            router.reload({ only: ['reports'], reset: ['reports'] });
-        });
+        resolve(
+            destroy(report.id),
+            ({ id }) => id === report.id,
+            () => {
+                toast('This report is no longer in the queue.');
+                router.reload({ only: ['reports'], reset: ['reports'] });
+            },
+        );
 
     return (
         <>
@@ -67,9 +203,19 @@ export default function Reports({
             <div className="sticky top-0 z-10 bg-card">
                 <div className="flex h-14 items-center border-b px-4">
                     <h1 className="font-semibold">Moderation</h1>
-                    <p className="ml-auto text-sm text-muted-foreground">
-                        Oldest first
-                    </p>
+                    {hasChanged ? (
+                        <button
+                            type="button"
+                            onClick={refreshQueue}
+                            className="ml-auto text-sm font-medium text-primary hover:underline focus-visible:underline"
+                        >
+                            Refresh the queue
+                        </button>
+                    ) : (
+                        <p className="ml-auto text-sm text-muted-foreground">
+                            Oldest first
+                        </p>
+                    )}
                 </div>
                 <ModerationTabs active="reports" />
             </div>
@@ -105,6 +251,7 @@ export default function Reports({
                                 commit={report.commit}
                                 endsWithDot
                                 canDelete={false}
+                                showsParent
                                 actions={
                                     <div className="mt-3 grid gap-2 border-t pt-3">
                                         <p className="text-sm font-medium">
@@ -115,6 +262,28 @@ export default function Reports({
                                                 {report.details}
                                             </p>
                                         )}
+                                        {report.attachments?.map((image) => (
+                                            <a
+                                                key={image.url}
+                                                href={image.url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="block"
+                                            >
+                                                <img
+                                                    src={image.url}
+                                                    alt={
+                                                        image.description ||
+                                                        'Report attachment'
+                                                    }
+                                                    width={image.width}
+                                                    height={image.height}
+                                                    loading="lazy"
+                                                    className="max-h-80 rounded-md object-contain"
+                                                />
+                                            </a>
+                                        ))}
+                                        <CommitPoster commit={report.commit} />
                                         <p className="text-xs text-muted-foreground">
                                             Reported{' '}
                                             <time dateTime={report.created_at}>
@@ -127,7 +296,6 @@ export default function Reports({
                                             <Button
                                                 variant="outline"
                                                 size="sm"
-                                                disabled={busy}
                                                 onClick={() => dismiss(report)}
                                             >
                                                 <Check />
@@ -136,10 +304,12 @@ export default function Reports({
                                             <Button
                                                 variant="destructive"
                                                 size="sm"
-                                                disabled={busy}
                                                 onClick={() =>
                                                     resolve(
                                                         reject(report.commit),
+                                                        ({ commit }) =>
+                                                            commit.id ===
+                                                            report.commit.id,
                                                         () =>
                                                             markCommitDeleted(
                                                                 report.commit

@@ -10,6 +10,7 @@ use App\Enums\CommitStatus;
 use App\Http\Requests\CreateCommitReplyRequest;
 use App\Http\Requests\DeleteCommitReplyRequest;
 use App\Http\Requests\ListCommitRepliesRequest;
+use App\Http\Resources\ShownStreams;
 use App\Models\Commit;
 use App\Models\User;
 use App\Queries\CommitRepliesQuery;
@@ -19,21 +20,34 @@ use Illuminate\Http\JsonResponse;
 
 final readonly class CommitReplyController
 {
+    /**
+     * Reading only some replies again also counts the thread's replies anew, since those are what changed.
+     */
     public function index(ListCommitRepliesRequest $request, #[CurrentUser] ?User $user, Commit $commit, CommitRepliesQuery $replies): JsonResponse
     {
-        return response()->json($replies->paginate($commit, $user, $request->boolean('newest'), $request->integer('limit', CommitRepliesQuery::PER_PAGE), $request->exceptedReplyId()));
+        $page = $replies->paginate($commit, $user, $request->boolean('newest'), $request->integer('limit', CommitRepliesQuery::PER_PAGE), $request->exceptedReplyId(), $request->replyIds());
+
+        return response()->json($request->replyIds() === null ? ShownStreams::page($page) : [
+            'data' => ShownStreams::commits($page->items()),
+            'parent' => [
+                'id' => $commit->id,
+                'replies_count' => $replies->count($commit, $user),
+            ],
+        ]);
     }
 
+    /** Creates a reply addressed to the parent author and the validated selection of conversation participants. */
     public function store(CreateCommitReplyRequest $request, #[CurrentUser] User $user, Commit $commit, CreateCommit $action, CommitThreadQuery $thread): JsonResponse
     {
-        $reply = $action->handle($user, $request->string('body')->value(), $commit, images: $request->images(), imageDescriptions: $request->imageDescriptions(), linkPreview: $request->linkPreview());
+        $organization = $request->organization();
+        $reply = $action->handle($user, $request->string('body')->value(), $commit, images: $request->images(), imageDescriptions: $request->imageDescriptions(), linkPreview: $request->linkPreview(), replyRecipients: $request->replyRecipients(), organization: $organization);
         $parent = $thread->get($commit, $user);
 
         return response()->json([
             'committed' => [
                 'id' => $reply->id,
                 'body' => $reply->body,
-                'user' => ['handle' => $user->handle],
+                'author' => ['handle' => ($organization ?? $user)->handle],
             ],
             'parent' => [
                 'id' => $parent->id,

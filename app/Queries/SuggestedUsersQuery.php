@@ -18,27 +18,27 @@ use Random\Randomizer;
 final readonly class SuggestedUsersQuery
 {
     private const string THREAD_PARTICIPANTS = <<<'SQL'
-        WITH RECURSIVE visible_thread(id, user_id) AS (
-            SELECT id, user_id FROM commits WHERE id = ?
+        WITH RECURSIVE visible_thread(id, author_id) AS (
+            SELECT id, author_id FROM commits WHERE id = ?
             UNION
-            SELECT child.id, child.user_id
+            SELECT child.id, child.author_id
             FROM commits child
             JOIN visible_thread parent ON child.parent_id = parent.id OR child.quoted_commit_id = parent.id
             WHERE (child.status = ? OR child.user_id = ?)
-                AND NOT EXISTS (SELECT 1 FROM blocks WHERE (blocker_id = ? AND blocked_id = child.user_id) OR (blocker_id = child.user_id AND blocked_id = ?))
-                AND NOT EXISTS (SELECT 1 FROM mutes WHERE muter_id = ? AND muted_id = child.user_id)
+                AND NOT EXISTS (SELECT 1 FROM blocks WHERE (blocker_id = ? AND blocked_id = child.author_id) OR (blocker_id = child.author_id AND blocked_id = ?))
+                AND NOT EXISTS (SELECT 1 FROM mutes WHERE muter_id = ? AND muted_id = child.author_id)
                 AND (child.deleted_at IS NULL OR EXISTS (
                     SELECT 1 FROM commits surviving_replies
                     WHERE (surviving_replies.parent_id = child.id OR surviving_replies.quoted_commit_id = child.id)
                         AND (surviving_replies.status = ? OR surviving_replies.user_id = ?)
-                        AND NOT EXISTS (SELECT 1 FROM blocks WHERE (blocker_id = ? AND blocked_id = surviving_replies.user_id) OR (blocker_id = surviving_replies.user_id AND blocked_id = ?))
-                        AND NOT EXISTS (SELECT 1 FROM mutes WHERE muter_id = ? AND muted_id = surviving_replies.user_id)
+                        AND NOT EXISTS (SELECT 1 FROM blocks WHERE (blocker_id = ? AND blocked_id = surviving_replies.author_id) OR (blocker_id = surviving_replies.author_id AND blocked_id = ?))
+                        AND NOT EXISTS (SELECT 1 FROM mutes WHERE muter_id = ? AND muted_id = surviving_replies.author_id)
                 ))
         )
-        SELECT visible_thread.user_id
+        SELECT visible_thread.author_id
         FROM visible_thread
         JOIN commits visible_commits ON visible_commits.id = visible_thread.id
-        WHERE visible_thread.user_id IS NOT NULL AND visible_commits.deleted_at IS NULL
+        WHERE visible_thread.author_id IS NOT NULL AND visible_commits.deleted_at IS NULL
         SQL;
 
     /**
@@ -64,7 +64,7 @@ final readonly class SuggestedUsersQuery
             $context = null;
         }
 
-        $contextUserId = $context instanceof User ? $context->id : ($context instanceof Commit ? $context->user_id : null);
+        $contextUserId = $context instanceof User ? $context->id : ($context instanceof Commit ? $context->author_id : null);
 
         $contextual = $context instanceof User || $context instanceof Commit
             ? $this->contextual($user, $context, $followingIds, $following, $limit)
@@ -153,14 +153,14 @@ final readonly class SuggestedUsersQuery
                     CommitStatus::Approved->value, $viewer->id, $viewer->id, $viewer->id, $viewer->id,
                     CommitStatus::Approved->value, $viewer->id, $viewer->id, $viewer->id, $viewer->id,
                 ])
-                ->select('visible_thread_participants.user_id');
+                ->select('visible_thread_participants.author_id');
         }
 
         return $this->candidates($viewer, $followingIds)
             ->whereIn('users.id', $ids)
             ->whereIn('users.id', $this->committers($viewer))
             ->when(
-                $context instanceof User ? $context->id : $context->user_id,
+                $context instanceof User ? $context->id : $context->author_id,
                 fn (Builder $query, string $id): Builder => $query->whereKeyNot($id),
             )
             ->select('users.*')
@@ -261,7 +261,7 @@ final readonly class SuggestedUsersQuery
 
     private function committers(User $user): CommitBuilder
     {
-        return Commit::query()->visibleTo($user)->topLevel()->select('user_id');
+        return Commit::query()->visibleTo($user)->topLevel()->select('author_id');
     }
 
     /**

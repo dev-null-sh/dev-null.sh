@@ -3,15 +3,20 @@
 declare(strict_types=1);
 
 use App\Enums\CommitStatus;
+use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\CommitReport;
 use App\Models\LinkPreview;
+use App\Models\Organization;
 use App\Models\Poll;
 use App\Models\PollVote;
 use App\Models\User;
+use App\Services\EncryptedFiles;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 
 beforeEach(function (): void {
@@ -134,11 +139,11 @@ it('includes visible quoted context in reports without exposing ai advice or del
 
             if ($deleted) {
                 $page->missing('reports.data.0.commit.quoted_commit.body')
-                    ->missing('reports.data.0.commit.quoted_commit.user')
+                    ->missing('reports.data.0.commit.quoted_commit.author')
                     ->missing('reports.data.0.commit.quoted_commit.user_id');
             } else {
                 $page->where('reports.data.0.commit.quoted_commit.body', $quoted->body)
-                    ->where('reports.data.0.commit.quoted_commit.user.id', $quoted->user_id);
+                    ->where('reports.data.0.commit.quoted_commit.author.id', $quoted->user_id);
             }
         });
 })->with([false, true]);
@@ -404,3 +409,86 @@ it('removes reports on account deletion tombstones while keeping reports on surv
             ->where('reports.data.0.commit.parent', null)
             ->missing('reports.data.0.reporter_id'));
 })->with([false, true]);
+
+it('stores report screenshots encrypted and only serves them to moderators', function (): void {
+    Storage::fake();
+    $reporter = User::factory()->create();
+    $commit = Commit::factory()->create();
+    $this->actingAs($reporter)->post(route('commit-report.store', $commit), [
+        'reason' => 'other',
+        'images' => [UploadedFile::fake()->image('evidence.png', 200, 100)],
+        'image_descriptions' => ['Evidence screenshot'],
+    ])->assertRedirect();
+
+    $report = CommitReport::query()->sole();
+    expect($report->images)->toHaveCount(1);
+    $file = $report->images[0];
+    $bytes = Storage::disk()->get($file['path']);
+    expect(str_starts_with($bytes, 'RIFF'))->toBeFalse();
+    expect(str_starts_with(resolve(EncryptedFiles::class)->decrypt($bytes), 'RIFF'))->toBeTrue();
+
+    $url = route('commit-report-image.show', ['report' => $report, 'image' => 0]);
+    expect(DB::table('commit_reports')->where('id', $report->id)->value('images'))->not->toContain('Evidence screenshot', $file['path']);
+    $this->get($url)->assertOk();
+    $this->actingAs(User::factory()->create())->get($url)->assertNotFound();
+    $this->actingAs($commit->user)->get($url)->assertNotFound();
+    $this->actingAs(User::factory()->create(['handle' => 'moderator-demo']))->get($url)
+        ->assertOk()->assertHeader('Content-Type', 'image/webp')->assertHeader('Cache-Control', 'no-store, private');
+    $this->get(route('commit-report-image.show', ['report' => $report, 'image' => 1]))->assertNotFound();
+    $this->get(route('reported-commit.index'))->assertInertia(fn ($page) => $page
+        ->where('reports.data.0.attachments.0.url', $url)
+        ->where('reports.data.0.attachments.0.description', 'Evidence screenshot')
+        ->missing('reports.data.0.images'));
+
+    $this->actingAs($reporter)->post(route('commit-report.store', $commit), [
+        'reason' => 'spam', 'images' => [UploadedFile::fake()->image('duplicate.png')],
+    ])->assertRedirect();
+    expect(Storage::disk()->files('report-images'))->toHaveCount(1);
+    expect($report->refresh()->images)->toHaveCount(1);
+});
+
+it('rejects invalid report images without storing a report', function (string $invalid): void {
+    Storage::fake();
+    $images = match ($invalid) {
+        'type' => [UploadedFile::fake()->create('script.svg', 1, 'image/svg+xml')],
+        'size' => [UploadedFile::fake()->image('large.png')->size(10241)],
+        'count' => array_map(fn () => UploadedFile::fake()->image('image.png'), range(1, 4)),
+    };
+    $this->actingAs(User::factory()->create())->postJson(route('commit-report.store', Commit::factory()->create()), [
+        'reason' => 'other', 'images' => $images,
+    ])->assertUnprocessable();
+    expect(CommitReport::query()->count())->toBe(0);
+    expect(Storage::disk()->allFiles())->toBeEmpty();
+})->with(['type', 'size', 'count']);
+
+it('shows moderators who posted a reported organization commit', function (): void {
+    $admin = User::factory()->create(['handle' => 'moderator-demo']);
+    $poster = User::factory()->create(['handle' => 'taylor']);
+    CommitReport::factory()->for(Commit::factory()->for($poster)->state(['author_id' => Organization::factory()]))->create(['created_at' => now()->subMinute()]);
+    CommitReport::factory()->create();
+
+    $this->actingAs($admin)->get(route('reported-commit.index'))->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('reports.data.0.commit.poster.handle', 'taylor')
+            ->missing('reports.data.0.commit.user')
+            ->missing('reports.data.1.commit.poster'));
+});
+
+it('lists the reports filed and dismissed since a queue last read, so a queue that started listening late can catch up', function (): void {
+    $moderator = User::factory()->create(['handle' => 'moderator-demo']);
+    $read = now()->subSeconds(30);
+    CommitReport::factory()->create(['created_at' => now()->subMinute()]);
+    CommitReport::factory()->create(['created_at' => now()->subMinutes(2), 'dismissed_at' => now()->subMinute()]);
+    $filed = CommitReport::factory()->create();
+    CommitReport::factory()->for(Commit::factory()->pending())->create();
+    $dismissed = CommitReport::factory()->create(['created_at' => now()->subMinute(), 'dismissed_at' => now()]);
+
+    $this->actingAs($moderator)->get(route('reported-commit.index', ['since' => $read->getTimestampMs()]), [
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) resolve(HandleInertiaRequests::class)->version(request()),
+        'X-Inertia-Partial-Component' => 'moderation/reports',
+        'X-Inertia-Partial-Data' => 'reportChanges',
+    ])->assertOk()
+        ->assertJsonPath('props.reportChanges', ['filed' => [$filed->id], 'dismissed' => [$dismissed->id]])
+        ->assertJsonMissingPath('props.reports');
+});

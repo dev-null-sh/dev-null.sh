@@ -19,10 +19,12 @@ use Laravel\Ai\Promptable;
 #[Provider('opencode')]
 #[Model('deepseek-v4.1-flash')]
 #[MaxTokens(8192)]
-#[Timeout(30)]
+#[Timeout(self::TIMEOUT_SECONDS)]
 final class CommitTranslator implements Agent, HasProviderOptions, HasStructuredOutput
 {
     use Promptable;
+
+    public const int TIMEOUT_SECONDS = 24;
 
     public function __construct(private ?string $language = null)
     {

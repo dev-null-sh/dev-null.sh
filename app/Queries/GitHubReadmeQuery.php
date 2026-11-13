@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Queries;
 
+use App\Contracts\Services\GitHubProvider;
 use App\Models\User;
-use App\Services\GitHub;
 use Illuminate\Http\Client\HttpClientException;
 use Illuminate\Support\Facades\Cache;
 use Symfony\Component\HtmlSanitizer\HtmlSanitizer;
@@ -26,7 +26,7 @@ final readonly class GitHubReadmeQuery
 
     private const int FailureTtl = 300;
 
-    public function __construct(private GitHub $github)
+    public function __construct(private GitHubProvider $github)
     {
         //
     }
@@ -40,8 +40,8 @@ final readonly class GitHubReadmeQuery
      */
     public function get(User $user): string|false|null
     {
-        $key = "github-readme:{$user->github_id}";
-        $failedKey = "github-readme-failed:{$user->github_id}";
+        $key = $this->key($user);
+        $failedKey = $this->failedKey($user);
 
         /** @var string|null $html */
         $html = Cache::get($key);
@@ -66,6 +66,25 @@ final readonly class GitHubReadmeQuery
     }
 
     /**
+     * Read the README from GitHub again on the next view, as someone who syncs their profile expects to see theirs.
+     */
+    public function forget(User $user): void
+    {
+        Cache::forget($this->key($user));
+        Cache::forget($this->failedKey($user));
+    }
+
+    private function key(User $user): string
+    {
+        return "github-readme:{$user->github_id}";
+    }
+
+    private function failedKey(User $user): string
+    {
+        return "github-readme-failed:{$user->github_id}";
+    }
+
+    /**
      * @throws HttpClientException
      */
     private function fetch(User $user): string
@@ -76,11 +95,9 @@ final readonly class GitHubReadmeQuery
             return '';
         }
 
-        $response = $this->github->request()
-            ->replaceHeaders(['Accept' => 'application/vnd.github.html+json'])
-            ->get("repos/{$login}/{$login}/readme");
+        $html = $this->github->readme($login);
 
-        return $response->notFound() ? '' : $this->sanitize($response->throw()->body());
+        return $html === null ? '' : $this->sanitize($html);
     }
 
     /**

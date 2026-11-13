@@ -211,3 +211,9 @@ it('serves an empty feed for users without public commits', function (): void {
 it('returns not found for unknown handles', function (): void {
     $this->get('/@missing/feed.atom')->assertNotFound();
 });
+
+it('serves the feed of a user whatever the case of the handle', function (): void {
+    User::factory()->create(['handle' => 'OctoCat']);
+
+    $this->get('/@octocat/feed.atom')->assertOk();
+});

@@ -2,17 +2,20 @@
 
 declare(strict_types=1);
 
+use App\Contracts\Services\GitHubProvider;
 use App\Models\User;
-use Illuminate\Support\Facades\Http;
+use GuzzleHttp\Psr7\Response as Psr7Response;
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\RequestException;
+use Illuminate\Http\Client\Response;
 
 it('uses the configured repository without reusing another repositorys cached match', function (): void {
-    Http::fake([
-        'api.github.com/repos/dev-null-sh/dev-null.sh/issues/722' => Http::response([
-            'number' => 722, 'title' => 'Original', 'html_url' => 'https://github.com/dev-null-sh/dev-null.sh/issues/722',
-        ]),
-        'api.github.com/repos/example/upstream/issues/722' => Http::response([
-            'number' => 722, 'title' => 'Different issue', 'html_url' => 'https://github.com/example/upstream/pull/722',
-        ]),
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('issue')->with('dev-null-sh/dev-null.sh', 722)->andReturn([
+        'number' => 722, 'title' => 'Original', 'url' => 'https://github.com/dev-null-sh/dev-null.sh/issues/722',
+    ]);
+    $github->shouldReceive('issue')->with('example/upstream', 722)->andReturn([
+        'number' => 722, 'title' => 'Different issue', 'url' => 'https://github.com/example/upstream/pull/722',
     ]);
 
     $this->actingAs(User::factory()->create())
@@ -26,14 +29,11 @@ it('uses the configured repository without reusing another repositorys cached ma
         ->assertJsonPath('issue.url', 'https://github.com/example/upstream/pull/722');
 });
 
-it('finds an exact issue or pull request without exposing its body', function (string $path): void {
-    Http::fake([
-        'api.github.com/repos/dev-null-sh/dev-null.sh/issues/722' => Http::response([
-            'number' => 722,
-            'title' => 'Automatically link PRs and issues',
-            'html_url' => "https://github.com/dev-null-sh/dev-null.sh/{$path}/722",
-            'body' => 'Not needed for suggestions',
-        ]),
+it('finds an exact issue or pull request', function (string $path): void {
+    $this->mock(GitHubProvider::class)->shouldReceive('issue')->with('dev-null-sh/dev-null.sh', 722)->once()->andReturn([
+        'number' => 722,
+        'title' => 'Automatically link PRs and issues',
+        'url' => "https://github.com/dev-null-sh/dev-null.sh/{$path}/722",
     ]);
 
     $this->actingAs(User::factory()->create());
@@ -47,25 +47,20 @@ it('finds an exact issue or pull request without exposing its body', function (s
                 'url' => "https://github.com/dev-null-sh/dev-null.sh/{$path}/722",
             ]]);
     }
-
-    Http::assertSentCount(1);
 })->with(['issues', 'pull']);
 
-it('leaves missing or temporarily unavailable references alone', function (int $status): void {
-    Http::fake([
-        'api.github.com/repos/dev-null-sh/dev-null.sh/issues/722' => Http::response([], $status),
-    ]);
+it('leaves temporarily unavailable references alone', function (int $status): void {
+    $this->mock(GitHubProvider::class)->shouldReceive('issue')->andThrow(new RequestException(new Response(new Psr7Response($status))));
 
     $this->actingAs(User::factory()->create())
         ->getJson(route('issue-suggestion.index', ['q' => '722']))
         ->assertOk()
         ->assertExactJson(['issue' => null]);
-})->with([404, 403, 429, 500]);
+})->with([403, 429, 500]);
 
 it('asks GitHub only once for a reference it could not find', function (): void {
-    Http::fake([
-        'api.github.com/repos/dev-null-sh/dev-null.sh/issues/722' => Http::response([], 404),
-    ]);
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('issue')->with('dev-null-sh/dev-null.sh', 722)->andReturnNull();
 
     $this->actingAs(User::factory()->create());
 
@@ -73,19 +68,17 @@ it('asks GitHub only once for a reference it could not find', function (): void 
         $this->getJson(route('issue-suggestion.index', ['q' => '722']))->assertExactJson(['issue' => null]);
     }
 
-    Http::assertSentCount(1);
+    $github->shouldHaveReceived('issue')->once();
 
     $this->travel(6)->minutes();
 
     $this->getJson(route('issue-suggestion.index', ['q' => '722']))->assertExactJson(['issue' => null]);
 
-    Http::assertSentCount(2);
+    $github->shouldHaveReceived('issue')->twice();
 });
 
 it('limits how many references each user may look up in a day', function (): void {
-    Http::fake([
-        'api.github.com/*' => Http::response([], 404),
-    ]);
+    $this->mock(GitHubProvider::class)->shouldReceive('issue')->andReturnNull();
 
     $this->actingAs(User::factory()->create());
 
@@ -107,9 +100,7 @@ it('limits how many references each user may look up in a day', function (): voi
 });
 
 it('leaves references alone when GitHub cannot be reached', function (): void {
-    Http::fake([
-        'api.github.com/repos/dev-null-sh/dev-null.sh/issues/722' => Http::failedConnection(),
-    ]);
+    $this->mock(GitHubProvider::class)->shouldReceive('issue')->andThrow(new ConnectionException('timed out'));
 
     $this->actingAs(User::factory()->create())
         ->getJson(route('issue-suggestion.index', ['q' => '722']))
@@ -118,26 +109,25 @@ it('leaves references alone when GitHub cannot be reached', function (): void {
 });
 
 it('requires authentication to look up references', function (): void {
-    $this->getJson(route('issue-suggestion.index', ['q' => '722']))->assertUnauthorized();
+    $this->mock(GitHubProvider::class)->shouldNotReceive('issue');
 
-    Http::assertNothingSent();
+    $this->getJson(route('issue-suggestion.index', ['q' => '722']))->assertUnauthorized();
 });
 
 it('rejects invalid issue numbers before contacting GitHub', function (mixed $number): void {
+    $this->mock(GitHubProvider::class)->shouldNotReceive('issue');
+
     $this->actingAs(User::factory()->create())
         ->getJson(route('issue-suggestion.index', ['q' => $number]))
         ->assertUnprocessable()
         ->assertJsonValidationErrors('q');
-
-    Http::assertNothingSent();
 })->with([null, '', '0', '-1', '0123', '123abc', '1.5', '12345678901', [['722']]]);
 
 it('expires cached issue titles', function (): void {
-    Http::fake([
-        'api.github.com/repos/dev-null-sh/dev-null.sh/issues/722' => Http::sequence()
-            ->push(['number' => 722, 'title' => 'Original title', 'html_url' => 'https://github.com/dev-null-sh/dev-null.sh/issues/722'])
-            ->push(['number' => 722, 'title' => 'Updated title', 'html_url' => 'https://github.com/dev-null-sh/dev-null.sh/issues/722']),
-    ]);
+    $this->mock(GitHubProvider::class)->shouldReceive('issue')->andReturn(
+        ['number' => 722, 'title' => 'Original title', 'url' => 'https://github.com/dev-null-sh/dev-null.sh/issues/722'],
+        ['number' => 722, 'title' => 'Updated title', 'url' => 'https://github.com/dev-null-sh/dev-null.sh/issues/722'],
+    );
 
     $this->actingAs(User::factory()->create())
         ->getJson(route('issue-suggestion.index', ['q' => '722']))

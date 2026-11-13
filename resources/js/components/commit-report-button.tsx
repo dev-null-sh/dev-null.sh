@@ -1,9 +1,16 @@
 import { useForm, usePage } from '@inertiajs/react';
-import { Flag } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useId, useState } from 'react';
 import { store } from '@/actions/App/Http/Controllers/CommitReportController';
+import {
+    ImageDropOverlay,
+    ImagePickerButton,
+    ImagePickerPreviews,
+    imageErrorFrom,
+    useImagePreviewCleanup,
+} from '@/components/commit-image-picker';
 import InputError from '@/components/input-error';
+import { StableLabel } from '@/components/stable-label';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -13,14 +20,10 @@ import {
     DialogFooter,
     DialogHeader,
     DialogTitle,
-    DialogTrigger,
 } from '@/components/ui/dialog';
-import {
-    Tooltip,
-    TooltipContent,
-    TooltipTrigger,
-} from '@/components/ui/tooltip';
 import { useCommitNotFound } from '@/hooks/use-deleted-resources';
+import { useImageAttachments } from '@/hooks/use-image-attachments';
+import { useOwnsCommit } from '@/hooks/use-owns-commit';
 import type { Commit } from '@/types';
 
 const reasons = [
@@ -32,38 +35,12 @@ const reasons = [
 
 export function useCanReport(commit: Commit): boolean {
     const { auth } = usePage().props;
+    const ownsCommit = useOwnsCommit();
 
     return (
         auth.user !== null &&
         commit.status === 'approved' &&
-        commit.user_id !== auth.user.id
-    );
-}
-
-export function CommitReportButton({ commit }: { commit: Commit }) {
-    const [open, setOpen] = useState(false);
-
-    if (!useCanReport(commit)) {
-        return null;
-    }
-
-    return (
-        <CommitReportDialog commit={commit} open={open} onOpenChange={setOpen}>
-            <Tooltip>
-                <TooltipTrigger asChild>
-                    <DialogTrigger asChild>
-                        <button
-                            type="button"
-                            className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-                            aria-label="Report commit"
-                        >
-                            <Flag aria-hidden className="size-4" />
-                        </button>
-                    </DialogTrigger>
-                </TooltipTrigger>
-                <TooltipContent>Report commit</TooltipContent>
-            </Tooltip>
-        </CommitReportDialog>
+        !ownsCommit(commit)
     );
 }
 
@@ -117,30 +94,55 @@ function ReportForm({
     const [failure, setFailure] = useState('');
     const commitNotFound = useCommitNotFound();
     const id = useId();
-    const form = useForm({ reason: '', details: '' });
+    const form = useForm({
+        reason: '',
+        details: '',
+        images: [] as File[],
+        image_descriptions: [] as string[],
+    });
+    useImagePreviewCleanup(form.data.images);
+    const attachments = useImageAttachments(
+        form.data.images,
+        form.data.image_descriptions,
+        (images, descriptions) => {
+            form.setData((data) => ({
+                ...data,
+                images,
+                image_descriptions: descriptions,
+            }));
+        },
+        `report:${commit.id}:${id}`,
+        form.processing,
+    );
 
     return (
         <>
-            <DialogHeader className="text-left">
+            <DialogHeader className="sticky -top-6 z-10 -mx-6 -mt-6 border-b bg-card px-6 pt-6 pb-4 text-left">
                 <DialogTitle>Report commit</DialogTitle>
                 <DialogDescription>
-                    Your report is private. Only moderators can review it.
-                    Reporting does not hide this commit.
+                    Your report is private. Attachments are visible only to you
+                    and moderators. Reporting does not hide this commit.
                 </DialogDescription>
             </DialogHeader>
             <p className="line-clamp-3 border-y py-3 text-sm leading-relaxed wrap-anywhere whitespace-pre-wrap">
                 {commit.body}
             </p>
             <form
-                className="grid gap-4"
+                {...attachments.dropzone}
+                className="relative grid gap-4"
                 onSubmit={(event) => {
                     event.preventDefault();
+                    if (form.processing || attachments.isReading()) return;
                     setFailure('');
                     form.submit(store(commit), {
                         preserveScroll: true,
                         onStart: () => onSendingChange(true),
                         onFinish: () => onSendingChange(false),
-                        onSuccess: onDone,
+                        onSuccess: () => {
+                            onDone();
+                            attachments.clear();
+                            form.reset();
+                        },
                         onHttpException: (response) => {
                             if (commitNotFound(commit.id, response)) {
                                 onDone();
@@ -212,12 +214,13 @@ function ReportForm({
                         onChange={(event) =>
                             form.setData('details', event.target.value)
                         }
+                        onPaste={attachments.onPaste}
                         maxLength={500}
                         rows={3}
                         disabled={form.processing}
                         aria-invalid={!!form.errors.details}
                         aria-describedby={`${id}-details-hint ${id}-details-error`}
-                        className="w-full resize-y rounded-md border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        className="w-full resize-y rounded-md border bg-background px-3 py-2 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring md:text-sm"
                     />
                     <p
                         id={`${id}-details-hint`}
@@ -230,12 +233,32 @@ function ReportForm({
                         message={form.errors.details}
                     />
                 </div>
+                {attachments.isDraggingFiles && <ImageDropOverlay />}
+                <fieldset disabled={form.processing} className="grid gap-2">
+                    <ImagePickerButton
+                        count={attachments.images.length}
+                        disabled={form.processing}
+                        reading={attachments.reading}
+                        onPick={attachments.pick}
+                    />
+                    <ImagePickerPreviews
+                        images={attachments.images}
+                        descriptions={attachments.descriptions}
+                        onDescribe={attachments.describe}
+                        onRemove={attachments.remove}
+                    />
+                    <InputError
+                        message={
+                            attachments.error ?? imageErrorFrom(form.errors)
+                        }
+                    />
+                </fieldset>
                 {failure && (
                     <p role="alert" className="text-sm text-destructive">
                         {failure}
                     </p>
                 )}
-                <DialogFooter>
+                <DialogFooter className="sticky -bottom-6 z-10 -mx-6 -mb-6 border-t bg-card px-6 pt-4 pb-6">
                     <DialogClose asChild>
                         <Button
                             type="button"
@@ -247,9 +270,17 @@ function ReportForm({
                     </DialogClose>
                     <Button
                         type="submit"
-                        disabled={form.processing || !form.data.reason}
+                        disabled={
+                            form.processing ||
+                            attachments.reading ||
+                            !form.data.reason
+                        }
                     >
-                        {form.processing ? 'Sending…' : 'Send report'}
+                        <StableLabel
+                            label="Send report"
+                            pendingLabel="Sending…"
+                            isPending={form.processing}
+                        />
                     </Button>
                 </DialogFooter>
             </form>

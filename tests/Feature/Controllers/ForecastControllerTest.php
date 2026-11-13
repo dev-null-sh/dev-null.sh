@@ -24,8 +24,7 @@ it('shows admins where the metrics are heading', function (): void {
                 ['metric' => 'users', 'current' => 1, 'target' => 10, 'eta' => null],
                 ['metric' => 'commits', 'current' => 0, 'target' => 10, 'eta' => null],
             ])
-            ->where('month.0', ['metric' => 'signups', 'month' => '2026-10', 'to_date' => 1, 'projected' => 1, 'lower' => 1, 'upper' => 12])
-            ->where('hasTraffic', false));
+            ->where('month.0', ['metric' => 'signups', 'month' => '2026-10', 'to_date' => 1, 'projected' => 1, 'lower' => 1, 'upper' => 12]));
 });
 
 it('is a 404 for non admins', function (): void {

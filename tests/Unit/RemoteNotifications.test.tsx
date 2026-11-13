@@ -3,7 +3,7 @@ import type { Page, SharedPageProps } from '@inertiajs/core';
 import { afterEach, beforeEach, test, vi } from 'vite-plus/test';
 import { chatSnapshot, loadTab, markThreadRead, seedThread, setConversationArchived, setConversationMute, watchRemoteAlerts, watchThread } from '../../resources/js/lib/chat';
 import { pageTitle } from '../../resources/js/lib/page-title';
-import { createRemoteAlerts, isRemoteMuted, remoteAlertsEnabled, setRemoteAlerts } from '../../resources/js/lib/remote-notifications';
+import { createRemoteAlerts, isRemoteMuted, remoteAlertsEnabled, remoteSound, setRemoteAlerts, setRemoteSound } from '../../resources/js/lib/remote-notifications';
 import type { ConversationSummary } from '../../resources/js/types';
 
 const storage = new Map<string, string>();
@@ -64,6 +64,8 @@ beforeEach(() => {
         pause() {}
         currentTime = 0;
         muted = false;
+        src: string;
+        constructor(src = '') { this.src = src; }
     });
     const events = new EventTarget();
     vi.stubGlobal('window', {
@@ -124,6 +126,42 @@ test('ignores backlog, own messages, org events, read conversations and active m
     assert.equal(JSON.stringify(shown[0].options).includes('private message'), false);
     shown[0].onclick();
     assert.deepEqual(assign.mock.calls, [['/remotes/remote-one']]);
+});
+
+test('new messages use the saved sound immediately', async () => {
+    const alerts = reader();
+    await alerts.receive([], () => false);
+    const cases = [
+        ['msn', '/sounds/remote.mp3'],
+        ['icq', '/sounds/icq.mp3'],
+        ['aim', '/sounds/aim.mp3'],
+    ] as const;
+
+    for (const [index, [choice, source]] of cases.entries()) {
+        assert.equal(setRemoteSound('me', choice), true);
+        time += 10_000;
+        await alerts.receive([conversation(20 + index)], () => false);
+
+        assert.equal((play.mock.contexts.at(-1) as unknown as HTMLAudioElement).src, source);
+        assert.equal(play.mock.calls.length, index + 1);
+    }
+});
+
+test('sound choices stay account-local, reject unknown stored choices, and report blocked storage', () => {
+    assert.equal(remoteSound('me'), 'msn');
+    assert.equal(setRemoteSound('me', 'aim'), true);
+    assert.equal(remoteSound('me'), 'aim');
+    assert.equal(remoteSound('other'), 'msn');
+    storage.set('remote-sound:me', 'navi');
+    assert.equal(remoteSound('me'), 'msn');
+    storage.set('remote-sound:me', 'unknown');
+    assert.equal(remoteSound('me'), 'msn');
+    storage.set('remote-sound:me', 'constructor');
+    assert.equal(remoteSound('me'), 'msn');
+    vi.spyOn(window.localStorage, 'setItem').mockImplementation(() => { throw new Error('blocked'); });
+
+    assert.equal(setRemoteSound('me', 'icq'), false);
+    assert.equal(remoteSound('me'), 'msn');
 });
 
 test('only sound has a ten-second cooldown across remotes and tabs, while banners update without duplicates', async () => {
@@ -809,7 +847,7 @@ test('an unfocused window does not mark incoming messages read before it can ale
         messages: [conversation(50).last_message!], has_older: false,
         reactions_version: 0, reaction_changes: [], read_through_id: 0,
         members: [], typing: [], is_archived: false, pinned_at: null, muted_until_at: null,
-        role: 'contributor', access: 'open', pinned: [],
+        role: 'contributor', access: 'open', pinned: [], mentions: [], mentions_count: 0,
     });
 
     markThreadRead(target);

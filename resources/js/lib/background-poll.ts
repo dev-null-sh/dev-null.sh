@@ -1,4 +1,5 @@
 import type { ReloadOptions } from '@inertiajs/core';
+import { router } from '@inertiajs/react';
 
 export function backgroundPollOptions(
     requestOptions: ReloadOptions | (() => ReloadOptions),
@@ -26,4 +27,40 @@ export function backgroundPollOptions(
             },
         };
     };
+}
+
+/**
+ * A background reload that settles once its request does, whether it succeeded, failed or was cancelled, so
+ * whoever waits on it never starts another one while it is still on its way. Aborting cancels it.
+ */
+export function reloadInBackground(
+    options: ReloadOptions,
+    signal?: AbortSignal,
+): Promise<void> {
+    return new Promise((resolve) => {
+        if (signal?.aborted) {
+            resolve();
+
+            return;
+        }
+
+        let cancel = () => {};
+        const onAbort = () => cancel();
+
+        signal?.addEventListener('abort', onAbort, { once: true });
+        router.reload(
+            backgroundPollOptions({
+                ...options,
+                onCancelToken: (token) => {
+                    cancel = () => token.cancel();
+                    options.onCancelToken?.(token);
+                },
+                onFinish: (visit) => {
+                    signal?.removeEventListener('abort', onAbort);
+                    options.onFinish?.(visit);
+                    resolve();
+                },
+            })(),
+        );
+    });
 }

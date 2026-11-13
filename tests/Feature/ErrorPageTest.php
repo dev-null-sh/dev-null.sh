@@ -33,8 +33,8 @@ it('renders the not found page for signed in users', function (): void {
             ->where('auth.user.id', $user->id));
 });
 
-it('renders the not found page for a missing profile', function (): void {
-    $response = $this->actingAs(User::factory()->create())->get('/@nobody');
+it('renders the not found page for a profile GitHub could not have', function (): void {
+    $response = $this->actingAs(User::factory()->create())->get('/@no_body');
 
     $response->assertNotFound()
         ->assertInertia(fn ($page) => $page
@@ -79,7 +79,7 @@ it('renders the too many requests page for inertia requests', function (): void 
 });
 
 it('renders the server error page without leaking the exception', function (): void {
-    Route::middleware('web')->get('_test/broken', fn () => throw new RuntimeException('Kaboom'));
+    Route::middleware('web')->get('_test/broken', fn (): never => throw new RuntimeException('Kaboom'));
 
     $response = $this->get('_test/broken');
 
@@ -93,7 +93,7 @@ it('renders the server error page without leaking the exception', function (): v
 it('keeps the debug page for server errors in debug mode', function (): void {
     config(['app.debug' => true]);
 
-    Route::middleware('web')->get('_test/broken', fn () => throw new RuntimeException('Kaboom'));
+    Route::middleware('web')->get('_test/broken', fn (): never => throw new RuntimeException('Kaboom'));
 
     $response = $this->get('_test/broken');
 
@@ -116,7 +116,7 @@ it('renders the maintenance page', function (): void {
 });
 
 it('redirects back with a toast when the page expired', function (): void {
-    Route::middleware('web')->post('_test/expired', fn () => throw new TokenMismatchException());
+    Route::middleware('web')->post('_test/expired', fn (): never => throw new TokenMismatchException());
 
     $response = $this->actingAs(User::factory()->create())
         ->from('/log/following')
