@@ -1,5 +1,5 @@
 import { Link, usePage } from '@inertiajs/react';
-import { Fragment } from 'react';
+import { Fragment, useState } from 'react';
 import type { ReactNode, SVGAttributes } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import SearchController from '@/actions/App/Http/Controllers/SearchController';
@@ -11,7 +11,7 @@ import { CodebergIcon } from '@/components/codeberg-icon';
 import { GitHubIcon } from '@/components/github-icon';
 import { GitLabIcon } from '@/components/gitlab-icon';
 import { UserPreview } from '@/components/user-preview';
-import { typedProse, withoutCode } from '@/lib/code';
+import { splitFencedCode, typedProse, withoutCode } from '@/lib/code';
 import type { Color } from '@/lib/colors';
 import { colorsIn } from '@/lib/colors';
 import { mentionPattern } from '@/lib/mentions';
@@ -21,7 +21,13 @@ import {
     urlPattern,
     withoutTrailingPunctuation,
 } from '@/lib/urls';
-import { cn, shortHash } from '@/lib/utils';
+import {
+    cn,
+    dateLocale,
+    formatRelativeTime,
+    readerClock,
+    shortHash,
+} from '@/lib/utils';
 import { show } from '@/routes/mention';
 import { show as showOrganizationMention } from '@/routes/organization-mention';
 import type { BodySegment, Commit } from '@/types';
@@ -830,6 +836,295 @@ function withMentions(
     return parts;
 }
 
+type InlineOptions = {
+    mentions: Commit['mentions'];
+    organizationMentions: Commit['organization_mentions'];
+    colors: Color[];
+    hashtags: RegExpExecArray[];
+    pasteisMode: boolean;
+    isStatic: boolean;
+    linksEveryMention: boolean;
+};
+
+// Discord-style inline markdown, matched before links and mentions so markers never leak into them. Styled
+// pieces recurse through the same pass, so mentions and links still resolve inside bold or spoilers. Plain
+// `code` passes through untouched.
+const richInlinePattern =
+    /(?<code>`[^`\n]*`)|(?<masked>\[(?<maskedLabel>[^\]\n]+)\]\((?<maskedUrl>https?:\/\/[^)\s]+)\))|(?<timestamp><t:(?<timestampAt>\d+)(?::(?<timestampFormat>[tTdDfFR]))?>)|(?<spoiler>\|\|(?<spoilerContent>[\s\S]+?)\|\|)|(?<bold>\*\*(?<boldContent>[^\s*](?:[^*\n]*?[^\s*])?)\*\*)|(?<underline>__(?<underlineContent>[^\s_](?:[^_\n]*?[^\s_])?)__)|(?<strike>~~(?<strikeContent>[^\s~](?:[^~\n]*?[^\s~])?)~~)|(?<italicStar>\*(?<italicStarContent>[^\s*](?:[^*\n]*?[^\s*])?)\*)|(?<italicUnder>_(?<italicUnderContent>[^\s_](?:[^_\n]*?[^\s_])?)_)/g;
+
+/**
+ * Whether the character counts as part of a word, so underscore italics keep their underscores in snake_case.
+ */
+function isWordCharacter(character: string | undefined): boolean {
+    return character !== undefined && /[\p{L}\p{M}\p{N}_]/u.test(character);
+}
+
+/**
+ * Hides the children behind a tap to reveal, holding them back only while hidden so nothing interactive escapes.
+ * Static previews offer no tap, so they omit the hidden content entirely.
+ */
+function SpoilerText({
+    children,
+    isStatic,
+}: {
+    children: ReactNode;
+    isStatic: boolean;
+}) {
+    const [revealed, setRevealed] = useState(false);
+
+    if (isStatic) {
+        // Static previews offer no tap to reveal with, so the hidden content stays out entirely.
+        return <span className="spoiler" data-revealed="false" />;
+    }
+
+    return (
+        <button
+            type="button"
+            onClick={() => setRevealed((previous) => !previous)}
+            data-revealed={revealed}
+            data-test="spoiler"
+            className="spoiler cursor-pointer"
+        >
+            {children}
+        </button>
+    );
+}
+
+const timestampFormats: Record<string, Intl.DateTimeFormatOptions> = {
+    t: { hour: 'numeric', minute: '2-digit' },
+    T: { hour: 'numeric', minute: '2-digit', second: '2-digit' },
+    d: { day: '2-digit', month: '2-digit', year: 'numeric' },
+    D: { day: 'numeric', month: 'long', year: 'numeric' },
+    f: {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+    },
+    F: {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+    },
+};
+
+/**
+ * Renders a Discord-style timestamp, wording near-future relative times as upcoming and the rest absolutely.
+ */
+function TimestampText({ at, format }: { at: string; format: string }) {
+    const date = new Date(Number(at) * 1000);
+    const timeZone = readerClock().timeZone;
+
+    if (Number.isNaN(date.getTime())) {
+        return `<t:${at}${format === 'f' ? '' : `:${format}`}>`;
+    }
+
+    const absolute = (options: Intl.DateTimeFormatOptions): string =>
+        new Intl.DateTimeFormat(dateLocale, { timeZone, ...options }).format(
+            date,
+        );
+
+    if (format === 'R') {
+        const title = absolute({ dateStyle: 'full', timeStyle: 'long' });
+        const ahead = Math.round((date.getTime() - Date.now()) / 1000);
+
+        if (ahead >= 60) {
+            return (
+                <span title={title} data-test="timestamp">
+                    in {formatFuture(ahead)}
+                </span>
+            );
+        }
+
+        if (ahead >= 0) {
+            return (
+                <span title={title} data-test="timestamp">
+                    soon
+                </span>
+            );
+        }
+
+        return (
+            <span title={title} data-test="timestamp">
+                {formatRelativeTime(date.toISOString())}
+            </span>
+        );
+    }
+
+    return (
+        <span data-test="timestamp">{absolute(timestampFormats[format])}</span>
+    );
+}
+
+/**
+ * Words a future distance in the largest fitting unit, for upcoming timestamps.
+ */
+function formatFuture(totalSeconds: number): string {
+    if (totalSeconds < 3600) {
+        return `${Math.floor(totalSeconds / 60)}m`;
+    }
+
+    if (totalSeconds < 86400) {
+        return `${Math.floor(totalSeconds / 3600)}h`;
+    }
+
+    if (totalSeconds < 604800) {
+        return `${Math.floor(totalSeconds / 86400)}d`;
+    }
+
+    return new Intl.DateTimeFormat(dateLocale, {
+        timeZone: readerClock().timeZone,
+        month: 'short',
+        day: 'numeric',
+    }).format(new Date(Date.now() + totalSeconds * 1000));
+}
+
+/**
+ * Applies the rich inline pass to a prose slice: code, masked links, timestamps, spoilers, emphasis and mentions,
+ * in that order, with absolute offsets so keys stay stable across slices.
+ */
+function withRichInline(
+    text: string,
+    offset: number,
+    keyPrefix: string,
+    options: InlineOptions,
+): ReactNode[] {
+    const parts: ReactNode[] = [];
+    let position = 0;
+    // Links resolve after this pass, so markers inside a URL are left alone for the link pass.
+    const linkRanges = [...text.matchAll(urlPattern)].map((link) => [
+        link.index,
+        link.index + withoutTrailingPunctuation(link[0]).length,
+    ]);
+
+    for (const match of text.matchAll(richInlinePattern)) {
+        const groups = match.groups ?? {};
+        const index = match.index;
+
+        if (
+            linkRanges.some(
+                ([start, end]) =>
+                    index >= start && index + match[0].length <= end,
+            )
+        ) {
+            continue;
+        }
+
+        // Underscore italics only stand alone, so snake_case words keep their underscores.
+        if (
+            groups.italicUnderContent !== undefined &&
+            (isWordCharacter(text[index - 1]) ||
+                isWordCharacter(text[index + match[0].length]))
+        ) {
+            continue;
+        }
+
+        parts.push(
+            ...withLinksAndMentions(
+                text.slice(position, index),
+                offset + position,
+                keyPrefix,
+                options,
+            ),
+        );
+        position = index + match[0].length;
+
+        const key = `${keyPrefix}-${offset + index}`;
+        const nested = (
+            inner: string,
+            shift: number,
+            nestedOptions: InlineOptions = options,
+        ): ReactNode[] =>
+            withRichInline(
+                inner,
+                offset + index + shift,
+                `${keyPrefix}-nested`,
+                nestedOptions,
+            );
+
+        if (groups.code !== undefined) {
+            parts.push(match[0]);
+        } else if (groups.maskedLabel !== undefined) {
+            const href = hrefFor(groups.maskedUrl);
+
+            if (href === null) {
+                parts.push(match[0]);
+            } else if (options.isStatic) {
+                parts.push(
+                    <Fragment key={key}>
+                        {nested(groups.maskedLabel, 1, {
+                            ...options,
+                            isStatic: true,
+                        })}
+                    </Fragment>,
+                );
+            } else {
+                parts.push(
+                    <a
+                        key={key}
+                        href={href}
+                        target="_blank"
+                        rel="noopener noreferrer nofollow ugc"
+                        title={href}
+                        className="wrap-anywhere text-primary hover:underline"
+                    >
+                        {nested(groups.maskedLabel, 1, {
+                            ...options,
+                            isStatic: true,
+                            hashtags: [],
+                        })}
+                    </a>,
+                );
+            }
+        } else if (groups.timestampAt !== undefined) {
+            parts.push(
+                <TimestampText
+                    key={key}
+                    at={groups.timestampAt}
+                    format={groups.timestampFormat ?? 'f'}
+                />,
+            );
+        } else if (groups.spoilerContent !== undefined) {
+            parts.push(
+                <SpoilerText key={key} isStatic={options.isStatic}>
+                    {nested(groups.spoilerContent, 2)}
+                </SpoilerText>,
+            );
+        } else if (groups.boldContent !== undefined) {
+            parts.push(
+                <strong key={key}>{nested(groups.boldContent, 2)}</strong>,
+            );
+        } else if (groups.underlineContent !== undefined) {
+            parts.push(<u key={key}>{nested(groups.underlineContent, 2)}</u>);
+        } else if (groups.strikeContent !== undefined) {
+            parts.push(<s key={key}>{nested(groups.strikeContent, 2)}</s>);
+        } else if (groups.italicStarContent !== undefined) {
+            parts.push(
+                <em key={key}>{nested(groups.italicStarContent, 1)}</em>,
+            );
+        } else if (groups.italicUnderContent !== undefined) {
+            parts.push(
+                <em key={key}>{nested(groups.italicUnderContent, 1)}</em>,
+            );
+        }
+    }
+
+    parts.push(
+        ...withLinksAndMentions(
+            text.slice(position),
+            offset + position,
+            keyPrefix,
+            options,
+        ),
+    );
+
+    return parts;
+}
+
 export function LinkifiedText({
     text,
     mentions,
@@ -848,11 +1143,80 @@ export function LinkifiedText({
     // Whether the text is a whole body, so its start is the start of a line.
     startsText?: boolean;
 }) {
-    const parts: ReactNode[] = [];
     // Colors are found in the prose only, for callers that pass a whole body, code included.
     const prose = withoutCode(text);
     const colors = colorsIn(prose, startsText);
     const hashtags = isStatic ? [] : [...prose.matchAll(hashtagPattern)];
+
+    // Fenced code stays verbatim: formatting only runs on the prose around it, so whole bodies from any caller,
+    // suggestions included, keep their code blocks intact. Colors and hashtags keep whole-text indexes; each slice
+    // ignores the ones outside it. Without fences this is exactly the old single pass, same elements and keys.
+    const segments = splitFencedCode(text);
+
+    if (segments.length === 1 && !segments[0].code) {
+        return (
+            <>
+                {withRichInline(text, 0, 'rich', {
+                    mentions,
+                    organizationMentions,
+                    colors,
+                    hashtags,
+                    pasteisMode,
+                    isStatic,
+                    linksEveryMention,
+                })}
+            </>
+        );
+    }
+
+    let offset = 0;
+
+    return (
+        <>
+            {segments.map((segment, index) => {
+                const segmentOffset = offset;
+                offset += segment.text.length;
+
+                return segment.code ? (
+                    <Fragment key={`fenced-${index}`}>{segment.text}</Fragment>
+                ) : (
+                    <Fragment key={`prose-${index}`}>
+                        {withRichInline(segment.text, segmentOffset, 'rich', {
+                            mentions,
+                            organizationMentions,
+                            colors,
+                            hashtags,
+                            pasteisMode,
+                            isStatic,
+                            linksEveryMention,
+                        })}
+                    </Fragment>
+                );
+            })}
+        </>
+    );
+}
+
+/**
+ * Links the URLs, forge references, commits, colors, hashtags and mentions in plain prose, leaving code to its own
+ * pass. Static mode flattens links to text so no anchor nests inside a masked label.
+ */
+function withLinksAndMentions(
+    text: string,
+    offset: number,
+    keyPrefix: string,
+    options: InlineOptions,
+): ReactNode[] {
+    const {
+        mentions,
+        organizationMentions,
+        colors,
+        hashtags,
+        pasteisMode,
+        isStatic,
+        linksEveryMention,
+    } = options;
+    const parts: ReactNode[] = [];
     let position = 0;
 
     for (const match of text.matchAll(urlPattern)) {
@@ -869,7 +1233,7 @@ export function LinkifiedText({
         parts.push(
             ...withMentions(
                 text.slice(position, match.index),
-                position,
+                offset + position,
                 mentions,
                 organizationMentions,
                 colors,
@@ -880,7 +1244,7 @@ export function LinkifiedText({
             ),
             commitLink ? (
                 <CommitLink
-                    key={match.index}
+                    key={`${keyPrefix}-link-${offset + match.index}`}
                     url={linkText}
                     handle={commitLink[1]}
                     commit={commitLink[2].toLowerCase()}
@@ -888,7 +1252,7 @@ export function LinkifiedText({
                 />
             ) : forgeLink ? (
                 <ForgeLink
-                    key={match.index}
+                    key={`${keyPrefix}-link-${offset + match.index}`}
                     url={linkText}
                     href={href}
                     target={forgeLink}
@@ -898,7 +1262,7 @@ export function LinkifiedText({
                 linkText
             ) : (
                 <a
-                    key={match.index}
+                    key={`${keyPrefix}-link-${offset + match.index}`}
                     href={href}
                     target="_blank"
                     rel="noopener noreferrer nofollow ugc"
@@ -916,7 +1280,7 @@ export function LinkifiedText({
     parts.push(
         ...withMentions(
             text.slice(position),
-            position,
+            offset + position,
             mentions,
             organizationMentions,
             colors,
@@ -927,5 +1291,5 @@ export function LinkifiedText({
         ),
     );
 
-    return <>{parts}</>;
+    return parts;
 }
