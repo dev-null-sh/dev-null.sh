@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Contracts\Services\GitHubProvider;
+use App\Models\Organization;
 use App\Models\User;
 use GuzzleHttp\Psr7\Response as Psr7Response;
 use Illuminate\Http\Client\RequestException;
@@ -146,6 +147,33 @@ it('rejects a Dev-Null username that matches the GitHub username', function (): 
         ->assertJsonValidationErrors('dev_null_username');
 });
 
+it('rejects a Dev-Null username that matches another account displayed handle', function (): void {
+    User::factory()->create(['handle' => 'displayed-handle']);
+    Organization::factory()->create(['handle' => 'displayed-org']);
+    $user = User::factory()->create();
+
+    foreach (['DISPLAYED-HANDLE', 'DISPLAYED-ORG'] as $username) {
+        $this->actingAs($user)
+            ->fromRoute('user-profile.edit')
+            ->patch(route('user-profile.details.update'), [
+                'dev_null_username' => $username,
+                'name' => $user->name,
+                'bio' => $user->bio,
+                'company' => $user->company,
+                'location' => $user->location,
+                'website' => $user->website,
+                'sponsors_url' => $user->sponsors_url,
+            ])
+            ->assertSessionHasErrors('dev_null_username');
+    }
+
+    expect($user->refresh()->dev_null_username)->toBeNull();
+
+    $this->getJson(route('user-profile.dev-null-username.check', ['dev_null_username' => 'displayed-handle']))
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('dev_null_username');
+});
+
 it('checks Dev-Null username availability while preserving the current username', function (): void {
     User::factory()->create(['dev_null_username' => 'taken']);
     $user = User::factory()->create(['dev_null_username' => 'current-name']);
@@ -176,7 +204,8 @@ it('requires authentication to save a Dev-Null username', function (): void {
 
 it('stores and serves an uploaded profile image', function (): void {
     Storage::fake();
-    $user = User::factory()->create();
+    Storage::disk()->put('profile-avatars/old.webp', 'old image');
+    $user = User::factory()->create(['avatar_upload_path' => 'profile-avatars/old.webp']);
 
     $this->actingAs($user)
         ->fromRoute('user-profile.edit')
@@ -202,6 +231,7 @@ it('stores and serves an uploaded profile image', function (): void {
             'v' => hash('xxh3', $path),
         ]));
     Storage::disk()->assertExists($path);
+    Storage::disk()->assertMissing('profile-avatars/old.webp');
 
     $this->get(route('user.avatar', ['user' => $user, 'v' => hash('xxh3', $path)]))
         ->assertOk()
@@ -350,6 +380,7 @@ it('may sync the profile from github', function (): void {
         ->avatar_upload_path->toBeNull()
         ->avatar_url->toBe('https://avatars.githubusercontent.com/u/583231?v=4')
         ->github_synced_at->toDateTimeString()->toBe(now()->toDateTimeString());
+    Storage::disk()->assertMissing('profile-avatars/old.webp');
 });
 
 it('tells the user when github could not be synced', function (): void {

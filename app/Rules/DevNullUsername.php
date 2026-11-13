@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace App\Rules;
 
+use App\Models\Profile;
 use App\Models\User;
 use Closure;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Contracts\Validation\ValidationRule;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Str;
 
 final readonly class DevNullUsername implements ValidationRule
@@ -38,7 +40,17 @@ final readonly class DevNullUsername implements ValidationRule
             $query->where($this->user->getAuthIdentifierName(), '!=', $this->user->getAuthIdentifier());
         }
 
-        if ($query->exists()) {
+        $displayedHandleQuery = Profile::query()
+            ->where('handle', $value)
+            ->where(fn (Builder $query): Builder => $query
+                ->whereHas('organization')
+                ->orWhereHas('user', fn (Builder $query): Builder => $query->whereNull('dev_null_username')));
+
+        if ($this->user instanceof User) {
+            $displayedHandleQuery->where('id', '!=', $this->user->getKey());
+        }
+
+        if ($query->exists() || $displayedHandleQuery->exists()) {
             $fail('validation.unique')->translate();
         }
     }

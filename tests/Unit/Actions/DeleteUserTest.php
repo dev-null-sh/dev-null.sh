@@ -46,6 +46,16 @@ it('may delete a user', function (): void {
     $this->assertDatabaseHas('deleted_github_accounts', ['github_id' => $user->github_id]);
 });
 
+it('erases an uploaded profile image when deleting a user', function (): void {
+    Storage::fake();
+    Storage::disk()->put('profile-avatars/avatar.webp', 'image');
+    $user = User::factory()->create(['avatar_upload_path' => 'profile-avatars/avatar.webp']);
+
+    resolve(DeleteUser::class)->handle($user);
+
+    Storage::disk()->assertMissing('profile-avatars/avatar.webp');
+});
+
 it('erases the commits of a deleted user along with the replies under them', function (): void {
     $user = User::factory()->create();
     $commit = Commit::factory()->for($user)->create();

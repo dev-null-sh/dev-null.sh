@@ -100,16 +100,19 @@ it('returns what the web shows only the user on their profile settings', functio
 });
 
 it('keeps those to the signed-in user, even on their own profile', function (): void {
-    $user = User::factory()->create(['preferred_lane' => 1]);
+    $user = User::factory()->create([
+        'preferred_lane' => 1,
+        'sponsors_url' => 'https://example.test/sponsor/octocat',
+    ]);
     $keyPair = apiKeyPairFor($user);
 
     $response = signedApiRequest($keyPair, 'GET', route('api-user.show', $user));
 
     $response->assertOk()
         ->assertJsonPath('data.lane', 1)
+        ->assertJsonPath('data.sponsors_url', 'https://example.test/sponsor/octocat')
         ->assertJsonMissingPath('data.preferred_lane')
         ->assertJsonMissingPath('data.automatic_lane')
-        ->assertJsonMissingPath('data.sponsors_url')
         ->assertJsonMissingPath('data.github_synced_at');
 });
 
