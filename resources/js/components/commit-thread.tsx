@@ -21,7 +21,7 @@ import CommitLinkPreviewController from '@/actions/App/Http/Controllers/CommitLi
 import CommitReplyController from '@/actions/App/Http/Controllers/CommitReplyController';
 import { ActionTooltip } from '@/components/action-tooltip';
 import { AuthorAvatar } from '@/components/author-avatar';
-import { AuthorSwitcher } from '@/components/author-switcher';
+import { AuthorSwitcher, useAuthor } from '@/components/author-switcher';
 import { BodyCounter } from '@/components/body-counter';
 import { FoldedCommitBody } from '@/components/commit-body';
 import {
@@ -120,7 +120,6 @@ import type {
     CursorPaginated,
     DeletedFlash,
     FlashToast,
-    OrganizationAuthor,
     ThreadCommit,
 } from '@/types';
 
@@ -1738,7 +1737,7 @@ function ReplyComposer({
     onReplied: (parent: RepliedParent) => void;
 }) {
     const { user } = useUser();
-    const [author, setAuthor] = useState<OrganizationAuthor | null>(null);
+    const { author, picked, setAuthor } = useAuthor();
     const commitNotFound = useCommitNotFound();
     const participants = Array.from(
         new Map(
@@ -1785,6 +1784,7 @@ function ReplyComposer({
             link_preview_url?: string;
             commit_rules_accepted?: boolean;
             human_verification_token?: string;
+            author?: string;
         },
         CreatedReply
     >({
@@ -1887,6 +1887,12 @@ function ReplyComposer({
                     updateCommitsCount(1);
                     onReplied(reply.parent);
                 },
+                onError: (errors) => {
+                    // Removed from the organization in the meantime: ask again who they can post as, so it's no longer offered.
+                    if (errors.author) {
+                        router.reload({ only: ['auth'] });
+                    }
+                },
                 onHttpException: (response) => {
                     const timeout = timeoutFrom(response.status, response.data);
 
@@ -1976,7 +1982,8 @@ function ReplyComposer({
                     Object.entries(errors).find(([key]) =>
                         key.startsWith('reply_recipients.'),
                     )?.[1] ??
-                    errors.link_preview_url
+                    errors.link_preview_url ??
+                    errors.author
                 }
                 className="px-1"
             />
@@ -1999,7 +2006,12 @@ function ReplyComposer({
                         user={user}
                         author={author}
                         onChange={setAuthor}
-                        fallback={null}
+                        fallback={
+                            // Once they picked an organization they can no longer post as, show who posts now.
+                            picked !== null && (
+                                <UserAvatar user={user} className="size-6" />
+                            )
+                        }
                     >
                         {author === null ? (
                             <UserAvatar user={user} className="size-6" />

@@ -1,6 +1,7 @@
 import { usePage } from '@inertiajs/react';
 import { ChevronDown } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { useState } from 'react';
 import { OrganizationAvatar } from '@/components/organization-avatar';
 import {
     DropdownMenu,
@@ -12,6 +13,19 @@ import {
 import { UserAvatar } from '@/components/user-avatar';
 import { cn } from '@/lib/utils';
 import type { OrganizationAuthor, User } from '@/types';
+
+/**
+ * Who a composer posts as. An organization they picked but can no longer post as (removed from it since) gives way to
+ * themselves, so a refused submission isn't sent as it again. `picked` is what they chose, gone or not.
+ */
+export function useAuthor() {
+    const { auth } = usePage().props;
+    const [picked, setAuthor] = useState<OrganizationAuthor | null>(null);
+    const author =
+        auth.organizations.find(({ id }) => id === picked?.id) ?? null;
+
+    return { author, picked, setAuthor };
+}
 
 /**
  * The avatar of a composer, which members of an organization open to post as it instead of themselves. Everyone else
