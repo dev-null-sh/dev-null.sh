@@ -7,6 +7,7 @@ namespace App\Actions;
 use App\Dto\ThreadEngagement;
 use App\Enums\CommitStatus;
 use App\Models\Commit;
+use App\Queries\CommitBuilder;
 use App\Services\TheAlgorithm;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -82,21 +83,17 @@ final readonly class UpdateCommitHotScores
             return;
         }
 
-        $stargazersByThread = $this->usersByThread($this->stargazers($commits->modelKeys()));
-        $quotersByThread = $this->usersByThread($this->quoters($commits->modelKeys()));
-        $repliersByThread = $this->usersByThread($this->repliers($commits->modelKeys()));
-        $repliersAnsweredByAuthorByThread = $this->usersByThread($this->repliersAnsweredByAuthor($commits->modelKeys()));
+        $stargazersByThread = $this->countsByThread($this->stargazers($commits->modelKeys()));
+        $quotersByThread = $this->countsByThread($this->quoters($commits->modelKeys()));
+        $repliersByThread = $this->countsByThread($this->repliers($commits->modelKeys()));
+        $repliersAnsweredByAuthorByThread = $this->countsByThread($this->repliersAnsweredByAuthor($commits->modelKeys()));
 
-        $scores = $commits->flatMap(function (Commit $commit) use ($stargazersByThread, $quotersByThread, $repliersByThread, $repliersAnsweredByAuthorByThread): array {
-            $author = $commit->author_id === null ? [] : [$commit->author_id => true];
-
-            return [$commit->id, $this->theAlgorithm->score($commit->created_at, new ThreadEngagement(
-                stargazers: count(array_diff_key($stargazersByThread[$commit->id] ?? [], $author)),
-                quoters: count(array_diff_key($quotersByThread[$commit->id] ?? [], $author)),
-                repliers: count(array_diff_key($repliersByThread[$commit->id] ?? [], $author)),
-                repliersAnsweredByAuthor: count(array_diff_key($repliersAnsweredByAuthorByThread[$commit->id] ?? [], $author)),
-            ))];
-        });
+        $scores = $commits->flatMap(fn (Commit $commit): array => [$commit->id, $this->theAlgorithm->score($commit->created_at, new ThreadEngagement(
+            stargazers: $stargazersByThread[$commit->id] ?? 0,
+            quoters: $quotersByThread[$commit->id] ?? 0,
+            repliers: $repliersByThread[$commit->id] ?? 0,
+            repliersAnsweredByAuthor: $repliersAnsweredByAuthorByThread[$commit->id] ?? 0,
+        ))]);
 
         DB::update(
             'update commits set hot_score = cast(case id '.str_repeat('when ? then ? ', $commits->count()).'end as double precision)'
@@ -184,18 +181,26 @@ final readonly class UpdateCommitHotScores
     }
 
     /**
-     * @return array<string, array<string, true>>
+     * Each query selects distinct thread/profile pairs. Count them in the database, excluding anonymous engagement
+     * and the thread's own author, so only one row per engaged thread is transferred to PHP.
+     *
+     * @return array<string, int>
      */
-    private function usersByThread(Builder $query): array
+    private function countsByThread(Builder $query): array
     {
-        $usersByThread = [];
+        /** @var array<string, int> $counts */
+        $counts = Commit::query()
+            ->joinSub($query, 'engagement', 'engagement.thread_id', '=', 'commits.id')
+            ->whereNotNull('engagement.profile_id')
+            ->where(fn (CommitBuilder $query): CommitBuilder => $query
+                ->whereNull('commits.author_id')
+                ->orWhereColumn('engagement.profile_id', '!=', 'commits.author_id'))
+            ->select('commits.id')
+            ->selectRaw('count(*) as engagement_count')
+            ->groupBy('commits.id')
+            ->pluck('engagement_count', 'id')
+            ->all();
 
-        foreach ($query->get() as $row) {
-            if (is_string($row->thread_id) && is_string($row->profile_id)) {
-                $usersByThread[$row->thread_id][$row->profile_id] = true;
-            }
-        }
-
-        return $usersByThread;
+        return $counts;
     }
 }
