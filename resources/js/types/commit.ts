@@ -119,6 +119,7 @@ export type Commit = {
     images?: CommitImage[];
     ai_decision?: Exclude<CommitStatus, 'pending'> | null;
     ai_categories?: string[] | null;
+    escalated_at?: string | null;
     // Who posted an organization's commit, which only moderators get: null once that account is deleted.
     poster?: User | null;
 };

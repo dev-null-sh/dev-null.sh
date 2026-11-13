@@ -1,8 +1,9 @@
 import { Head, router, usePage } from '@inertiajs/react';
-import { Bot, Check, X } from 'lucide-react';
+import { Bot, Check, Flag, X } from 'lucide-react';
 import { useEffect, useId, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import CommitApprovalController from '@/actions/App/Http/Controllers/CommitApprovalController';
+import CommitEscalationController from '@/actions/App/Http/Controllers/CommitEscalationController';
 import CommitRejectionController from '@/actions/App/Http/Controllers/CommitRejectionController';
 import ModerationController from '@/actions/App/Http/Controllers/ModerationController';
 import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
@@ -66,17 +67,22 @@ function AiDecision({ commit }: { commit: Commit }) {
 }
 
 function ModerationActions({
+    commit,
     isSelected,
     onSelectedChange,
     onModerate,
+    onEscalate,
 }: {
+    commit: Commit;
     isSelected: boolean;
     onSelectedChange: (isSelected: boolean) => void;
     onModerate: (route: ModerationRoute, reason: string) => void;
+    onEscalate: () => void;
 }) {
     const [showReason, setShowReason] = useState(false);
     const [reason, setReason] = useState('');
     const reasonId = useId();
+    const { auth } = usePage().props;
 
     return (
         <div>
@@ -118,6 +124,20 @@ function ModerationActions({
                     Reject
                     <Keycap label="x" className="bg-muted" />
                 </Button>
+                {!auth.isAdmin && (
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={onEscalate}
+                        disabled={commit.escalated_at != null}
+                        data-test="escalate-commit-button"
+                    >
+                        <Flag />
+                        {commit.escalated_at != null
+                            ? 'Escalated'
+                            : 'Escalate to admin'}
+                    </Button>
+                )}
                 {!showReason && (
                     <Button
                         variant="ghost"
@@ -360,6 +380,15 @@ export default function Show({
         });
     };
 
+    // An escalation stays in the queue: it flags the commit for an admin without deciding it.
+    const escalate = (commit: Commit) =>
+        router.visit(CommitEscalationController.store(commit), {
+            preserveScroll: true,
+            only: ['commits', 'hasUnmoderatedCommits'],
+            onError: () =>
+                toast.error('Could not escalate this commit. Try again.'),
+        });
+
     const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
 
     const selectedIds = commits.data
@@ -474,6 +503,7 @@ export default function Show({
                         <AiDecision commit={commit} />
                         <CommitPoster commit={commit} className="mt-1" />
                         <ModerationActions
+                            commit={commit}
                             isSelected={selected.has(commit.id)}
                             onSelectedChange={(isSelected) =>
                                 toggle(commit.id, isSelected)
@@ -481,6 +511,7 @@ export default function Show({
                             onModerate={(route, reason) =>
                                 moderate(commit, route, reason)
                             }
+                            onEscalate={() => escalate(commit)}
                         />
                     </>
                 )}

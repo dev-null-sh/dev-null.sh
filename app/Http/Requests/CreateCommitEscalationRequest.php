@@ -1,0 +1,27 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Http\Requests;
+
+use App\Models\User;
+use Illuminate\Foundation\Http\FormRequest;
+
+final class CreateCommitEscalationRequest extends FormRequest
+{
+    public function authorize(): bool
+    {
+        $user = $this->user();
+        assert($user instanceof User);
+
+        return $user->canModerate();
+    }
+
+    /**
+     * @return array{}
+     */
+    public function rules(): array
+    {
+        return [];
+    }
+}

@@ -40,6 +40,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read list<string>|null $ai_categories
  * @property-read list<float>|null $embedding
  * @property-read CarbonInterface|null $headlines_classified_at
+ * @property-read CarbonInterface|null $escalated_at
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
  * @property-read CarbonInterface|null $deleted_at
@@ -133,6 +134,7 @@ final class Commit extends Model
             'ai_categories' => 'array',
             'embedding' => AsVector::class,
             'headlines_classified_at' => 'datetime',
+            'escalated_at' => 'datetime',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
             'deleted_at' => 'datetime',
