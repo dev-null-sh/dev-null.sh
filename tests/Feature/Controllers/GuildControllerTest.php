@@ -280,6 +280,27 @@ it('keeps guild reports private encrypted and deduplicated until admins dismiss 
         ->and($report->fresh()->dismissed_at)->toBeNull();
 });
 
+it('lets a moderator list and dismiss guild reports without touching guild deletion', function (): void {
+    $admin = User::factory()->create(['handle' => 'admin']);
+    $this->actingAs($admin)->put(route('feature.update', Feature::Guilds), ['enabled' => true, 'admin_only' => false])->assertRedirect();
+
+    config(['app.admins' => [], 'app.moderators' => ['maude']]);
+
+    $owner = User::factory()->create();
+    $moderator = User::factory()->create(['handle' => 'maude']);
+    $guild = Guild::factory()->create(['user_id' => $owner->id]);
+    $report = GuildReport::factory()->create(['guild_id' => $guild->id]);
+
+    $this->actingAs($moderator)->get(route('guild-report.index'))->assertOk();
+    $this->actingAs($moderator)->delete(route('guild-report.destroy', $report))->assertRedirect();
+    expect($report->fresh()->dismissed_at)->not->toBeNull();
+
+    $other = GuildReport::factory()->create(['guild_id' => $guild->id]);
+    $this->actingAs($owner)->get(route('guild-report.index'))->assertNotFound();
+    $this->actingAs($owner)->delete(route('guild-report.destroy', $other))->assertNotFound();
+    expect($other->fresh()->dismissed_at)->toBeNull();
+});
+
 it('removes the moderator and guild but not commits and forbids every removed moderator from reclaiming it', function (): void {
     Storage::fake();
     $owner = User::factory()->create(['handle' => 'admin']);
