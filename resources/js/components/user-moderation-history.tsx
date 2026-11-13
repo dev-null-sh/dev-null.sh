@@ -1,5 +1,5 @@
 import { Ban, Gavel, Hourglass } from 'lucide-react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -32,12 +32,14 @@ export function UserModerationHistory({
     history: UserModerationHistory;
 }) {
     const [open, setOpen] = useState(false);
+    const triggerRef = useRef<HTMLButtonElement>(null);
     const timeoutLabel = `${history.timeoutsCount} ${history.timeoutsCount === 1 ? 'timeout' : 'timeouts'}`;
     const banLabel = `${history.bansCount} ${history.bansCount === 1 ? 'ban' : 'bans'}`;
 
     return (
         <>
             <Button
+                ref={triggerRef}
                 type="button"
                 variant="ghost"
                 className="mt-3 h-auto min-h-8 justify-start gap-2 px-2 py-1.5 text-sm text-muted-foreground"
@@ -52,7 +54,13 @@ export function UserModerationHistory({
             </Button>
 
             <Dialog open={open} onOpenChange={setOpen}>
-                <DialogContent className="max-h-[calc(var(--visual-viewport-height,100dvh)-2rem)] overflow-y-auto sm:max-w-lg">
+                <DialogContent
+                    className="max-h-[calc(var(--visual-viewport-height,100dvh)-2rem)] overflow-y-auto sm:max-w-lg"
+                    onCloseAutoFocus={(event) => {
+                        event.preventDefault();
+                        triggerRef.current?.focus();
+                    }}
+                >
                     <DialogTitle>Moderation history</DialogTitle>
                     <DialogDescription>
                         Only you can see this record of timeouts and bans on
