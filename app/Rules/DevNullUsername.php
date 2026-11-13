@@ -26,6 +26,12 @@ final readonly class DevNullUsername implements ValidationRule
             return;
         }
 
+        if ($this->user instanceof User && self::normalize($this->user->handle) === $value) {
+            $fail('The Dev-Null username must be different from your GitHub username.');
+
+            return;
+        }
+
         $query = User::query()->where('dev_null_username', $value);
 
         if ($this->user instanceof Authenticatable) {

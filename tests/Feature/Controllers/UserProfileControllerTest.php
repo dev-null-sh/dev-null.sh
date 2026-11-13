@@ -123,6 +123,29 @@ it('rejects duplicate and invalid Dev-Null usernames', function (string $usernam
     expect($other->refresh()->dev_null_username)->toBeNull();
 })->with(['TAKEN', 'not_a_valid_name']);
 
+it('rejects a Dev-Null username that matches the GitHub username', function (): void {
+    $user = User::factory()->create(['handle' => 'octocat']);
+
+    $this->actingAs($user)
+        ->fromRoute('user-profile.edit')
+        ->patch(route('user-profile.details.update'), [
+            'dev_null_username' => 'OCTOCAT',
+            'name' => $user->name,
+            'bio' => $user->bio,
+            'company' => $user->company,
+            'location' => $user->location,
+            'website' => $user->website,
+            'sponsors_url' => $user->sponsors_url,
+        ])
+        ->assertSessionHasErrors('dev_null_username');
+
+    expect($user->refresh()->dev_null_username)->toBeNull();
+
+    $this->getJson(route('user-profile.dev-null-username.check', ['dev_null_username' => 'OCTOCAT']))
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('dev_null_username');
+});
+
 it('checks Dev-Null username availability while preserving the current username', function (): void {
     User::factory()->create(['dev_null_username' => 'taken']);
     $user = User::factory()->create(['dev_null_username' => 'current-name']);
