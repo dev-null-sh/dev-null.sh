@@ -31,6 +31,7 @@ use App\Http\Controllers\Api\ConversationTypingController;
 use App\Http\Controllers\Api\CurrentUserController;
 use App\Http\Controllers\Api\DeviceController;
 use App\Http\Controllers\Api\DevicePushTokenController;
+use App\Http\Controllers\Api\ExportController;
 use App\Http\Controllers\Api\HeadlineController;
 use App\Http\Controllers\Api\IssueController;
 use App\Http\Controllers\Api\IssueSuggestionController;
@@ -186,6 +187,9 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
 
         // User Settings: what the web's settings show only the user...
         Route::get('me/settings', [UserSettingsController::class, 'show'])->name('api-user-settings.show');
+        Route::get('me/export', [ExportController::class, 'show'])
+            ->middleware(['throttle:exports', 'throttle:5,1'])
+            ->name('api-export.show');
 
         // User Timezone and Translation, as the web's settings save them...
         Route::put('me/timezone', [UserTimezoneController::class, 'update'])->name('api-user-timezone.update');
