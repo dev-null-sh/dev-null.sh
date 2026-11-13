@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Dto\NewPoll;
+use App\Enums\CommitSource;
 use App\Enums\UserUpdate;
 use App\Events\UsersUpdated;
 use App\Models\Organization;
@@ -29,14 +30,15 @@ final readonly class CreateScheduledCommit
      * @param  list<UploadedFile>  $images
      * @param  array<int, string|null>  $imageDescriptions
      */
-    public function handle(User $user, string $body, CarbonImmutable $scheduledAt, array $images = [], array $imageDescriptions = [], ?NewPoll $poll = null, bool|string $linkPreview = true, ?Organization $organization = null): ScheduledCommit
+    public function handle(User $user, string $body, CarbonImmutable $scheduledAt, array $images = [], array $imageDescriptions = [], ?NewPoll $poll = null, bool|string $linkPreview = true, ?Organization $organization = null, ?CommitSource $source = null): ScheduledCommit
     {
         $body = mb_trim($body);
 
-        return DB::transaction(function () use ($user, $organization, $body, $poll, $images, $imageDescriptions, $linkPreview, $scheduledAt): ScheduledCommit {
+        return DB::transaction(function () use ($user, $organization, $body, $poll, $images, $imageDescriptions, $linkPreview, $scheduledAt, $source): ScheduledCommit {
             $scheduled = ScheduledCommit::query()->create([
                 'user_id' => $user->id,
                 'author_id' => $organization?->id,
+                'source' => $source,
                 'body' => $body,
                 'poll' => $poll instanceof NewPoll ? ['options' => $poll->options, 'duration' => $poll->duration->value] : null,
                 'images' => $images === [] ? null : $this->createImageFiles->handle($images, $imageDescriptions),

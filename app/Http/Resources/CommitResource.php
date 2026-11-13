@@ -59,6 +59,7 @@ final class CommitResource extends JsonResource
             'parent_id' => $isSigned ? $this->parent_id : $this->parent?->id,
             'html_url' => route('commit.show', [$this->author, $this->resource]),
             'created_at' => $this->created_at->toIso8601ZuluString(),
+            ...($this->source === null ? [] : ['source' => $this->source->value]),
             'stars_count' => $this->whenCounted('stars'),
             'replies_count' => $this->whenCounted('replies'),
             'link_preview' => $this->whenLoaded('linkPreview'),

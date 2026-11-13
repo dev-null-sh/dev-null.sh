@@ -63,8 +63,24 @@ import {
     shortHash,
 } from '@/lib/utils';
 import { show } from '@/routes/user';
-import type { Commit, CursorPaginated, ThreadCommit } from '@/types';
+import type {
+    Commit,
+    CommitSource,
+    CursorPaginated,
+    ThreadCommit,
+} from '@/types';
 
+const sourceLabels: Record<CommitSource, string> = {
+    web: 'Web',
+    ios: 'iOS',
+    android: 'Android',
+    lite_mobile: 'Lite',
+    macos: 'macOS',
+    cli: 'CLI',
+    api: 'App',
+};
+
+/** Draws a commit with its thread graph, actions, and posting source when available. */
 export function CommitCard({
     commit,
     previousLane,
@@ -403,6 +419,16 @@ export function CommitCard({
                                         </time>
                                     </Link>
                                 </TimestampTooltip>
+
+                                {commit.source && (
+                                    <span
+                                        data-test="commit-source"
+                                        className="shrink-0 font-mono text-[11px] text-muted-foreground"
+                                        title={`Posted via ${sourceLabels[commit.source]}`}
+                                    >
+                                        · via {sourceLabels[commit.source]}
+                                    </span>
+                                )}
 
                                 <ThreadPositionBadge
                                     threadPosition={threadPosition}

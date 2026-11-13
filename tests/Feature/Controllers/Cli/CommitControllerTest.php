@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Contracts\Services\GitHubProvider;
+use App\Enums\CommitSource;
 use App\Enums\CommitStatus;
 use App\Enums\ModerationReason;
 use App\Http\Middleware\AuthenticateSshSignature;
@@ -82,7 +83,8 @@ it('creates a commit signed with an ssh key', function (): void {
         ->assertCookieMissing(config('session.cookie'));
 
     expect($commit->body)->toBe('It was DNS.')
-        ->and($commit->status)->toBe(CommitStatus::Pending);
+        ->and($commit->status)->toBe(CommitStatus::Pending)
+        ->and($commit->source)->toBe(CommitSource::Cli);
 });
 
 it('collapses runs of blank lines in a signed commit', function (): void {

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Enums\CommitSource;
 use Carbon\CarbonInterface;
 use Database\Factories\ScheduledCommitFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -17,6 +18,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property-read string $user_id
  * @property-read string|null $author_id
  * @property-read string|null $commit_id
+ * @property-read CommitSource|null $source
  * @property-read string|null $body
  * @property-read array{options: list<string>, duration: int}|null $poll
  * @property-read list<array{path: string, width: int, height: int, description: string|null, position: int}>|null $images
@@ -28,7 +30,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property-read Profile|null $author
  * @property-read Commit|null $commit
  */
-#[Fillable(['user_id', 'author_id', 'body', 'poll', 'images', 'link_preview_url', 'scheduled_at'])]
+#[Fillable(['user_id', 'author_id', 'body', 'poll', 'images', 'link_preview_url', 'source', 'scheduled_at'])]
 final class ScheduledCommit extends Model
 {
     /** @use HasFactory<ScheduledCommitFactory> */
@@ -41,6 +43,7 @@ final class ScheduledCommit extends Model
     {
         return [
             'poll' => 'array',
+            'source' => CommitSource::class,
             'images' => 'array',
             'scheduled_at' => 'immutable_datetime',
             'submitted_at' => 'immutable_datetime',
