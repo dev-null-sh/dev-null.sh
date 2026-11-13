@@ -42,7 +42,7 @@ export function UserModerationHistory({
                 ref={triggerRef}
                 type="button"
                 variant="ghost"
-                className="mt-3 h-auto min-h-8 justify-start gap-1.5 px-0 py-1.5 text-sm font-normal text-muted-foreground"
+                className="mt-3 h-auto min-h-8 justify-start gap-1.5 !px-0 py-1.5 text-sm font-normal text-muted-foreground"
                 onClick={() => setOpen(true)}
                 aria-label="View moderation history"
                 data-test="moderation-history-trigger"
