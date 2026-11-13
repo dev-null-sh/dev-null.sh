@@ -25,6 +25,25 @@ it('may choose a timezone, and answers like me', function (): void {
         ->show_local_time->toBeFalse();
 });
 
+it('normalizes legacy timezones in signed API requests', function (string $legacy, string $canonical): void {
+    signedApiRequest($this->keyPair, 'PUT', route('api-user-timezone.update'), ['timezone' => $legacy])
+        ->assertOk();
+
+    expect($this->user->refresh()->timezone)->toBe($canonical);
+})->with([
+    ['Asia/Calcutta', 'Asia/Kolkata'],
+    ['Asia/Katmandu', 'Asia/Kathmandu'],
+]);
+
+it('normalizes query-only signed requests without adding a request body', function (): void {
+    $uri = route('api-user-timezone.update').'?timezone=Asia%2FCalcutta';
+
+    signedApiRequest($this->keyPair, 'PUT', $uri)
+        ->assertOk();
+
+    expect($this->user->refresh()->timezone)->toBe('Asia/Kolkata');
+});
+
 it('may opt in to and out of showing the local time', function (bool $show): void {
     $this->user->update(['show_local_time' => ! $show]);
 

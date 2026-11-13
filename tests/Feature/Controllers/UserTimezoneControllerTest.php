@@ -20,6 +20,23 @@ it('may choose a timezone', function (): void {
     expect($user->refresh()->timezone)->toBe('Europe/Budapest');
 });
 
+it('saves legacy browser timezones using their current IANA names', function (string $legacy, string $canonical): void {
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->fromRoute('user-profile.edit')
+        ->put(route('user-timezone.update'), ['timezone' => $legacy])
+        ->assertRedirectToRoute('user-profile.edit')
+        ->assertSessionHasNoErrors();
+
+    expect($user->refresh()->timezone)->toBe($canonical);
+})->with([
+    ['Asia/Calcutta', 'Asia/Kolkata'],
+    ['Asia/Katmandu', 'Asia/Kathmandu'],
+    ['US/Eastern', 'America/New_York'],
+    ['Europe/Kiev', 'Europe/Kyiv'],
+]);
+
 it('may opt in to showing the local time', function (): void {
     $user = User::factory()->create();
 
