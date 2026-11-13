@@ -651,6 +651,17 @@ it('also limits exports to five a minute per user independently of the hourly bu
     $this->actingAs($user)->get(route('export'))->assertOk();
 });
 
+it('keeps its minute limit apart from other routes’ minute limits', function (): void {
+    $user = User::factory()->create(['pasteis_mode' => true]);
+    $commit = Commit::factory()->create();
+
+    foreach (range(1, 5) as $attempt) {
+        $this->actingAs($user)->post(route('commit-pastel.store', $commit));
+    }
+
+    $this->actingAs($user)->get(route('export'))->assertOk();
+});
+
 it('exports the messages the user sent, and not the ones they received', function (): void {
     $user = User::factory()->create();
     $partner = User::factory()->create(['handle' => 'nunomaduro']);

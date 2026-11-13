@@ -188,7 +188,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         // User Settings: what the web's settings show only the user...
         Route::get('me/settings', [UserSettingsController::class, 'show'])->name('api-user-settings.show');
         Route::get('me/export', [ExportController::class, 'show'])
-            ->middleware(['throttle:exports', 'throttle:5,1'])
+            ->middleware(['throttle:exports', 'throttle:5,1,exports:'])
             ->name('api-export.show');
 
         // User Timezone and Translation, as the web's settings save them...

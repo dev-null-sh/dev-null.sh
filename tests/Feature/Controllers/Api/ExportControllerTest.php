@@ -60,6 +60,18 @@ it('also limits exports to five a minute per user independently of the hourly bu
     signedApiRequest($keyPair, 'GET', route('api-export.show'))->assertOk();
 });
 
+it('keeps its minute limit apart from other routes’ minute limits', function (): void {
+    $user = User::factory()->create(['pasteis_mode' => true]);
+    $keyPair = apiKeyPairFor($user);
+    $commit = Commit::factory()->create();
+
+    foreach (range(1, 5) as $attempt) {
+        signedApiRequest($keyPair, 'POST', route('api-commit-pastel.store', $commit))->assertOk();
+    }
+
+    signedApiRequest($keyPair, 'GET', route('api-export.show'))->assertOk();
+});
+
 it('requires a signed request', function (): void {
     $this->getJson(route('api-export.show'))->assertUnauthorized();
 });

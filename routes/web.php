@@ -655,7 +655,7 @@ Route::middleware('auth')->group(function (): void {
         ->middleware('throttle:profile-syncs')
         ->name('user-profile.update');
     Route::get('settings/export', ExportController::class)
-        ->middleware(['throttle:exports', 'throttle:5,1'])
+        ->middleware(['throttle:exports', 'throttle:5,1,exports:'])
         ->name('export');
 
     // User Lane...
