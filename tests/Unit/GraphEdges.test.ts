@@ -96,6 +96,17 @@ void test('branches a first reply off its parent with one dashed elbow', () => {
     assert.deepEqual(edge.end, { x: 100, y: 160 });
 });
 
+void test('connects a flattened deep reply to its direct parent on the same rail', () => {
+    const [edge] = graphEdges([
+        node({ id: 'deep-parent', x: 100, y: 100 }),
+        node({ id: 'deep-reply', x: 100, y: 240, parent: 'deep-parent' }),
+    ]);
+
+    assert.equal(edge.id, 'branch:deep-reply');
+    assert.equal(edge.d, 'M 100 100 V 240');
+    assert.equal(edge.lane, 'var(--lane-1)');
+});
+
 void test('branches off the trunk at the reply instead of doubling it when the trunk goes on below', () => {
     const edges = graphEdges([
         node({ id: 'parent', y: 40 }),
