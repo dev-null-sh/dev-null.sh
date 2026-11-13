@@ -9,7 +9,6 @@ use App\Dto\NewPoll;
 use App\Enums\Feature;
 use App\Enums\PollDuration;
 use App\Models\Commit;
-use App\Models\Guild;
 use App\Models\Organization;
 use App\Models\User;
 use App\Rules\CommitBodyLength;
@@ -54,10 +53,9 @@ final class CreateCommitRequest extends FormRequest
     public static function guildRules(FormRequest $request): array
     {
         return [
-            'guild_handle' => ['sometimes', 'required', 'string', 'max:60', Rule::in(
-                $request->has('guild_handle') && resolve(Features::class)->available(Feature::Guilds, $request->user())
-                    ? Guild::query()->pluck('handle')->all() : [],
-            )],
+            'guild_handle' => ['sometimes', 'required', 'string', 'max:60', resolve(Features::class)->available(Feature::Guilds, $request->user())
+                ? 'exists:guilds,handle'
+                : Rule::in([])],
         ];
     }
 

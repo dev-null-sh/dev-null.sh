@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Actions\CreateGuild;
 use App\Actions\CreateGuildReport;
 use App\Actions\DeleteUser;
+use App\Contracts\Services\ModerationProvider;
 use App\Enums\CommitStatus;
 use App\Enums\Feature;
 use App\Enums\Log;
@@ -519,4 +520,126 @@ it('includes joined guild commits in Following with an attribution only for unfo
     $guild->members()->attach($admin, ['joined_at' => now(), 'muted_at' => now()]);
     $this->put(route('feature.update', Feature::Guilds), ['enabled' => false])->assertRedirect();
     $this->get(route('log.show', 'following'))->assertInertia(fn ($page) => $page->has('commits.data', 2));
+});
+
+it('limits how often a member changes a guild membership or a guild mute', function (string $route, array $payload): void {
+    $guild = Guild::factory()->create();
+    $this->actingAs(User::factory()->create(['handle' => 'admin']));
+
+    foreach (range(1, 30) as $attempt) {
+        $this->putJson(route($route, $guild), $payload)->assertRedirect();
+    }
+
+    $this->putJson(route($route, $guild), $payload)->assertTooManyRequests();
+})->with([
+    ['guild-membership.update', ['joined' => true]],
+    ['guild-mute.update', ['muted' => true]],
+]);
+
+it('announces a membership only to the members of the guild and to the person who changed it', function (bool $joined): void {
+    $admin = User::factory()->create(['handle' => 'admin']);
+    $member = User::factory()->create();
+    User::factory()->create();
+    $guild = Guild::factory()->create();
+    $guild->members()->attach($member, ['joined_at' => now()]);
+    Event::fake([UsersUpdated::class]);
+
+    $this->actingAs($admin)->put(route('guild-membership.update', $guild), ['joined' => $joined])->assertRedirect();
+
+    Event::assertDispatchedTimes(UsersUpdated::class, 2);
+    Event::assertDispatched(UsersUpdated::class, fn (UsersUpdated $event): bool => $event->update === UserUpdate::Guilds && $event->userIds === [$member->id, $admin->id]);
+    Event::assertDispatched(UsersUpdated::class, fn (UsersUpdated $event): bool => $event->update === UserUpdate::Relationships && $event->userIds === [$admin->id]);
+})->with([true, false]);
+
+it('announces an edit of a guild only to its members and to its creator', function (): void {
+    $admin = User::factory()->create(['handle' => 'admin']);
+    $member = User::factory()->create();
+    User::factory()->create();
+    $guild = Guild::factory()->create(['user_id' => $admin->id]);
+    $guild->members()->attach($member, ['joined_at' => now()]);
+    Event::fake([UsersUpdated::class]);
+
+    $this->actingAs($admin)->put(route('guild.update', $guild->handle), ['description' => 'Remote jobs.', 'emoji' => '💼', 'remove_icon' => false])->assertRedirect();
+
+    Event::assertDispatchedTimes(UsersUpdated::class, 1);
+    Event::assertDispatched(UsersUpdated::class, fn (UsersUpdated $event): bool => $event->update === UserUpdate::Guilds && $event->userIds === [$member->id, $admin->id]);
+});
+
+it('lets a person create one hundred guilds and refuses the next one', function (): void {
+    $admin = User::factory()->create(['handle' => 'admin']);
+    Guild::factory()->count(99)->create(['user_id' => $admin->id]);
+    Guild::factory()->count(3)->create();
+    $payload = ['description' => 'A public group.', 'emoji' => '💻'];
+
+    $this->actingAs($admin)->postJson(route('guild.store'), ['name' => 'Hundredth', ...$payload])->assertRedirectToRoute('guild.show', 'hundredth');
+    $this->postJson(route('guild.store'), ['name' => 'Next', ...$payload])->assertUnprocessable()->assertJsonValidationErrors(['handle' => 'You can create up to 100 guilds.']);
+
+    $this->assertDatabaseMissing('guilds', ['handle' => 'next']);
+});
+
+it('refuses a guild whose name description or icon the moderation flags', function (array $scores, bool $harmful): void {
+    Storage::fake();
+    $moderation = $this->mock(ModerationProvider::class);
+    $moderation->shouldReceive('moderate')->once()
+        ->withArgs(fn (string $text, array $icons): bool => $text === "Jobs\n\nHiring." && count($icons) === 1 && str_starts_with($icons[0], 'data:image/webp;base64,'))
+        ->andReturn($scores);
+    $moderation->shouldReceive('isHarmful')->with("Jobs\n\nHiring.")->andReturn($harmful);
+
+    $this->actingAs(User::factory()->create(['handle' => 'admin']))->postJson(route('guild.store'), [
+        'name' => 'Jobs', 'description' => 'Hiring.', 'emoji' => '💼', 'images' => [UploadedFile::fake()->image('icon.png', 80, 60)],
+    ])->assertUnprocessable()->assertJsonValidationErrors(['description' => 'This guild cannot be published. Change its name, its description or its icon.']);
+
+    $this->assertDatabaseCount('guilds', 0);
+    expect(Storage::allFiles())->toBe([]);
+})->with([
+    'a flagged category' => [['sexual' => 0.4], false],
+    'harmful text' => [[], true],
+]);
+
+it('refuses an edit of a guild that the moderation flags and keeps the guild as it was', function (): void {
+    $admin = User::factory()->create(['handle' => 'admin']);
+    $guild = Guild::factory()->create(['user_id' => $admin->id, 'handle' => 'jobs', 'name' => 'Jobs', 'description' => 'Hiring.']);
+    $moderation = $this->mock(ModerationProvider::class);
+    $moderation->shouldReceive('moderate')->once()->with("Jobs\n\nFlagged words.", [])->andReturn(['harassment' => 0.7]);
+
+    $this->actingAs($admin)->putJson(route('guild.update', 'jobs'), ['description' => 'Flagged words.', 'emoji' => '💼', 'remove_icon' => false])
+        ->assertUnprocessable()->assertJsonValidationErrors('description');
+
+    expect($guild->fresh()->description)->toBe('Hiring.');
+});
+
+it('sends nothing to the moderation when the guild details are invalid', function (): void {
+    $this->mock(ModerationProvider::class)->shouldNotReceive('moderate', 'isHarmful');
+
+    $this->actingAs(User::factory()->create(['handle' => 'admin']))->postJson(route('guild.store'), [
+        'name' => 'Jobs', 'description' => '', 'emoji' => '💼',
+    ])->assertUnprocessable()->assertJsonValidationErrors('description');
+});
+
+it('refuses an icon that passes the image rules but cannot be decoded', function (): void {
+    $this->mock(ModerationProvider::class)->shouldNotReceive('moderate', 'isHarmful');
+    $image = UploadedFile::fake()->image('icon.png', 80, 60);
+    $png = file_get_contents($image->getRealPath());
+
+    $this->actingAs(User::factory()->create(['handle' => 'admin']))->postJson(route('guild.store'), [
+        'name' => 'Jobs', 'description' => 'Hiring.', 'emoji' => '💼',
+        'images' => [UploadedFile::fake()->createWithContent('icon.png', mb_strcut($png, 0, 60, '8bit'))],
+    ])->assertUnprocessable()->assertJsonValidationErrors(['images' => 'The icon must be a JPEG, PNG, or WebP image.']);
+
+    $this->assertDatabaseCount('guilds', 0);
+});
+
+it('announces the removal of a guild only to its members and to the admins', function (): void {
+    $admin = User::factory()->create(['handle' => 'admin']);
+    $member = User::factory()->create();
+    $stranger = User::factory()->create();
+    $guild = Guild::factory()->create();
+    $guild->members()->attach($member, ['joined_at' => now()]);
+    Event::fake([UsersUpdated::class]);
+
+    $this->actingAs($admin)->delete(route('guild.destroy', $guild))->assertRedirect();
+
+    Event::assertDispatched(UsersUpdated::class, fn (UsersUpdated $event): bool => $event->update === UserUpdate::Guilds && $event->userIds === [$member->id]);
+    Event::assertDispatched(UsersUpdated::class, fn (UsersUpdated $event): bool => $event->update === UserUpdate::Relationships && $event->userIds === [$member->id]);
+    Event::assertNotDispatched(UsersUpdated::class, fn (UsersUpdated $event): bool => in_array($stranger->id, $event->userIds, true));
 });

@@ -5,11 +5,14 @@ declare(strict_types=1);
 namespace App\Http\Requests;
 
 use App\Enums\Feature;
+use App\Models\Guild;
+use App\Rules\UnflaggedGuild;
 use App\Services\EmojiShortcodes;
 use App\Services\Features;
 use Closure;
 use Illuminate\Auth\Access\Response;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\In;
@@ -17,6 +20,8 @@ use Illuminate\Validation\Validator;
 
 final class CreateGuildRequest extends FormRequest
 {
+    private const int MAX_PER_USER = 100;
+
     public function authorize(Features $features): Response
     {
         return $features->available(Feature::Guilds, $this->user()) ? Response::allow() : Response::denyAsNotFound();
@@ -36,9 +41,9 @@ final class CreateGuildRequest extends FormRequest
     }
 
     /** @return list<Closure(Validator): void> */
-    public function after(): array
+    public function after(UnflaggedGuild $unflagged): array
     {
-        return [function (Validator $validator): void {
+        return [function (Validator $validator) use ($unflagged): void {
             if ($validator->errors()->isNotEmpty()) {
                 return;
             }
@@ -49,6 +54,15 @@ final class CreateGuildRequest extends FormRequest
 
             if (DB::table('guild_moderator_removals')->where('github_id', $this->user()?->github_id)->where('handle', $this->string('handle')->value())->exists()) {
                 $validator->errors()->add('handle', 'You cannot reclaim a guild you were removed from.');
+            }
+
+            if (Guild::query()->where('user_id', $this->user()?->id)->count() >= self::MAX_PER_USER) {
+                $validator->errors()->add('handle', 'You can create up to '.self::MAX_PER_USER.' guilds.');
+            }
+
+            if ($validator->errors()->isEmpty()) {
+                $icon = $this->file('images.0');
+                $unflagged->validate($validator, $this->string('name')->value()."\n\n".$this->string('description')->value(), $icon instanceof UploadedFile ? $icon : null);
             }
         }];
     }

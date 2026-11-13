@@ -13,6 +13,8 @@ use App\Actions\UpdateCommitHotScores;
 use App\Contracts\Services\TranslationProvider;
 use App\Dto\ThreadEngagement;
 use App\Enums\OrganizationRole;
+use App\Enums\UserUpdate;
+use App\Events\UsersUpdated;
 use App\Exceptions\GuildModeratorRemoved;
 use App\Models\Commit;
 use App\Models\CommitImage;
@@ -38,6 +40,7 @@ use App\Services\TheAlgorithm;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Storage;
 
 it('may delete a user', function (): void {
@@ -497,6 +500,23 @@ it('erases created guilds and their icons but leaves other peoples hashtag commi
     $this->assertModelExists($other);
     $this->assertModelExists($commit);
     Storage::disk()->assertMissing('guild-icons/example.webp');
+});
+
+it('announces the removal of created guilds only to their other members', function (): void {
+    $user = User::factory()->create();
+    $member = User::factory()->create();
+    $stranger = User::factory()->create();
+    $guild = Guild::factory()->create(['user_id' => $user->id]);
+    $guild->members()->attach($user, ['joined_at' => now()]);
+    $guild->members()->attach($member, ['joined_at' => now()]);
+    Guild::factory()->create()->members()->attach($stranger, ['joined_at' => now()]);
+    Event::fake([UsersUpdated::class]);
+
+    resolve(DeleteUser::class)->handle($user);
+
+    foreach ([UserUpdate::Guilds, UserUpdate::Relationships] as $update) {
+        Event::assertDispatched(UsersUpdated::class, fn (UsersUpdated $event): bool => $event->update === $update && $event->userIds === [$member->id]);
+    }
 });
 
 it('erases guild reports but retains only the identity restriction against reclaiming after signup', function (): void {

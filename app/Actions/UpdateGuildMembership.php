@@ -23,7 +23,7 @@ final readonly class UpdateGuildMembership
             );
             DB::table('guild_preferences')->where('user_id', $user->id)->where('guild_id', $guild->id)
                 ->whereNull('joined_at')->whereNull('muted_at')->delete();
-            event(new UsersUpdated(User::query()->pluck('id'), UserUpdate::Guilds));
+            event(new UsersUpdated(DB::table('guild_preferences')->where('guild_id', $guild->id)->pluck('user_id')->push($user->id), UserUpdate::Guilds));
             event(new UsersUpdated([$user->id], UserUpdate::Relationships));
         });
     }

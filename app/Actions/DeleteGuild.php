@@ -27,8 +27,8 @@ final readonly class DeleteGuild
                 'github_id' => $moderator->github_id, 'handle' => $guild->handle, 'created_at' => now(),
             ]);
             $this->files->retain($guild->icon_path === null ? [] : [$guild->icon_path]);
+            $viewers = DB::table('guild_preferences')->where('guild_id', $guild->id)->pluck('user_id');
             $guild->delete();
-            $viewers = User::query()->pluck('id');
             event(new UsersUpdated($viewers, UserUpdate::Guilds));
             event(new UsersUpdated($this->admins->ids(), UserUpdate::Moderation));
             event(new UsersUpdated($viewers, UserUpdate::Relationships));

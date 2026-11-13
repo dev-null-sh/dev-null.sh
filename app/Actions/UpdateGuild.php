@@ -7,7 +7,6 @@ namespace App\Actions;
 use App\Enums\UserUpdate;
 use App\Events\UsersUpdated;
 use App\Models\Guild;
-use App\Models\User;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 
@@ -30,7 +29,7 @@ final readonly class UpdateGuild
             }
 
             $guild->update(['description' => $description, 'emoji' => $emoji, 'icon_path' => $path]);
-            event(new UsersUpdated(User::query()->pluck('id'), UserUpdate::Guilds));
+            event(new UsersUpdated(DB::table('guild_preferences')->where('guild_id', $guild->id)->pluck('user_id')->push($guild->user_id), UserUpdate::Guilds));
         });
     }
 }

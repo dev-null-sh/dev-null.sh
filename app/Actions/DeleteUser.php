@@ -73,7 +73,9 @@ final readonly class DeleteUser
             $this->touchedCommits($user)->orderBy('id')->lockForUpdate()->pluck('id');
 
             // Report creation holds shared reporter and commit locks until its attachment paths are saved.
-            $guildIcons = Guild::query()->where('user_id', $user->id)->orderBy('id')->lockForUpdate()->get()->flatMap(fn (Guild $guild): array => $guild->icon_path === null ? [] : [$guild->icon_path])->all();
+            $guilds = Guild::query()->where('user_id', $user->id)->orderBy('id')->lockForUpdate()->get();
+            $guildMembers = DB::table('guild_preferences')->whereIn('guild_id', $guilds->modelKeys())->whereNot('user_id', $user->id)->pluck('user_id');
+            $guildIcons = $guilds->flatMap(fn (Guild $guild): array => $guild->icon_path === null ? [] : [$guild->icon_path])->all();
             $imagePaths = [...$guildIcons, ...$this->reportImagePaths($user), ...$this->imagePaths($user), ...$this->scheduledImagePaths($user), ...$this->messageImagePaths($user), ...$this->messageVoicePaths($user)];
             resolve(DeleteStoredFiles::class)->retain($imagePaths);
 
@@ -108,9 +110,8 @@ final readonly class DeleteUser
             $vanishing->chunk(100)->each(fn (Collection $commits) => event(new CommitsUpdated($commits, CommitUpdate::Visibility)));
             event(new UsersUpdated($notified, UserUpdate::Notifications));
             event(new UsersUpdated($partners, UserUpdate::Inbox));
-            $viewers = User::query()->pluck('id');
-            event(new UsersUpdated($viewers, UserUpdate::Guilds));
-            event(new UsersUpdated($viewers, UserUpdate::Relationships));
+            event(new UsersUpdated($guildMembers, UserUpdate::Guilds));
+            event(new UsersUpdated($guildMembers, UserUpdate::Relationships));
 
             foreach ($translationKeys as $key) {
                 Cache::forget($key);
