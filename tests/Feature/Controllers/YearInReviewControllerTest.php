@@ -25,6 +25,7 @@ it('renders the year in review for guests', function (): void {
             ->where('stats.topCommit.stars', 2)
             ->where('stats.months.2', 1)
             ->where('stats.months.4', 1)
+            ->where('stats.languages', [])
             ->where('stats.comeback', false)
             ->has('stats.hourCounts', 24));
 });

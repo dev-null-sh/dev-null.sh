@@ -11,10 +11,47 @@ use Illuminate\Support\Facades\DB;
 /**
  * A profile's year in numbers: posts, stars, streaks and community growth.
  *
- * @phpstan-type YearInReview array{year: int, commits: int, replies: int, starsEarned: int, followersGained: int, activeDays: int, longestStreak: int, months: list<int>, weekdays: list<int>, hourCounts: list<int>, comeback: bool, dayCounts: array<string, int>, topCommit: array{id: string, body: string, stars: int}|null}
+ * @phpstan-type YearInReview array{year: int, commits: int, replies: int, starsEarned: int, followersGained: int, activeDays: int, longestStreak: int, months: list<int>, weekdays: list<int>, hourCounts: list<int>, comeback: bool, languages: array<array{language: string, commits: int}>, dayCounts: array<string, int>, topCommit: array{id: string, body: string, stars: int}|null}
  */
 final readonly class YearInReviewQuery
 {
+    /**
+     * Fence tags authors already wrote, so no API calls and no new tables.
+     */
+    private const FENCE_EXCLUDED = ['ansi', 'diff', 'fix', 'log', 'output', 'plaintext', 'terminal', 'text', 'txt'];
+
+    /** @var array<string, string> */
+    private const LANGUAGE_DISPLAY = [
+        'bash' => 'Shell',
+        'blade' => 'Blade',
+        'c#' => 'C#',
+        'c++' => 'C++',
+        'css' => 'CSS',
+        'go' => 'Go',
+        'html' => 'HTML',
+        'java' => 'Java',
+        'javascript' => 'JavaScript',
+        'js' => 'JavaScript',
+        'json' => 'JSON',
+        'jsx' => 'JSX',
+        'kotlin' => 'Kotlin',
+        'php' => 'PHP',
+        'python' => 'Python',
+        'ruby' => 'Ruby',
+        'rust' => 'Rust',
+        'sh' => 'Shell',
+        'shell' => 'Shell',
+        'sql' => 'SQL',
+        'swift' => 'Swift',
+        'ts' => 'TypeScript',
+        'tsx' => 'TSX',
+        'typescript' => 'TypeScript',
+        'vue' => 'Vue',
+        'xml' => 'XML',
+        'yaml' => 'YAML',
+        'yml' => 'YAML',
+    ];
+
     /**
      * @return YearInReview
      */
@@ -74,6 +111,7 @@ final readonly class YearInReviewQuery
             'weekdays' => $weekdays,
             'hourCounts' => $hourCounts,
             'comeback' => $this->hasComeback($days),
+            'languages' => $this->topLanguages((clone $commits)->whereNull('commits.parent_id')->pluck('commits.body')),
             'dayCounts' => $dayCounts,
             'topCommit' => $top === null ? null : [
                 'id' => $top->id,
@@ -112,6 +150,39 @@ final readonly class YearInReviewQuery
         }
 
         return false;
+    }
+
+    /**
+     * Top 3 fence-tagged languages across the year's posts. Each post counts
+     * once per language, no matter how many blocks it holds.
+     *
+     * @return array<array{language: string, commits: int}>
+     */
+    private function topLanguages(iterable $bodies): array
+    {
+        $counts = [];
+
+        foreach ($bodies as $body) {
+            preg_match_all('/```([a-zA-Z0-9_+#-]+)/', (string) $body, $matches);
+
+            foreach (array_unique(array_map(strtolower(...), $matches[1])) as $tag) {
+                if (in_array($tag, self::FENCE_EXCLUDED, true)) {
+                    continue;
+                }
+
+                $counts[$tag] = ($counts[$tag] ?? 0) + 1;
+            }
+        }
+
+        arsort($counts);
+
+        $top = [];
+
+        foreach (array_slice($counts, 0, 3, true) as $tag => $commits) {
+            $top[] = ['language' => self::LANGUAGE_DISPLAY[$tag] ?? ucfirst($tag), 'commits' => $commits];
+        }
+
+        return $top;
     }
 
     /**

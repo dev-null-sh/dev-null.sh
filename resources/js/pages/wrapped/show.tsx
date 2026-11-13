@@ -25,6 +25,7 @@ type WrappedStats = {
     weekdays: number[];
     hourCounts: number[];
     comeback: boolean;
+    languages: Array<{ language: string; commits: number }>;
     dayCounts: Record<string, number>;
     topCommit: { id: string; body: string; stars: number } | null;
 };
@@ -226,6 +227,14 @@ function buildInsights(stats: WrappedStats): string[] {
         );
     }
 
+    const [stackTop] = stats.languages;
+
+    if (stackTop) {
+        insights.push(
+            `${stackTop.language} tops your stack with ${stackTop.commits} code posts.`,
+        );
+    }
+
     insights.push(
         stats.replies > stats.commits
             ? 'You reply more than you post. Threads love you.'
@@ -307,7 +316,7 @@ export default function Show({
     const celebrated = useRef(false);
     const touchStart = useRef<{ x: number; y: number } | null>(null);
 
-    const last = 6;
+    const last = 7;
     const hasCommits = stats.commits > 0;
     const bestMonth = stats.months.indexOf(Math.max(...stats.months));
     const craft = archetype(stats);
@@ -536,7 +545,52 @@ export default function Show({
                     )}
                     {slide === 5 && (
                         <div>
-                            <Eyebrow>05 · Archetype</Eyebrow>
+                            <Eyebrow>05 · Your stack</Eyebrow>
+                            <h2 className="mt-6 text-3xl font-bold tracking-tight">
+                                Your tech stack
+                            </h2>
+                            {stats.languages.length > 0 ? (
+                                <>
+                                    <p className="mt-3 text-muted-foreground">
+                                        Top 3 languages from your tagged code
+                                        blocks.
+                                    </p>
+                                    <div className="mx-auto mt-8 max-w-md space-y-4 text-left">
+                                        {stats.languages.map((entry, index) => (
+                                            <div key={entry.language}>
+                                                <div className="flex items-baseline justify-between">
+                                                    <p className="text-lg font-semibold">
+                                                        {index + 1}.{' '}
+                                                        {entry.language}
+                                                    </p>
+                                                    <p className="text-sm text-muted-foreground">
+                                                        {entry.commits.toLocaleString()}{' '}
+                                                        code posts
+                                                    </p>
+                                                </div>
+                                                <div className="mt-1 h-2 overflow-hidden rounded-full bg-muted">
+                                                    <div
+                                                        className="h-full rounded-full bg-[var(--lane-0)]"
+                                                        style={{
+                                                            width: `${(entry.commits / (stats.languages[0]?.commits ?? 1)) * 100}%`,
+                                                        }}
+                                                    />
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </>
+                            ) : (
+                                <p className="mt-3 text-muted-foreground">
+                                    No tagged code blocks this year. Tag a fence
+                                    and it lands here.
+                                </p>
+                            )}
+                        </div>
+                    )}
+                    {slide === 6 && (
+                        <div>
+                            <Eyebrow>06 · Archetype</Eyebrow>
                             <h2 className="mt-6 text-4xl font-bold tracking-tight">
                                 {craft.name}
                             </h2>
@@ -555,9 +609,9 @@ export default function Show({
                             </ul>
                         </div>
                     )}
-                    {slide === 6 && (
+                    {slide === 7 && (
                         <div>
-                            <Eyebrow>06 · Happy New Year</Eyebrow>
+                            <Eyebrow>07 · Happy New Year</Eyebrow>
                             <div className="mt-6 flex justify-center">
                                 <AppLogo className="text-3xl" />
                             </div>
