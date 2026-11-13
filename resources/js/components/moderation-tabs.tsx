@@ -28,13 +28,17 @@ export function ModerationTabs({
                     href: index(),
                     isActive: active === 'reports',
                 },
-                ...(auth.isAdmin
+                ...(auth.canModerate
                     ? [
                           {
                               title: 'Timeouts & bans',
                               href: people(),
                               isActive: active === 'people',
                           },
+                      ]
+                    : []),
+                ...(auth.isAdmin
+                    ? [
                           {
                               title: 'Bulk',
                               href: bulk(),

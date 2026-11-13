@@ -96,14 +96,16 @@ it('shows the profile owner and site moderators the user moderation history', fu
 
     $this->get(route('user.show', $user), $inertiaHeaders)
         ->assertJsonPath('props.moderationHistory.timeoutsCount', 1)
-        ->assertJsonPath('props.moderationHistory.bansCount', 1);
+        ->assertJsonPath('props.moderationHistory.bansCount', 1)
+        ->assertJsonPath('props.moderation.timeoutsCount', 1);
 
     $viewer = User::factory()->create();
 
     $this->actingAs($viewer);
 
     $this->get(route('user.show', $user), $inertiaHeaders)
-        ->assertJsonPath('props.moderationHistory', null);
+        ->assertJsonPath('props.moderationHistory', null)
+        ->assertJsonPath('props.moderation', null);
 });
 
 it('says which accounts the bio and company mention are on dev/null', function (): void {

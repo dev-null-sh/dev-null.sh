@@ -81,7 +81,7 @@ final readonly class UserController
             'activity' => fn (): array => $activity->get($user, $currentUser),
             'streaks' => $getStreaks,
             'achievements' => fn (): array => $achievements->get($user, $currentUser, $getStreaks()),
-            'moderation' => $currentUser?->isAdmin() === true && ! $user->isAdmin()
+            'moderation' => $currentUser?->canModerate() === true && ! $user->isAdmin()
                 ? fn (): array => $moderation->get([$user])[$user->id]
                 : null,
             'moderationHistory' => match (true) {

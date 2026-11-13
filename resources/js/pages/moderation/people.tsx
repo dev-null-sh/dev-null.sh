@@ -1,4 +1,4 @@
-import { Head, Link, router } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import { Undo2 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import BanController from '@/actions/App/Http/Controllers/BanController';
@@ -35,6 +35,7 @@ export default function People({
     timeouts: Timeout[];
     bans: Ban[];
 }) {
+    const { auth } = usePage().props;
     const endTimeout = (timeout: Timeout) =>
         router
             .optimistic((props: { timeouts: Timeout[] }) => ({
@@ -82,15 +83,17 @@ export default function People({
                             </>
                         }
                         action={
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => endTimeout(timeout)}
-                                data-test="end-timeout-button"
-                            >
-                                <Undo2 />
-                                End timeout
-                            </Button>
+                            auth.isAdmin ? (
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => endTimeout(timeout)}
+                                    data-test="end-timeout-button"
+                                >
+                                    <Undo2 />
+                                    End timeout
+                                </Button>
+                            ) : null
                         }
                     />
                 ))}
@@ -115,15 +118,17 @@ export default function People({
                             </>
                         }
                         action={
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => liftBan(ban)}
-                                data-test="unban-button"
-                            >
-                                <Undo2 />
-                                {ban.user ? 'Unban' : 'Lift ban'}
-                            </Button>
+                            auth.isAdmin ? (
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => liftBan(ban)}
+                                    data-test="unban-button"
+                                >
+                                    <Undo2 />
+                                    {ban.user ? 'Unban' : 'Lift ban'}
+                                </Button>
+                            ) : null
                         }
                     />
                 ))}

@@ -103,14 +103,20 @@ it('sends guests to sign in instead of letting them moderate anyone', function (
         ->and(Ban::query()->count())->toBe(1);
 });
 
-it('keeps moderators out of timeouts and bans', function (): void {
+it('lets moderators see timeouts and bans without touching them', function (): void {
     config(['app.admins' => ['admin']]);
     config(['app.moderators' => ['maude']]);
 
     $moderator = User::factory()->create(['handle' => 'maude']);
     $user = User::factory()->create(['handle' => 'octocat']);
 
-    $this->actingAs($moderator)->get(route('moderated-user.index'))->assertForbidden();
+    $this->actingAs($moderator)
+        ->get(route('moderated-user.index'))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('moderation/people')
+            ->has('timeouts')
+            ->has('bans'));
     $this->actingAs($moderator)->post(route('user-timeout.store', $user), ['reason' => 'spam', 'duration' => 60])->assertForbidden();
     $this->actingAs($moderator)->post(route('user-ban.store', $user), ['reason' => 'spam'])->assertForbidden();
 
