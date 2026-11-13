@@ -32,6 +32,19 @@ it('says for a signed request whether its user follows each one, and whether eac
         ->assertJsonPath('data.0.lane', $mutual->lane());
 });
 
+it('links the profiles the bio of each person followed mentions, as their profile does', function (): void {
+    $user = User::factory()->create();
+    User::factory()->create(['handle' => 'TaylorOtwell']);
+    $user->following()->attach(User::factory()->create(['bio' => 'Thanks @taylorotwell']), ['created_at' => now()->subMinute()]);
+    $user->following()->attach(User::factory()->create(['bio' => 'Ships on Fridays.', 'company' => null]));
+
+    $response = signedApiRequest(apiKeyPairFor(User::factory()->create()), 'GET', route('api-user-following.index', $user))
+        ->assertOk()
+        ->assertJsonPath('data.1.bio_profiles', ['taylorotwell' => 'TaylorOtwell']);
+
+    expect(json_decode($response->getContent(), flags: JSON_THROW_ON_ERROR)->data[0]->bio_profiles)->toEqual(new stdClass());
+});
+
 it('pages through the people a user follows 30 at a time', function (): void {
     $user = User::factory()->create();
     $followed = User::factory()->count(31)->create();

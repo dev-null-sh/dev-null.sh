@@ -13,7 +13,7 @@ final readonly class FollowersYouKnowQuery
     public const int PREVIEW_COUNT = 3;
 
     /**
-     * A user's followers whom the viewer follows too, as the web lists them: the newest follow of the user first.
+     * A user's followers whom the viewer follows too, for UserConnectionsQuery::builder() to order and flag.
      *
      * @return BelongsToMany<User, User>
      */
@@ -22,9 +22,7 @@ final readonly class FollowersYouKnowQuery
         $following = $viewer->following();
 
         return $user->followers()
-            ->whereIn('users.id', $following->newPivotQuery()->select($following->getRelatedPivotKeyName()))
-            ->latest('follows.created_at')
-            ->latest('users.id');
+            ->whereIn('users.id', $following->newPivotQuery()->select($following->getRelatedPivotKeyName()));
     }
 
     /**

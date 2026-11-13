@@ -587,6 +587,7 @@ A signed request sees what the web shows you, such as your own pending commits a
 - preview commit drafts without publishing them;
 - request a feature or report a bug as `/feature` and `/bug` do, with the same limit of 10 opened issues a day;
 - follow or unfollow people and organizations, mute or unmute, and block or unblock, and list who you muted and blocked;
+- list a developer's followers, the people they follow, their mutuals, and the followers you know, with the profiles each bio mentions linked as on their profile;
 - read who to follow, also as it is suggested beside a profile or a commit, and mark a suggestion not interested;
 - read the hot topics, and each one's commits from the past week with its recap;
 - star or unstar, and list who starred your own commit, newest first, 20 a page;

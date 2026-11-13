@@ -76,10 +76,12 @@ use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\UserFollowController;
 use App\Http\Controllers\Api\UserFollowedOrganizationController;
 use App\Http\Controllers\Api\UserFollowersController;
+use App\Http\Controllers\Api\UserFollowersYouKnowController;
 use App\Http\Controllers\Api\UserFollowingController;
 use App\Http\Controllers\Api\UserLaneController;
 use App\Http\Controllers\Api\UserLiveController;
 use App\Http\Controllers\Api\UserMuteController;
+use App\Http\Controllers\Api\UserMutualsController;
 use App\Http\Controllers\Api\UserPasteisModeController;
 use App\Http\Controllers\Api\UserProfileController;
 use App\Http\Controllers\Api\UserPushPreferencesController;
@@ -214,6 +216,10 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             ->name('api-user-followers.index');
         Route::get('users/{user:handle}/following', [UserFollowingController::class, 'index'])
             ->name('api-user-following.index');
+        Route::get('users/{user:handle}/mutuals', [UserMutualsController::class, 'index'])
+            ->name('api-user-mutuals.index');
+        Route::get('users/{user:handle}/followers-you-know', [UserFollowersYouKnowController::class, 'index'])
+            ->name('api-user-followers-you-know.index');
         Route::get('users/{user:handle}/following/organizations', [UserFollowedOrganizationController::class, 'index'])
             ->name('api-user-followed-organization.index');
 

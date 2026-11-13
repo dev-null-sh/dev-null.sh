@@ -10,7 +10,6 @@ use App\Models\User;
 use App\Queries\FollowersYouKnowQuery;
 use App\Queries\UserConnectionsQuery;
 use Illuminate\Container\Attributes\CurrentUser;
-use Illuminate\Database\Eloquent\Builder;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -21,13 +20,8 @@ final readonly class UserFollowersYouKnowController
         return Inertia::render('user/connections', [
             'user' => $user,
             'type' => ConnectionType::FollowersYouKnow,
-            'loadedDigest' => Inertia::optional(fn (): array => ['users' => $connections->loadedDigest($followersYouKnow->builder($user, $currentUser), $request->loaded('users'))]),
-            'users' => Inertia::scroll(fn () => $followersYouKnow->builder($user, $currentUser)
-                ->withExists([
-                    'followers as is_followed' => fn (Builder $query): Builder => $query->whereKey($currentUser->id),
-                    'following as follows_you' => fn (Builder $query): Builder => $query->whereKey($currentUser->id),
-                ])
-                ->cursorPaginate(30)),
+            'loadedDigest' => Inertia::optional(fn (): array => ['users' => $connections->loadedDigest($connections->builder($followersYouKnow->builder($user, $currentUser), $currentUser), $request->loaded('users'))]),
+            'users' => Inertia::scroll(fn () => $connections->builder($followersYouKnow->builder($user, $currentUser), $currentUser)->cursorPaginate(30)),
         ]);
     }
 }
