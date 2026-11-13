@@ -63,7 +63,7 @@ final readonly class UserController
         // viewer's relationship to them on the viewer's own.
         $profile = new Channel('profiles.'.$user->id);
         $relationship = fn (Closure $value): Closure|LiveProp => $currentUser instanceof User ? Inertia::live($value, UserUpdate::Account->value, new PrivateChannel($currentUser)) : $value;
-        $canSeeModerationHistory = $currentUser instanceof User && ($currentUser->is($user) || ($currentUser->isAdmin() && ! $user->isAdmin()));
+        $canSeeModerationHistory = $currentUser instanceof User && ($currentUser->is($user) || ($currentUser->canModerate() && ! $user->isAdmin()));
 
         return Inertia::render('user/show', [
             'user' => Inertia::live(fn (): ?array => ShownStreams::user($getCountedUser()), 'profile', $profile),

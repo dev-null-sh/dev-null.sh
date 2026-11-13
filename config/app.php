@@ -48,6 +48,22 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Application Moderators
+    |--------------------------------------------------------------------------
+    |
+    | The GitHub usernames listed here can review the pending queue and user
+    | reports, without the power to timeout or ban anyone. Admins can do
+    | everything moderators can, so they never need to be listed here too.
+    |
+    */
+
+    'moderators' => array_values(array_filter(array_map(
+        trim(...),
+        explode(',', (string) env('MODERATORS', '')),
+    ))),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Debug Mode
     |--------------------------------------------------------------------------
     |

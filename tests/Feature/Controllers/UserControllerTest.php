@@ -89,6 +89,15 @@ it('shows the profile owner and site moderators the user moderation history', fu
         ->assertJsonPath('props.moderationHistory.timeoutsCount', 1)
         ->assertJsonPath('props.moderationHistory.bansCount', 1);
 
+    config(['app.moderators' => ['maude']]);
+    $communityModerator = User::factory()->create(['handle' => 'maude']);
+
+    $this->actingAs($communityModerator);
+
+    $this->get(route('user.show', $user), $inertiaHeaders)
+        ->assertJsonPath('props.moderationHistory.timeoutsCount', 1)
+        ->assertJsonPath('props.moderationHistory.bansCount', 1);
+
     $viewer = User::factory()->create();
 
     $this->actingAs($viewer);

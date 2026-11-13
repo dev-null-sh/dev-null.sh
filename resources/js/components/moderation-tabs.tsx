@@ -1,3 +1,4 @@
+import { usePage } from '@inertiajs/react';
 import { index as bulk } from '@/actions/App/Http/Controllers/BulkActivityController';
 import { index as people } from '@/actions/App/Http/Controllers/ModeratedUserController';
 import { show } from '@/actions/App/Http/Controllers/ModerationController';
@@ -9,6 +10,8 @@ export function ModerationTabs({
 }: {
     active: 'pending' | 'reports' | 'people' | 'bulk';
 }) {
+    const { auth } = usePage().props;
+
     return (
         <PageTabs
             label="Moderation queues"
@@ -23,16 +26,20 @@ export function ModerationTabs({
                     href: index(),
                     isActive: active === 'reports',
                 },
-                {
-                    title: 'Timeouts & bans',
-                    href: people(),
-                    isActive: active === 'people',
-                },
-                {
-                    title: 'Bulk',
-                    href: bulk(),
-                    isActive: active === 'bulk',
-                },
+                ...(auth.isAdmin
+                    ? [
+                          {
+                              title: 'Timeouts & bans',
+                              href: people(),
+                              isActive: active === 'people',
+                          },
+                          {
+                              title: 'Bulk',
+                              href: bulk(),
+                              isActive: active === 'bulk',
+                          },
+                      ]
+                    : []),
             ]}
         />
     );

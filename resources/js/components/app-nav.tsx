@@ -113,7 +113,7 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
             href: hrefFor(() => StarredCommitController.index()),
             icon: Star,
         },
-        ...(auth.isAdmin
+        ...(auth.canModerate
             ? [
                   {
                       title: 'Moderation',
@@ -121,11 +121,15 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
                       icon: ShieldCheck,
                       hasIndicator: hasUnmoderatedCommits,
                   },
-                  {
-                      title: 'Operations',
-                      href: OperationsController.show(),
-                      icon: Activity,
-                  },
+                  ...(auth.isAdmin
+                      ? [
+                            {
+                                title: 'Operations',
+                                href: OperationsController.show(),
+                                icon: Activity,
+                            },
+                        ]
+                      : []),
               ]
             : []),
         {
