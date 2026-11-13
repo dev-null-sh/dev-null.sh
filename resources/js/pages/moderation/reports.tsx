@@ -206,6 +206,7 @@ export default function Reports({
         router.visit(escalateRoute(report.commit), {
             preserveScroll: true,
             only: ['reports'],
+            reset: ['reports'],
             onError: () =>
                 toast.error('Could not escalate this commit. Try again.'),
         });
@@ -214,6 +215,7 @@ export default function Reports({
         router.visit(undoEscalateRoute(report.commit), {
             preserveScroll: true,
             only: ['reports'],
+            reset: ['reports'],
             onError: () =>
                 toast.error('Could not undo the escalation. Try again.'),
         });
@@ -325,7 +327,7 @@ export default function Reports({
                                             {report.commit.escalated_at !=
                                             null ? (
                                                 <Button
-                                                    variant="ghost"
+                                                    variant="outline"
                                                     size="sm"
                                                     onClick={() =>
                                                         undoEscalate(report)
@@ -338,12 +340,13 @@ export default function Reports({
                                             ) : (
                                                 !auth.isAdmin && (
                                                     <Button
-                                                        variant="ghost"
+                                                        variant="outline"
                                                         size="sm"
                                                         onClick={() =>
                                                             escalate(report)
                                                         }
                                                         data-test="escalate-report-button"
+                                                        className="border-amber-600/40 text-amber-700 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-400"
                                                     >
                                                         <Flag />
                                                         Escalate to admin

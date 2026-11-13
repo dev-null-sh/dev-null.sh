@@ -128,7 +128,7 @@ function ModerationActions({
                 </Button>
                 {commit.escalated_at != null ? (
                     <Button
-                        variant="ghost"
+                        variant="outline"
                         size="sm"
                         onClick={onUndoEscalate}
                         data-test="undo-escalation-button"
@@ -139,10 +139,11 @@ function ModerationActions({
                 ) : (
                     !auth.isAdmin && (
                         <Button
-                            variant="ghost"
+                            variant="outline"
                             size="sm"
                             onClick={onEscalate}
                             data-test="escalate-commit-button"
+                            className="border-amber-600/40 text-amber-700 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-400"
                         >
                             <Flag />
                             Escalate to admin
@@ -396,6 +397,7 @@ export default function Show({
         router.visit(CommitEscalationController.store(commit), {
             preserveScroll: true,
             only: ['commits', 'hasUnmoderatedCommits'],
+            reset: ['commits'],
             onError: () =>
                 toast.error('Could not escalate this commit. Try again.'),
         });
@@ -404,6 +406,7 @@ export default function Show({
         router.visit(CommitEscalationController.destroy(commit), {
             preserveScroll: true,
             only: ['commits', 'hasUnmoderatedCommits'],
+            reset: ['commits'],
             onError: () =>
                 toast.error('Could not undo the escalation. Try again.'),
         });
