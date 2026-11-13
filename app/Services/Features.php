@@ -29,7 +29,7 @@ final readonly class Features
 
     public function available(Feature $feature, ?User $user): bool
     {
-        return $this->enabled($feature) && (! $this->adminOnly($feature) || ($user?->isAdmin() ?? false));
+        return $this->enabled($feature) && (! $this->adminOnly($feature) || ($user?->canModerate() ?? false));
     }
 
     /** @return list<array{name: string, enabled: bool, admin_only: bool}> */
