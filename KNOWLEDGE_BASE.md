@@ -139,7 +139,7 @@ Every organization has a color, /dev/null's blue until an admin chooses another 
 
 Signed in, you can **Follow** an organization from its page, which shows how many people follow it. Once you follow it, the button opens a menu where you can unfollow. Following puts the organization's own commits in your Following log, and ranks them higher in Trending, like the people you follow. **Watch**, which will also show the commits that mention the organization, is planned and shown as coming soon. The organizations you follow are listed on your Following list, above the people, a few at a time with **Show more organizations**, and count toward your following count. They are in your data export and go when you delete your account.
 
-Sources: [organization page](resources/js/pages/organization/show.tsx), [commits](app/Queries/OrganizationCommitsQuery.php), [posting as an organization](app/Rules/OrganizationToPostAs.php), [mentions](app/Queries/OrganizationMentionsQuery.php), [organization lookups](app/Actions/UpdateCommitTopics.php), [claims](app/Http/Controllers/OrganizationAdminController.php), [color](app/Http/Controllers/OrganizationLaneController.php), [members](app/Http/Controllers/OrganizationMemberController.php).
+Sources: [organization page](resources/js/pages/organization/show.tsx), [commits](app/Queries/OrganizationCommitsQuery.php), [posting as an organization](app/Rules/OrganizationToPostAs.php), [mentions](app/Queries/OrganizationMentionsQuery.php), [organization lookups](app/Actions/UpdateCommitTopics.php), [claims](app/Http/Controllers/OrganizationAdminController.php), [color](app/Http/Controllers/OrganizationLaneController.php), [members](app/Http/Controllers/OrganizationMemberController.php), [members in the API](app/Http/Controllers/Api/OrganizationMemberController.php).
 
 ### Developers not on /dev/null yet
 
@@ -593,6 +593,7 @@ A signed request sees what the web shows you, such as your own pending commits a
 - create polls on commits that are neither replies nor quotes, and vote on polls;
 - change Remotes settings, read and send messages with images, link cards, and voice notes in conversations and orgs, mark them pulled, react to messages and list your reactions, pin and unpin org messages as a maintainer, find people, and start orgs;
 - rename orgs, add people to them, change their roles, remove them, and leave an org, with the same maintainer rules as the web;
+- list your organizations' members, and as an admin add members, change their roles, remove them, or choose the organization's color; leave an organization, with the same last-admin rule as the web;
 - stash or reopen conversations and orgs, pin and mute them, merge or drop message requests, and send typing indicators;
 - switch Pastéis mode and give pastéis;
 - report commits;
