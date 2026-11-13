@@ -73,6 +73,7 @@ use App\Http\Controllers\Api\UserAutomaticTranslationController;
 use App\Http\Controllers\Api\UserBlockController;
 use App\Http\Controllers\Api\UserCommitController;
 use App\Http\Controllers\Api\UserController;
+use App\Http\Controllers\Api\UserEventThemeController;
 use App\Http\Controllers\Api\UserFollowController;
 use App\Http\Controllers\Api\UserFollowedOrganizationController;
 use App\Http\Controllers\Api\UserFollowersController;
@@ -190,6 +191,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         // User Timezone and Translation, as the web's settings save them...
         Route::put('me/timezone', [UserTimezoneController::class, 'update'])->name('api-user-timezone.update');
         Route::put('me/automatic-translation', [UserAutomaticTranslationController::class, 'update'])->name('api-user-automatic-translation.update');
+        Route::put('me/event-theme', [UserEventThemeController::class, 'update'])->name('api-user-event-theme.update');
         Route::put('me/translation-language', [UserTranslationLanguageController::class, 'update'])->name('api-user-translation-language.update');
 
         // Devices: the keys approved to sign as the user, as the web's Devices page lists and revokes them...

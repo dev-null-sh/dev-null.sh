@@ -138,6 +138,7 @@ use App\Http\Controllers\UserAutomaticTranslationController;
 use App\Http\Controllers\UserBanController;
 use App\Http\Controllers\UserBlockController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\UserEventThemeController;
 use App\Http\Controllers\UserFeedController;
 use App\Http\Controllers\UserFollowController;
 use App\Http\Controllers\UserFollowersController;
@@ -665,6 +666,7 @@ Route::middleware('auth')->group(function (): void {
     Route::put('settings/timezone', [UserTimezoneController::class, 'update'])->name('user-timezone.update');
 
     Route::put('settings/automatic-translation', [UserAutomaticTranslationController::class, 'update'])->name('user-automatic-translation.update');
+    Route::put('settings/event-theme', [UserEventThemeController::class, 'update'])->name('user-event-theme.update');
     Route::put('settings/translation-language', [UserTranslationLanguageController::class, 'update'])->name('user-translation-language.update');
 
     Route::put('settings/pasteis-mode', [UserPasteisModeController::class, 'update'])->name('user-pasteis-mode.update');

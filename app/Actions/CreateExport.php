@@ -96,6 +96,7 @@ final readonly class CreateExport
                 'show_local_time' => $user->show_local_time,
                 'translation_language' => $user->translation_language,
                 'automatic_translation' => $user->automatic_translation ?? true,
+                'event_theme' => $user->event_theme ?? null,
                 'lane_color' => $user->lane_color,
                 'pasteis_mode' => $user->pasteis_mode,
                 'pasteis_received' => $user->pasteis_received,

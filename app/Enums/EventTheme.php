@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Enums;
 
 use App\Dto\ReaderClock;
+use App\Models\User;
 use Carbon\CarbonInterface;
 use Illuminate\Http\Request;
 use IntlCalendar;
@@ -25,9 +26,29 @@ enum EventTheme: string
      */
     public static function forRequest(Request $request): ?self
     {
-        $choice = $request->cookie('event_theme');
+        return self::current(self::choiceForRequest($request), self::readerNow($request));
+    }
 
-        return self::current(is_string($choice) ? $choice : null, self::readerNow($request));
+    /**
+     * What the reader picked: saved on their account once they choose while signed in, or else in this browser.
+     */
+    public static function choiceForRequest(Request $request): string
+    {
+        $user = $request->user();
+        $saved = $user instanceof User ? $user->event_theme ?? null : null;
+        $choice = $saved ?? $request->cookie('event_theme');
+
+        return self::choiceFrom(is_string($choice) ? $choice : null);
+    }
+
+    /**
+     * Everything a reader may pick: auto, "none" for the usual colors, or a theme.
+     *
+     * @return list<string>
+     */
+    public static function choices(): array
+    {
+        return [self::AUTO, self::DEFAULT, ...array_column(self::cases(), 'value')];
     }
 
     /**
@@ -66,11 +87,7 @@ enum EventTheme: string
      */
     public static function choiceFrom(?string $cookie): string
     {
-        if ($cookie !== null && ($cookie === self::DEFAULT || self::tryFrom($cookie) instanceof self)) {
-            return $cookie;
-        }
-
-        return self::AUTO;
+        return in_array($cookie, self::choices(), true) ? $cookie : self::AUTO;
     }
 
     /**

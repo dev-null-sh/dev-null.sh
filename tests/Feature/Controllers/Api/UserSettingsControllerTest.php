@@ -10,6 +10,7 @@ it('shows the settings only the user sees', function (): void {
         'show_local_time' => true,
         'translation_language' => 'ja',
         'automatic_translation' => false,
+        'event_theme' => 'none',
     ]);
 
     $response = signedApiRequest(apiKeyPairFor($user), 'GET', route('api-user-settings.show'));
@@ -20,6 +21,7 @@ it('shows the settings only the user sees', function (): void {
         ->assertJsonPath('data.show_local_time', true)
         ->assertJsonPath('data.translation_language', 'ja')
         ->assertJsonPath('data.automatic_translation', false)
+        ->assertJsonPath('data.event_theme', 'none')
         ->assertJsonPath('data.is_admin', false);
 });
 
@@ -30,7 +32,8 @@ it('follows the device and translates automatically until the user chooses other
         ->assertJsonPath('data.timezone', null)
         ->assertJsonPath('data.show_local_time', false)
         ->assertJsonPath('data.translation_language', null)
-        ->assertJsonPath('data.automatic_translation', true);
+        ->assertJsonPath('data.automatic_translation', true)
+        ->assertJsonPath('data.event_theme', 'auto');
 });
 
 it('lists the languages commits may be translated into, by their English name, each named in itself', function (): void {
