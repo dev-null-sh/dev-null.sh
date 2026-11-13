@@ -88,6 +88,14 @@ final class ApiException extends HttpException
     }
 
     /**
+     * GitHub could not be read, so the changelog has nothing to list until it can.
+     */
+    public static function changelogUnavailable(): self
+    {
+        return new self(ApiErrorCode::ChangelogUnavailable, __("GitHub can't be reached right now, so the changelog is unavailable. Try again in a moment."));
+    }
+
+    /**
      * The user is banned, so the only thing left for them is deleting their account.
      */
     public static function banned(): self

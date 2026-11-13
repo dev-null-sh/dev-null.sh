@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Exceptions\ApiException;
 use App\Http\Controllers\Api\BroadcastAuthorizationController;
 use App\Http\Controllers\Api\CallController;
+use App\Http\Controllers\Api\ChangelogController;
 use App\Http\Controllers\Api\CommitController as ApiCommitController;
 use App\Http\Controllers\Api\CommitPastelController;
 use App\Http\Controllers\Api\CommitPinController;
@@ -140,6 +141,8 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             ->name('api-organization-commit.index');
         Route::get('organizations/{handle}/mentions', [OrganizationMentionController::class, 'index'])
             ->name('api-organization-mention.index');
+        Route::get('changelog', [ChangelogController::class, 'index'])
+            ->name('api-changelog.index');
 
         // Mentioned profiles: the user or organization a commit's or message's mention captured, by the id it carries,
         // as the web's mention links open them, so they still lead there once they rename...
