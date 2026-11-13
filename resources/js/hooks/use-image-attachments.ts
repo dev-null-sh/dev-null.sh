@@ -7,7 +7,7 @@ import {
     readImagesForDraft,
     subscribeImageReads,
 } from '@/lib/draft-image-reads';
-import { PickedImageError } from '@/lib/read-picked-images';
+import { needsConversion, PickedImageError } from '@/lib/read-picked-images';
 
 export type UseImageAttachmentsReturn = {
     readonly images: File[];
@@ -79,7 +79,7 @@ export function useImageAttachments(
 
     const pick = async (files: File[]) => {
         const available = Math.max(0, maxImages - images.length);
-        if (disabled || files.length === 0 || available === 0) return;
+        if (disabled || files.length === 0) return;
 
         setError(null);
         await readImagesForDraft(draftKey, files, {
@@ -96,6 +96,13 @@ export function useImageAttachments(
             },
             owner: readOwner.current,
         });
+    };
+
+    // Dropped and pasted images are attached at once, except HEIC photos and
+    // images over 10 MB, which are read and converted like picked ones.
+    const add = (files: File[]) => {
+        void pick(files.filter(needsConversion));
+        attach(files.filter((file) => !needsConversion(file)));
     };
 
     return {
@@ -138,7 +145,7 @@ export function useImageAttachments(
 
             if (files.length > 0) {
                 event.preventDefault();
-                attach(files);
+                add(files);
             }
         },
         isDraggingFiles: dragDepth > 0,
@@ -166,7 +173,7 @@ export function useImageAttachments(
                 if (hasFiles(event.dataTransfer)) {
                     event.preventDefault();
                     setDragDepth(0);
-                    attach(Array.from(event.dataTransfer.files));
+                    add(Array.from(event.dataTransfer.files));
                 }
             },
         },

@@ -1,6 +1,50 @@
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
+import { afterEach, test } from 'node:test';
 import { readPickedImages } from '../../resources/js/lib/read-picked-images.ts';
+
+function stubImageCodecs({
+    width = 4032,
+    height = 3024,
+    encodes = 'image/webp',
+} = {}) {
+    const decoded: number[] = [];
+    const canvases: { width: number; height: number }[] = [];
+
+    Object.assign(globalThis, {
+        createImageBitmap: (image: Blob) => {
+            decoded.push(image.size);
+
+            return Promise.resolve({ width, height, close: () => {} });
+        },
+        OffscreenCanvas: class {
+            width: number;
+            height: number;
+
+            constructor(canvasWidth: number, canvasHeight: number) {
+                this.width = canvasWidth;
+                this.height = canvasHeight;
+                canvases.push({ width: canvasWidth, height: canvasHeight });
+            }
+
+            getContext() {
+                return { drawImage: () => {} };
+            }
+
+            convertToBlob() {
+                return Promise.resolve(
+                    new Blob(['encoded'], { type: encodes }),
+                );
+            }
+        },
+    });
+
+    return { decoded, canvases };
+}
+
+afterEach(() => {
+    Reflect.deleteProperty(globalThis, 'createImageBitmap');
+    Reflect.deleteProperty(globalThis, 'OffscreenCanvas');
+});
 
 void test('copies provider bytes without reading unstable metadata', async () => {
     const source = new File(['image bytes'], 'photo.jpg', {
@@ -64,7 +108,7 @@ void test('bounds oversized reads and cancels the provider stream', async () => 
     } as unknown as File;
     const { images, errors } = await readPickedImages([provider]);
     assert.deepEqual(images, []);
-    assert.match((errors[0] as Error).message, /10 MB/);
+    assert.match((errors[0] as Error).message, /50 MB/);
     assert.equal(cancelled, true);
 });
 
@@ -90,4 +134,82 @@ void test('stops reading providers once successful copies fill capacity', async 
     assert.equal(images.length, 1);
     assert.equal(await images[0].text(), 'valid');
     assert.match((errors[0] as Error).message, /Up to 3/);
+});
+
+void test('converts HEIC photos and images over 10 MB to the size the server keeps', async () => {
+    const { decoded, canvases } = stubImageCodecs();
+    const heic = new File(['heic'], 'IMG_0001.HEIC', { type: 'image/heic' });
+    const large = new File(
+        [new Uint8Array(10 * 1024 * 1024 + 1)],
+        'screenshot.png',
+        { type: 'image/png' },
+    );
+    const small = new File(['small'], 'small.jpg', { type: 'image/jpeg' });
+
+    const { images, errors } = await readPickedImages([heic, large, small]);
+
+    assert.deepEqual(errors, []);
+    assert.deepEqual(
+        images.map(({ name, type }) => [name, type]),
+        [
+            ['IMG_0001.webp', 'image/webp'],
+            ['screenshot.webp', 'image/webp'],
+            ['small.jpg', 'image/jpeg'],
+        ],
+    );
+    assert.deepEqual(decoded, [4, 10 * 1024 * 1024 + 1]);
+    assert.deepEqual(canvases, [
+        { width: 1600, height: 1200 },
+        { width: 1600, height: 1200 },
+    ]);
+    assert.equal(await images[2].text(), 'small');
+});
+
+void test('recognizes a HEIC photo by its extension when it has no type', async () => {
+    stubImageCodecs();
+
+    const {
+        images: [image],
+        errors,
+    } = await readPickedImages([new File(['heic'], 'IMG_0002.heic')]);
+
+    assert.deepEqual(errors, []);
+    assert.equal(image.name, 'IMG_0002.webp');
+});
+
+void test('keeps the size of a smaller image and the PNG of a browser without WebP', async () => {
+    const { canvases } = stubImageCodecs({
+        width: 1200,
+        height: 900,
+        encodes: 'image/png',
+    });
+
+    const {
+        images: [image],
+    } = await readPickedImages([
+        new File(['heic'], 'IMG_0003.HEIC', { type: 'image/heic' }),
+    ]);
+
+    assert.equal(image.name, 'IMG_0003.png');
+    assert.equal(image.type, 'image/png');
+    assert.deepEqual(canvases, [{ width: 1200, height: 900 }]);
+});
+
+void test('rejects a large image the browser cannot decode', async () => {
+    stubImageCodecs();
+    Object.assign(globalThis, {
+        createImageBitmap: () =>
+            Promise.reject(
+                new DOMException('Undecodable', 'InvalidStateError'),
+            ),
+    });
+
+    const { images, errors } = await readPickedImages([
+        new File([new Uint8Array(10 * 1024 * 1024 + 1)], 'broken.png', {
+            type: 'image/png',
+        }),
+    ]);
+
+    assert.deepEqual(images, []);
+    assert.equal((errors[0] as Error).name, 'InvalidStateError');
 });
