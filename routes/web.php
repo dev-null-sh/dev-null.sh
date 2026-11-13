@@ -718,6 +718,10 @@ Route::middleware('auth')->group(function (): void {
         ->name('pending-follow.destroy');
 
     // Organization Follow...
+    Route::get('organizations/{organization}/follow', [OrganizationFollowController::class, 'show'])
+        ->whereUuid('organization')
+        ->middleware('throttle:people')
+        ->name('organization-follow.show');
     Route::post('organizations/{organization}/follow', [OrganizationFollowController::class, 'store'])
         ->whereUuid('organization')
         ->middleware('throttle:follows')
