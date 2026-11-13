@@ -17,14 +17,4 @@ return new class extends Migration
             $table->timestamp('escalated_at')->nullable()->after('updated_at');
         });
     }
-
-    /**
-     * Reverse the migrations.
-     */
-    public function down(): void
-    {
-        Schema::table('commits', function (Blueprint $table) {
-            $table->dropColumn('escalated_at');
-        });
-    }
 };
