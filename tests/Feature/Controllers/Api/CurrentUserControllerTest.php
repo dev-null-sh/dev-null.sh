@@ -2,14 +2,12 @@
 
 declare(strict_types=1);
 
-use App\Enums\Feature;
 use App\Enums\OrganizationRole;
 use App\Models\Commit;
 use App\Models\Device;
 use App\Models\Notification;
 use App\Models\Organization;
 use App\Models\User;
-use App\Services\Features;
 
 it('returns the signed-in user with their unread notifications and their pastéis', function (): void {
     $this->travelTo(now()->setDate(2026, 10, 17)->setTime(9, 15));
@@ -76,7 +74,7 @@ it('returns the signed-in user with their unread notifications and their pastéi
                     'unread_count' => 0,
                 ],
                 'organizations' => [],
-                'can_post_as_organization' => false,
+                'can_post_as_organization' => true,
             ],
             'unread_notifications_count' => 1,
         ]);
@@ -103,8 +101,6 @@ it('returns what the web shows only the user on their profile settings', functio
 });
 
 it("returns the organizations the user can post as, oldest membership first, like the web's Post as menu", function (): void {
-    resolve(Features::class)->update(Feature::OrganizationCommits, true);
-
     $user = User::factory()->create();
     $keyPair = apiKeyPairFor($user);
     $laravel = Organization::factory()->create(['handle' => 'laravel', 'name' => 'Laravel']);
@@ -137,19 +133,6 @@ it("returns the organizations the user can post as, oldest membership first, lik
         ->assertJsonPath('data.organizations.1.handle', 'pestphp')
         ->assertJsonPath('data.organizations.1.role', 'member')
         ->assertJsonCount(2, 'data.organizations');
-});
-
-it('says when posting as an organization is switched off, keeping the organizations', function (): void {
-    resolve(Features::class)->update(Feature::OrganizationCommits, false);
-
-    $user = User::factory()->create();
-    $keyPair = apiKeyPairFor($user);
-    Organization::factory()->create()->members()->attach($user->id, ['role' => OrganizationRole::Member]);
-
-    signedApiRequest($keyPair, 'GET', route('api-current-user.show'))
-        ->assertOk()
-        ->assertJsonPath('data.can_post_as_organization', false)
-        ->assertJsonCount(1, 'data.organizations');
 });
 
 it('keeps those to the signed-in user, even on their own profile', function (): void {
