@@ -35,6 +35,7 @@ import {
 } from '@/components/graph-rail';
 import { HiddenLinkPreviewContext } from '@/components/hidden-link-preview-context';
 import { LinkPreview } from '@/components/link-preview';
+import { Hashtag } from '@/components/linkified-text';
 import { LiveStreamTrigger } from '@/components/live-stream-card';
 import { QuotedCommit } from '@/components/quoted-commit';
 import {
@@ -429,6 +430,15 @@ export function CommitCard({
                                 </span>
                             </div>
 
+                            {commit.joined_guild &&
+                                component === 'log/show' && (
+                                    <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+                                        because you joined{' '}
+                                        <Hashtag
+                                            hashtag={`#${commit.joined_guild}`}
+                                        />
+                                    </p>
+                                )}
                             {commit.parent && isDeleted(commit.parent) && (
                                 <p className="mt-0.5 flex w-fit items-center gap-1 font-mono text-xs text-muted-foreground">
                                     <CornerDownRight className="size-3" />

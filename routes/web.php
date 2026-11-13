@@ -60,6 +60,11 @@ use App\Http\Controllers\FailedJobRetryController;
 use App\Http\Controllers\FailedJobsController;
 use App\Http\Controllers\FeatureController;
 use App\Http\Controllers\ForecastController;
+use App\Http\Controllers\GuildController;
+use App\Http\Controllers\GuildIconController;
+use App\Http\Controllers\GuildMembershipController;
+use App\Http\Controllers\GuildMuteController;
+use App\Http\Controllers\GuildReportController;
 use App\Http\Controllers\HeadlineController;
 use App\Http\Controllers\HumanVerificationController;
 use App\Http\Controllers\InboxController;
@@ -353,6 +358,17 @@ Route::get('search', [SearchController::class, 'index'])
     ->middleware('auth')
     ->name('search.index');
 
+Route::middleware('auth')->group(function (): void {
+    Route::get('guilds', [GuildController::class, 'index'])->name('guild.index');
+    Route::get('guilds/{guild:handle}', [GuildController::class, 'show'])->name('guild.show');
+    Route::get('guilds/{guild:handle}/icon', [GuildIconController::class, 'show'])->name('guild-icon.show');
+    Route::post('guilds', [GuildController::class, 'store'])->middleware([PreventPostingInTimeout::class, 'throttle:10,1'])->name('guild.store');
+    Route::put('guilds/{guild:handle}', [GuildController::class, 'update'])->middleware([PreventPostingInTimeout::class, 'throttle:10,1'])->name('guild.update');
+    Route::put('guild-memberships/{guild}', [GuildMembershipController::class, 'update'])->whereUuid('guild')->middleware('throttle:follows')->name('guild-membership.update');
+    Route::put('guild-mutes/{guild}', [GuildMuteController::class, 'update'])->whereUuid('guild')->middleware('throttle:follows')->name('guild-mute.update');
+    Route::post('guild-reports/{guild}', [GuildReportController::class, 'store'])->whereUuid('guild')->middleware('throttle:10,1')->name('guild-report.store');
+});
+
 // Profile Search: developers and organizations by name or handle...
 Route::get('search/profiles', [ProfileSearchController::class, 'index'])
     ->middleware('throttle:people')
@@ -602,6 +618,9 @@ Route::middleware('auth')->group(function (): void {
 
     // Moderation...
     Route::get('moderation', [ModerationController::class, 'show'])->name('moderation.show');
+    Route::get('moderation/guilds', [GuildReportController::class, 'index'])->name('guild-report.index');
+    Route::delete('moderation/guilds/{guild}', [GuildController::class, 'destroy'])->whereUuid('guild')->name('guild.destroy');
+    Route::delete('moderation/guild-reports/{report}', [GuildReportController::class, 'destroy'])->whereUuid('report')->name('guild-report.destroy');
     Route::get('moderation/reports/{report}/images/{image}', [CommitReportImageController::class, 'show'])->whereUuid('report')->whereIn('image', ['0', '1', '2'])->name('commit-report-image.show');
     Route::get('moderation/reports', [ReportedCommitController::class, 'index'])->name('reported-commit.index');
     Route::delete('moderation/reports/{report}', [CommitReportController::class, 'destroy'])->name('commit-report.destroy');

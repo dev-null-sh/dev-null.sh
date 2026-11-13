@@ -652,6 +652,16 @@ Successful issue creation is limited to **ten issues per day per user**, shared 
 
 Sources: [issue command UI](resources/js/components/issue-command.tsx), [issue validation](app/Http/Requests/CreateIssueRequest.php), [issue controller](app/Http/Controllers/IssueController.php), [daily limit](app/Http/Middleware/ThrottleIssues.php), [API issue controller](app/Http/Controllers/Api/IssueController.php).
 
+### Guilds (preview)
+
+Guilds are public groups around hashtags and are not generally available yet. In the preview, matching hashtags become small clickable guild labels; ordinary hashtags still open search. Create a guild from the Guilds overview or a hashtag's search page. From the overview, its display name determines the hashtag: “Laravel 4ever” becomes `#laravel4ever`. Display names and handles each allow up to 60 characters. When claiming a hashtag, the display name must match its letters, numbers and underscores, ignoring case; spaces, punctuation and decorative symbols are ignored, so `/dev/null` is valid for `#devnull`. Accents and underscores remain significant. Its creator joins automatically and maintains its icon and description. Each person can create up to 100 guilds. A guild's name, description and icon pass the same automated moderation as commits before the guild is published or edited; a guild that the moderation flags is not saved.
+
+The Guilds page lists groups by member count. Joining adds matching commits to Following without following every author and clears any existing mute. When a commit appears only because of a joined guild, it says “because you joined” beside the guild label. Leave a guild to reveal its Mute control. Muting hides matching commits from logs and search, including commits by followed authors. You can still open the guild or a commit directly.
+
+Each guild's bulletin board shows commits containing its exact hashtag, newest first, with pagination—not semantic search. Post directly from its composer; the hashtag is added automatically unless already present outside code and links, and is included in the preview. The automatic hashtag and its separator do not use any of your 4,000-character writing allowance, including when scheduling a board post. Hashtags you type yourself still count. Typing a hashtag offers matching guilds in the autocomplete menu; select one with the keyboard or pointer to insert its handle.
+
+Guild descriptions can be reported privately. When a guild loses its moderator, its page, icon, description, memberships and mute preferences disappear; the original hashtag commits remain. A different person can claim the hashtag, but a removed moderator cannot reclaim it.
+
 ### Exporting your data
 
 Choose **Download JSON** in Settings → Profile to export your account data. The export includes:
@@ -660,6 +670,7 @@ Choose **Download JSON** in Settings → Profile to export your account data. Th
 - the days you used /dev/null (dates, not times), oldest first, with which of its apps you used on each (days before apps were tracked say web, whatever you used, and a phone approved before the mobile app started identifying itself says other), and the last of them;
 - your commits and replies (including pending, rejected, and deleted entries still stored), their cached translations, polls, and your votes;
 - stars, followers and people you follow, mutes, blocks, and dismissed **Not interested** suggestions;
+- guilds you moderate, your guild memberships and mutes, reports you submitted, and guild moderator-removal records relating to your account;
 - messages you sent, including links to your voice notes, and notifications;
 - SSH key fingerprints, approved devices, timeout history, and ban history;
 - active-session metadata: IP address, browser information, and last activity.
@@ -677,6 +688,8 @@ Settings → Profile → **Delete account** opens a confirmation for permanent d
 You can sign in with GitHub again later, but start from a new account rather than restoring the deleted one. Export your data first if you want a copy. Deleting from /dev/null cannot retract copies of public content held elsewhere.
 
 As the privacy policy explains, timeout and ban records retain your GitHub account id, reason, and dates after account deletion, so deleting and recreating an account cannot evade those restrictions. Your GitHub account id is also kept until you sign in again, only so that your page doesn't come back as one of a developer not on /dev/null yet. Deleted content may also remain in backups and logs for a period.
+
+For guilds, which are not generally available yet, a moderator removal retains only the GitHub account ID, hashtag and removal date after account deletion, so the same GitHub account cannot reclaim that guild. Guild descriptions, icons and reports are not retained by that restriction.
 
 Sources: [account deletion confirmation](resources/js/components/delete-user.tsx), [account deletion](app/Actions/DeleteUser.php), [privacy policy](resources/js/pages/privacy/show.tsx).
 
