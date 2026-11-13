@@ -28,6 +28,25 @@ export function isSavedAs(draft: string, saved: string): boolean {
     return emojify(normalizeBody(draft)) === saved;
 }
 
+export function bodyWithHashtag(body: string, handle: string): string {
+    const hasHashtag = bodySegments(body).some((segment) => {
+        if (segment.type !== 'text') return false;
+
+        const prose = segment.text.replace(urlPattern, (url) =>
+            hrefFor(withoutTrailingPunctuation(url)) === null ? url : '',
+        );
+
+        // Keep exact hashtag boundaries in sync with App\Services\Hashtags.
+        return [
+            ...prose.matchAll(
+                /(?<![\p{L}\p{M}\p{N}_&\/#>-])#(\p{L}[\p{L}\p{M}\p{N}_]*)/gu,
+            ),
+        ].some((match) => match[1].toLowerCase() === handle);
+    });
+
+    return hasHashtag ? body : `${body.trimEnd()}\n\n#${handle}`;
+}
+
 /**
  * Each prose link counts as at most 23 characters. Keep in sync with App\Services\Urls::characterCount().
  */

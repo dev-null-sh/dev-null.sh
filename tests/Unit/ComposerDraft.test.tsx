@@ -111,9 +111,9 @@ function elements(node: ReactNode): Element[] {
     ];
 }
 
-function render() {
+function render(guildHandle?: string) {
     cursor = 0;
-    const form = CommitComposer({});
+    const form = CommitComposer({ guildHandle });
     const fields = elements(
         form.props.children({ processing: false, errors: {} }),
     );
@@ -128,6 +128,70 @@ beforeEach(() => {
     draft.body = 'A restored draft https://example.com';
     draft.images = [];
     draft.descriptions = [];
+});
+
+test('previews the guild hashtag without spending the draft character budget', () => {
+    draft.body = 'Learning Rust';
+    let view = render('rust');
+    assert.equal(
+        view.form.props.transform({ body: draft.body }).body,
+        'Learning Rust',
+    );
+    assert.equal(view.form.props.transform({}).guild_handle, 'rust');
+    const toggle = view.fields.find(
+        (element) => element.type === PreviewToggle,
+    )!;
+    assert.equal(
+        (toggle.props.preview as { draft: string }).draft,
+        'Learning Rust\n\n#rust',
+    );
+    assert.equal(view.form.props.onBefore(), true);
+
+    for (const body of ['Learning #RUST!', '`#rust` then #rust', '(#rust)']) {
+        draft.body = body;
+        const preview = render('rust').fields.find(
+            (element) => element.type === PreviewToggle,
+        )!.props.preview as { draft: string };
+        assert.equal(preview.draft, body);
+    }
+    for (const body of [
+        '#rustlang',
+        '#rust_dev',
+        '`#rust`',
+        '```text\n#rust\n```',
+        'https://example.com?q=#rust',
+        'example.com?q=#rust',
+        'not#rust',
+        '&#rust',
+        '/#rust',
+        '>#rust',
+    ]) {
+        draft.body = body;
+        const preview = render('rust').fields.find(
+            (element) => element.type === PreviewToggle,
+        )!.props.preview as { draft: string };
+        assert.equal(preview.draft, `${body}\n\n#rust`);
+    }
+    draft.body = 'x'.repeat(4000);
+    assert.equal(render('rust').form.props.onBefore(), true);
+    draft.body += 'x';
+    view = render('rust');
+    assert.equal(view.form.props.onBefore(), false);
+    assert.equal(
+        view.fields.find((element) => element.props.type === 'submit')?.props
+            .disabled,
+        true,
+    );
+    draft.body = '';
+    assert.equal(render('rust').form.props.onBefore(), false);
+});
+
+test('recognizes a guild draft after a successful post reload and leaves other drafts alone', () => {
+    draft.body = 'Learning Rust';
+    flash = { committed: { body: 'Learning Rust\n\n#rust' } };
+    render('rust');
+    effects.forEach((effect) => effect());
+    assert.equal(draft.drop.mock.calls.length, 1);
 });
 
 test('preserves restored images and link cards and allows scheduling them', () => {

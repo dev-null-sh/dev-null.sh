@@ -16,6 +16,7 @@ use App\Models\Commit;
 use App\Models\Guild;
 use App\Models\GuildReport;
 use App\Models\Organization;
+use App\Models\ScheduledCommit;
 use App\Models\User;
 use App\Queries\LogCommitsQuery;
 use Illuminate\Database\Events\QueryExecuted;
@@ -27,6 +28,39 @@ use Illuminate\Support\Facades\Storage;
 beforeEach(function (): void {
     config(['app.admins' => ['admin', 'other-admin']]);
 });
+
+it('adds the bulletin board hashtag after validating the full writing budget', function (string $body, string $saved): void {
+    $user = User::factory()->create(['handle' => 'admin']);
+    Guild::factory()->create(['handle' => 'rust']);
+    $payload = ['body' => $body, 'guild_handle' => 'rust'];
+
+    $preview = $this->actingAs($user)->postJson(route('commit-preview.store'), $payload)->assertOk();
+    $this->post(route('commit.store'), $payload)->assertSessionHasNoErrors();
+    expect($user->commits()->sole()->body)->toBe($saved);
+    $preview->assertJsonPath('segments', $user->commits()->sole()->toArray()['body_segments']);
+
+    $this->post(route('scheduled-commit.store'), [...$payload, 'scheduled_at' => now()->addHour()->toIso8601String()])->assertSessionHasNoErrors();
+    expect(ScheduledCommit::query()->sole()->body)->toBe($saved);
+})->with([
+    'full budget' => [str_repeat('x', 4000), str_repeat('x', 4000)."\n\n#rust"],
+    'already present' => ['Learning #RUST!', 'Learning #RUST!'],
+    'only inside code or a link' => ['`#rust` https://example.com/#rust', "`#rust` https://example.com/#rust\n\n#rust"],
+]);
+
+it('does not let bulletin board context bypass validation', function (string $route, array $payload, bool $admin, string $field): void {
+    Guild::factory()->create(['handle' => 'rust']);
+    $this->actingAs(User::factory()->create(['handle' => $admin ? 'admin' : 'member']))
+        ->postJson(route($route), ['body' => 'Hello', 'guild_handle' => 'rust', 'scheduled_at' => now()->addHour()->toIso8601String(), ...$payload])
+        ->assertUnprocessable()->assertJsonValidationErrors($field);
+    $this->assertDatabaseCount('commits', 0);
+    $this->assertDatabaseCount('scheduled_commits', 0);
+})->with(['commit.store', 'commit-preview.store', 'scheduled-commit.store'])->with([
+    'over budget' => [['body' => str_repeat('x', 4001)], true, 'body'],
+    'empty text' => [['body' => ''], true, 'body'],
+    'missing guild' => [['guild_handle' => 'missing'], true, 'guild_handle'],
+    'invalid context' => [['guild_handle' => ['rust']], true, 'guild_handle'],
+    'not available' => [[], false, 'guild_handle'],
+]);
 
 it('creates a public guild and gives only its creator moderation controls', function (): void {
     $admin = User::factory()->create(['handle' => 'admin']);
@@ -60,6 +94,32 @@ it('hides guild data and every guild endpoint from ordinary members', function (
     $this->put(route('guild.update', $guild->handle), [])->assertNotFound();
     $this->assertDatabaseCount('guilds', 1);
 });
+
+it('creates a guild from its display name without an existing hashtag', function (string $name, string $handle): void {
+    $admin = User::factory()->create(['handle' => 'admin']);
+    $this->actingAs($admin)->post(route('guild.store'), [
+        'name' => $name, 'description' => 'A new public group.', 'emoji' => '💻',
+    ])->assertRedirectToRoute('guild.show', $handle);
+
+    $this->assertDatabaseHas('guilds', ['handle' => $handle, 'name' => $name, 'user_id' => $admin->id]);
+    $this->get(route('guild.show', $handle))->assertInertia(fn ($page) => $page->has('commits', 0));
+    $this->postJson(route('guild.store'), [
+        'name' => $name, 'description' => 'Another group.', 'emoji' => '💻',
+    ])->assertUnprocessable()->assertJsonValidationErrors('handle');
+    $this->assertDatabaseCount('guilds', 1);
+})->with([
+    ['Laravel 4ever', 'laravel4ever'],
+    ['/dev/null', 'devnull'],
+    ['☕ CAFÉ_Dev 2!', 'café_dev2'],
+    [str_repeat('a', 60), str_repeat('a', 60)],
+]);
+
+it('rejects names that cannot produce a hashtag without an explicit handle', function (mixed $name): void {
+    $this->actingAs(User::factory()->create(['handle' => 'admin']))->postJson(route('guild.store'), [
+        'name' => $name, 'description' => 'A public group.', 'emoji' => '💻',
+    ])->assertUnprocessable()->assertJsonValidationErrors('handle');
+    $this->assertDatabaseCount('guilds', 0);
+})->with([null, [['invalid']], '!!!', '123 Developers']);
 
 it('requires sign in and exposes no guild data to guests', function (): void {
     $guild = Guild::factory()->create();
@@ -239,6 +299,7 @@ it('removes the moderator and guild but not commits and forbids every removed mo
     $this->get('/search?q=%23jobs', ['X-Inertia-Except-Once-Props' => 'guilds'])->assertInertia(fn ($page) => $page->has('guilds', 0));
     $payload = ['handle' => 'JOBS', 'name' => 'Jobs', 'description' => 'Real jobs.', 'emoji' => '💼'];
     $this->actingAs($owner)->postJson(route('guild.store'), $payload)->assertUnprocessable()->assertJsonValidationErrors('handle');
+    $this->postJson(route('guild.store'), array_diff_key($payload, ['handle' => true]))->assertUnprocessable()->assertJsonValidationErrors('handle');
     expect(fn () => resolve(CreateGuild::class)->handle($owner, 'JOBS', 'Jobs', 'Real jobs.', '💼', null))->toThrow(GuildModeratorRemoved::class);
     $this->actingAs($other)->post(route('guild.store'), $payload)->assertRedirectToRoute('guild.show', 'jobs');
     $replacement = Guild::query()->sole();
@@ -339,7 +400,7 @@ it('hides muted guild replies in logs while keeping direct threads readable', fu
     $this->getJson(route('commit-reply.index', [$parent, 'in_log' => true]))->assertOk()->assertJsonPath('data.0.id', $reply->id);
 });
 
-it('lists guilds by members rather than commits and keeps joining independent from muting', function (): void {
+it('lists guilds by members rather than commits and clears a mute when joining', function (): void {
     $admin = User::factory()->create(['handle' => 'admin']);
     $jobs = Guild::factory()->create(['handle' => 'jobs']);
     $rust = Guild::factory()->create(['handle' => 'rust']);
@@ -359,7 +420,9 @@ it('lists guilds by members rather than commits and keeps joining independent fr
     $this->assertDatabaseHas('guild_preferences', ['guild_id' => $jobs->id, 'user_id' => $admin->id, 'joined_at' => null, 'muted_at' => now()]);
     $this->put(route('guild-mute.update', $jobs), ['muted' => false])->assertRedirect();
     $this->assertDatabaseMissing('guild_preferences', ['guild_id' => $jobs->id, 'user_id' => $admin->id]);
+    $this->put(route('guild-mute.update', $jobs), ['muted' => true])->assertRedirect();
     $this->put(route('guild-membership.update', $jobs), ['joined' => true])->assertRedirect();
+    $this->assertDatabaseHas('guild_preferences', ['guild_id' => $jobs->id, 'user_id' => $admin->id, 'joined_at' => now(), 'muted_at' => null]);
     $this->put(route('guild-mute.update', $jobs), ['muted' => false])->assertRedirect();
     $this->assertDatabaseHas('guild_preferences', ['guild_id' => $jobs->id, 'user_id' => $admin->id, 'joined_at' => now(), 'muted_at' => null]);
     $this->put(route('guild-membership.update', $jobs), ['joined' => false])->assertRedirect();

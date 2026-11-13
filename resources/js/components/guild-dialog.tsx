@@ -1,6 +1,7 @@
+import type { FormComponentRef } from '@inertiajs/core';
 import { Form, router } from '@inertiajs/react';
 import { LoaderCircle } from 'lucide-react';
-import { type ReactNode, useState } from 'react';
+import { type ReactNode, useRef, useState } from 'react';
 import { store, update } from '@/actions/App/Http/Controllers/GuildController';
 import { EmojiPickerButton } from '@/components/emoji-picker';
 import { GuildIcon } from '@/components/guild-icon';
@@ -27,13 +28,17 @@ export function GuildDialog({
     guild,
     children,
 }: {
-    handle: string;
+    handle?: string;
     guild?: Guild;
     children: ReactNode;
 }) {
     const [open, setOpen] = useState(false);
     const [emoji, setEmoji] = useState(guild?.emoji ?? '💻');
     const [removeIcon, setRemoveIcon] = useState(false);
+    const [name, setName] = useState(handle ?? '');
+    const form = useRef<FormComponentRef>(null);
+    const nameHandle = name.replace(/[^\p{L}\p{M}\p{N}_]+/gu, '').toLowerCase();
+    const hashtag = guild?.handle ?? handle ?? nameHandle;
 
     return (
         <Dialog open={open} onOpenChange={setOpen}>
@@ -43,6 +48,7 @@ export function GuildDialog({
                 onCloseAutoFocus={() => {
                     setEmoji(guild?.emoji ?? '💻');
                     setRemoveIcon(false);
+                    setName(handle ?? '');
                 }}
             >
                 <DialogHeader className="shrink-0 px-6 pt-6 text-left">
@@ -52,13 +58,36 @@ export function GuildDialog({
                     <DialogDescription>
                         {guild
                             ? 'As the moderator, you can change the icon and description.'
-                            : `Give #${handle} a home. Its commits stay public and keep appearing in the log.`}
+                            : handle
+                              ? `Give #${handle} a home. Its commits stay public and keep appearing in the log.`
+                              : 'Create a public group. Its name determines the hashtag that brings commits into the guild.'}
                     </DialogDescription>
                 </DialogHeader>
                 <Form
-                    {...(guild ? update.form(handle) : store.form())}
+                    ref={form}
+                    {...(guild ? update.form(guild.handle) : store.form())}
                     className="flex min-h-0 flex-col"
                     options={{ preserveScroll: true }}
+                    onBefore={() => {
+                        if (guild) return true;
+                        if (handle && nameHandle !== handle) {
+                            form.current?.setError(
+                                'name',
+                                "Guild display name doesn't match hashtag",
+                            );
+                            return false;
+                        }
+                        if (
+                            !/^\p{L}[\p{L}\p{M}\p{N}_]{0,59}$/u.test(nameHandle)
+                        ) {
+                            form.current?.setError(
+                                'name',
+                                'Use a name whose hashtag starts with a letter.',
+                            );
+                            return false;
+                        }
+                        return true;
+                    }}
                     onSuccess={() => {
                         setOpen(false);
                         router.flushAll();
@@ -67,11 +96,13 @@ export function GuildDialog({
                     {({ processing, errors }) => (
                         <>
                             <div className="grid min-h-0 gap-4 overflow-y-auto px-6 py-4">
-                                <input
-                                    type="hidden"
-                                    name="handle"
-                                    value={handle}
-                                />
+                                {handle && (
+                                    <input
+                                        type="hidden"
+                                        name="handle"
+                                        value={handle}
+                                    />
+                                )}
                                 <input
                                     type="hidden"
                                     name="emoji"
@@ -84,29 +115,38 @@ export function GuildDialog({
                                 />
                                 <p
                                     className="truncate font-mono text-[13px] text-muted-foreground"
-                                    title={`#${handle}`}
+                                    title={hashtag ? `#${hashtag}` : undefined}
                                 >
-                                    #{handle}
+                                    {hashtag
+                                        ? `#${hashtag}`
+                                        : 'Your hashtag appears here'}
                                 </p>
                                 {!guild && (
                                     <div className="grid gap-2">
                                         <Label htmlFor="guild-name">
-                                            Guild name
+                                            Guild display name
                                         </Label>
                                         <input
                                             id="guild-name"
                                             name="name"
                                             required
                                             maxLength={60}
-                                            defaultValue={handle}
+                                            value={name}
+                                            onChange={(event) => {
+                                                setName(event.target.value);
+                                                form.current?.clearErrors(
+                                                    'name',
+                                                    'handle',
+                                                );
+                                            }}
                                             className={fieldClass}
                                             aria-invalid={!!errors.name}
                                             aria-describedby="guild-name-error"
                                         />
                                         <p className="text-xs text-muted-foreground">
-                                            Match #{handle}’s letters, numbers
-                                            and underscores. Spaces and
-                                            decoration are okay.
+                                            {handle
+                                                ? `Match #${handle}’s letters, numbers and underscores. Spaces and decoration are okay.`
+                                                : 'Spaces and decoration are okay. Matching hashtags link to this guild.'}
                                         </p>
                                         <div className="min-h-10">
                                             <InputError

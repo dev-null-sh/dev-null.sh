@@ -1,6 +1,6 @@
 import { Tab, TabGroup, TabList, TabPanel, TabPanels } from '@headlessui/react';
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import { ArrowRight, History, Search, X } from 'lucide-react';
+import { ArrowRight, History, Plus, Search, X } from 'lucide-react';
 import type { FormEvent } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { show as showGuild } from '@/actions/App/Http/Controllers/GuildController';
@@ -183,7 +183,10 @@ function HashtagGuild({ query }: { query: string }) {
                         Give this hashtag a public home.
                     </p>
                     <GuildDialog key={handle} handle={handle}>
-                        <Button variant="outline">Create a guild</Button>
+                        <Button variant="outline">
+                            <Plus aria-hidden className="size-4" />
+                            Create a guild
+                        </Button>
                     </GuildDialog>
                 </>
             )}

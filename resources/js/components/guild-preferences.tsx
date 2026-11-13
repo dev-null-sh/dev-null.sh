@@ -1,5 +1,5 @@
 import { router } from '@inertiajs/react';
-import { Volume2, VolumeX } from 'lucide-react';
+import { UserPlus, Volume2, VolumeX } from 'lucide-react';
 import { useState } from 'react';
 import { update as membership } from '@/actions/App/Http/Controllers/GuildMembershipController';
 import { update as mute } from '@/actions/App/Http/Controllers/GuildMuteController';
@@ -11,13 +11,10 @@ import type { Guild } from '@/types/guild';
 export function GuildMemberCount({ guild }: { guild: Guild }) {
     return (
         <span
-            className="text-sm text-muted-foreground"
+            className="inline-block w-[15ch] shrink-0 text-sm text-muted-foreground"
             title={`${formatExactCount(guild.member_count)} members`}
         >
-            <span
-                className="mr-1 inline-block w-[7ch] text-right font-mono tabular-nums"
-                aria-hidden="true"
-            >
+            <span className="mr-1 font-mono tabular-nums" aria-hidden="true">
                 {formatCount(guild.member_count)}
             </span>
             <span className="sr-only">
@@ -44,6 +41,8 @@ export function GuildPreferences({ guild }: { guild: Guild }) {
                         ? {
                               ...item,
                               [key]: value,
+                              ...(kind === 'joined' &&
+                                  value && { is_muted: false }),
                               member_count:
                                   item.member_count +
                                   (kind === 'joined' ? (value ? 1 : -1) : 0),
@@ -75,6 +74,7 @@ export function GuildPreferences({ guild }: { guild: Guild }) {
                 onMouseLeave={onMouseLeave}
                 onClick={() => update('joined')}
             >
+                <UserPlus aria-hidden className="size-4" />
                 {guild.is_joined ? (
                     <span className="grid">
                         <span
@@ -99,13 +99,15 @@ export function GuildPreferences({ guild }: { guild: Guild }) {
             <Button
                 variant="ghost"
                 size="icon"
-                className="size-9"
+                className={`size-9 ${guild.is_joined ? 'invisible' : ''}`}
+                tabIndex={guild.is_joined ? -1 : undefined}
+                aria-hidden={guild.is_joined}
                 aria-label={`${guild.is_muted ? 'Unmute' : 'Mute'} ${guild.name}`}
                 aria-pressed={guild.is_muted}
                 title={
                     guild.is_muted
-                        ? 'Unmute this guild in your logs'
-                        : 'Mute this guild in your logs'
+                        ? 'Unmute this guild topic'
+                        : 'Mute this guild topic in logs and search'
                 }
                 disabled={processing}
                 onClick={() => update('muted')}

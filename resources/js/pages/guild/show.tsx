@@ -1,5 +1,6 @@
-import { Head, Link, usePage } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import { show } from '@/actions/App/Http/Controllers/GuildController';
+import { CommitComposer } from '@/components/commit-composer';
 import { SearchResults } from '@/components/commit-search-results';
 import { GuildDialog } from '@/components/guild-dialog';
 import { GuildIcon } from '@/components/guild-icon';
@@ -78,9 +79,27 @@ export default function Show({
                     </p>
                 </div>
             </header>
+            <CommitComposer
+                key={handle}
+                id="guild-commit-body"
+                guildHandle={handle}
+                onCommitted={
+                    page > 1
+                        ? () =>
+                              router.get(
+                                  show.url(handle),
+                                  {},
+                                  {
+                                      only: ['commits', 'page', 'hasMore'],
+                                      preserveScroll: true,
+                                  },
+                              )
+                        : undefined
+                }
+            />
             <SearchResults
                 results={{ term: `#${handle}`, commits }}
-                heading="Latest commits"
+                heading="Bulletin board · Latest commits"
                 empty={`No commits with #${handle} yet.`}
             />
             {(page > 1 || hasMore) && (

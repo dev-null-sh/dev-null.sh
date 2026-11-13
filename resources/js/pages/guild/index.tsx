@@ -1,11 +1,14 @@
 import { Head, Link, usePage } from '@inertiajs/react';
+import { Plus } from 'lucide-react';
 import { useState } from 'react';
 import { show } from '@/actions/App/Http/Controllers/GuildController';
+import { GuildDialog } from '@/components/guild-dialog';
 import { GuildIcon } from '@/components/guild-icon';
 import {
     GuildMemberCount,
     GuildPreferences,
 } from '@/components/guild-preferences';
+import { Button } from '@/components/ui/button';
 import AppLayout from '@/layouts/app-layout';
 
 export default function Index() {
@@ -25,12 +28,23 @@ export default function Index() {
                     Following.
                 </p>
             </header>
+            <div className="flex items-center justify-between gap-3 border-b px-4 py-3 sm:px-6">
+                <p className="text-sm text-muted-foreground">
+                    Start a public group.
+                </p>
+                <GuildDialog>
+                    <Button variant="outline">
+                        <Plus aria-hidden className="size-4" />
+                        Create a guild
+                    </Button>
+                </GuildDialog>
+            </div>
             {guilds?.length ? (
-                <ul className="divide-y">
+                <ul className="grid grid-cols-1 gap-3 p-4 min-[540px]:grid-cols-2 sm:p-6">
                     {ranked?.map((guild) => (
                         <li
                             key={guild.id}
-                            className="space-y-3 px-4 py-4 sm:px-6"
+                            className="flex min-w-0 flex-col gap-3 rounded-lg border bg-card p-4"
                         >
                             <div className="flex items-start gap-3">
                                 <GuildIcon
@@ -55,12 +69,12 @@ export default function Index() {
                                 </div>
                             </div>
                             <p
-                                className="line-clamp-2 text-sm wrap-anywhere"
+                                className="line-clamp-2 min-h-10 text-sm wrap-anywhere"
                                 title={guild.description}
                             >
                                 {guild.description}
                             </p>
-                            <div className="flex items-center justify-between gap-3">
+                            <div className="mt-auto flex flex-wrap items-center justify-between gap-2">
                                 <GuildMemberCount guild={guild} />
                                 <GuildPreferences guild={guild} />
                             </div>
@@ -69,7 +83,7 @@ export default function Index() {
                 </ul>
             ) : (
                 <p className="p-6 text-sm text-muted-foreground">
-                    No guilds yet. Search for a hashtag to create one.
+                    No guilds yet. Create the first one.
                 </p>
             )}
         </>

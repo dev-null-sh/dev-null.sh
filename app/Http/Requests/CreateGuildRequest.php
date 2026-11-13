@@ -44,7 +44,7 @@ final class CreateGuildRequest extends FormRequest
             }
 
             if ($this->string('name')->replaceMatches('/[^\p{L}\p{M}\p{N}_]+/u', '')->lower()->value() !== $this->string('handle')->value()) {
-                $validator->errors()->add('name', 'Match the hashtag’s letters, numbers and underscores, ignoring case.');
+                $validator->errors()->add('name', "Guild display name doesn't match hashtag");
             }
 
             if (DB::table('guild_moderator_removals')->where('github_id', $this->user()?->github_id)->where('handle', $this->string('handle')->value())->exists()) {
@@ -55,6 +55,10 @@ final class CreateGuildRequest extends FormRequest
 
     public function prepareForValidation(): void
     {
+        if (! $this->has('handle') && is_string($this->input('name'))) {
+            $this->merge(['handle' => $this->string('name')->replaceMatches('/[^\p{L}\p{M}\p{N}_]+/u', '')->lower()->value()]);
+        }
+
         if (is_string($this->input('handle'))) {
             $this->merge(['handle' => $this->string('handle')->trim()->lower()->value()]);
         }
