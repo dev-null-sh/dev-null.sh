@@ -79,8 +79,11 @@ final class UpdateApiOrganizationMemberRequest extends FormRequest
         return $member;
     }
 
+    /**
+     * Null for anything but a string, which the enum rule then rejects, as authorization reads it before validation.
+     */
     public function role(): ?OrganizationRole
     {
-        return $this->enum('role', OrganizationRole::class);
+        return is_string($this->input('role')) ? $this->enum('role', OrganizationRole::class) : null;
     }
 }
