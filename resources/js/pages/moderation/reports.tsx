@@ -1,8 +1,11 @@
 import { Head, InfiniteScroll, router, usePage } from '@inertiajs/react';
-import { Check, Flag, X } from 'lucide-react';
+import { Check, Flag, Undo2, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { store as escalateRoute } from '@/actions/App/Http/Controllers/CommitEscalationController';
+import {
+    destroy as undoEscalateRoute,
+    store as escalateRoute,
+} from '@/actions/App/Http/Controllers/CommitEscalationController';
 import { store as reject } from '@/actions/App/Http/Controllers/CommitRejectionController';
 import { destroy } from '@/actions/App/Http/Controllers/CommitReportController';
 import { CommitCard } from '@/components/commit-card';
@@ -207,6 +210,14 @@ export default function Reports({
                 toast.error('Could not escalate this commit. Try again.'),
         });
 
+    const undoEscalate = (report: Report) =>
+        router.visit(undoEscalateRoute(report.commit), {
+            preserveScroll: true,
+            only: ['reports'],
+            onError: () =>
+                toast.error('Could not undo the escalation. Try again.'),
+        });
+
     return (
         <>
             <Head title="Reported commits" />
@@ -311,26 +322,33 @@ export default function Reports({
                                                 <Check />
                                                 Dismiss report
                                             </Button>
-                                            {!auth.isAdmin && (
+                                            {report.commit.escalated_at !=
+                                            null ? (
                                                 <Button
                                                     variant="ghost"
                                                     size="sm"
                                                     onClick={() =>
-                                                        escalate(report)
+                                                        undoEscalate(report)
                                                     }
-                                                    disabled={
-                                                        report.commit
-                                                            .escalated_at !=
-                                                        null
-                                                    }
-                                                    data-test="escalate-report-button"
+                                                    data-test="undo-escalation-button"
                                                 >
-                                                    <Flag />
-                                                    {report.commit
-                                                        .escalated_at != null
-                                                        ? 'Escalated'
-                                                        : 'Escalate to admin'}
+                                                    <Undo2 />
+                                                    Undo escalation
                                                 </Button>
+                                            ) : (
+                                                !auth.isAdmin && (
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={() =>
+                                                            escalate(report)
+                                                        }
+                                                        data-test="escalate-report-button"
+                                                    >
+                                                        <Flag />
+                                                        Escalate to admin
+                                                    </Button>
+                                                )
                                             )}
                                             <Button
                                                 variant="destructive"

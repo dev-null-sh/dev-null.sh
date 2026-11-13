@@ -11,6 +11,7 @@ use App\Models\Commit;
 use App\Models\Notification;
 use App\Models\User;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 final readonly class CreateCommitEscalation
@@ -21,12 +22,12 @@ final readonly class CreateCommitEscalation
             return;
         }
 
-        $commit->forceFill(['escalated_at' => now()])->save();
-
         /** @var Collection<int, User> $admins */
         $admins = User::query()->get()->filter(fn (User $user): bool => $user->isAdmin());
 
         if ($admins->isEmpty()) {
+            $commit->forceFill(['escalated_at' => now()])->save();
+
             return;
         }
 
@@ -41,7 +42,11 @@ final readonly class CreateCommitEscalation
             'updated_at' => now(),
         ])->all();
 
-        Notification::query()->upsert($notifications, ['recipient_id', 'key']);
+        DB::transaction(function () use ($commit, $notifications): void {
+            $commit->forceFill(['escalated_at' => now()])->save();
+
+            Notification::query()->upsert($notifications, ['recipient_id', 'key']);
+        });
 
         event(new UsersUpdated($admins->pluck('id')->all(), UserUpdate::Notifications));
     }

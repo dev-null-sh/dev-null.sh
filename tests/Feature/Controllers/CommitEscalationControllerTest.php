@@ -70,3 +70,66 @@ it('may not escalate a commit as a non moderator', function (): void {
     expect($commit->refresh()->escalated_at)->toBeNull()
         ->and(Notification::query()->where('type', NotificationType::Escalated)->count())->toBe(0);
 });
+
+it('undoes an escalation as a moderator', function (): void {
+    config(['app.admins' => ['admin']]);
+    config(['app.moderators' => ['maude']]);
+
+    User::factory()->create(['handle' => 'admin']);
+    $moderator = User::factory()->create(['handle' => 'maude']);
+    $commit = Commit::factory()->pending()->create();
+
+    $this->actingAs($moderator)
+        ->post(route('commit-escalation.store', $commit))
+        ->assertRedirect();
+
+    expect($commit->refresh()->escalated_at)->not->toBeNull()
+        ->and(Notification::query()->where('type', NotificationType::Escalated)->count())->toBe(1);
+
+    $this->actingAs($moderator)
+        ->delete(route('commit-escalation.destroy', $commit))
+        ->assertRedirect();
+
+    expect($commit->refresh()->escalated_at)->toBeNull()
+        ->and(Notification::query()->where('type', NotificationType::Escalated)->count())->toBe(0);
+});
+
+it('undoes an escalation as an admin', function (): void {
+    config(['app.admins' => ['admin']]);
+    config(['app.moderators' => ['maude']]);
+
+    $admin = User::factory()->create(['handle' => 'admin']);
+    $moderator = User::factory()->create(['handle' => 'maude']);
+    $commit = Commit::factory()->pending()->create();
+
+    $this->actingAs($moderator)
+        ->post(route('commit-escalation.store', $commit))
+        ->assertRedirect();
+
+    $this->actingAs($admin)
+        ->delete(route('commit-escalation.destroy', $commit))
+        ->assertRedirect();
+
+    expect($commit->refresh()->escalated_at)->toBeNull()
+        ->and(Notification::query()->where('type', NotificationType::Escalated)->count())->toBe(0);
+});
+
+it('may not undo an escalation as a non moderator', function (): void {
+    config(['app.admins' => ['admin']]);
+    config(['app.moderators' => ['maude']]);
+
+    User::factory()->create(['handle' => 'admin']);
+    $moderator = User::factory()->create(['handle' => 'maude']);
+    $commit = Commit::factory()->pending()->create();
+
+    $this->actingAs($moderator)
+        ->post(route('commit-escalation.store', $commit))
+        ->assertRedirect();
+
+    $this->actingAs($commit->user)
+        ->delete(route('commit-escalation.destroy', $commit))
+        ->assertForbidden();
+
+    expect($commit->refresh()->escalated_at)->not->toBeNull()
+        ->and(Notification::query()->where('type', NotificationType::Escalated)->count())->toBe(1);
+});

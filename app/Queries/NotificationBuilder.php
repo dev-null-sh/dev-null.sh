@@ -59,14 +59,19 @@ final class NotificationBuilder extends Builder
 
     /**
      * Leaves out what actors the recipient mutes did, and anything from across a block. Moderation
-     * notifications are their own actor, and nobody can mute or block themselves.
+     * notifications are their own actor, and nobody can mute or block themselves. Escalations stay
+     * visible even when the escalating moderator is silenced: they are addressed to admins, not the
+     * moderator, so muting the moderator must not swallow them.
      */
     private function withoutSilencedActors(): self
     {
         $silenced = new SilencedActorQuery('notifications.recipient_id', 'notifications.actor_id');
 
-        return $this->whereNotExists($silenced->mutes(...))
-            ->whereNotExists($silenced->blocking(...))
-            ->whereNotExists($silenced->blockers(...));
+        return $this->where(fn (Builder $query): Builder => $query
+            ->where('type', NotificationType::Escalated)
+            ->orWhere(fn (Builder $query): Builder => $query
+                ->whereNotExists($silenced->mutes(...))
+                ->whereNotExists($silenced->blocking(...))
+                ->whereNotExists($silenced->blockers(...))));
     }
 }

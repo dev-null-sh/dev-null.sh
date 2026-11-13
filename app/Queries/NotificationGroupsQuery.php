@@ -151,7 +151,8 @@ final readonly class NotificationGroupsQuery
                 'stars' => ['starred'],
                 'mentions' => ['mentioned'],
                 'follows' => ['followed'],
-                'moderation' => ['approved', 'rejected', 'timed_out'],
+                'moderation' => ['approved', 'rejected', 'timed_out', 'escalated'],
+                'escalations' => ['escalated'],
                 default => [],
             }, explode(',', $type)))));
 

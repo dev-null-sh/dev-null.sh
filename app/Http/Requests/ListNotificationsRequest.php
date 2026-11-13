@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\Cookie;
 
 final class ListNotificationsRequest extends FormRequest
 {
-    public const string TYPE_RULE = 'regex:/\A(?:all|none|(?:replies|quotes|stars|mentions|follows|moderation)(?:,(?:replies|quotes|stars|mentions|follows|moderation))*)\z/';
+    public const string TYPE_RULE = 'regex:/\A(?:all|none|(?:replies|quotes|stars|mentions|follows|moderation|escalations)(?:,(?:replies|quotes|stars|mentions|follows|moderation|escalations))*)\z/';
 
     public static function rememberedType(Request $request, User $user): string
     {

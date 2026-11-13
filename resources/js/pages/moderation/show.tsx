@@ -1,5 +1,5 @@
 import { Head, router, usePage } from '@inertiajs/react';
-import { Bot, Check, Flag, X } from 'lucide-react';
+import { Bot, Check, Flag, Undo2, X } from 'lucide-react';
 import { useEffect, useId, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import CommitApprovalController from '@/actions/App/Http/Controllers/CommitApprovalController';
@@ -72,12 +72,14 @@ function ModerationActions({
     onSelectedChange,
     onModerate,
     onEscalate,
+    onUndoEscalate,
 }: {
     commit: Commit;
     isSelected: boolean;
     onSelectedChange: (isSelected: boolean) => void;
     onModerate: (route: ModerationRoute, reason: string) => void;
     onEscalate: () => void;
+    onUndoEscalate: () => void;
 }) {
     const [showReason, setShowReason] = useState(false);
     const [reason, setReason] = useState('');
@@ -124,19 +126,28 @@ function ModerationActions({
                     Reject
                     <Keycap label="x" className="bg-muted" />
                 </Button>
-                {!auth.isAdmin && (
+                {commit.escalated_at != null ? (
                     <Button
                         variant="ghost"
                         size="sm"
-                        onClick={onEscalate}
-                        disabled={commit.escalated_at != null}
-                        data-test="escalate-commit-button"
+                        onClick={onUndoEscalate}
+                        data-test="undo-escalation-button"
                     >
-                        <Flag />
-                        {commit.escalated_at != null
-                            ? 'Escalated'
-                            : 'Escalate to admin'}
+                        <Undo2 />
+                        Undo escalation
                     </Button>
+                ) : (
+                    !auth.isAdmin && (
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={onEscalate}
+                            data-test="escalate-commit-button"
+                        >
+                            <Flag />
+                            Escalate to admin
+                        </Button>
+                    )
                 )}
                 {!showReason && (
                     <Button
@@ -389,6 +400,14 @@ export default function Show({
                 toast.error('Could not escalate this commit. Try again.'),
         });
 
+    const undoEscalate = (commit: Commit) =>
+        router.visit(CommitEscalationController.destroy(commit), {
+            preserveScroll: true,
+            only: ['commits', 'hasUnmoderatedCommits'],
+            onError: () =>
+                toast.error('Could not undo the escalation. Try again.'),
+        });
+
     const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
 
     const selectedIds = commits.data
@@ -512,6 +531,7 @@ export default function Show({
                                 moderate(commit, route, reason)
                             }
                             onEscalate={() => escalate(commit)}
+                            onUndoEscalate={() => undoEscalate(commit)}
                         />
                     </>
                 )}

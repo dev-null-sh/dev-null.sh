@@ -19,7 +19,7 @@ final readonly class ReportedCommitController
     public function index(ListReportedCommitsRequest $request, #[CurrentUser] User $user, ReportedCommitsQuery $reports): Response
     {
         return Inertia::render('moderation/reports', [
-            'reports' => Inertia::scroll(fn (): CursorPaginator => ShownStreams::reports($reports->paginate($user))),
+            'reports' => Inertia::scroll(fn (): CursorPaginator => ShownStreams::reports($reports->paginate($user)))->matchOn('id'),
             'reportChanges' => Inertia::optional(fn (): array => $reports->changedSince($user, $request->since())),
             'reasons' => CommitReport::REASONS,
         ]);

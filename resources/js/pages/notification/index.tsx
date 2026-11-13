@@ -120,6 +120,11 @@ const filterOptions: {
         label: 'Moderation',
         empty: 'No moderation updates. Approved, rejected, and timeout notices show up here.',
     },
+    {
+        type: 'escalations',
+        label: 'Escalations',
+        empty: 'No escalations. When a moderator flags a commit for admin review, it shows up here.',
+    },
 ];
 
 const isNewSince = (
