@@ -42,9 +42,9 @@ final readonly class DeleteUser
      * other people replied to: those stay behind as tombstones with no author or body, so the replies under them keep their thread.
      * What they posted for organizations stays, and only forgets who posted it.
      * The database cascades the image rows of erased commits and the user's scheduled commits, and the voice notes of their
-     * messages, but the files are erased here. Orgs the user was the last one in go too, with everything sent in them,
-     * as they do when the last member leaves. Only their GitHub ID is kept, so looking their handle up never brings their
-     * page back as an unclaimed one, until they sign in again.
+     * messages, but their files are erased here. Their guilds go too, with their icons, as do orgs they were the last
+     * member of, with everything sent in them. Only their GitHub ID is kept, so looking their handle up never brings
+     * their page back as an unclaimed one, until they sign in again.
      */
     public function handle(User $user): void
     {
@@ -79,8 +79,22 @@ final readonly class DeleteUser
                 $imagePaths[] = $user->avatar_upload_path;
             }
 
+            $guilds = Guild::query()->where('user_id', $user->id);
+            $guildIds = (clone $guilds)->select('id');
+            $guildMembers = DB::table('guild_preferences')
+                ->whereIn('guild_id', $guildIds)
+                ->where('user_id', '!=', $user->id)
+                ->distinct()
+                ->pluck('user_id')
+                ->all();
+            $imagePaths = [
+                ...$imagePaths,
+                ...(clone $guilds)->whereNotNull('icon_path')->pluck('icon_path')->all(),
+            ];
+
             resolve(DeleteStoredFiles::class)->retain($imagePaths);
 
+            $guilds->delete();
             DB::table('commit_topics')->whereIn('commit_id', $this->touchedCommits($user)->select('id'))->delete();
             Headline::query()->whereIn('id', DB::table('commit_headline')->select('headline_id')
                 ->whereIn('commit_id', $this->touchedCommits($user)->select('id')))

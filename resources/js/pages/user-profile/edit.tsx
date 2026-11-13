@@ -89,6 +89,10 @@ export default function Edit({
                             preserveScroll: true,
                         }}
                         onSuccess={(page) => {
+                            if (page.flash.toast?.type !== 'success') {
+                                return;
+                            }
+
                             setProfileSyncVersion((version) => version + 1);
                             router.flushAll();
 
