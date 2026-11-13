@@ -9,7 +9,6 @@ use App\Enums\ConversationKind;
 use App\Enums\UserUpdate;
 use App\Events\CommitsUpdated;
 use App\Events\UsersUpdated;
-use App\Models\BanEvent;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\CommitReport;
@@ -100,8 +99,6 @@ final readonly class DeleteUser
             $user->organizations()->detach();
             $user->followedOrganizations()->detach();
             DB::table('user_active_days')->where('user_id', $user->id)->delete();
-            BanEvent::query()->where('github_id', $user->github_id)->delete();
-
             $user->delete();
             $user->profile->delete();
             DB::table('deleted_github_accounts')->insertOrIgnore(['github_id' => $user->github_id]);

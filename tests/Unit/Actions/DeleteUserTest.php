@@ -10,7 +10,6 @@ use App\Actions\UpdateCommitHotScores;
 use App\Contracts\Services\TranslationProvider;
 use App\Dto\ThreadEngagement;
 use App\Enums\OrganizationRole;
-use App\Models\BanEvent;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\CommitReport;
@@ -37,8 +36,6 @@ use Illuminate\Support\Facades\Storage;
 
 it('may delete a user', function (): void {
     $user = User::factory()->create(['translation_language' => 'ja', 'automatic_translation' => false]);
-    BanEvent::factory()->create(['github_id' => $user->github_id]);
-
     $action = resolve(DeleteUser::class);
 
     $action->handle($user);
@@ -47,7 +44,6 @@ it('may delete a user', function (): void {
     $this->assertModelMissing($user);
     $this->assertModelMissing($user->profile);
     $this->assertDatabaseHas('deleted_github_accounts', ['github_id' => $user->github_id]);
-    expect(BanEvent::query()->where('github_id', $user->github_id)->exists())->toBeFalse();
 });
 
 it('erases the commits of a deleted user along with the replies under them', function (): void {
