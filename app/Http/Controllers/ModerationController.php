@@ -26,7 +26,7 @@ final readonly class ModerationController
     {
         return Inertia::render('moderation/show', [
             'commits' => Inertia::scroll(fn (): CursorPaginator => ShownStreams::page(Commit::query()
-                ->pending()
+                ->awaitingModerator()
                 ->with([
                     'author',
                     'user',
@@ -49,7 +49,7 @@ final readonly class ModerationController
                 return array_values(array_filter($request->loaded(), fn (string $id): bool => ! $waiting->contains($id)));
             }),
             'arrivedCommitIds' => Inertia::optional(fn (): array => Commit::query()
-                ->pending()
+                ->awaitingModerator()
                 ->where('updated_at', '>', $request->since())
                 ->oldest()
                 ->oldest('id')

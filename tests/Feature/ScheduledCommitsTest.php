@@ -250,6 +250,7 @@ it('keeps schedules out of logs profiles activity previews and moderation until 
 
     $this->travelTo($scheduled->scheduled_at);
     $this->artisan('commits:submit-scheduled')->assertSuccessful();
+    Commit::query()->sole()->update(['ai_decision' => CommitStatus::Rejected]);
     $this->get(route('moderation.show'))->assertInertia(fn ($page) => $page->has('commits.data', 1)->where('hasUnmoderatedCommits', true));
 });
 

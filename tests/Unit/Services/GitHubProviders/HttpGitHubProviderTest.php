@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Services\GitHubProviders\HttpGitHubProvider;
+use Carbon\CarbonImmutable;
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
 use GuzzleHttp\Promise\PromiseInterface;
@@ -163,6 +164,77 @@ it('cannot say whether there is a sponsors listing when GitHub does not answer',
     'graphql error' => [fn () => Http::response(['errors' => [['type' => 'INSUFFICIENT_SCOPES']]]), ['status' => 200, 'errors' => [['type' => 'INSUFFICIENT_SCOPES']]]],
     'connection failure' => [fn (): never => throw new ConnectionException('timeout'), ['error' => 'timeout']],
 ]);
+
+it('reads the public sponsors with the sponsors token, the most paid in total first, then the biggest tier, once each', function (): void {
+    config(['services.github.sponsors_token' => 'github_pat_sponsors']);
+    Http::fake(['api.github.com/graphql' => fn (Request $request) => str_contains((string) $request['query'], 'sponsorsActivities')
+        ? Http::response(['data' => ['organization' => ['sponsorsActivities' => ['pageInfo' => ['hasNextPage' => false, 'endCursor' => null], 'nodes' => []]]]])
+        : Http::response(['data' => ['organization' => ['sponsorshipsAsMaintainer' => ['nodes' => [
+            ['tier' => ['monthlyPriceInCents' => 500], 'sponsorEntity' => ['login' => 'octocat', 'databaseId' => 583231, 'totalSponsorshipAmountAsSponsorInCents' => 20000]],
+            ['tier' => ['monthlyPriceInCents' => 100], 'sponsorEntity' => ['login' => 'laravel', 'databaseId' => 958072, 'totalSponsorshipAmountAsSponsorInCents' => 90000]],
+            ['tier' => ['monthlyPriceInCents' => 1000], 'sponsorEntity' => ['login' => 'xHeaven', 'databaseId' => 1001, 'totalSponsorshipAmountAsSponsorInCents' => null]],
+            ['tier' => ['monthlyPriceInCents' => 2500], 'sponsorEntity' => ['login' => 'octocat', 'databaseId' => 583231, 'totalSponsorshipAmountAsSponsorInCents' => 20000]],
+            ['tier' => ['monthlyPriceInCents' => 2500], 'sponsorEntity' => ['login' => 'jubianchi', 'databaseId' => 1002, 'totalSponsorshipAmountAsSponsorInCents' => null]],
+            ['tier' => ['monthlyPriceInCents' => 5000], 'sponsorEntity' => null],
+        ]]]]])]);
+
+    expect(new HttpGitHubProvider()->publicSponsors('dev-null-sh'))->toBe([
+        ['login' => 'laravel', 'github_id' => '958072', 'amount_in_cents' => 90000],
+        ['login' => 'octocat', 'github_id' => '583231', 'amount_in_cents' => 20000],
+        ['login' => 'jubianchi', 'github_id' => '1002', 'amount_in_cents' => 0],
+        ['login' => 'xHeaven', 'github_id' => '1001', 'amount_in_cents' => 0],
+    ]);
+
+    Http::assertSent(fn (Request $request): bool => $request->url() === 'https://api.github.com/graphql'
+        && $request->hasHeader('Authorization', 'Bearer github_pat_sponsors')
+        && $request['variables'] === ['login' => 'dev-null-sh']
+        && str_contains((string) $request['query'], 'includePrivate: false'));
+});
+
+it('counts the total from the history when GitHub gives none: a one-time tier once, and a monthly tier for each month started', function (): void {
+    $this->travelTo(CarbonImmutable::parse('2026-11-11 12:00:00'));
+    config(['services.github.sponsors_token' => 'github_pat_sponsors']);
+    $activity = fn (string $action, string $timestamp, string $login, int $price, bool $isOneTime = false): array => [
+        'action' => $action, 'timestamp' => $timestamp, 'sponsor' => ['login' => $login], 'sponsorsTier' => ['monthlyPriceInCents' => $price, 'isOneTime' => $isOneTime],
+    ];
+    $pages = [
+        null => ['pageInfo' => ['hasNextPage' => true, 'endCursor' => 'page-2'], 'nodes' => [
+            $activity('NEW_SPONSORSHIP', '2026-11-01T10:00:00Z', 'pushery', 49900, true),
+            $activity('NEW_SPONSORSHIP', '2026-07-20T10:00:00Z', 'boxxroom', 1000),
+            $activity('TIER_CHANGE', '2026-09-25T10:00:00Z', 'boxxroom', 5000),
+        ]],
+        'page-2' => ['pageInfo' => ['hasNextPage' => false, 'endCursor' => null], 'nodes' => [
+            $activity('NEW_SPONSORSHIP', '2026-01-05T10:00:00Z', 'vmitchell85', 1000),
+            $activity('PENDING_CHANGE', '2026-02-05T10:00:00Z', 'vmitchell85', 9900),
+            $activity('CANCELLED_SPONSORSHIP', '2026-03-10T10:00:00Z', 'vmitchell85', 1000),
+        ]],
+    ];
+    Http::fake(['api.github.com/graphql' => fn (Request $request) => str_contains((string) $request['query'], 'sponsorsActivities')
+        ? Http::response(['data' => ['organization' => ['sponsorsActivities' => $pages[$request['variables']['after']]]]])
+        : Http::response(['data' => ['organization' => ['sponsorshipsAsMaintainer' => ['nodes' => [
+            ['tier' => ['monthlyPriceInCents' => 49900], 'sponsorEntity' => ['login' => 'pushery', 'databaseId' => 1, 'totalSponsorshipAmountAsSponsorInCents' => null]],
+            ['tier' => ['monthlyPriceInCents' => 5000], 'sponsorEntity' => ['login' => 'boxxroom', 'databaseId' => 2, 'totalSponsorshipAmountAsSponsorInCents' => null]],
+            ['tier' => ['monthlyPriceInCents' => 1000], 'sponsorEntity' => ['login' => 'vmitchell85', 'databaseId' => 3, 'totalSponsorshipAmountAsSponsorInCents' => null]],
+        ]]]]])]);
+
+    expect(new HttpGitHubProvider()->publicSponsors('dev-null-sh'))->toBe([
+        ['login' => 'pushery', 'github_id' => '1', 'amount_in_cents' => 49900],
+        ['login' => 'boxxroom', 'github_id' => '2', 'amount_in_cents' => 13000],
+        ['login' => 'vmitchell85', 'github_id' => '3', 'amount_in_cents' => 3000],
+    ]);
+
+    Http::assertSentCount(3);
+});
+
+it('throws when GitHub cannot read the sponsors', function (Closure $response): void {
+    config(['services.github.sponsors_token' => 'github_pat_sponsors']);
+    Http::fake(['api.github.com/graphql' => $response]);
+
+    new HttpGitHubProvider()->publicSponsors('dev-null-sh');
+})->with([
+    'server error' => [fn () => Http::response(status: 502)],
+    'graphql error' => [fn () => Http::response(['errors' => [['type' => 'INSUFFICIENT_SCOPES']]])],
+])->throws(RequestException::class);
 
 it('reads the ids of followed and following accounts a page at a time, up to the given number of pages', function (): void {
     $page = fn (int $from, int $count): array => array_map(fn (int $id): array => ['id' => $id, 'login' => "user{$id}", 'type' => 'User'], range($from, $from + $count - 1));

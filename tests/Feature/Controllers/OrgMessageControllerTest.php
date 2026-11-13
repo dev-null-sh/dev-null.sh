@@ -64,7 +64,7 @@ it('checks all org typing indicators in one cache read', function (): void {
     $this->actingAs($mark)
         ->getJson(route('org-message.index', $org))
         ->assertOk()
-        ->assertJsonPath('typing', [$nuno->handle, $taylor->handle]);
+        ->assertJsonPath('typing', collect([$nuno, $taylor])->sortBy('name')->pluck('handle')->all());
 });
 
 it('stashes an org for one member', function (): void {
@@ -176,10 +176,9 @@ it('refreshes org mention eligibility without hiding members or restricting type
 
     $viewer->muting()->detach($muted);
     $viewer->following()->detach($followed);
-    $this->getJson(route('org-message.index', [$org, 'after' => 0]))
-        ->assertOk()
-        ->assertJsonPath('members.1.is_followed', false)
-        ->assertJsonPath('members.2.suggests_mentions', true);
+    $members = collect($this->getJson(route('org-message.index', [$org, 'after' => 0]))->assertOk()->json('members'))->keyBy('user.id');
+    expect($members[$followed->id]['is_followed'])->toBeFalse()
+        ->and($members[$muted->id]['suggests_mentions'])->toBeTrue();
 
     $message = pushToOrg($viewer, $org, '@outside still works');
 

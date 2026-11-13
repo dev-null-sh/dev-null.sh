@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Enums\NotificationType;
+use App\Models\BanEvent;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\CommitReport;
@@ -63,6 +64,7 @@ use Traversable;
  *     push_subscriptions: array<int, array{id: string}>,
  *     devices: array<int, array{name: string, app_id: string|null, app_name: string|null, fingerprint: string, approved_at: string, last_used_at: string|null, push_platform: string|null}>,
  *     timeouts: array<int, array{reason: string, ends_at: string, created_at: string}>,
+ *     ban_events: array<int, array{reason: string, created_at: string}>,
  *     sessions: Collection<int, stdClass>
  * }
  */
@@ -76,7 +78,7 @@ final readonly class CreateExport
     public function handle(User $user): array
     {
         return [
-            'schema_version' => 8,
+            'schema_version' => 9,
             'exported_at' => now()->toIso8601String(),
             'profile' => [
                 'github_id' => $user->github_id,
@@ -188,6 +190,10 @@ final readonly class CreateExport
                 'reason' => $timeout->reason->value,
                 'ends_at' => $timeout->ends_at->toIso8601String(),
                 'created_at' => $timeout->created_at->toIso8601String(),
+            ])->all(),
+            'ban_events' => BanEvent::query()->where('github_id', $user->github_id)->oldest()->get()->map(fn (BanEvent $ban): array => [
+                'reason' => $ban->reason->value,
+                'created_at' => $ban->created_at->toIso8601String(),
             ])->all(),
             'sessions' => $this->sessions($user),
         ];

@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Contracts\Services\GitHubProvider;
+use App\Models\User;
 use App\Queries\ContributorsQuery;
 use GuzzleHttp\Psr7\Response as Psr7Response;
 use Illuminate\Http\Client\ConnectionException;
@@ -148,4 +149,21 @@ it('discards a partial list after a later page fails and recovers when the failu
 
     expect(resolve(ContributorsQuery::class)->get())->toBe([['login' => 'recovered', 'commits' => 12, 'handle' => null]]);
     $github->shouldHaveReceived('contributors')->times(3);
+});
+
+it('counts the commits of a user by their GitHub account, and none for anyone else', function (): void {
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('contributors')->andReturn([gitHubContributor('xHeaven', 187), gitHubContributor('jubianchi', 1)]);
+    $query = resolve(ContributorsQuery::class);
+
+    expect($query->commits(User::factory()->make(['github_id' => (string) crc32('jubianchi')])))->toBe(1)
+        ->and($query->commits(User::factory()->make(['handle' => 'xHeaven'])))->toBe(0);
+
+    $github->shouldHaveReceived('contributors')->once();
+});
+
+it('counts no commits while GitHub does not answer', function (): void {
+    $this->mock(GitHubProvider::class)->shouldReceive('contributors')->andThrow(new RequestException(new Response(new Psr7Response(500))));
+
+    expect(resolve(ContributorsQuery::class)->commits(User::factory()->make(['github_id' => (string) crc32('xHeaven')])))->toBe(0);
 });

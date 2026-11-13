@@ -54,6 +54,14 @@ final class CommitFactory extends Factory
         ]);
     }
 
+    public function checkedByAi(): self
+    {
+        return $this->state(fn (array $attributes): array => [
+            'ai_decision' => CommitStatus::Rejected,
+            'ai_categories' => ['harassment'],
+        ]);
+    }
+
     public function rejected(): self
     {
         return $this->state(fn (array $attributes): array => [

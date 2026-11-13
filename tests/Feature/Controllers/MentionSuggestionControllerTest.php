@@ -100,8 +100,8 @@ it('limits the number of suggestions', function (): void {
 it("only suggests an org's members within it, people the user follows first", function (): void {
     $mark = User::factory()->create(['handle' => 'mark']);
     [$taylor, $jess] = followersOf($mark, 2);
-    $taylor->profile->update(['handle' => 'taylor']);
-    $jess->profile->update(['handle' => 'jess']);
+    $taylor->profile->update(['handle' => 'taylor', 'name' => 'Taylor']);
+    $jess->profile->update(['handle' => 'jess', 'name' => 'Jess']);
     User::factory()->create(['handle' => 'taylorotwell']);
     $org = createOrg($mark, [$taylor, $jess]);
     $mark->following()->attach($taylor);

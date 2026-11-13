@@ -15,6 +15,7 @@ import {
     ChevronDown,
     ChevronsUp,
     GitCommitVertical,
+    Hourglass,
     MessageSquareReply,
     Quote,
     Star,
@@ -109,7 +110,7 @@ const filterOptions: {
     {
         type: 'moderation',
         label: 'Moderation',
-        empty: 'No moderation updates. Approved and rejected commits show up here.',
+        empty: 'No moderation updates. Approved, rejected, and timeout notices show up here.',
     },
 ];
 
@@ -1156,8 +1157,15 @@ export function NotificationContent({
         (actorsCount > 1 ||
             ('event_count' in notification && notification.event_count > 1));
     const moderation =
-        notification.type === 'approved' || notification.type === 'rejected';
-    const isOwnCommit = notification.type === 'starred' || moderation;
+        notification.type === 'approved' ||
+        notification.type === 'rejected' ||
+        notification.type === 'timed_out';
+    const isOwnCommit =
+        notification.type === 'starred' ||
+        notification.type === 'approved' ||
+        notification.type === 'rejected';
+    const timeout =
+        notification.type === 'timed_out' ? notification.timeout : null;
     const starredImages =
         notification.type === 'starred'
             ? (notification.commit.images ?? [])
@@ -1181,6 +1189,7 @@ export function NotificationContent({
         first_commit: GitCommitVertical,
         approved: Check,
         rejected: X,
+        timed_out: Hourglass,
     }[notification.type];
     const icon = (
         <Icon
@@ -1194,6 +1203,7 @@ export function NotificationContent({
     );
     const href =
         notification.type === 'followed' ||
+        notification.type === 'timed_out' ||
         notification.type === 'leveled_up' ||
         (!summary && notification.type === 'starred')
             ? show(actor)
@@ -1228,6 +1238,7 @@ export function NotificationContent({
         first_commit: 'made their first commit',
         approved: `${organization ? whose : 'Your'} commit was approved`,
         rejected: `${organization ? whose : 'Your'} commit was rejected`,
+        timed_out: 'You were put in timeout',
         leveled_up: level && `You reached level ${level.level}: ${level.rank}`,
     }[notification.type];
     const excerpt =
@@ -1236,11 +1247,23 @@ export function NotificationContent({
             <p className="mt-1 text-sm text-muted-foreground">
                 {notification.rank_description}
             </p>
-        ) : isOwnCommit ? (
+        ) : timeout ? (
+            <div className="mt-1 space-y-1 text-sm text-muted-foreground">
+                <p>
+                    Reason:{' '}
+                    <span className="text-foreground">{timeout.reason}</span>
+                    {' · '}Duration:{' '}
+                    <span className="text-foreground">{timeout.duration}</span>
+                </p>
+                <p>Posting resumes {formatFullDateTime(timeout.ends_at)}.</p>
+            </div>
+        ) : notification.type === 'starred' ||
+          notification.type === 'approved' ||
+          notification.type === 'rejected' ? (
             <OwnCommitExcerpt segments={notification.commit.body_segments} />
         ) : (
             <CommitBodyExcerpt
-                segments={notification.commit.body_segments}
+                segments={notification.commit?.body_segments ?? []}
                 className="mt-1 max-h-40"
             />
         );

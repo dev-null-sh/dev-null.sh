@@ -31,6 +31,8 @@ use App\Http\Controllers\Api\ConversationTypingController;
 use App\Http\Controllers\Api\CurrentUserController;
 use App\Http\Controllers\Api\DeviceController;
 use App\Http\Controllers\Api\DevicePushTokenController;
+use App\Http\Controllers\Api\HeadlineController;
+use App\Http\Controllers\Api\IssueController;
 use App\Http\Controllers\Api\IssueSuggestionController;
 use App\Http\Controllers\Api\LiveFollowingController;
 use App\Http\Controllers\Api\LogController;
@@ -96,6 +98,7 @@ use App\Http\Middleware\AuthenticateSshSignature;
 use App\Http\Middleware\PreventPostingInTimeout;
 use App\Http\Middleware\RequireCommitRules;
 use App\Http\Middleware\ThrottleCommits;
+use App\Http\Middleware\ThrottleIssues;
 use App\Http\Middleware\UpdateLastSeenAt;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
@@ -226,6 +229,12 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             ->middleware('throttle:search')
             ->name('api-commit-search.index');
 
+        // Hot topics: the headlines the web's aside shows, and each one's page with its recap...
+        Route::get('headlines', [HeadlineController::class, 'index'])->name('api-headline.index');
+        Route::get('headlines/{headline}', [HeadlineController::class, 'show'])
+            ->whereUuid('headline')
+            ->name('api-headline.show');
+
         // Composer suggestions: people to mention and /dev/null issues to reference, as the web's composer suggests them...
         Route::get('search/mentions', [MentionSuggestionController::class, 'index'])
             ->middleware('throttle:people')
@@ -233,6 +242,11 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         Route::get('search/issues', [IssueSuggestionController::class, 'index'])
             ->middleware('throttle:issue-suggestions')
             ->name('api-issue-suggestion.index');
+
+        // Feature requests and bug reports, opened on GitHub as the web's /feature and /bug commands open them...
+        Route::post('issues', [IssueController::class, 'store'])
+            ->middleware([PreventPostingInTimeout::class, 'throttle:10,1', ThrottleIssues::class])
+            ->name('api-issue.store');
 
         // User Remotes: the switch from the web's settings, and the settings menu on its Remotes page...
         Route::put('me/remotes', [UserRemotesController::class, 'update'])->name('api-user-remotes.update');

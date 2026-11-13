@@ -6,6 +6,7 @@ import {
     ChevronRight,
     FileCode,
     Flame,
+    GitCommitHorizontal,
     GitMerge,
     Key,
     Server,
@@ -53,6 +54,7 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
     bomb: Bomb,
     'dragon-ball': DragonBallIcon,
     'mushroom-cloud': MushroomCloudIcon,
+    'git-commit-horizontal': GitCommitHorizontal,
 };
 
 export function AchievementsShelf({
@@ -157,10 +159,6 @@ export function AchievementsShelf({
                     <Award className="size-4 text-foreground" />
                     <span className="font-medium text-foreground group-hover:underline">
                         Lv. {achievements.level} · {achievements.rank}
-                    </span>
-                    <span aria-hidden>·</span>
-                    <span title={`${formatExactCount(achievements.xp)} XP`}>
-                        {formatCount(achievements.xp)} XP
                     </span>
                 </button>
                 <button

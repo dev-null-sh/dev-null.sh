@@ -48,6 +48,16 @@ vi.doMock('../../resources/js/components/ui/popover', () => ({
     PopoverContent: ({ children }: { children: ReactNode }) => children,
 }));
 
+vi.doMock('../../resources/js/components/ui/dialog', async () => ({
+    ...(await vi.importActual('../../resources/js/components/ui/dialog')),
+    // Inspect dialog text without a browser portal or opening interaction.
+    DialogContent: ({ children }: { children: ReactNode }) => children,
+}));
+
+const { UserModerationHistory } =
+    await import('../../resources/js/components/user-moderation-history');
+const { NotificationContent } =
+    await import('../../resources/js/pages/notification/index');
 const { LocalTime } = await import('../../resources/js/components/local-time');
 const { TooltipProvider } =
     await import('../../resources/js/components/ui/tooltip');
@@ -94,6 +104,85 @@ afterEach(() => {
     if (timezone === undefined) delete process.env.TZ;
     else process.env.TZ = timezone;
     server = false;
+});
+
+test('moderation history and timeout notices follow date and clock preferences across a timezone boundary', () => {
+    process.env.TZ = 'Pacific/Honolulu';
+    setReaderClock(browserClock());
+    const history = {
+        timeoutsCount: 1,
+        bansCount: 1,
+        timeouts: [
+            {
+                id: 'timeout',
+                reason: 'Spam',
+                duration: '1 hour',
+                startedAt: '2026-10-19T00:35:00Z',
+                endsAt: '2026-10-19T01:35:00Z',
+            },
+        ],
+        bans: [{ id: 'ban', reason: 'Spam', bannedAt: '2025-12-03T09:05:00Z' }],
+    };
+    const notification: Parameters<
+        typeof NotificationContent
+    >[0]['notification'] = {
+        id: 'notice',
+        recipient_id: 'viewer',
+        actor_id: 'viewer',
+        read_at: null,
+        created_at: '2026-10-19T00:35:00Z',
+        updated_at: '2026-10-19T00:35:00Z',
+        actor: {
+            id: 'viewer',
+            handle: 'example',
+            name: 'Example',
+            type: 'user',
+            is_followed: false,
+        } as Parameters<typeof NotificationContent>[0]['notification']['actor'],
+        organization: null,
+        reason: null,
+        type: 'timed_out',
+        commit_id: null,
+        subject_id: null,
+        commit: null,
+        timeout: {
+            reason: 'Spam',
+            duration: '1 hour',
+            ends_at: '2026-10-19T01:35:00Z',
+        },
+    };
+    for (const [preferences, start, end, ban] of [
+        [
+            { dateFormat: 'day_first', timeFormat: '24h' },
+            '14:35 · 18 Oct 2026',
+            '15:35 · 18 Oct 2026',
+            '23:05 · 2 Dec 2025',
+        ],
+        [
+            { dateFormat: 'month_first', timeFormat: '12h' },
+            '2:35 PM · Oct 18, 2026',
+            '3:35 PM · Oct 18, 2026',
+            '11:05 PM · Dec 2, 2025',
+        ],
+    ] as const) {
+        auth.dateTime = preferences;
+        const html = renderToString(<UserModerationHistory history={history} />)
+            .replaceAll('<!-- -->', '')
+            .replace(/\s+/g, ' ');
+        assert.ok(html.includes(`${start} → ${end}`), html);
+        assert.ok(html.includes(ban), html);
+        const notice = renderToString(
+            <TooltipProvider>
+                <NotificationContent notification={notification} />
+            </TooltipProvider>,
+        )
+            .replaceAll('<!-- -->', '')
+            .replace(/\s+/g, ' ');
+        assert.ok(notice.includes(`Posting resumes ${end}.`), notice);
+        assert.match(notice, /dateTime="2026-10-19T00:35:00Z"/);
+    }
+    assert.equal(history.timeouts[0].endsAt, '2026-10-19T01:35:00Z');
+    assert.equal(notification.timeout.ends_at, '2026-10-19T01:35:00Z');
 });
 
 test('organization join dates follow preferences while relative labels and instants stay unchanged', () => {
