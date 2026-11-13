@@ -111,7 +111,7 @@ Route::prefix('cli')->group(function (): void {
         ->middleware([AuthenticateSshSignature::class, PreventPostingInTimeout::class, RequireCommitRules::class, ThrottleCommits::class])
         ->name('cli-commit.store');
     Route::post('key-lookups', [KeyLookupController::class, 'store'])
-        ->middleware('throttle:60,1')
+        ->middleware('throttle:60,1,key-lookups:')
         ->name('cli-key-lookup.store');
 });
 
@@ -245,7 +245,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
 
         // Feature requests and bug reports, opened on GitHub as the web's /feature and /bug commands open them...
         Route::post('issues', [IssueController::class, 'store'])
-            ->middleware([PreventPostingInTimeout::class, 'throttle:10,1', ThrottleIssues::class])
+            ->middleware([PreventPostingInTimeout::class, 'throttle:10,1,issues:', ThrottleIssues::class])
             ->name('api-issue.store');
 
         // User Remotes: the switch from the web's settings, and the settings menu on its Remotes page...
@@ -310,7 +310,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
 
         // Commit Pastel...
         Route::post('commits/{commit}/pasteis', [CommitPastelController::class, 'store'])
-            ->middleware('throttle:60,1')
+            ->middleware('throttle:60,1,pasteis:')
             ->name('api-commit-pastel.store');
 
         // Commit Poll Vote...
@@ -347,7 +347,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
 
         // Organization Admin: claiming an organization's page, which GitHub confirms the user belongs to...
         Route::post('organizations/{handle}/claim', [OrganizationAdminController::class, 'store'])
-            ->middleware('throttle:10,1')
+            ->middleware('throttle:10,1,organization-claims:')
             ->name('api-organization-admin.store');
 
         // Who to Follow...

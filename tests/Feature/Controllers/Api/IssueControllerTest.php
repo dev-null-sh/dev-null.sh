@@ -105,3 +105,12 @@ it('shares the limit of ten opened issues a day with the web, counting only open
 
     signedApiRequest($this->keyPair, 'POST', route('api-issue.store'), ['command' => '/bug', 'body' => 'Broken later.'])->assertCreated();
 });
+
+it('shares the web’s minute limit for issues', function (): void {
+    foreach (range(1, 5) as $attempt) {
+        $this->actingAs($this->user)->postJson(route('issue.store'))->assertUnprocessable();
+        signedApiRequest($this->keyPair, 'POST', route('api-issue.store'))->assertUnprocessable();
+    }
+
+    signedApiRequest($this->keyPair, 'POST', route('api-issue.store'))->assertTooManyRequests();
+});

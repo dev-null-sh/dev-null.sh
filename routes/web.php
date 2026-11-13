@@ -190,17 +190,17 @@ Route::middleware('guest')->group(function (): void {
         Route::post('login/local', [LocalSessionController::class, 'store'])->name('local-login.store');
     } else {
         Route::get('login', [SessionController::class, 'create'])
-            ->middleware('throttle:10,1')
+            ->middleware('throttle:10,1,login:')
             ->name('login');
     }
 
     Route::get('auth/github/callback', [SessionController::class, 'store'])
-        ->middleware('throttle:10,1')
+        ->middleware('throttle:10,1,login-callback:')
         ->name('login.store');
 
     Route::get('human-verification', [HumanVerificationController::class, 'show'])->name('human-verification.show');
     Route::post('human-verification', [HumanVerificationController::class, 'store'])
-        ->middleware('throttle:10,1')
+        ->middleware('throttle:10,1,human-verification:')
         ->name('human-verification.store');
 
     // A link by email, for a guest on a phone who'd rather join from their computer...
@@ -370,12 +370,12 @@ Route::get('headlines/{headline}', [HeadlineController::class, 'show'])
 
 Route::middleware('auth')->group(function (): void {
     Route::post('issues', [IssueController::class, 'store'])
-        ->middleware([PreventPostingInTimeout::class, 'throttle:10,1', ThrottleIssues::class])
+        ->middleware([PreventPostingInTimeout::class, 'throttle:10,1,issues:', ThrottleIssues::class])
         ->name('issue.store');
 
     // Session...
     Route::get('push-subscriptions', [PushSubscriptionController::class, 'index'])->name('push-subscription.index');
-    Route::post('push-subscriptions', [PushSubscriptionController::class, 'store'])->middleware(['throttle:30,1', SerializePushSessions::class, SerializePushSubscriptions::class])->name('push-subscription.store');
+    Route::post('push-subscriptions', [PushSubscriptionController::class, 'store'])->middleware(['throttle:30,1,push-subscriptions:', SerializePushSessions::class, SerializePushSubscriptions::class])->name('push-subscription.store');
     Route::delete('push-subscriptions', [PushSubscriptionController::class, 'destroy'])->middleware(SerializePushSessions::class)->name('push-subscription.destroy');
 
     // Live updates, on the user's own private channel...
@@ -400,7 +400,7 @@ Route::middleware('auth')->group(function (): void {
     // Claiming an organization's page, which GitHub confirms the user belongs to...
     Route::post('organizations/{organization}/claim', [OrganizationAdminController::class, 'store'])
         ->whereUuid('organization')
-        ->middleware('throttle:10,1')
+        ->middleware('throttle:10,1,organization-claims:')
         ->name('organization-admin.store');
 
     // Organization Members, which admins manage in the organization's settings...
@@ -409,7 +409,7 @@ Route::middleware('auth')->group(function (): void {
         ->name('organization-member.index');
     Route::post('organizations/{organization}/settings/members', [OrganizationMemberController::class, 'store'])
         ->whereUuid('organization')
-        ->middleware('throttle:30,1')
+        ->middleware('throttle:30,1,organization-members:')
         ->name('organization-member.store');
     Route::put('organizations/{organization}/settings/members/{member:handle}', [OrganizationMemberController::class, 'update'])
         ->whereUuid('organization')
@@ -476,7 +476,7 @@ Route::middleware('auth')->group(function (): void {
         ->middleware('throttle:stars')
         ->name('commit-star.store');
     Route::post('commits/{commit}/pasteis', [CommitPastelController::class, 'store'])
-        ->middleware('throttle:60,1')
+        ->middleware('throttle:60,1,pasteis:')
         ->name('commit-pastel.store');
     Route::post('commits/{commit}/reports', [CommitReportController::class, 'store'])
         ->middleware('throttle:commit-reports')
@@ -636,7 +636,7 @@ Route::middleware('auth')->group(function (): void {
     Route::post('operations/emails/test', [TestEmailController::class, 'store'])->name('test-email.store');
     Route::post('operations/emails/preview', [EmailPreviewController::class, 'store'])->name('email-preview.store');
     Route::post('operations/emails/draft', [EmailDraftController::class, 'store'])
-        ->middleware('throttle:10,1')
+        ->middleware('throttle:10,1,email-drafts:')
         ->name('email-draft.store');
 
     // Mention Suggestions...
