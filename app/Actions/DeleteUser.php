@@ -22,7 +22,6 @@ use App\Models\MessageVoice;
 use App\Models\Notification;
 use App\Models\ScheduledCommit;
 use App\Models\User;
-use App\Queries\AdminsQuery;
 use App\Queries\CommitBuilder;
 use App\Services\CommitTranslations;
 use Illuminate\Database\Eloquent\Builder;
@@ -110,8 +109,9 @@ final readonly class DeleteUser
             $vanishing->chunk(100)->each(fn (Collection $commits) => event(new CommitsUpdated($commits, CommitUpdate::Visibility)));
             event(new UsersUpdated($notified, UserUpdate::Notifications));
             event(new UsersUpdated($partners, UserUpdate::Inbox));
-            event(new UsersUpdated(resolve(AdminsQuery::class)->ids(), UserUpdate::Guilds));
-            event(new UsersUpdated(resolve(AdminsQuery::class)->ids(), UserUpdate::Relationships));
+            $viewers = User::query()->pluck('id');
+            event(new UsersUpdated($viewers, UserUpdate::Guilds));
+            event(new UsersUpdated($viewers, UserUpdate::Relationships));
 
             foreach ($translationKeys as $key) {
                 Cache::forget($key);

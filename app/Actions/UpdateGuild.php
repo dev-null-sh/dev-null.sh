@@ -7,13 +7,13 @@ namespace App\Actions;
 use App\Enums\UserUpdate;
 use App\Events\UsersUpdated;
 use App\Models\Guild;
-use App\Queries\AdminsQuery;
+use App\Models\User;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 
 final readonly class UpdateGuild
 {
-    public function __construct(private CreateImageFiles $images, private DeleteStoredFiles $deleteFiles, private AdminsQuery $admins)
+    public function __construct(private CreateImageFiles $images, private DeleteStoredFiles $deleteFiles)
     {
         //
     }
@@ -30,7 +30,7 @@ final readonly class UpdateGuild
             }
 
             $guild->update(['description' => $description, 'emoji' => $emoji, 'icon_path' => $path]);
-            event(new UsersUpdated($this->admins->ids(), UserUpdate::Guilds));
+            event(new UsersUpdated(User::query()->pluck('id'), UserUpdate::Guilds));
         });
     }
 }

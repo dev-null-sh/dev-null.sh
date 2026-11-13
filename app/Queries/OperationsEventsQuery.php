@@ -253,7 +253,7 @@ final readonly class OperationsEventsQuery
         return DB::table('features')
             ->selectRaw(<<<'SQL'
                 'features' as source, 'feature' as kind, name as row_id, updated_at as at, 'notice' as level,
-                'Feature ' || name || ' turned ' || case when enabled then 'on' else 'off' end as message, null::text as detail,
+                'Feature ' || name || ' turned ' || case when not enabled then 'off' when admin_only then 'on for admins' else 'on' end as message, null::text as detail,
                 null::text as actor, null::text as author, null::text as commit_id
                 SQL)
             ->where('updated_at', '>=', $since);

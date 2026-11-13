@@ -28,9 +28,10 @@ final readonly class DeleteGuild
             ]);
             $this->files->retain($guild->icon_path === null ? [] : [$guild->icon_path]);
             $guild->delete();
-            event(new UsersUpdated($this->admins->ids(), UserUpdate::Guilds));
+            $viewers = User::query()->pluck('id');
+            event(new UsersUpdated($viewers, UserUpdate::Guilds));
             event(new UsersUpdated($this->admins->ids(), UserUpdate::Moderation));
-            event(new UsersUpdated($this->admins->ids(), UserUpdate::Relationships));
+            event(new UsersUpdated($viewers, UserUpdate::Relationships));
         });
     }
 }

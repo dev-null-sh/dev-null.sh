@@ -7,7 +7,7 @@ namespace App\Actions;
 use App\Enums\Feature;
 use App\Enums\UserUpdate;
 use App\Events\UsersUpdated;
-use App\Queries\AdminsQuery;
+use App\Models\User;
 use App\Services\Features;
 
 final readonly class UpdateFeature
@@ -17,13 +17,14 @@ final readonly class UpdateFeature
         //
     }
 
-    public function handle(Feature $feature, bool $enabled): void
+    public function handle(Feature $feature, bool $enabled, ?bool $adminOnly = null): void
     {
-        $this->features->update($feature, $enabled);
+        $this->features->update($feature, $enabled, $adminOnly);
 
         if ($feature === Feature::Guilds) {
-            event(new UsersUpdated(resolve(AdminsQuery::class)->ids(), UserUpdate::Guilds));
-            event(new UsersUpdated(resolve(AdminsQuery::class)->ids(), UserUpdate::Relationships));
+            $viewers = User::query()->pluck('id');
+            event(new UsersUpdated($viewers, UserUpdate::Guilds));
+            event(new UsersUpdated($viewers, UserUpdate::Relationships));
         }
     }
 }

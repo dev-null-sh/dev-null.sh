@@ -28,7 +28,7 @@ final class CreateApiCommitTranslationRequest extends FormRequest
 
         return (($commit->status === CommitStatus::Approved && $commit->isVisibleTo($user))
             || ($commit->status === CommitStatus::Pending && $user->isAdmin()))
-            && $commit->body !== '' && resolve(CommitTranslations::class)->enabled()
+            && $commit->body !== '' && resolve(CommitTranslations::class)->available()
             ? Response::allow() : Response::denyAsNotFound();
     }
 

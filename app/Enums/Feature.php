@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Enums;
 
 /**
- * A feature administrators can switch on or off for everyone from the operations dashboard.
+ * A feature administrators can turn off, preview as admins, or enable for everyone.
  */
 enum Feature: string
 {

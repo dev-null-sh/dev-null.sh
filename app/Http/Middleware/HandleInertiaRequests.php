@@ -167,15 +167,15 @@ final class HandleInertiaRequests extends Middleware
             'isLiteMobileApp' => str_contains((string) $request->userAgent(), 'DevNullLite/'),
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'showsWhoToFollow' => $showsWhoToFollow,
-            'guilds' => $user instanceof User && resolve(Features::class)->available(Feature::Guilds, $user)
-                ? Inertia::once(fn (): array => resolve(GuildsQuery::class)->get($user)->map(fn (Guild $guild): array => [
+            'guilds' => $user instanceof User
+                ? Inertia::once(fn (): ?array => resolve(Features::class)->available(Feature::Guilds, $user) ? resolve(GuildsQuery::class)->get($user)->map(fn (Guild $guild): array => [
                     'id' => $guild->id,
                     ...$guild->toArray(),
                     'member_count' => $guild->members_count,
                     'is_joined' => $guild->is_joined,
                     'is_muted' => $guild->is_muted,
                     'icon_url' => $guild->icon_path === null ? null : route('guild-icon.show', ['guild' => $guild->handle, 'v' => $guild->updated_at->getTimestampMs()]),
-                ])->all())->until(60)->fresh($request->routeIs('guild.*', 'search.index'))->live(UserUpdate::Guilds->value, new PrivateChannel($user))
+                ])->all() : null)->until(60)->fresh($request->routeIs('guild.*', 'search.index'))->live(UserUpdate::Guilds->value, new PrivateChannel($user))
                 : null,
             ...$user instanceof User && $liveFollowing !== null ? [
                 // Drawn again when someone followed goes live or stops, never on its own, so it doesn't reshuffle.
