@@ -2,7 +2,8 @@ import { ChevronDown, Plus, X } from 'lucide-react';
 import InputError from '@/components/input-error';
 import { MentionTextarea } from '@/components/mention-textarea';
 import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
+import { bodyCharacterCount } from '@/lib/commit';
+import { characterCount, cn } from '@/lib/utils';
 
 export type PollDraft = {
     options: string[];
@@ -12,6 +13,27 @@ export type PollDraft = {
 export const emptyPollDraft: PollDraft = { options: ['', ''], duration: 1440 };
 
 const maxOptionLength = 50;
+
+/** Links count as at most 23 characters, so an option may be longer, up to what its column holds. */
+const maxRawOptionLength = 255;
+
+/**
+ * The limit an option goes over, checked in the server's order: its raw length first, then its length with each link
+ * counting as at most 23 characters, as in the body. An option is never truncated, so a cut link can't point elsewhere.
+ */
+function exceededLimit(option: string): number | null {
+    if (characterCount(option) > maxRawOptionLength) {
+        return maxRawOptionLength;
+    }
+
+    return bodyCharacterCount(option) > maxOptionLength
+        ? maxOptionLength
+        : null;
+}
+
+export function isPollOptionTooLong(option: string): boolean {
+    return exceededLimit(option) !== null;
+}
 
 const maxOptions = 4;
 
@@ -76,7 +98,12 @@ export function PollEditor({
 
             <div className="space-y-2">
                 {poll.options.map((option, index) => {
-                    const error = errors[`poll.options.${index}`];
+                    const limit = exceededLimit(option);
+                    const error =
+                        errors[`poll.options.${index}`] ??
+                        (limit === null
+                            ? undefined
+                            : `The option ${index + 1} field must not be greater than ${limit} characters.`);
 
                     return (
                         <div key={index}>
@@ -105,7 +132,6 @@ export function PollEditor({
                                     suggestsMentions={false}
                                     rows={1}
                                     wrap="off"
-                                    maxLength={maxOptionLength}
                                     placeholder={`Option ${index + 1}`}
                                     autoComplete="off"
                                     aria-invalid={error ? true : undefined}

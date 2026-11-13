@@ -149,6 +149,84 @@ it('validates the poll', function (array $poll, array|string $errors): void {
     'no options' => [['duration' => 1440], 'poll.options'],
 ]);
 
+it('counts a link in a poll option as at most 23 characters, as in the body', function (): void {
+    $user = User::factory()->create();
+    $link = 'https://github.com/dev-null-sh/dev-null.sh/pull/1366';
+
+    $this->actingAs($user)
+        ->fromRoute('log.show', Log::Following)
+        ->post(route('commit.store'), [
+            'body' => 'Which one first?',
+            'poll' => ['options' => ["Review {$link} first", 'Later'], 'duration' => PollDuration::OneDay->value],
+        ])
+        ->assertSessionHasNoErrors();
+
+    expect(Poll::query()->sole()->options()->orderBy('position')->pluck('label')->all())->toBe(["Review {$link} first", 'Later']);
+});
+
+it('accepts a poll option of exactly 50 characters once its link is counted', function (): void {
+    $option = str_repeat('a', 26).' https://example.com/'.str_repeat('b', 40);
+
+    $this->actingAs(User::factory()->create())
+        ->fromRoute('log.show', Log::Following)
+        ->post(route('commit.store'), ['body' => 'Tabs or spaces?', 'poll' => ['options' => ['Tabs', $option], 'duration' => 1440]])
+        ->assertSessionHasNoErrors();
+
+    expect(Poll::query()->sole()->options()->where('label', $option)->exists())->toBeTrue();
+});
+
+it('counts each form of link in a poll option as 23 characters', function (string $link): void {
+    $this->actingAs(User::factory()->create())
+        ->fromRoute('log.show', Log::Following)
+        ->post(route('commit.store'), ['body' => 'Tabs or spaces?', 'poll' => ['options' => ['Tabs', $link.' '.str_repeat('a', 27)], 'duration' => 1440]])
+        ->assertSessionHasErrors(['poll.options.1' => 'The option 2 field must not be greater than 50 characters.']);
+
+    $this->post(route('commit.store'), ['body' => 'Tabs or spaces?', 'poll' => ['options' => ['Tabs', $link.' '.str_repeat('a', 26)], 'duration' => 1440]])
+        ->assertSessionHasNoErrors();
+
+    expect(Poll::query()->sole()->options()->where('label', $link.' '.str_repeat('a', 26))->exists())->toBeTrue();
+})->with([
+    'a domain name' => 'https://dev-null.example.com/log/latest',
+    'a domain name without a scheme' => 'dev-null.example.com/log/latest',
+    'a short host name' => 'http://intranet/log/latest',
+    'an IPv4 address' => 'http://192.168.1.176/log/latest',
+    'an IPv4 address and a port' => 'http://192.168.1.176:8000/log/latest',
+    'an IPv6 address and a port' => 'http://[::1]:8000/log/latest',
+]);
+
+it('counts a host name or an address without a scheme as text in a poll option', function (string $text): void {
+    $this->actingAs(User::factory()->create())
+        ->fromRoute('log.show', Log::Following)
+        ->post(route('commit.store'), ['body' => 'Tabs or spaces?', 'poll' => ['options' => ['Tabs', $text.' '.str_repeat('a', 26)], 'duration' => 1440]])
+        ->assertSessionHasErrors(['poll.options.1' => 'The option 2 field must not be greater than 50 characters.']);
+})->with([
+    'a short host name' => 'intranet/log/latest/abcdefgh',
+    'an IPv4 address and a port' => '192.168.1.176:8000/log/latest',
+]);
+
+it('accepts a poll option of 255 characters, the longest a label holds', function (): void {
+    $option = 'https://example.com/'.str_repeat('a', 235);
+
+    $this->actingAs(User::factory()->create())
+        ->fromRoute('log.show', Log::Following)
+        ->post(route('commit.store'), ['body' => 'Tabs or spaces?', 'poll' => ['options' => ['Tabs', $option], 'duration' => 1440]])
+        ->assertSessionHasNoErrors();
+
+    expect(Poll::query()->sole()->options()->where('label', $option)->exists())->toBeTrue();
+});
+
+it('validates the length of a poll option with links', function (string $option, string $error): void {
+    $this->actingAs(User::factory()->create())
+        ->fromRoute('log.show', Log::Following)
+        ->post(route('commit.store'), ['body' => 'Tabs or spaces?', 'poll' => ['options' => ['Tabs', $option], 'duration' => 1440]])
+        ->assertSessionHasErrors(['poll.options.1' => $error]);
+
+    expect(Commit::query()->count())->toBe(0);
+})->with([
+    'one character over, with a link' => [str_repeat('a', 27).' https://example.com/'.str_repeat('b', 40), 'The option 2 field must not be greater than 50 characters.'],
+    'one character over 255, with a link' => ['https://example.com/'.str_repeat('a', 236), 'The option 2 field must not be greater than 255 characters.'],
+]);
+
 it('may not attach a poll to a reply', function (): void {
     $parent = Commit::factory()->create();
 
