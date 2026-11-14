@@ -135,3 +135,125 @@ export function dropConfetti(): void {
         frame = window.requestAnimationFrame(tick);
     }
 }
+
+type Spark = {
+    x: number;
+    y: number;
+    vx: number;
+    vy: number;
+    color: string;
+    life: number;
+    maxLife: number;
+};
+
+export function dropFireworks(): void {
+    if (typeof document === 'undefined') return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+    const show = document.createElement('canvas');
+    show.setAttribute('aria-hidden', 'true');
+    show.style.position = 'fixed';
+    show.style.inset = '0';
+    show.style.width = '100%';
+    show.style.height = '100%';
+    show.style.pointerEvents = 'none';
+    show.style.zIndex = '60';
+    document.body.appendChild(show);
+
+    const ctx = show.getContext('2d');
+    if (!ctx) {
+        show.remove();
+        return;
+    }
+
+    const ratio = Math.min(window.devicePixelRatio || 1, 2);
+    show.width = Math.floor(window.innerWidth * ratio);
+    show.height = Math.floor(window.innerHeight * ratio);
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+    const rockets: Spark[] = [];
+    const sparks: Spark[] = [];
+    let frames = 0;
+
+    const launch = (): void => {
+        rockets.push({
+            x: width * (0.08 + Math.random() * 0.84),
+            y: height + 8,
+            vx: (Math.random() - 0.5) * 1.5,
+            vy: -(height / 90 + Math.random() * 2),
+            color: '#ffd166',
+            life: 0,
+            maxLife: 1000,
+        });
+    };
+
+    launch();
+    window.setTimeout(launch, 300);
+    window.setTimeout(launch, 600);
+    window.setTimeout(launch, 900);
+
+    const explode = (rocket: Spark): void => {
+        const count = 46 + Math.floor(Math.random() * 20);
+        for (let index = 0; index < count; index++) {
+            const angle = (index / count) * Math.PI * 2 + Math.random() * 0.3;
+            const speed = 1.4 + Math.random() * 3.6;
+            sparks.push({
+                x: rocket.x,
+                y: rocket.y,
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed,
+                color: colors[Math.floor(Math.random() * colors.length)],
+                life: 0,
+                maxLife: 55 + Math.floor(Math.random() * 30),
+            });
+        }
+    };
+
+    const step = (): void => {
+        frames += 1;
+        ctx.clearRect(0, 0, width, height);
+
+        for (let index = rockets.length - 1; index >= 0; index--) {
+            const rocket = rockets[index];
+            rocket.vy += 0.12;
+            rocket.x += rocket.vx;
+            rocket.y += rocket.vy;
+            ctx.fillStyle = rocket.color;
+            ctx.beginPath();
+            ctx.arc(rocket.x, rocket.y, 2, 0, Math.PI * 2);
+            ctx.fill();
+            if (rocket.vy >= -2.2) {
+                explode(rocket);
+                rockets.splice(index, 1);
+            }
+        }
+
+        for (let index = sparks.length - 1; index >= 0; index--) {
+            const spark = sparks[index];
+            spark.life += 1;
+            spark.vx *= 0.985;
+            spark.vy = spark.vy * 0.985 + 0.05;
+            spark.x += spark.vx;
+            spark.y += spark.vy;
+            ctx.globalAlpha = Math.max(0, 1 - spark.life / spark.maxLife);
+            ctx.fillStyle = spark.color;
+            ctx.beginPath();
+            ctx.arc(spark.x, spark.y, 1.6, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.globalAlpha = 1;
+            if (spark.life >= spark.maxLife) {
+                sparks.splice(index, 1);
+            }
+        }
+
+        if (rockets.length > 0 || sparks.length > 0 || frames < 280) {
+            window.requestAnimationFrame(step);
+        } else {
+            show.remove();
+        }
+    };
+
+    window.requestAnimationFrame(step);
+}

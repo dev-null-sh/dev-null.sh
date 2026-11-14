@@ -162,6 +162,7 @@ use App\Http\Controllers\UserTermsController;
 use App\Http\Controllers\UserTimeoutController;
 use App\Http\Controllers\UserTimezoneController;
 use App\Http\Controllers\UserTranslationLanguageController;
+use App\Http\Controllers\YearInReviewController;
 use App\Http\Middleware\PreventPostingInTimeout;
 use App\Http\Middleware\RedirectToHandleCase;
 use App\Http\Middleware\RememberIntendedUrl;
@@ -312,6 +313,8 @@ Route::get('@{user:handle}/preview', [UserPreviewController::class, 'show'])
     ->name('user-preview.show');
 Route::get('@{profile:handle}/og.png', [ProfileOpenGraphImageController::class, 'show'])
     ->name('user-open-graph-image.show');
+Route::get('@{profile:handle}/wrapped', [YearInReviewController::class, 'show'])
+    ->name('wrapped.show');
 Route::get('@{user:handle}/feed.atom', [UserFeedController::class, 'show'])
     ->middleware('cache.headers:public;max_age=300;etag')
     ->name('user-feed.show');
