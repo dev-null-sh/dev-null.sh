@@ -78,6 +78,7 @@ This file documents the platform's features, stack, and stories. Feature entries
 ## Repository
 
 - **Repository:** [dev-null-sh/dev-null.sh](https://github.com/dev-null-sh/dev-null.sh).
+- **License:** [MIT](LICENSE.md). You can use, copy, change, share and sell the code, also in a commercial product, as long as each copy keeps the copyright notice and the license.
 - **Setup and development:** [README](README.md).
 - **Product terminology and behavior:** [Product guide](PRODUCT.md).
 
