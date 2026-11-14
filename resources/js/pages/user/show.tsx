@@ -48,6 +48,7 @@ import {
     UserModerationStatus,
 } from '@/components/user-moderation-menu';
 import { useIsMuting, UserSafetyMenu } from '@/components/user-safety-menu';
+import { useDateTime } from '@/hooks/use-date-time';
 import { useLiveStream } from '@/hooks/use-live-stream';
 import { useProfileCommits } from '@/hooks/use-profile-commits';
 import { refreshSharedState, useSharedState } from '@/hooks/use-shared-state';
@@ -55,7 +56,7 @@ import AppLayout from '@/layouts/app-layout';
 import { commitStateKey } from '@/lib/commit-state';
 import { exactCountTitle, formatCount } from '@/lib/numbers';
 import { profileAvatarPosition } from '@/lib/profile-avatar';
-import { formatClockMonth, laneColor, laneTint } from '@/lib/utils';
+import { laneColor, laneTint } from '@/lib/utils';
 import type {
     Achievements,
     Activity,
@@ -107,6 +108,7 @@ export default function Show({
     readme: string | false | null;
 }) {
     const { auth } = usePage().props;
+    const { formatDate } = useDateTime();
     const isCurrentUser = auth.user?.id === user.id;
     const lane = laneColor(user.lane);
     const stream = useLiveStream(user);
@@ -455,7 +457,8 @@ export default function Show({
                     )}
                     <li className="flex items-center gap-1.5">
                         <CalendarDays className="size-4" />
-                        Joined {formatClockMonth(user.created_at)}
+                        Joined{' '}
+                        {formatDate(user.created_at, { monthOnly: true })}
                     </li>
                 </ul>
 

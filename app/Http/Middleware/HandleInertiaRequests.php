@@ -138,6 +138,10 @@ final class HandleInertiaRequests extends Middleware
                     ->map(fn (Organization $organization): array => ['type' => 'organization', ...$organization->toArray()])
                     ->all() : [], UserUpdate::Account),
                 'isAdmin' => $isAdmin,
+                'dateTime' => fn (): array => [
+                    'dateFormat' => $user?->date_format,
+                    'timeFormat' => $user?->time_format,
+                ],
                 'automaticTranslation' => $live(fn (): bool => $user->automatic_translation ?? true, UserUpdate::Account),
                 // The language translations are read in, saved or from the browser, so a change saved elsewhere reaches
                 // the translations already shown.

@@ -29,16 +29,11 @@ import { RailDot, railDotRing } from '@/components/graph-rail';
 import { QuotedCommit } from '@/components/quoted-commit';
 import { TimestampTooltip } from '@/components/timestamp-tooltip';
 import { UserPreview } from '@/components/user-preview';
+import { useDateTime } from '@/hooks/use-date-time';
 import { useIsCommitDeleted } from '@/hooks/use-deleted-resources';
 import { useNow } from '@/hooks/use-now';
 import { formatCount } from '@/lib/numbers';
-import {
-    cn,
-    formatRelativeTime,
-    isDeleted,
-    laneOf,
-    shortHash,
-} from '@/lib/utils';
+import { cn, isDeleted, laneOf, shortHash } from '@/lib/utils';
 import { show } from '@/routes/user';
 import type { Commit } from '@/types';
 
@@ -94,6 +89,7 @@ function LinkTopicCommit({
     commit: Commit;
     graphParent: string;
 }) {
+    const { formatRelativeTime } = useDateTime();
     const now = useNow();
     const thread = useThread(commit);
     const { bodyRef, ...translation } = useCommitTranslation(commit);

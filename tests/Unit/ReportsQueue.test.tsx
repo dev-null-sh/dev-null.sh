@@ -33,6 +33,11 @@ vi.doMock('react', () => ({
     useEffectEvent: (callback: unknown) => callback,
     useSyncExternalStore: (_subscribe: unknown, read: () => unknown) => read(),
 }));
+vi.doMock('@/hooks/use-date-time', async () => {
+    const { createDateTime } = await import('@/lib/date-time');
+
+    return { useDateTime: () => createDateTime() };
+});
 vi.doMock('../../resources/js/hooks/use-realtime', async () => ({
     ...(await vi.importActual('../../resources/js/hooks/use-realtime')),
     useRealtime: (
@@ -79,6 +84,7 @@ let loaded: { id: string; commit: { id: string } }[] = [];
 function open(count: number): Handlers {
     loaded = Array.from({ length: count }, (_, index) => ({
         id: `report-${index}`,
+        created_at: '2026-11-04T12:00:00Z',
         commit: { id: `commit-${index}` },
     }));
     Reports({

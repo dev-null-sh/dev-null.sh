@@ -2,13 +2,9 @@ import { ColumnChart } from '@/components/operations/charts';
 import { classBasename } from '@/components/operations/health-failed-jobs';
 import { Delta } from '@/components/operations/overview-delta';
 import { Panel } from '@/components/operations/section';
+import { useDateTime } from '@/hooks/use-date-time';
 import { useNow } from '@/hooks/use-now';
 import { formatCount } from '@/lib/numbers';
-import {
-    formatFullDateTime,
-    formatRelativeTime,
-    readerClock,
-} from '@/lib/utils';
 import type { FailureTrend } from '@/types';
 
 const SERIES = [
@@ -18,15 +14,6 @@ const SERIES = [
         className: 'fill-destructive bg-destructive',
     },
 ];
-
-function formatHour(at: string): string {
-    return new Date(at).toLocaleTimeString('en', {
-        hour: '2-digit',
-        minute: '2-digit',
-        hourCycle: 'h23',
-        timeZone: readerClock().timeZone,
-    });
-}
 
 /**
  * How many jobs failed in the last day against the day before, hour by hour, and which jobs failed most.
@@ -38,6 +25,8 @@ export function FailuresPanel({
     failureTrend: FailureTrend;
     className?: string;
 }) {
+    const { formatTime, formatFullDateTime, formatRelativeTime } =
+        useDateTime();
     const now = useNow();
     const top = Math.max(0, ...failureTrend.by_job.map((job) => job.count));
 
@@ -63,7 +52,7 @@ export function FailuresPanel({
                 series={SERIES}
                 height={140}
                 label="Failed jobs per hour, the last 24 hours"
-                formatBucket={formatHour}
+                formatBucket={formatTime}
                 unit="jobs"
             />
 

@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import type { PointerEvent, ReactNode } from 'react';
+import { useDateTime } from '@/hooks/use-date-time';
 import { formatCount } from '@/lib/numbers';
 import { cn } from '@/lib/utils';
 
@@ -64,16 +65,6 @@ export function compactNumber(value: number): string {
         notation: 'compact',
         maximumFractionDigits: 1,
     }).format(value);
-}
-
-export function shortDate(date: string): string {
-    return new Date(
-        date.length === 10 ? `${date}T00:00:00Z` : date,
-    ).toLocaleDateString('en', {
-        month: 'short',
-        day: 'numeric',
-        timeZone: 'UTC',
-    });
 }
 
 function Tooltip({
@@ -193,6 +184,7 @@ export function MultiLineChart<Key extends string>({
     label: string;
     unit: string;
 }) {
+    const { formatZonedDate } = useDateTime();
     const [ref, width] = useWidth<HTMLDivElement>();
     const [hovered, setHovered] = useState<number | null>(null);
     const ticks = niceTicks(
@@ -333,7 +325,7 @@ export function MultiLineChart<Key extends string>({
                             textAnchor="middle"
                             className="fill-muted-foreground font-mono text-[11px]"
                         >
-                            {shortDate(date)}
+                            {formatZonedDate(date, 'UTC')}
                         </text>
                     ))}
                     {firstTracked > 0 &&
@@ -358,7 +350,8 @@ export function MultiLineChart<Key extends string>({
                                     className="fill-muted-foreground stroke-card font-mono text-[11px] [paint-order:stroke]"
                                     strokeWidth={3}
                                 >
-                                    tracked from {shortDate(markDate)}
+                                    tracked from{' '}
+                                    {formatZonedDate(markDate, 'UTC')}
                                 </text>
                             </g>
                         )}
@@ -469,7 +462,7 @@ export function MultiLineChart<Key extends string>({
             {active && hovered !== null && (
                 <Tooltip x={x(hovered)} width={width}>
                     <p className="font-medium">
-                        {shortDate(active.date)}
+                        {formatZonedDate(active.date, 'UTC')}
                         {active.date === partialDate && (
                             <span className="font-normal opacity-70">
                                 {' '}
@@ -512,7 +505,9 @@ export function MultiLineChart<Key extends string>({
                     <tbody>
                         {days.map((day, index) => (
                             <tr key={day.date}>
-                                <th scope="row">{shortDate(day.date)}</th>
+                                <th scope="row">
+                                    {formatZonedDate(day.date, 'UTC')}
+                                </th>
                                 {series.map((line, at) => (
                                     <td key={line.key}>
                                         {visible(at, index)
@@ -544,7 +539,7 @@ export function LineChart({
     height = 200,
     format = compactNumber,
     formatTick = compactNumber,
-    formatDate = shortDate,
+    formatDate: formatPointDate,
     label,
     unit,
 }: {
@@ -557,6 +552,7 @@ export function LineChart({
     label: string;
     unit: string;
 }) {
+    const { formatDate } = useDateTime();
     const [ref, width] = useWidth<HTMLDivElement>();
     const [hovered, setHovered] = useState<number | null>(null);
     const days: (LinePoint &
@@ -676,7 +672,11 @@ export function LineChart({
                                     }
                                     className="fill-muted-foreground font-mono text-[11px]"
                                 >
-                                    {formatDate(day.date)}
+                                    {formatPointDate?.(day.date) ??
+                                        formatDate(day.date, {
+                                            timeZone: 'UTC',
+                                            year: false,
+                                        })}
                                 </text>
                             ),
                     )}
@@ -751,7 +751,11 @@ export function LineChart({
             {active && hovered !== null && (
                 <Tooltip x={x(hovered)} width={width}>
                     <p className="font-medium">
-                        {formatDate(active.date)}
+                        {formatPointDate?.(active.date) ??
+                            formatDate(active.date, {
+                                timeZone: 'UTC',
+                                year: false,
+                            })}
                         {active.isForecast && (
                             <span className="font-normal opacity-70">
                                 {' '}
@@ -785,7 +789,14 @@ export function LineChart({
                         {days.map((day) => (
                             <tr key={day.date}>
                                 <th scope="row">
-                                    {day.date}
+                                    <time dateTime={day.date}>
+                                        {formatPointDate &&
+                                            `${formatPointDate(day.date)} · `}
+                                        {formatDate(day.date, {
+                                            timeZone: 'UTC',
+                                            year: true,
+                                        })}
+                                    </time>
                                     {day.isForecast ? ' (expected)' : ''}
                                 </th>
                                 <td>{format(day.value)}</td>
