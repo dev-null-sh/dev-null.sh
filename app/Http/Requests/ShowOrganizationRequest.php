@@ -23,16 +23,20 @@ final class ShowOrganizationRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'tab' => ['nullable', 'string', 'in:commits,mentions'],
+            'tab' => ['nullable', 'string', 'in:commits,mentions,people'],
         ];
     }
 
     /**
-     * The organization's own commits first, then the commits that mention it.
+     * The organization's own commits first, then the commits that mention it, then its people when its admins show them.
      */
     public function tab(): string
     {
-        return $this->string('tab')->value() === 'mentions' ? 'mentions' : 'commits';
+        return match ($this->string('tab')->value()) {
+            'mentions' => 'mentions',
+            'people' => $this->organization()?->shows_people === true ? 'people' : 'commits',
+            default => 'commits',
+        };
     }
 
     /**

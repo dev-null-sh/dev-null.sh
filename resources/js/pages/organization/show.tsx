@@ -1,11 +1,11 @@
-import { Head, Link, usePage } from '@inertiajs/react';
+import { Head, InfiniteScroll, Link, router, usePage } from '@inertiajs/react';
 import { AlertCircleIcon, Flag, Link2, MapPin, Settings } from 'lucide-react';
 import type { CSSProperties } from 'react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { show } from '@/actions/App/Http/Controllers/UserController';
 import { BioText } from '@/components/bio-text';
 import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
-import { useIsFollowing } from '@/components/follow-button';
+import { FollowButton, useIsFollowing } from '@/components/follow-button';
 import { GitHubIcon } from '@/components/github-icon';
 import { OrganizationAvatar } from '@/components/organization-avatar';
 import { OrganizationFollowButton } from '@/components/organization-follow-button';
@@ -13,16 +13,118 @@ import { PageTabs } from '@/components/page-tabs';
 import { ProfileShareButton } from '@/components/profile-share-button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/spinner';
 import { UserAvatar } from '@/components/user-avatar';
 import AppLayout from '@/layouts/app-layout';
 import { exactCountTitle, formatCount } from '@/lib/numbers';
-import { organizationLaneColor } from '@/lib/utils';
+import { laneColor, organizationLaneColor } from '@/lib/utils';
 import type { Commit, CursorPaginated, Organization, User } from '@/types';
+
+type Person = User & { is_followed?: boolean; follows_you?: boolean };
+
+function People({
+    organization,
+    people,
+}: {
+    organization: Organization;
+    people: CursorPaginated<Person>;
+}) {
+    const { auth } = usePage().props;
+
+    if (people.data.length === 0) {
+        return (
+            <div className="px-6 py-16 text-center sm:px-12">
+                <EmptyFeed command="fatal: no people yet">
+                    Nobody you can see is a member of @{organization.handle}{' '}
+                    yet.
+                </EmptyFeed>
+            </div>
+        );
+    }
+
+    return (
+        <InfiniteScroll
+            data="people"
+            onlyNext
+            preserveUrl
+            loading={
+                <div className="flex justify-center py-6">
+                    <Spinner className="text-muted-foreground" />
+                </div>
+            }
+        >
+            <ul className="divide-y">
+                {people.data.map((person) => (
+                    <li
+                        key={person.id}
+                        className="flex items-start gap-3 pr-4 hover:bg-muted/50 sm:pr-6"
+                    >
+                        <Link
+                            href={show(person.handle)}
+                            prefetch
+                            className="flex min-w-0 flex-1 items-start gap-3 py-3 pl-4 sm:pl-6"
+                        >
+                            <UserAvatar
+                                user={person}
+                                className="size-10 ring-2 ring-(--lane) ring-offset-2 ring-offset-card"
+                                style={
+                                    {
+                                        '--lane': laneColor(person.lane),
+                                    } as CSSProperties
+                                }
+                            />
+                            <div className="min-w-0">
+                                <p
+                                    className="truncate font-medium"
+                                    title={person.name}
+                                >
+                                    {person.name}
+                                </p>
+                                <div className="flex min-w-0 items-center gap-2">
+                                    <p
+                                        className="truncate font-mono text-sm text-muted-foreground"
+                                        title={`@${person.handle}`}
+                                    >
+                                        @{person.handle}
+                                    </p>
+                                    {person.follows_you && (
+                                        <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
+                                            Follows you
+                                        </span>
+                                    )}
+                                </div>
+                                {person.bio && (
+                                    <p className="mt-1 line-clamp-2 text-sm">
+                                        {person.bio}
+                                    </p>
+                                )}
+                            </div>
+                        </Link>
+                        {auth.user && person.id !== auth.user.id && (
+                            <FollowButton
+                                user={person}
+                                isFollowing={person.is_followed ?? false}
+                                followsYou={person.follows_you ?? false}
+                                size="sm"
+                                className="mt-4 min-w-26 shrink-0"
+                                only={['auth']}
+                                preserveState
+                                onSuccess={() => router.flushAll()}
+                            />
+                        )}
+                    </li>
+                ))}
+            </ul>
+        </InfiniteScroll>
+    );
+}
 
 export default function Show({
     organization,
     tab,
     commits,
+    people,
+    showsPeople,
     claimUrl,
     settingsUrl,
     admins,
@@ -30,8 +132,10 @@ export default function Show({
     isFollowing,
 }: {
     organization: Organization;
-    tab: 'commits' | 'mentions';
-    commits: CursorPaginated<Commit>;
+    tab: 'commits' | 'mentions' | 'people';
+    commits?: CursorPaginated<Commit>;
+    people?: CursorPaginated<Person>;
+    showsPeople: boolean;
     claimUrl: string;
     settingsUrl: string | null;
     admins: User[];
@@ -40,6 +144,20 @@ export default function Show({
 }) {
     const { props, flash } = usePage();
     const { auth } = props;
+    const showingPeople = tab === 'people' && showsPeople;
+
+    // Admins hid the people while they were open, so the page moves to the organization's commits...
+    useEffect(() => {
+        if (tab === 'people' && !showsPeople) {
+            router.visit(show(organization), {
+                only: ['tab', 'commits', 'people'],
+                reset: ['commits', 'people'],
+                preserveScroll: true,
+                replace: true,
+            });
+        }
+    }, [tab, showsPeople, organization]);
+
     // Kept until the user leaves the page, as the background reloads bring no flash and would hide it. Claiming
     // redirects back here, so its links don't preserve state, or this would keep the value from before the claim.
     const [claimFailed] = useState(flash.claimFailed);
@@ -275,8 +393,8 @@ export default function Show({
                 <PageTabs
                     label="Organization feed"
                     preserveScroll
-                    only={['tab', 'commits']}
-                    reset={['commits']}
+                    only={['tab', 'commits', 'people']}
+                    reset={['commits', 'people']}
                     tabs={[
                         {
                             title: 'Commits',
@@ -290,33 +408,53 @@ export default function Show({
                             }),
                             isActive: tab === 'mentions',
                         },
+                        ...(showsPeople
+                            ? [
+                                  {
+                                      title: 'People',
+                                      href: show(organization, {
+                                          query: { tab: 'people' },
+                                      }),
+                                      isActive: showingPeople,
+                                  },
+                              ]
+                            : []),
                     ]}
                 />
 
-                <CommitFeed
-                    key={`${organization.handle}:${tab}`}
-                    commits={commits}
-                    end={
-                        tab === 'mentions'
-                            ? `That's the first commit mentioning @${organization.handle}.`
-                            : `That's @${organization.handle}'s first commit.`
-                    }
-                    empty={
-                        tab === 'mentions' ? (
-                            <EmptyFeed
-                                command={`$ git log --grep=@${organization.handle}`}
-                            >
-                                Nobody has mentioned @{organization.handle} yet.
-                                Mention it in a commit and it shows up here.
-                            </EmptyFeed>
-                        ) : (
-                            <EmptyFeed command="fatal: no commits yet">
-                                @{organization.handle} hasn't committed anything
-                                yet.
-                            </EmptyFeed>
-                        )
-                    }
-                />
+                {showingPeople && people ? (
+                    <People
+                        key={`${organization.handle}:people`}
+                        organization={organization}
+                        people={people}
+                    />
+                ) : commits ? (
+                    <CommitFeed
+                        key={`${organization.handle}:${tab}`}
+                        commits={commits}
+                        end={
+                            tab === 'mentions'
+                                ? `That's the first commit mentioning @${organization.handle}.`
+                                : `That's @${organization.handle}'s first commit.`
+                        }
+                        empty={
+                            tab === 'mentions' ? (
+                                <EmptyFeed
+                                    command={`$ git log --grep=@${organization.handle}`}
+                                >
+                                    Nobody has mentioned @{organization.handle}{' '}
+                                    yet. Mention it in a commit and it shows up
+                                    here.
+                                </EmptyFeed>
+                            ) : (
+                                <EmptyFeed command="fatal: no commits yet">
+                                    @{organization.handle} hasn't committed
+                                    anything yet.
+                                </EmptyFeed>
+                            )
+                        }
+                    />
+                ) : null}
             </div>
         </>
     );
