@@ -599,6 +599,7 @@ A signed request sees what the web shows you, such as your own pending commits a
 - stash or reopen conversations and orgs, pin and mute them, merge or drop message requests, and send typing indicators;
 - switch Pastéis mode and give pastéis;
 - report commits;
+- read your own timeouts and bans, as your profile shows them;
 - search people and organizations by name or handle, and commits by meaning, with the web's limit of 15 commit searches a minute;
 - schedule commits, list your queue, cancel a scheduled commit, or post it early;
 - pin a commit to your profile, or unpin it;
