@@ -2,6 +2,7 @@ import { Link, usePage } from '@inertiajs/react';
 import { Fragment } from 'react';
 import type { ReactNode, SVGAttributes } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
+import { show as showGuild } from '@/actions/App/Http/Controllers/GuildController';
 import SearchController from '@/actions/App/Http/Controllers/SearchController';
 import { show as showProfile } from '@/actions/App/Http/Controllers/UserController';
 import AppLogoIcon from '@/components/app-logo-icon';
@@ -10,6 +11,7 @@ import { CertificateText } from '@/components/certificate-text';
 import { CodebergIcon } from '@/components/codeberg-icon';
 import { GitHubIcon } from '@/components/github-icon';
 import { GitLabIcon } from '@/components/gitlab-icon';
+import { GuildIcon } from '@/components/guild-icon';
 import { UserPreview } from '@/components/user-preview';
 import { typedProse, withoutCode } from '@/lib/code';
 import type { Color } from '@/lib/colors';
@@ -627,11 +629,34 @@ function withWordmarks(
         );
 }
 
-function Hashtag({ hashtag }: { hashtag: string }) {
-    const { auth } = usePage().props;
+export function Hashtag({ hashtag }: { hashtag: string }) {
+    const { auth, guilds } = usePage().props;
 
     if (!auth.user) {
         return hashtag;
+    }
+
+    const guild = guilds?.find(
+        (guild) => guild.handle === hashtag.slice(1).toLowerCase(),
+    );
+
+    if (guild) {
+        return (
+            <Link
+                prefetch
+                href={showGuild(guild.handle)}
+                title={`${guild.name} · ${hashtag}`}
+                aria-label={`${guild.name}, ${hashtag} guild`}
+                className="inline-flex max-w-full items-baseline gap-[0.3em] rounded-sm bg-muted px-1 py-0.5 align-baseline font-mono text-[0.875em] leading-none font-normal text-foreground transition-colors hover:bg-primary-soft hover:text-primary-hover focus-visible:outline-2 focus-visible:outline-offset-0 focus-visible:outline-ring"
+                data-test="guild-mention"
+            >
+                <GuildIcon
+                    guild={guild}
+                    className="size-[1em] self-center rounded-[2px] bg-transparent"
+                />
+                <span className="min-w-0 truncate">{guild.name}</span>
+            </Link>
+        );
     }
 
     return (

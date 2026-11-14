@@ -79,7 +79,10 @@ test('the counter discounts commit links but not issue links', () => {
     );
 });
 
-function renderPage(content: ReactElement): string {
+function renderPage(
+    content: ReactElement,
+    props: Record<string, unknown> = {},
+): string {
     return renderToStaticMarkup(
         <App
             initialComponent={() => content}
@@ -88,7 +91,11 @@ function renderPage(content: ReactElement): string {
                     component: 'Commit',
                     url: '/',
                     version: null,
-                    props: { errors: {}, auth: { user: null, pasteis: null } },
+                    props: {
+                        errors: {},
+                        auth: { user: null, pasteis: null },
+                        ...props,
+                    },
                     clearHistory: false,
                     encryptHistory: false,
                 } as unknown as ComponentProps<typeof App>['initialPage']
@@ -96,6 +103,40 @@ function renderPage(content: ReactElement): string {
         />,
     );
 }
+
+test('renders only matching prose hashtags as guilds when the preview is available', () => {
+    const content = (
+        <CommitBody
+            segments={bodySegments(
+                'Hiring #JoBs, exploring #rust. `#jobs` https://example.com/#jobs',
+            )}
+            mentions={null}
+        />
+    );
+    const auth = { user: { id: 'viewer' }, pasteis: null };
+    const markup = renderPage(content, {
+        auth,
+        guilds: [
+            {
+                handle: 'jobs',
+                name: 'Job Board',
+                description: 'Hiring',
+                emoji: '💼',
+                icon_url: null,
+            },
+        ],
+    });
+
+    assert.equal((markup.match(/href="\/guilds\/jobs"/g) ?? []).length, 1);
+    assert.match(markup, /aria-label="Job Board, #JoBs guild"/);
+    assert.match(markup, /href="\/search\?q=%23rust"/);
+    assert.match(markup, /<code[^>]*>#jobs<\/code>/);
+    assert.match(markup, /href="https:\/\/example.com\/#jobs"/);
+
+    const ordinary = renderPage(content, { auth, guilds: null });
+    assert.doesNotMatch(ordinary, /\/guilds\//);
+    assert.match(ordinary, /href="\/search\?q=%23JoBs"/);
+});
 
 test('keeps stable mention links alongside shortened URLs and their full copyable text', () => {
     const id = '019a2b3c-4d5e-7f60-8a9b-0c1d2e3f4a5b';

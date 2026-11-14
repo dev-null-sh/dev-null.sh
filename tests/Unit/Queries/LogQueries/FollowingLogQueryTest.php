@@ -6,6 +6,7 @@ use App\Models\Commit;
 use App\Models\Organization;
 use App\Models\User;
 use App\Queries\LogQueries\FollowingLogQuery;
+use App\Services\Features;
 use Illuminate\Support\Facades\DB;
 
 it('returns no commits for guests', function (): void {
@@ -64,6 +65,7 @@ it('resolves followed users in a subquery instead of loading their ids', functio
     $user = User::factory()->create();
 
     $user->following()->attach(User::factory()->count(3)->create());
+    resolve(Features::class)->all();
 
     DB::enableQueryLog();
 

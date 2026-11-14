@@ -152,6 +152,12 @@ export const storyAfter: StoryEvent[] = [
     },
     {
         time: 'Oct 18',
+        title: 'Remotes',
+        body: 'Direct messages and group chats with the people you follow.',
+        kind: 'milestone',
+    },
+    {
+        time: 'Oct 18',
         title: '3,000 developers',
         body: 'And more than 300 pull requests sent to the repository.',
         kind: 'milestone',
@@ -203,6 +209,17 @@ export const storyAfter: StoryEvent[] = [
     },
     {
         time: 'Oct 20',
+        title: 'Jordi Boggiano joins',
+        body: 'The lead of Composer, the package manager PHP runs on.',
+        kind: 'person',
+        person: {
+            login: 'Seldaek',
+            name: 'Jordi Boggiano',
+            avatar: 'https://avatars.githubusercontent.com/u/183678?v=4',
+        },
+    },
+    {
+        time: 'Oct 20',
         title: 'Wes Bos joins',
         body: 'The teacher behind a generation of JavaScript courses.',
         kind: 'person',
@@ -248,6 +265,12 @@ export const storyAfter: StoryEvent[] = [
         kind: 'milestone',
     },
     {
+        time: 'Oct 21',
+        title: '“We’re back”',
+        body: 'Offline for the PHP security release the day after Product Hunt, and back that evening.',
+        kind: 'milestone',
+    },
+    {
         time: 'Oct 22',
         title: 'Quinn Slack joins',
         body: 'The CEO of Amp.',
@@ -268,5 +291,68 @@ export const storyAfter: StoryEvent[] = [
             name: 'Thorsten Ball',
             avatar: 'https://avatars.githubusercontent.com/u/1185253?v=4',
         },
+    },
+    {
+        time: 'Oct 22',
+        title: 'A GitHub organization',
+        body: 'The repository moves to dev-null-sh/dev-null.sh.',
+        kind: 'milestone',
+        href: 'https://github.com/dev-null-sh/dev-null.sh',
+    },
+    {
+        time: 'Oct 22',
+        title: 'Caleb Porzio joins',
+        body: 'The creator of Livewire and Alpine.js.',
+        kind: 'person',
+        person: {
+            login: 'calebporzio',
+            name: 'Caleb Porzio',
+            avatar: 'https://avatars.githubusercontent.com/u/3670578?v=4',
+        },
+    },
+    {
+        time: 'Oct 22',
+        title: '1,000 pull requests',
+        body: 'Sent to the repository in the first week.',
+        kind: 'milestone',
+    },
+    {
+        time: 'Oct 25',
+        title: '/dev/null for Mac',
+        body: 'A native app for Remotes. Like Telegram, but full of devs.',
+        kind: 'milestone',
+        href: '/apps',
+    },
+    {
+        time: 'Oct 27',
+        title: 'Running on FrankenPHP',
+        body: 'The PHP app server written in Go, from Kévin Dunglas.',
+        kind: 'milestone',
+    },
+    {
+        time: 'Oct 28',
+        title: 'Organizations',
+        body: 'GitHub organizations get their own pages, @mentions, and followers.',
+        kind: 'milestone',
+    },
+    {
+        time: 'Oct 29',
+        title: 'Calls',
+        body: '“10 likes and i will ship calls.” One-to-one calls ship 40 minutes later, group calls that night.',
+        kind: 'milestone',
+    },
+    {
+        time: 'Nov 2',
+        title: '#1 Product of the Week',
+        body: 'And #3 Product of the Month on Product Hunt.',
+        kind: 'press',
+        href: 'https://www.producthunt.com/products/dev-null',
+    },
+    {
+        time: 'Nov 11',
+        title: 'Partners',
+        body: 'Companies can now sponsor /dev/null, to pay for the AI behind moderation, search, and translation.',
+        kind: 'milestone',
+        href: '/partners',
     },
 ];

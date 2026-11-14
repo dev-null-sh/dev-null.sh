@@ -48,6 +48,7 @@ final class ListCommitRepliesRequest extends FormRequest
     {
         return [
             'newest' => ['sometimes', 'boolean'],
+            'in_log' => ['sometimes', 'boolean'],
             'limit' => ['sometimes', 'integer', 'between:1,50'],
             'except' => ['sometimes', 'nullable', 'uuid'],
             'ids' => ['sometimes', 'array', 'list', 'max:50'],
