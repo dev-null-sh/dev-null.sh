@@ -7,7 +7,7 @@ import {
     readImagesForDraft,
     subscribeImageReads,
 } from '@/lib/draft-image-reads';
-import { PickedImageError } from '@/lib/read-picked-images';
+import { needsConversion, PickedImageError } from '@/lib/read-picked-images';
 
 export type UseImageAttachmentsReturn = {
     readonly images: File[];
@@ -79,7 +79,7 @@ export function useImageAttachments(
 
     const pick = async (files: File[]) => {
         const available = Math.max(0, maxImages - images.length);
-        if (disabled || files.length === 0 || available === 0) return;
+        if (disabled || files.length === 0) return;
 
         setError(null);
         await readImagesForDraft(draftKey, files, {
@@ -96,6 +96,21 @@ export function useImageAttachments(
             },
             owner: readOwner.current,
         });
+    };
+
+    // Dropped and pasted images attach at once, unless one of them is a HEIC or
+    // DNG photo or over the size limit: then all of them go through the reader
+    // that picked images use, which converts those, one read at a time.
+    const add = (files: File[]) => {
+        if (disabled) return;
+
+        if (!files.some(needsConversion)) {
+            attach(files);
+        } else if (isReadingImages(draftKey)) {
+            setError('Still adding images. Try again once they appear.');
+        } else {
+            void pick(files);
+        }
     };
 
     return {
@@ -138,7 +153,7 @@ export function useImageAttachments(
 
             if (files.length > 0) {
                 event.preventDefault();
-                attach(files);
+                add(files);
             }
         },
         isDraggingFiles: dragDepth > 0,
@@ -166,7 +181,7 @@ export function useImageAttachments(
                 if (hasFiles(event.dataTransfer)) {
                     event.preventDefault();
                     setDragDepth(0);
-                    attach(Array.from(event.dataTransfer.files));
+                    add(Array.from(event.dataTransfer.files));
                 }
             },
         },
