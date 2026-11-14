@@ -149,7 +149,7 @@ it('fetches a new access token after one is refused', function (): void {
 });
 
 it('asks to retry when Firebase cannot be reached', function (): void {
-    Http::fake(fn () => throw new ConnectionException('timed out'));
+    Http::fake(fn (): never => throw new ConnectionException('timed out'));
 
     expect(new FcmDevicePushProvider()->send($this->device, $this->push))->toBeFalse();
 });
