@@ -11,12 +11,12 @@ it('immediately replaces fresh hot-topic recaps and generates missing ones witho
     $fresh = Headline::factory()->create(['name' => 'Database indexing', 'summary' => 'Previous recap.', 'summary_created_at' => now()->subHour()]);
     $missing = Headline::factory()->create(['name' => 'Editor release']);
     $cold = Headline::factory()->create(['summary' => 'Cold recap.', 'summary_created_at' => now()->subHour()]);
-    Commit::factory()->hasAttached($fresh)->create(['body' => 'An index made our dashboard faster.']);
-    Commit::factory()->hasAttached($missing)->create(['body' => 'The editor added keyboard shortcuts.']);
+    Commit::factory()->count(2)->hasAttached($fresh)->create(['body' => 'An index made our dashboard faster.']);
+    Commit::factory()->count(2)->hasAttached($missing)->create(['body' => 'The editor added keyboard shortcuts.']);
     Commit::factory()->hasAttached($cold)->create(['created_at' => now()->subHours(9)]);
     $provider = $this->mock(HeadlineProvider::class);
-    $provider->shouldReceive('summarize')->once()->with('Database indexing', ['An index made our dashboard faster.'])->andReturn('An index improved dashboard query performance.');
-    $provider->shouldReceive('summarize')->once()->with('Editor release', ['The editor added keyboard shortcuts.'])->andReturn('The editor release adds keyboard shortcuts.');
+    $provider->shouldReceive('summarize')->once()->with('Database indexing', ['An index made our dashboard faster.', 'An index made our dashboard faster.'])->andReturn('An index improved dashboard query performance.');
+    $provider->shouldReceive('summarize')->once()->with('Editor release', ['The editor added keyboard shortcuts.', 'The editor added keyboard shortcuts.'])->andReturn('The editor release adds keyboard shortcuts.');
 
     $this->artisan('headlines:refresh')->expectsOutputToContain('Processed 2 hot topics for recap refresh.')->assertSuccessful();
 
@@ -28,7 +28,7 @@ it('immediately replaces fresh hot-topic recaps and generates missing ones witho
 
 it('retains a fresh recap when no useful replacement can be made', function (): void {
     $headline = Headline::factory()->create(['summary' => 'Previous recap.', 'summary_created_at' => now()->subHour()]);
-    Commit::factory()->hasAttached($headline)->create();
+    Commit::factory()->count(2)->hasAttached($headline)->create();
     $this->mock(HeadlineProvider::class)->shouldReceive('summarize')->once()->andReturnNull();
 
     $this->artisan('headlines:refresh')->assertSuccessful();
@@ -40,6 +40,7 @@ it('retains a fresh recap when no useful replacement can be made', function (): 
 it('does not publish a refresh over a changed recap or changed sources', function (string $change): void {
     $headline = Headline::factory()->create(['summary' => 'Previous recap.', 'summary_created_at' => now()->subHour()]);
     $source = Commit::factory()->hasAttached($headline)->create();
+    Commit::factory()->hasAttached($headline)->create();
     $this->mock(HeadlineProvider::class)->shouldReceive('summarize')->once()->andReturnUsing(function () use ($headline, $source, $change): string {
         match ($change) {
             'recap' => $headline->update(['summary' => 'Newer recap.', 'summary_created_at' => now()]),
@@ -62,7 +63,7 @@ it('does no provider work when there are no hot topics', function (): void {
 
 it('sanitizes provider failures and leaves the previous recap intact', function (): void {
     $headline = Headline::factory()->create(['summary' => 'Previous recap.', 'summary_created_at' => now()->subHour()]);
-    Commit::factory()->hasAttached($headline)->create();
+    Commit::factory()->count(2)->hasAttached($headline)->create();
     $this->mock(HeadlineProvider::class)->shouldReceive('summarize')->once()->andThrow(new RuntimeException('Sensitive provider response'));
 
     expect(fn () => $this->artisan('headlines:refresh')->run())->toThrow(function (HeadlineSummaryFailed $exception) use ($headline): void {

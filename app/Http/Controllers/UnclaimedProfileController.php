@@ -7,6 +7,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\ShowUnclaimedProfileRequest;
 use App\Models\Profile;
 use App\Models\User;
+use App\Queries\UnclaimedProfileMentionCountQuery;
 use App\Services\PageMetadata;
 use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Http\RedirectResponse;
@@ -19,9 +20,9 @@ final readonly class UnclaimedProfileController
     /**
      * A developer looked up from GitHub who isn't on /dev/null yet has a page at their "@handle", with what GitHub
      * shows of them but where they are, for anyone with the link, but kept out of search engines, with how many members
-     * wait to follow them. Signing in as them makes it theirs. Like users' pages, it moves for good to the handle's own case.
+     * wait to follow them, and how many commits mention them. Signing in as them makes it theirs. Like users' pages, it moves for good to the handle's own case.
      */
-    public function show(ShowUnclaimedProfileRequest $request, #[CurrentUser] ?User $currentUser, PageMetadata $metadata): RedirectResponse|Response
+    public function show(ShowUnclaimedProfileRequest $request, #[CurrentUser] ?User $currentUser, PageMetadata $metadata, UnclaimedProfileMentionCountQuery $mentions): RedirectResponse|Response
     {
         $profile = $request->profile();
         assert($profile instanceof Profile);
@@ -37,6 +38,8 @@ final readonly class UnclaimedProfileController
 
         return Inertia::render('profile/unclaimed', [
             'profile' => $profile->only(['id', 'handle', 'name', 'avatar_url', 'bio']),
+            // Counting reads through the commits, so the page doesn't wait for it...
+            'mentionCount' => Inertia::defer(fn (): int => $mentions->get($profile)),
             'waitingCount' => fn (): int => $waiting->clone()->count(),
             'isWaiting' => fn (): bool => $currentUser instanceof User && $waiting->clone()->where('user_id', $currentUser->id)->exists(),
             // Who follows whom is for members, so only they see who is waiting, among the people they follow...

@@ -23,7 +23,7 @@ final readonly class CommitTranslations
 {
     public const int TTL_SECONDS = 604800;
 
-    public function __construct(private Features $features)
+    public function __construct(private Features $features, private EncodedText $encodedText)
     {
         //
     }
@@ -33,9 +33,17 @@ final readonly class CommitTranslations
         return $this->features->enabled(Feature::Translations);
     }
 
+    public function available(): bool
+    {
+        return $this->features->available(Feature::Translations, request()->user());
+    }
+
     public function key(Commit $commit): string
     {
-        return 'commit-translations:v1:'.hash('sha256', $commit->body);
+        // Previously detected as indeterminate: encoded posts need fresh detection, without evicting other translations.
+        $encoding = $this->encodedText->decode($commit->body) === null ? '' : 'encoded:';
+
+        return 'commit-translations:v1:'.$encoding.hash('sha256', $commit->body);
     }
 
     /** @return list<string> */
@@ -68,7 +76,7 @@ final readonly class CommitTranslations
     /** @param Collection<int, Commit> $commits */
     public function attach(Collection $commits, bool $includePending = false): void
     {
-        if (! $this->enabled()) {
+        if (! $this->available()) {
             return;
         }
 
@@ -91,7 +99,7 @@ final readonly class CommitTranslations
      */
     public function translatedSince(Collection $commits, CarbonImmutable $since): array
     {
-        if (! $this->enabled()) {
+        if (! $this->available()) {
             return [];
         }
 
@@ -106,7 +114,7 @@ final readonly class CommitTranslations
     /** @return array<string, mixed>|null */
     public function display(Commit $commit, ?string $language = null, bool $includePending = false): ?array
     {
-        if ($commit->trashed() || ! in_array($commit->status, $includePending ? [CommitStatus::Approved, CommitStatus::Pending] : [CommitStatus::Approved], true) || $commit->body === '' || ! $this->enabled()) {
+        if ($commit->trashed() || ! in_array($commit->status, $includePending ? [CommitStatus::Approved, CommitStatus::Pending] : [CommitStatus::Approved], true) || $commit->body === '' || ! $this->available()) {
             return null;
         }
 
@@ -128,7 +136,12 @@ final readonly class CommitTranslations
         return [
             'language' => $language,
             'source_language' => $source,
-            'source_name' => $source === null ? null : Locale::getDisplayLanguage($source, 'en'),
+            'source_name' => match ($source) {
+                null => null,
+                'binary' => 'Binary',
+                'morse' => 'Morse code',
+                default => Locale::getDisplayLanguage($source, 'en'),
+            },
             'available' => $source !== $language && $source !== 'und',
             'translated' => $body === null ? null : resolve(CommitBodies::class)->segments($body),
         ];

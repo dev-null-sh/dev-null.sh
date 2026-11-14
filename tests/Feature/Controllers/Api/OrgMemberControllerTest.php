@@ -51,7 +51,7 @@ it('says why people cannot be added', function (): void {
         ->assertJsonValidationErrors('share_history');
 });
 
-it('caps an org at a hundred people', function (): void {
+it('caps an org at 256 people', function (): void {
     $followers = followersOf($this->user, Conversation::MAX_MEMBERS);
     [$last, $extra] = array_slice($followers, -2);
     $org = createOrg($this->user, array_slice($followers, 0, -2));

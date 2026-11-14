@@ -272,7 +272,7 @@ it('shows the poll of a quoted commit with the same results as the commit itself
 it('shows the poll of a quoted commit in moderation and after undoing a deletion', function (): void {
     config(['app.admins' => ['admin']]);
     $poll = Poll::factory()->withOptions('Tabs', 'Spaces')->create();
-    $quote = Commit::factory()->pending()->for($poll->commit, 'quotedCommit')->create();
+    $quote = Commit::factory()->pending()->checkedByAi()->for($poll->commit, 'quotedCommit')->create();
 
     $this->actingAs(User::factory()->create(['handle' => 'admin']))
         ->get(route('moderation.show'))
@@ -305,7 +305,7 @@ it('shows polls on profiles and starred commits', function (): void {
 
 it('shows the poll of a pending commit to moderators', function (): void {
     config(['app.admins' => ['admin']]);
-    Poll::factory()->for(Commit::factory()->pending())->withOptions('Tabs', 'Spaces')->unopened()->create();
+    Poll::factory()->for(Commit::factory()->pending()->checkedByAi())->withOptions('Tabs', 'Spaces')->unopened()->create();
 
     $this->actingAs(User::factory()->create(['handle' => 'admin']))
         ->get(route('moderation.show'))

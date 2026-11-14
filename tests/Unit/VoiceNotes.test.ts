@@ -85,3 +85,23 @@ void test('reads the saved volume as a whole percent, at full volume until a sen
     assert.equal(voiceVolumeOf('-0.3'), 0);
     assert.equal(voiceVolumeOf('1.5'), 1);
 });
+
+void test('samples long voice level sequences without changing peak bars', () => {
+    const levels = Array(4800).fill(0.1);
+    levels[2000] = 0.8;
+    const bars = barsOf(levels);
+
+    assert.equal(bars.length, voiceBars);
+    assert.equal(bars[20], 80);
+    assert.equal(bars[19], 10);
+    assert.equal(bars[21], 10);
+});
+
+void test('keeps clamping and NaN behavior for voice level bars', () => {
+    assert.deepEqual(barsOf([-0.5], 1), [0]);
+    assert.equal(Number.isNaN(barsOf([Number.NaN], 1)[0]), true);
+
+    const sparse = Array<number>(2);
+    sparse[1] = 0.5;
+    assert.equal(Number.isNaN(barsOf(sparse, 1)[0]), true);
+});

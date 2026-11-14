@@ -5,12 +5,15 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Enums\NotificationType;
+use App\Models\BanEvent;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\CommitReport;
 use App\Models\Conversation;
 use App\Models\ConversationParticipant;
 use App\Models\Device;
+use App\Models\Guild;
+use App\Models\GuildReport;
 use App\Models\Message;
 use App\Models\Poll;
 use App\Models\PollOption;
@@ -34,11 +37,12 @@ use Traversable;
  * @phpstan-type ExportPollVote array{commit_id: string, option: string, created_at: string}
  * @phpstan-type ExportMessage array{to: string|null, body: string, voice: string|null, created_at: string}
  * @phpstan-type ExportUser array{handle: string}
+ * @phpstan-type ExportActiveDay array{date: string, web_app: bool, native_mobile_app: bool, lite_mobile_app: bool, mac_app: bool, other_app: bool}
  * @phpstan-type UserExport array{
  *     schema_version: int,
  *     exported_at: string,
  *     profile: array<string, bool|int|string|null>,
- *     active_days: Generator<int, string>,
+ *     active_days: Generator<int, ExportActiveDay>,
  *     commits: Generator<int, array<string, mixed>>,
  *     organization_commits: Generator<int, array<string, mixed>>,
  *     polls: Generator<int, ExportPoll>,
@@ -51,6 +55,10 @@ use Traversable;
  *     dismissed_suggestions: Generator<int, ExportUser>,
  *     organizations: array<int, array{handle: string, role: string, joined_at: string}>,
  *     followed_organizations: array<int, array{handle: string, followed_at: string}>,
+ *     guilds: array<int, array<string, mixed>>,
+ *     guild_preferences: array<int, stdClass>,
+ *     guild_reports: array<int, array{handle: string, details: string, created_at: string}>,
+ *     guild_moderator_removals: array<int, stdClass>,
  *     pending_follows: list<string>,
  *     messages: Generator<int, ExportMessage>,
  *     reports: Traversable<int, array<string, mixed>>,
@@ -62,6 +70,7 @@ use Traversable;
  *     push_subscriptions: array<int, array{id: string}>,
  *     devices: array<int, array{name: string, app_id: string|null, app_name: string|null, fingerprint: string, approved_at: string, last_used_at: string|null, push_platform: string|null}>,
  *     timeouts: array<int, array{reason: string, ends_at: string, created_at: string}>,
+ *     ban_events: array<int, array{reason: string, created_at: string}>,
  *     sessions: Collection<int, stdClass>
  * }
  */
@@ -75,7 +84,7 @@ final readonly class CreateExport
     public function handle(User $user): array
     {
         return [
-            'schema_version' => 6,
+            'schema_version' => 9,
             'exported_at' => now()->toIso8601String(),
             'profile' => [
                 'github_id' => $user->github_id,
@@ -129,7 +138,19 @@ final readonly class CreateExport
             'dismissed_suggestions' => $this->handles($user->dismissedSuggestions()),
             'organizations' => $this->organizations($user),
             'followed_organizations' => $this->followedOrganizations($user),
+            'guilds' => Guild::query()->where('user_id', $user->id)->orderBy('handle')->get()->map(fn (Guild $guild): array => [
+                ...$guild->toArray(),
+                'icon' => $guild->icon_path === null ? null : route('guild-icon.show', $guild->handle),
+                'created_at' => $guild->created_at->toIso8601String(),
+                'updated_at' => $guild->updated_at->toIso8601String(),
+            ])->all(),
+            'guild_preferences' => DB::table('guild_preferences')->join('guilds', 'guilds.id', '=', 'guild_preferences.guild_id')
+                ->where('guild_preferences.user_id', $user->id)->orderBy('handle')->get(['handle', 'joined_at', 'muted_at'])->all(),
             'pending_follows' => $this->pendingFollows($user),
+            'guild_reports' => GuildReport::query()->where('reporter_id', $user->id)->with('guild')->oldest('id')->get()->map(fn (GuildReport $report): array => [
+                'handle' => $report->guild->handle, 'details' => $report->details, 'created_at' => $report->created_at->toIso8601String(),
+            ])->all(),
+            'guild_moderator_removals' => DB::table('guild_moderator_removals')->where('github_id', $user->github_id)->orderBy('handle')->get(['handle', 'created_at'])->all(),
             'messages' => $this->messages($user),
             'reports' => CommitReport::query()->where('reporter_id', $user->id)->oldest('id')->cursor()->map(fn (CommitReport $report): array => [
                 'commit_id' => $report->commit_id,
@@ -185,6 +206,10 @@ final readonly class CreateExport
                 'reason' => $timeout->reason->value,
                 'ends_at' => $timeout->ends_at->toIso8601String(),
                 'created_at' => $timeout->created_at->toIso8601String(),
+            ])->all(),
+            'ban_events' => BanEvent::query()->where('github_id', $user->github_id)->oldest()->get()->map(fn (BanEvent $ban): array => [
+                'reason' => $ban->reason->value,
+                'created_at' => $ban->created_at->toIso8601String(),
             ])->all(),
             'sessions' => $this->sessions($user),
         ];
@@ -295,17 +320,25 @@ final readonly class CreateExport
 
     /**
      * The days the user was seen, oldest first. They are read while the export streams, after the request asking for it
-     * was recorded, so an export that is the first visit of the day includes that day.
+     * was recorded, so an export that is the first visit of the day includes that day. Each says the apps it was seen
+     * in, as stored: days before apps were tracked say web, whatever was used.
      *
-     * @return Generator<int, string>
+     * @return Generator<int, ExportActiveDay>
      */
     private function activeDays(User $user): Generator
     {
-        /** @var LazyCollection<int, object{seen_at: string}> $days */
+        /** @var LazyCollection<int, object{seen_at: string, web_app: bool, native_mobile_app: bool, lite_mobile_app: bool, mac_app: bool, other_app: bool}> $days */
         $days = DB::table('user_active_days')->where('user_id', $user->id)->oldest('seen_at')->cursor();
 
         foreach ($days as $day) {
-            yield $day->seen_at;
+            yield [
+                'date' => $day->seen_at,
+                'web_app' => $day->web_app,
+                'native_mobile_app' => $day->native_mobile_app,
+                'lite_mobile_app' => $day->lite_mobile_app,
+                'mac_app' => $day->mac_app,
+                'other_app' => $day->other_app,
+            ];
         }
     }
 

@@ -7,15 +7,45 @@ namespace App\Queries;
 use App\Enums\ModerationReason;
 use App\Enums\TimeoutDuration;
 use App\Models\Ban;
+use App\Models\BanEvent;
 use App\Models\User;
 use App\Models\UserTimeout;
 use Carbon\CarbonInterface;
 
 /**
  * @phpstan-type UserModeration array{timeoutsCount: int, timeout: array{reason: string, endsAt: CarbonInterface}|null, ban: array{reason: string, bannedAt: CarbonInterface}|null, reasons: array<int|string, string>, durations: array<int|string, string>}
+ * @phpstan-type UserModerationHistory array{timeoutsCount: int, bansCount: int, timeouts: list<array{id: string, reason: string, duration: string, startedAt: CarbonInterface, endsAt: CarbonInterface}>, bans: list<array{id: string, reason: string, bannedAt: CarbonInterface}>}
  */
 final readonly class UserModerationQuery
 {
+    /**
+     * What the account owner can see about their own moderation history.
+     *
+     * @return UserModerationHistory
+     */
+    public function history(User $user): array
+    {
+        $timeouts = $user->timeouts()->latest()->get();
+        $bans = $user->banEvents()->latest()->get();
+
+        return [
+            'timeoutsCount' => $timeouts->count(),
+            'bansCount' => $bans->count(),
+            'timeouts' => array_values($timeouts->map(fn (UserTimeout $timeout): array => [
+                'id' => $timeout->id,
+                'reason' => $timeout->reason->label(),
+                'duration' => $timeout->duration(),
+                'startedAt' => $timeout->created_at,
+                'endsAt' => $timeout->ends_at,
+            ])->all()),
+            'bans' => array_values($bans->map(fn (BanEvent $ban): array => [
+                'id' => $ban->id,
+                'reason' => $ban->reason->label(),
+                'bannedAt' => $ban->created_at,
+            ])->all()),
+        ];
+    }
+
     /**
      * What admins see of each user's timeouts and ban, and what they can choose from to give another, keyed by user id.
      * Timeouts and bans go by GitHub account, so they are read by GitHub id, in two queries whatever the number of users.

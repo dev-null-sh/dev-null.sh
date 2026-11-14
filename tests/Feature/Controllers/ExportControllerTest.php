@@ -5,6 +5,8 @@ declare(strict_types=1);
 use App\Actions\CreateCommitReport;
 use App\Actions\CreateCommitTranslation;
 use App\Actions\CreateExport;
+use App\Actions\CreateGuildReport;
+use App\Actions\DeleteGuild;
 use App\Actions\DeleteUser;
 use App\Actions\UpdateDevicePushToken;
 use App\Contracts\Services\TranslationProvider;
@@ -12,10 +14,12 @@ use App\Enums\ModerationReason;
 use App\Enums\NotificationType;
 use App\Enums\OrganizationRole;
 use App\Enums\PushPlatform;
+use App\Models\BanEvent;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\CommitReport;
 use App\Models\Device;
+use App\Models\Guild;
 use App\Models\Message;
 use App\Models\MessageVoice;
 use App\Models\Notification;
@@ -92,7 +96,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
     $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
 
     expect($data)->toBe([
-        'schema_version' => 6,
+        'schema_version' => 9,
         'exported_at' => now()->toIso8601String(),
         'profile' => [
             'github_id' => $user->github_id,
@@ -133,7 +137,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
             'created_at' => $user->created_at->toIso8601String(),
             'updated_at' => $user->updated_at->toIso8601String(),
         ],
-        'active_days' => [],
+        'active_days' => [['date' => now()->toDateString(), 'web_app' => true, 'native_mobile_app' => false, 'lite_mobile_app' => false, 'mac_app' => false, 'other_app' => false]],
         'commits' => [],
         'organization_commits' => [],
         'polls' => [],
@@ -146,7 +150,11 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
         'dismissed_suggestions' => [],
         'organizations' => [],
         'followed_organizations' => [],
+        'guilds' => [],
+        'guild_preferences' => [],
         'pending_follows' => [],
+        'guild_reports' => [],
+        'guild_moderator_removals' => [],
         'messages' => [],
         'reports' => [],
         'remote_mutes' => [],
@@ -157,6 +165,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
         'push_subscriptions' => [],
         'devices' => [],
         'timeouts' => [],
+        'ban_events' => [],
         'sessions' => [],
     ]);
     expect($response->streamedContent())->not->toContain('never-export-this-token')
@@ -185,6 +194,27 @@ it('exports when the user accepted the commit rules and their timeouts, without 
                 'created_at' => $second->created_at->toIso8601String(),
             ],
         ]);
+});
+
+it('exports the user ban history without exposing moderators or other users', function (): void {
+    $user = User::factory()->create();
+    $first = BanEvent::factory()->create([
+        'github_id' => $user->github_id,
+        'reason' => ModerationReason::Harassment,
+        'created_at' => now()->subDay(),
+    ]);
+    $second = BanEvent::factory()->create([
+        'github_id' => $user->github_id,
+        'reason' => ModerationReason::Spam,
+    ]);
+    BanEvent::factory()->create();
+
+    $data = json_decode($this->actingAs($user)->get(route('export'))->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
+
+    expect($data['ban_events'])->toBe([
+        ['reason' => $first->reason->value, 'created_at' => $first->created_at->toIso8601String()],
+        ['reason' => $second->reason->value, 'created_at' => $second->created_at->toIso8601String()],
+    ]);
 });
 
 it('exports the remotes the user muted, without the mutes of others', function (): void {
@@ -482,18 +512,22 @@ it('exports the organizations the user is a member of with their role, first joi
     ]);
 });
 
-it('exports the days the user was seen, oldest first, without the days of others', function (): void {
+it('exports the days the user was seen with the apps they used, oldest first, without the days of others', function (): void {
+    $this->travelTo(now()->setDate(2026, 10, 21)->setTime(12, 0));
     $user = User::factory()->create(['last_seen_at' => now()]);
     DB::table('user_active_days')->insert([
-        ['user_id' => $user->id, 'seen_at' => '2026-10-21'],
-        ['user_id' => $user->id, 'seen_at' => '2026-10-19'],
-        ['user_id' => User::factory()->create()->id, 'seen_at' => '2026-10-20'],
+        ['user_id' => $user->id, 'seen_at' => '2026-10-21', 'web_app' => true, 'native_mobile_app' => true, 'lite_mobile_app' => false, 'mac_app' => false, 'other_app' => false],
+        ['user_id' => $user->id, 'seen_at' => '2026-10-19', 'web_app' => false, 'native_mobile_app' => false, 'lite_mobile_app' => true, 'mac_app' => true, 'other_app' => true],
+        ['user_id' => User::factory()->create()->id, 'seen_at' => '2026-10-20', 'web_app' => true, 'native_mobile_app' => false, 'lite_mobile_app' => false, 'mac_app' => false, 'other_app' => false],
     ]);
 
     $response = $this->actingAs($user)->get(route('export'));
     $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
 
-    expect($data['active_days'])->toBe(['2026-10-19', '2026-10-21']);
+    expect($data['active_days'])->toBe([
+        ['date' => '2026-10-19', 'web_app' => false, 'native_mobile_app' => false, 'lite_mobile_app' => true, 'mac_app' => true, 'other_app' => true],
+        ['date' => '2026-10-21', 'web_app' => true, 'native_mobile_app' => true, 'lite_mobile_app' => false, 'mac_app' => false, 'other_app' => false],
+    ]);
 });
 
 it('exports today when the export is the first visit of the day', function (): void {
@@ -504,7 +538,7 @@ it('exports today when the export is the first visit of the day', function (): v
     $response = $this->actingAs($user)->get(route('export'));
     $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
 
-    expect($data['active_days'])->toBe(['2026-10-29', '2026-10-30']);
+    expect(array_column($data['active_days'], 'date'))->toBe(['2026-10-29', '2026-10-30']);
 });
 
 it('exports the organizations the user follows, first follow first', function (): void {
@@ -702,4 +736,40 @@ it('exports subscription metadata without delivery endpoints', function (): void
     $subscription = $user->pushSubscriptions()->create(['endpoint_hash' => 'browser', 'endpoint' => 'https://fcm.googleapis.com/wp/private']);
     $export = resolve(CreateExport::class)->handle($user);
     expect($export['push_subscriptions'])->toBe([['id' => $subscription->id]]);
+});
+
+it('exports only the users guilds without internal paths or identifiers', function (): void {
+    $user = User::factory()->create();
+    Guild::factory()->create(['user_id' => $user->id, 'handle' => 'jobs', 'name' => 'Job Board', 'description' => 'Hiring.', 'emoji' => '💼', 'icon_path' => 'guild-icons/private-path.webp']);
+    Guild::factory()->create(['user_id' => $user->id, 'handle' => 'rust']);
+    Guild::factory()->create(['name' => 'Someone else']);
+
+    $response = $this->actingAs($user)->get(route('export'))->assertOk();
+    $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
+
+    expect($data['guilds'])->toHaveCount(2)
+        ->and($data['guilds'][0])->toBe([
+            'handle' => 'jobs', 'name' => 'Job Board', 'description' => 'Hiring.', 'emoji' => '💼',
+            'icon' => route('guild-icon.show', 'jobs'),
+            'created_at' => now()->toIso8601String(), 'updated_at' => now()->toIso8601String(),
+        ])
+        ->and($data['guilds'][1]['icon'])->toBeNull()
+        ->and($response->streamedContent())->not->toContain('guild-icons/private-path.webp', 'Someone else');
+});
+
+it('exports only the users guild reports and moderator removals', function (): void {
+    $user = User::factory()->create();
+    $guild = Guild::factory()->create(['handle' => 'jobs']);
+    resolve(CreateGuildReport::class)->handle($user, $guild, 'My private report.');
+    $guild->members()->attach($user, ['joined_at' => now(), 'muted_at' => now()]);
+    $guild->members()->attach(User::factory()->create(), ['joined_at' => now()]);
+    resolve(CreateGuildReport::class)->handle(User::factory()->create(), $guild, 'Someone elses report.');
+    resolve(DeleteGuild::class)->handle(Guild::factory()->create(['user_id' => $user->id, 'handle' => 'rust']));
+    resolve(DeleteGuild::class)->handle(Guild::factory()->create(['handle' => 'php']));
+
+    $data = json_decode($this->actingAs($user)->get(route('export'))->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
+
+    expect($data['guild_reports'])->toBe([['handle' => 'jobs', 'details' => 'My private report.', 'created_at' => now()->toIso8601String()]])
+        ->and($data['guild_preferences'])->toBe([['handle' => 'jobs', 'joined_at' => now()->toDateTimeString(), 'muted_at' => now()->toDateTimeString()]])
+        ->and(array_column($data['guild_moderator_removals'], 'handle'))->toBe(['rust']);
 });

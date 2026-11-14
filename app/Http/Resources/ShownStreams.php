@@ -10,6 +10,7 @@ use App\Models\CommitReport;
 use App\Models\Notification;
 use App\Models\Profile;
 use App\Models\User;
+use App\Queries\GuildCommitsQuery;
 use Illuminate\Pagination\CursorPaginator;
 use Illuminate\Support\Collection;
 
@@ -104,10 +105,11 @@ final class ShownStreams
      * @param  CursorPaginator<int, Commit>  $page
      * @return CursorPaginator<int, ShownCommitResource>
      */
-    public static function page(CursorPaginator $page): CursorPaginator
+    public static function page(CursorPaginator $page, ?User $joinedGuildsFor = null): CursorPaginator
     {
+        $guilds = $joinedGuildsFor instanceof User ? resolve(GuildCommitsQuery::class)->joinedFor($page->items(), $joinedGuildsFor) : [];
         $shown = clone $page;
-        $shown->setCollection($page->getCollection()->map(fn (Commit $commit): ShownCommitResource => new ShownCommitResource($commit)));
+        $shown->setCollection($page->getCollection()->map(fn (Commit $commit): ShownCommitResource => new ShownCommitResource($commit, $guilds[$commit->id] ?? null)));
 
         return $shown;
     }

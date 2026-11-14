@@ -20,6 +20,7 @@ it('knows nobody and holds nothing', function (): void {
         ->and($provider->isPublicMember('45861341', '720328'))->toBeFalse()
         ->and($provider->publicOrganizationMemberIds('example'))->toBeNull()
         ->and($provider->hasSponsorsListing('token'))->toBeNull()
+        ->and($provider->publicSponsors('dev-null-sh'))->toBe([])
         ->and($provider->followingIds('octocat', 10))->toBe(['users' => [], 'organizations' => []])
         ->and($provider->followerIds('octocat', 10))->toBe([])
         ->and($provider->sshKeys('octocat'))->toBe([])

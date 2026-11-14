@@ -14,7 +14,7 @@ beforeEach(function (): void {
 it('tells the web composer whether the user still has the commit rules to read', function (): void {
     $this->actingAs(User::factory()->firstTimePoster()->create())
         ->get(route('starred.index'))
-        ->assertInertia(fn ($page) => $page->where('auth.mustReadCommitRules', true));
+        ->assertInertia(fn ($page) => $page->where('auth.mustReadCommitRules', true)->where('humanVerificationSiteKey', '1x00000000000000000000AA'));
 
     $this->actingAs(User::factory()->create())
         ->get(route('starred.index'))
@@ -25,7 +25,7 @@ it('accepts the first commit of a first-time poster from the web composer, which
     $user = User::factory()->firstTimePoster()->create();
 
     $this->actingAs($user)
-        ->post(route('commit.store'), ['body' => 'Hello, world.', 'commit_rules_accepted' => '1'])
+        ->post(route('commit.store'), ['body' => 'Hello, world.', 'commit_rules_accepted' => '1', 'human_verification_token' => 'turnstile-token'])
         ->assertSessionHasNoErrors();
 
     expect($user->commits()->count())->toBe(1)
@@ -46,6 +46,26 @@ it('refuses the first commit of a first-time poster that did not come with the r
     expect($user->commits()->count())->toBe(0)
         ->and($user->refresh()->commit_rules_accepted_at)->toBeNull();
 });
+
+it('refuses the first commit of a first-time poster who read the rules but passed no human check', function (array $humanVerification): void {
+    $user = User::factory()->firstTimePoster()->create();
+    $parent = Commit::factory()->create();
+
+    $this->actingAs($user)
+        ->post(route('commit.store'), ['body' => 'Hello, world.', 'commit_rules_accepted' => '1', ...$humanVerification])
+        ->assertSessionHasErrors(['body' => 'Confirm that you are human first: reload the page and commit again.']);
+
+    $this->postJson(route('commit-reply.store', $parent), ['body' => 'Hello, world.', 'commit_rules_accepted' => true, ...$humanVerification])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['body' => 'Confirm that you are human first: reload the page and commit again.']);
+
+    expect($user->commits()->count())->toBe(0)
+        ->and($user->refresh()->commit_rules_accepted_at)->toBeNull();
+})->with([
+    'no token' => [[]],
+    'an empty token' => [['human_verification_token' => '']],
+    'a token that is not text' => [['human_verification_token' => ['turnstile-token']]],
+]);
 
 it('refuses the first commit of a first-time poster from the app, even when it says they read the rules', function (): void {
     $user = User::factory()->firstTimePoster()->create();
@@ -83,7 +103,7 @@ it('asks a first-time poster for the commit rules on replies and scheduled commi
 
     expect(ScheduledCommit::query()->count())->toBe(0);
 
-    $this->postJson(route('commit-reply.store', $parent), ['body' => 'Hello, world.', 'commit_rules_accepted' => true])
+    $this->postJson(route('commit-reply.store', $parent), ['body' => 'Hello, world.', 'commit_rules_accepted' => true, 'human_verification_token' => 'turnstile-token'])
         ->assertSuccessful();
 
     expect($user->commits()->count())->toBe(1)

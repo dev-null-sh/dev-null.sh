@@ -16,6 +16,7 @@ import {
 import { CommitImageViewer } from '@/components/commit-image-viewer';
 import { CommitStarPolling } from '@/components/commit-star-polling';
 import { DeletedPageDialog } from '@/components/deleted-page-dialog';
+import { ExternalLinkGuard } from '@/components/external-link-guard';
 import { endStream, GoLiveDialog } from '@/components/go-live-dialog';
 import { GuestJoinSheet } from '@/components/guest-join-sheet';
 import { KeyboardShortcutsDialog } from '@/components/keyboard-shortcuts-dialog';
@@ -51,7 +52,7 @@ import type { AppLayoutProps } from '@/types';
 export default function AppLayout({ children }: AppLayoutProps) {
     const {
         component,
-        props: { auth },
+        props: { auth, isLiteMobileApp },
     } = usePage();
     const { isLayoutOpen } = useNavOpen();
     const [isShowingShortcuts, setIsShowingShortcuts] = useState(false);
@@ -120,6 +121,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
     return (
         <>
             {!isMessages && <ProductHuntBanner />}
+            <ExternalLinkGuard />
             <div
                 data-nav={isLayoutOpen ? 'expanded' : 'collapsed'}
                 className="mx-auto flex min-h-svh w-full max-w-[1264px] justify-center"
@@ -171,9 +173,9 @@ export default function AppLayout({ children }: AppLayoutProps) {
                             onCompose={compose}
                         />
                     )}
-                    {!isMessages && component !== 'app/index' && (
-                        <MobileAppSuggestion />
-                    )}
+                    {!isMessages &&
+                        component !== 'app/index' &&
+                        !isLiteMobileApp && <MobileAppSuggestion />}
                 </MobileNav>
 
                 {deletedPage === null ? (

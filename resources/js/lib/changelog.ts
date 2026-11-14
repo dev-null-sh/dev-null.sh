@@ -43,12 +43,14 @@ export function changelogDays(
     timeZone: string,
 ): ChangelogDay[] {
     const days: ChangelogDay[] = [];
+    const calendar = new Intl.DateTimeFormat('en-CA', { timeZone });
     let seenAuthors = new Set<string>();
 
     for (const commit of commits) {
-        const date = new Date(commit.committed_at).toLocaleDateString('en-CA', {
-            timeZone,
-        });
+        const parsed = new Date(commit.committed_at);
+        const date = Number.isNaN(parsed.getTime())
+            ? 'Invalid Date'
+            : calendar.format(parsed);
         let day = days.at(-1);
 
         if (day?.date !== date) {

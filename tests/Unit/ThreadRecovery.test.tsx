@@ -1,11 +1,13 @@
 /// <reference types="node" />
 import assert from 'node:assert/strict';
 import { afterEach, beforeEach, test, vi } from 'vite-plus/test';
-import type { ThreadCommit } from '../../resources/js/types';
+import type { Commit, ThreadCommit } from '../../resources/js/types';
 import { fakeConnection, joinAll } from './FakeRealtime';
 import { hookHarness } from './HookHarness';
 
 const harness = hookHarness();
+let component = 'commit/show';
+let guildPreview = false;
 
 vi.doMock('react', () => harness.react);
 vi.doMock('../../resources/js/hooks/use-media-query', () => ({
@@ -14,7 +16,9 @@ vi.doMock('../../resources/js/hooks/use-media-query', () => ({
 vi.doMock('@inertiajs/react', async () => ({
     ...(await vi.importActual('@inertiajs/react')),
     usePage: () => ({
+        component,
         props: {
+            guilds: guildPreview ? [] : null,
             repliesPerPage: 2,
             continuation: null,
             now: Date.now(),
@@ -30,7 +34,7 @@ const { useThread } = await import('../../resources/js/components/commit-thread'
 
 const reply = (id: string) =>
     ({ id, replies_count: 0, deleted_at: null, parent_id: 'root' }) as unknown as ThreadCommit;
-const root = { id: 'root', replies_count: 2, deleted_at: null } as unknown as ThreadCommit;
+const root = { id: 'root', replies_count: 2, deleted_at: null } as unknown as Commit;
 
 let server: string[];
 let change: { changed: boolean; replies: string[]; truncated: boolean } | null;
@@ -56,10 +60,10 @@ beforeEach(() => {
         const url = new URL(input, 'http://localhost');
 
         if (url.pathname === '/commits/changes') {
-            return Response.json({ changes: { root: change } });
+            return Response.json({ changes: Object.fromEntries(url.searchParams.getAll('ids[]').map(id => [id, change])) });
         }
 
-        if (url.pathname === '/commits/root/replies') {
+        if (url.pathname.endsWith('/replies')) {
             replyReads.push(url);
             const ids = url.searchParams.getAll('ids[]');
 
@@ -86,6 +90,8 @@ beforeEach(() => {
 
 afterEach(() => {
     harness.unmount();
+    component = 'commit/show';
+    guildPreview = false;
     connectRealtime(null);
     vi.unstubAllGlobals();
     vi.useRealTimers();
@@ -101,6 +107,31 @@ async function settle() {
 let props = { initial: initialOf(['r1', 'r2']) };
 
 const shownIds = () => thread.replies?.map((shown) => shown.id);
+
+function Previews() {
+    useThread({ ...root, id: 'preview-one', reply_preview: initialOf([]) });
+    useThread({ ...root, id: 'preview-two', reply_preview: initialOf(['r1']) });
+    useThread({ ...root, id: 'preview-three', reply_preview: initialOf(['r1', 'r2']) });
+    return null;
+}
+
+for (const preview of [false, true]) {
+    test(`log previews defer relationship recovery to their log (guild preview ${preview})`, async () => {
+        component = 'log/show';
+        guildPreview = preview;
+        server = ['r1', 'r2'];
+        void harness.render(Previews, {});
+        joinAll(fake);
+        await vi.advanceTimersByTimeAsync(1_500);
+        assert.equal(replyReads.length, 0);
+
+        fake.setStatus('unavailable');
+        joinAll(fake);
+        fake.joined.get('private-users.me')!.emit('relationships');
+        await vi.advanceTimersByTimeAsync(1_500);
+        assert.equal(replyReads.length, 0, 'compact previews must not each reread replies');
+    });
+}
 
 test('unmuting someone elsewhere brings their reply back into the open thread, where it belongs', async () => {
     props = { initial: initialOf(['r1', 'r2']) };

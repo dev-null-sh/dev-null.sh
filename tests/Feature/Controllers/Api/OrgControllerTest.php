@@ -103,7 +103,7 @@ it('lets site admins add anyone with remotes on', function (): void {
     expect(Conversation::query()->sole()->roleOf($nuno)?->value)->toBe('contributor');
 });
 
-it('caps an org at a hundred people', function (): void {
+it('caps an org at 256 people', function (): void {
     $members = array_map(fn (User $member): string => $member->handle, followersOf($this->user, Conversation::MAX_MEMBERS));
 
     signedApiRequest($this->keyPair, 'POST', route('api-org.store'), ['members' => $members])

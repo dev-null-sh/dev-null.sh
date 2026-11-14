@@ -72,6 +72,22 @@ final class ApiException extends HttpException
     }
 
     /**
+     * GitHub refused the issue, so trying again is safe, as the web says it.
+     */
+    public static function gitHubIssueRefused(): self
+    {
+        return new self(ApiErrorCode::GitHubIssueRefused, __('GitHub did not create the issue. Your draft is safe.'));
+    }
+
+    /**
+     * GitHub did not answer, so the issue may exist anyway and trying again may duplicate it, as the web says it.
+     */
+    public static function gitHubIssueUnanswered(): self
+    {
+        return new self(ApiErrorCode::GitHubIssueUnanswered, __('GitHub did not respond. Check the upstream issues before trying again. Your draft is safe.'));
+    }
+
+    /**
      * The user is banned, so the only thing left for them is deleting their account.
      */
     public static function banned(): self

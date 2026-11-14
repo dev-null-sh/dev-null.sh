@@ -20,6 +20,12 @@ type BaseNotification = {
     reason: string | null;
 };
 
+export type TimeoutNotification = {
+    reason: string;
+    duration: string;
+    ends_at: string;
+};
+
 export type NotificationGroup = Notification & {
     group_id: string;
     event_count: number;
@@ -49,6 +55,13 @@ export type Notification =
           level: number;
           rank: string;
           rank_description: string;
+      })
+    | (BaseNotification & {
+          type: 'timed_out';
+          commit_id: null;
+          subject_id: null;
+          commit: null;
+          timeout: TimeoutNotification;
       })
     | (BaseNotification & {
           type: 'quoted';
