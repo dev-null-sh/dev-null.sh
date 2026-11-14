@@ -385,7 +385,9 @@ Enable **Pastéis mode** in Settings → Profile to give pastry awards to other 
 
 Pastéis do not notify anyone and do not affect Trending. Turning Pastéis mode off hides its controls and counters, including the pastéis count on profiles; people can still give you pastéis. The pastel emoji and mode commemorate Fernando Andrade bringing Portuguese custard pastries to the livestream team, rather than representing a payment or purchasable currency.
 
-Sources: [Pastéis setting](resources/js/components/pasteis-mode-setting.tsx), [award action](app/Actions/CreateCommitPastel.php), [award authorization](app/Http/Requests/CreateCommitPastelRequest.php), [pastry lore](#pastéis-de-nata).
+With Pastéis mode on, the words **pastel**, **pasteis** and **pastéis** in commits automatically show as the pastel emoji. To talk about pastéis without rendering the emoji, write a backslash right before the word, like: `\pastel`.
+
+Sources: [Pastéis setting](resources/js/components/pasteis-mode-setting.tsx), [award action](app/Actions/CreateCommitPastel.php), [award authorization](app/Http/Requests/CreateCommitPastelRequest.php), [pastel words](resources/js/lib/pasteis.ts), [pastry lore](#pastéis-de-nata).
 
 ### Notifications
 
