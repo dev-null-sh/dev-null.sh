@@ -2,13 +2,16 @@
 
 declare(strict_types=1);
 
+use App\Actions\CreateUserTimeoutNotification;
 use App\Actions\UpdateScheduledCommitSubmittedAt;
 use App\Contracts\Services\GitHubProvider;
 use App\Enums\ModerationReason;
+use App\Enums\NotificationType;
 use App\Http\Requests\CreateHumanVerificationRequest;
 use App\Models\Ban;
 use App\Models\Commit;
 use App\Models\Conversation;
+use App\Models\Notification;
 use App\Models\ScheduledCommit;
 use App\Models\User;
 use App\Models\UserTimeout;
@@ -37,6 +40,23 @@ it('may put a user in timeout', function (): void {
     expect($user->activeTimeout())
         ->reason->toBe(ModerationReason::EngagementBait)
         ->ends_at->toDateTimeString()->toBe(now()->addDay()->toDateTimeString());
+
+    expect(Notification::query()->where('recipient_id', $user->id)->with('timeout')->sole())
+        ->type->toBe(NotificationType::TimedOut)
+        ->timeout->reason->toBe(ModerationReason::EngagementBait)
+        ->timeout->ends_at->toDateTimeString()->toBe(now()->addDay()->toDateTimeString());
+});
+
+it('does not create a notification after the account was deleted', function (): void {
+    $timeout = UserTimeout::query()->create([
+        'github_id' => 'deleted-account',
+        'reason' => ModerationReason::Spam,
+        'ends_at' => now()->addDay(),
+    ]);
+
+    resolve(CreateUserTimeoutNotification::class)->handle($timeout);
+
+    expect(Notification::query()->count())->toBe(0);
 });
 
 it('validates the reason and duration of a timeout', function (): void {

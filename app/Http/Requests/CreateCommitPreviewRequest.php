@@ -6,6 +6,7 @@ namespace App\Http\Requests;
 
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rules\In;
 
 final class CreateCommitPreviewRequest extends FormRequest
 {
@@ -20,12 +21,18 @@ final class CreateCommitPreviewRequest extends FormRequest
     }
 
     /**
-     * @return array<string, array<int, string|ValidationRule>>
+     * @return array<string, array<int, string|ValidationRule|In>>
      */
     public function rules(): array
     {
         return [
             'body' => CreateCommitRequest::bodyRules(),
+            ...CreateCommitRequest::guildRules($this),
         ];
+    }
+
+    public function passedValidation(): void
+    {
+        CreateCommitRequest::appendGuildHashtag($this);
     }
 }

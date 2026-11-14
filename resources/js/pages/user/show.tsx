@@ -38,6 +38,10 @@ import { ProfileReadme } from '@/components/profile-readme';
 import { ProfileShareButton } from '@/components/profile-share-button';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
+import {
+    UserModerationHistory,
+    type UserModerationHistory as UserModerationHistoryData,
+} from '@/components/user-moderation-history';
 import type { UserModeration } from '@/components/user-moderation-menu';
 import {
     UserModerationMenu,
@@ -75,6 +79,7 @@ export default function Show({
     followersYouKnow,
     canPush,
     moderation,
+    moderationHistory,
     activity,
     streaks,
     achievements,
@@ -92,6 +97,7 @@ export default function Show({
     followersYouKnow: FollowersYouKnowPreview | null;
     canPush: boolean;
     moderation: UserModeration | null;
+    moderationHistory: UserModerationHistoryData | null;
     activity: Activity;
     streaks: Streaks;
     achievements: Achievements;
@@ -509,6 +515,9 @@ export default function Show({
                         );
                     })}
                 </dl>
+                {moderationHistory && (isCurrentUser || moderation) && (
+                    <UserModerationHistory history={moderationHistory} />
+                )}
                 {followersYouKnow && (
                     <FollowersYouKnow user={user} preview={followersYouKnow} />
                 )}

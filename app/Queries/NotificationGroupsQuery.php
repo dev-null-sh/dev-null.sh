@@ -39,6 +39,7 @@ final readonly class NotificationGroupsQuery
                 'actor.user' => fn (HasOne $query): HasOne => $query
                     ->withExists(['followers as is_followed' => fn (Builder $query): Builder => $query->whereKey($user->id)]),
                 'commit',
+                'timeout',
                 'organization',
             ])
             ->latest()->latest('id');
@@ -112,6 +113,7 @@ final readonly class NotificationGroupsQuery
                 'actor.user' => fn (HasOne $query): HasOne => $query
                     ->withExists(['followers as is_followed' => fn (Builder $query): Builder => $query->whereKey($user->id)]),
                 'organization',
+                'timeout',
             ]);
     }
 
@@ -149,7 +151,7 @@ final readonly class NotificationGroupsQuery
                 'stars' => ['starred'],
                 'mentions' => ['mentioned'],
                 'follows' => ['followed'],
-                'moderation' => ['approved', 'rejected'],
+                'moderation' => ['approved', 'rejected', 'timed_out'],
                 default => [],
             }, explode(',', $type)))));
 
@@ -183,6 +185,7 @@ final readonly class NotificationGroupsQuery
                 SELECT visible.*,
                     CASE WHEN visible.type = 'starred' THEN 'starred'
                         WHEN visible.type = 'replied' THEN 'replied'
+                        WHEN visible.type = 'timed_out' THEN 'timed_out'
                         WHEN visible.organization_id IS NOT NULL THEN CONCAT('organization:', visible.organization_id)
                         ELSE 'activity' END AS topic_kind,
                     CASE WHEN visible.type = 'followed' THEN visible.recipient_id

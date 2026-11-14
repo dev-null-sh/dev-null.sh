@@ -15,9 +15,10 @@ final readonly class SuggestedCommitsQuery
      */
     public function get(User $user, int $limit = 3): Collection
     {
-        return Commit::query()
+        return resolve(GuildCommitsQuery::class)->snapshot($user, fn (): Collection => Commit::query()
             ->visibleTo($user)
             ->withoutMutedAuthorsFor($user)
+            ->withoutMutedGuildsFor($user)
             ->topLevel()
             ->withStarsFor($user)
             ->whereNot('author_id', $user->id)
@@ -29,6 +30,6 @@ final readonly class SuggestedCommitsQuery
             ->take($limit)
             ->values()
             ->load('author')
-            ->toBase();
+            ->toBase());
     }
 }

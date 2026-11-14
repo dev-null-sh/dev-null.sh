@@ -30,6 +30,8 @@ return [
 
     'env' => env('APP_ENV', 'production'),
 
+    'service_worker_enabled' => env('SERVICE_WORKER_ENABLED', true),
+
     /*
     |--------------------------------------------------------------------------
     | Application Admins

@@ -1,11 +1,15 @@
 import { Tab, TabGroup, TabList, TabPanel, TabPanels } from '@headlessui/react';
-import { Head, router, usePage } from '@inertiajs/react';
-import { ArrowRight, History, Search, X } from 'lucide-react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
+import { ArrowRight, History, Plus, Search, X } from 'lucide-react';
 import type { FormEvent } from 'react';
 import { useEffect, useRef, useState } from 'react';
+import { show as showGuild } from '@/actions/App/Http/Controllers/GuildController';
 import SearchController from '@/actions/App/Http/Controllers/SearchController';
 import { SearchResults } from '@/components/commit-search-results';
+import { GuildDialog } from '@/components/guild-dialog';
+import { GuildIcon } from '@/components/guild-icon';
 import { HotTopics } from '@/components/hot-topics';
+import { Button } from '@/components/ui/button';
 import { rememberSearch, useRecentSearches } from '@/hooks/use-recent-searches';
 import AppLayout from '@/layouts/app-layout';
 import { searchCommits } from '@/lib/commit-search';
@@ -89,6 +93,8 @@ export default function Index({ query }: { query: string }) {
                 </form>
             </header>
 
+            <HashtagGuild key={query} query={query} />
+
             {query !== '' && (
                 <TabGroup key={query}>
                     <TabList
@@ -139,6 +145,54 @@ export default function Index({ query }: { query: string }) {
 }
 
 Index.layout = AppLayout;
+
+function HashtagGuild({ query }: { query: string }) {
+    const { guilds } = usePage().props;
+    const handle = /^#\p{L}[\p{L}\p{M}\p{N}_]{0,59}$/u.test(query)
+        ? query.slice(1).toLowerCase()
+        : null;
+
+    if (!guilds || !handle) {
+        return null;
+    }
+
+    const guild = guilds.find((guild) => guild.handle === handle);
+
+    return (
+        <div className="flex items-center justify-between gap-3 border-b px-4 py-4 sm:px-6">
+            {guild ? (
+                <>
+                    <div className="flex min-w-0 items-center gap-2">
+                        <GuildIcon guild={guild} />
+                        <span
+                            className="truncate font-semibold"
+                            title={guild.name}
+                        >
+                            {guild.name}
+                        </span>
+                    </div>
+                    <Button asChild variant="outline">
+                        <Link prefetch href={showGuild(handle)}>
+                            View guild
+                        </Link>
+                    </Button>
+                </>
+            ) : (
+                <>
+                    <p className="min-w-0 text-sm text-muted-foreground">
+                        Give this hashtag a public home.
+                    </p>
+                    <GuildDialog key={handle} handle={handle}>
+                        <Button variant="outline">
+                            <Plus aria-hidden className="size-4" />
+                            Create a guild
+                        </Button>
+                    </GuildDialog>
+                </>
+            )}
+        </div>
+    );
+}
 
 /**
  * Keeps showing the previous results while the next ones load, and only reaches for a skeleton when there is nothing
