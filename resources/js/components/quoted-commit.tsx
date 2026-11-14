@@ -20,10 +20,12 @@ export function QuotedCommit({
     commit,
     isPreview = false,
     label = 'Quoting',
+    suppressLinkedPreview = false,
 }: {
     commit: QuotedCommitData | DeletedCommit | null;
     isPreview?: boolean;
     label?: string;
+    suppressLinkedPreview?: boolean;
 }) {
     const now = useNow();
     if (commit === null || isDeleted(commit)) {
@@ -81,6 +83,7 @@ export function QuotedCommit({
                     refreshUrl={CommitLinkPreviewController.show.url(commit.id)}
                     preview={commit.link_preview}
                     isStatic
+                    suppressLinkedPreview={suppressLinkedPreview}
                     source={{ commitId: commit.id }}
                 />
             )}
