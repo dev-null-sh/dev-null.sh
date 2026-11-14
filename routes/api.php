@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Exceptions\ApiException;
 use App\Http\Controllers\Api\BroadcastAuthorizationController;
 use App\Http\Controllers\Api\CallController;
+use App\Http\Controllers\Api\ChangelogController;
 use App\Http\Controllers\Api\CommitController as ApiCommitController;
 use App\Http\Controllers\Api\CommitPastelController;
 use App\Http\Controllers\Api\CommitPinController;
@@ -133,6 +134,8 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             ->name('api-organization-commit.index');
         Route::get('organizations/{handle}/mentions', [OrganizationMentionController::class, 'index'])
             ->name('api-organization-mention.index');
+        Route::get('changelog', [ChangelogController::class, 'index'])
+            ->name('api-changelog.index');
     });
 
     // The Mac app's latest release, which its update check compares with, unsigned so it sends nothing about anyone...
