@@ -191,6 +191,8 @@ it('only lets admins change roles, of members', function (): void {
     $this->actingAs($member)->put(route('organization-member.update', memberRoute($organization, $member)), ['role' => 'admin'])->assertForbidden();
     $this->actingAs($admin)->put(route('organization-member.update', memberRoute($organization, $user)), ['role' => 'admin'])->assertNotFound();
     $this->actingAs($admin)->put(route('organization-member.update', memberRoute($organization, $member)), ['role' => 'owner'])->assertSessionHasErrors('role');
+    $this->actingAs($admin)->put(route('organization-member.update', memberRoute($organization, $member)), ['role' => ['admin']])->assertSessionHasErrors('role');
+    $this->actingAs($admin)->put(route('organization-member.update', memberRoute($organization, $admin)), ['role' => ['member']])->assertSessionHasErrors('role');
 
     expect($organization->roleOf($member))->toBe(OrganizationRole::Member)
         ->and($organization->roleOf($user))->toBeNull();

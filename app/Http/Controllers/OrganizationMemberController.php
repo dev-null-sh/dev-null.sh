@@ -16,6 +16,7 @@ use App\Http\Requests\ListOrganizationMembersRequest;
 use App\Http\Requests\UpdateOrganizationMemberRequest;
 use App\Models\Organization;
 use App\Models\User;
+use App\Queries\OrganizationMembersQuery;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Database\Eloquent\Collection;
@@ -31,17 +32,13 @@ final readonly class OrganizationMemberController
     /**
      * Every member sees who the members are, first joined first. Only admins can change them.
      */
-    public function index(ListOrganizationMembersRequest $request, #[CurrentUser] User $user, Organization $organization): Response
+    public function index(ListOrganizationMembersRequest $request, #[CurrentUser] User $user, Organization $organization, OrganizationMembersQuery $members): Response
     {
         return Inertia::render('organization-member/index', [
             'organization' => $organization,
             // Changed by another admin, the members and the user's own role read again, the form being filled in stays.
             'role' => Inertia::live(fn (): ?OrganizationRole => $organization->roleOf($user), UserUpdate::Account->value, new PrivateChannel($user)),
-            'members' => Inertia::live(fn (): Collection => $organization->members()
-                ->oldest('organization_members.created_at')
-                ->withCasts(['joined_at' => 'datetime'])
-                ->get(['users.*', 'organization_members.role', 'organization_members.created_at as joined_at'])
-                ->makeHidden('pivot'), UserUpdate::Account->value, new PrivateChannel($user)),
+            'members' => Inertia::live(fn (): Collection => $members->get($organization), UserUpdate::Account->value, new PrivateChannel($user)),
         ]);
     }
 
