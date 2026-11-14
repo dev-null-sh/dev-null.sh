@@ -1,6 +1,7 @@
 import { Link, usePage } from '@inertiajs/react';
 import { Search } from 'lucide-react';
 import AboutController from '@/actions/App/Http/Controllers/AboutController';
+import ApiDocsController from '@/actions/App/Http/Controllers/ApiDocsController';
 import AppController from '@/actions/App/Http/Controllers/AppController';
 import ChangelogController from '@/actions/App/Http/Controllers/ChangelogController';
 import PartnerController from '@/actions/App/Http/Controllers/PartnerController';
@@ -113,6 +114,13 @@ export function AppAside({
                         className="transition-colors hover:text-foreground"
                     >
                         Apps
+                    </Link>
+                    <Link
+                        href={ApiDocsController.show('introduction')}
+                        prefetch
+                        className="transition-colors hover:text-foreground"
+                    >
+                        API
                     </Link>
                     <Link
                         href={ChangelogController.index()}

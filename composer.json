@@ -31,6 +31,7 @@
         "tempest/highlight": "^2.30.0"
     },
     "require-dev": {
+        "dedoc/scramble": "^0.13.53",
         "driftingly/rector-laravel": "^2.7.3",
         "fakerphp/faker": "^1.24.1",
         "larastan/larastan": "^3.15.0",
@@ -92,6 +93,7 @@
             "@php artisan key:generate --ansi",
             "@php artisan migrate --graceful --ansi"
         ],
+        "generate:openapi": "@php -d memory_limit=-1 artisan scramble:export",
         "update:requirements": [
             "composer bump",
             "bunx npm-check-updates -u"

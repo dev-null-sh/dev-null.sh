@@ -1,0 +1,178 @@
+{
+    "openapi": "3.1.0",
+    "tags": [{ "name": "Users" }, { "name": "Commits" }],
+    "paths": {
+        "/users/{handle}": {
+            "get": {
+                "operationId": "api-user.show",
+                "summary": "A profile as it shows on the web",
+                "tags": ["Users"],
+                "parameters": [
+                    { "name": "handle", "in": "path", "required": true, "schema": { "type": ["string", "null"] } }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`UserResource`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": { "data": { "$ref": "#/components/schemas/UserResource" } },
+                                    "required": ["data"]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "The signature is wrong.",
+                        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } }
+                    },
+                    "404": { "$ref": "#/components/responses/ModelNotFoundException" },
+                    "409": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": { "message": { "type": "string", "const": "Unable to claim this organization." } },
+                                    "required": ["message"]
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [[], { "devnullSignature": [] }]
+            }
+        },
+        "/commits": {
+            "post": {
+                "operationId": "api-commit.store",
+                "summary": "Commit, reply or quote",
+                "description": "Pending review unless the user is an admin.",
+                "tags": ["Commits"],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "multipart/form-data": { "schema": { "$ref": "#/components/schemas/CreateApiCommitRequest" } }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": { "data": { "$ref": "#/components/schemas/CommitResource" } },
+                                    "required": ["data"]
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [{ "devnullSignature": [] }]
+            }
+        },
+        "/commits/{commit}": {
+            "get": {
+                "operationId": "api-commit.show",
+                "summary": "One commit",
+                "tags": ["Commits"],
+                "parameters": [
+                    { "name": "commit", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+                    { "name": "replies", "in": "query", "description": "Replies instead.", "schema": { "type": "integer", "enum": [0, 1] } }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": { "type": "array", "items": { "$ref": "#/components/schemas/CommitResource" } }
+                                    },
+                                    "required": ["data"]
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [[], { "devnullSignature": [] }]
+            }
+        }
+    },
+    "components": {
+        "responses": {
+            "ModelNotFoundException": {
+                "description": "Not found",
+                "content": {
+                    "application/json": {
+                        "schema": { "type": "object", "properties": { "message": { "type": "string" } }, "required": ["message"] }
+                    }
+                }
+            }
+        },
+        "schemas": {
+            "ApiError": {
+                "type": "object",
+                "properties": { "message": { "type": "string" }, "code": { "type": "string" } },
+                "required": ["message", "code"]
+            },
+            "UserResource": {
+                "type": "object",
+                "properties": {
+                    "handle": { "type": "string" },
+                    "bio": { "type": ["string", "null"] }
+                },
+                "required": ["handle", "bio"]
+            },
+            "OrganizationResource": {
+                "type": "object",
+                "properties": {
+                    "handle": { "type": "string" },
+                    "admins": { "type": "array", "items": { "$ref": "#/components/schemas/UserResource" } }
+                },
+                "required": ["handle", "admins"]
+            },
+            "CommitResource": {
+                "anyOf": [
+                    {
+                        "type": "object",
+                        "properties": {
+                            "id": { "type": "string" },
+                            "status": { "$ref": "#/components/schemas/CommitStatus" },
+                            "author": { "anyOf": [{ "$ref": "#/components/schemas/UserResource" }, { "$ref": "#/components/schemas/OrganizationResource" }] },
+                            "parent": { "$ref": "#/components/schemas/CommitResource" }
+                        },
+                        "required": ["id", "status", "author"]
+                    },
+                    {
+                        "type": "object",
+                        "properties": {
+                            "id": { "type": "string" },
+                            "deleted_at": { "type": ["string", "null"] }
+                        },
+                        "required": ["id", "deleted_at"]
+                    }
+                ]
+            },
+            "CommitStatus": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+            "CreateApiCommitRequest": {
+                "type": "object",
+                "properties": {
+                    "body": { "type": "string", "maxLength": 40000, "description": "At most 4,000 characters." },
+                    "images": { "type": ["array", "null"], "items": { "type": "string", "format": "binary" } },
+                    "image_descriptions": { "type": ["array", "null"], "items": { "type": ["string", "null"] } },
+                    "poll": {
+                        "allOf": [
+                            { "type": "object", "properties": { "options": { "type": "array", "items": { "type": "string" } } } },
+                            { "type": "object", "properties": { "duration": { "type": "integer" } }, "required": ["duration"] }
+                        ]
+                    }
+                },
+                "required": ["body"]
+            }
+        }
+    }
+}
