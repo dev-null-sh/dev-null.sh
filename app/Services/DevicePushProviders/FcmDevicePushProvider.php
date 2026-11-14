@@ -46,8 +46,8 @@ final readonly class FcmDevicePushProvider implements DevicePushProvider
                     'token' => $device->push_token,
                     'notification' => ['title' => $push->title, 'body' => $push->body],
                     'data' => $push->data,
-                    'android' => ['priority' => 'high'],
-                    'apns' => ['payload' => ['aps' => ['sound' => 'default', ...$push->group === null ? [] : ['thread-id' => $push->group]]]],
+                    'android' => ['priority' => 'high', 'ttl' => $push->ttl.'s'],
+                    'apns' => ['headers' => ['apns-expiration' => (string) now()->addSeconds($push->ttl)->getTimestamp()], 'payload' => ['aps' => ['sound' => 'default', ...$push->group === null ? [] : ['thread-id' => $push->group]]]],
                 ]]);
         } catch (ConnectionException) {
             return false;

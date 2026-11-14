@@ -29,6 +29,12 @@ final class SendRemotePush implements ShouldQueue
     use Queueable;
 
     /**
+     * Seconds a phone that is offline can still get the push: the same five minutes as browsers, after which the
+     * message is no longer new.
+     */
+    private const int PHONE_TTL = 300;
+
+    /**
      * @param  list<string>|null  $subscriptionIds
      * @param  list<string>|null  $deviceIds
      */
@@ -104,6 +110,7 @@ final class SendRemotePush implements ShouldQueue
                     'kind' => $conversation->kind->value,
                     ...$conversation->kind === ConversationKind::Direct ? ['handle' => $sender->handle] : [],
                 ],
+                self::PHONE_TTL,
                 $conversation->id,
             );
 
@@ -117,8 +124,9 @@ final class SendRemotePush implements ShouldQueue
                 }
             } catch (Throwable $throwable) {
                 // A push service that throws is misconfigured, and retrying won't help, so report it once and
-                // leave the remaining phones. Browsers still get their push.
+                // retry no phone, not even one that failed before it threw. Browsers still get their push.
                 report($throwable);
+                $failedDevices = [];
             }
         }
 

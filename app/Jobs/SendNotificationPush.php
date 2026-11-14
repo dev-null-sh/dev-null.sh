@@ -21,6 +21,12 @@ final class SendNotificationPush implements ShouldQueue
     use Queueable;
 
     /**
+     * Seconds a phone that is offline can still get the push, so one that comes back the next day isn't handed a
+     * follow or a reply from last week.
+     */
+    private const int PHONE_TTL = 86400;
+
+    /**
      * @param  list<string>|null  $deviceIds
      */
     public function __construct(
@@ -79,6 +85,7 @@ final class SendNotificationPush implements ShouldQueue
                 'commit_id' => $notification->commit_id,
                 'handle' => $actor->handle,
             ], fn (?string $value): bool => $value !== null),
+            self::PHONE_TTL,
         );
         $failed = [];
 
