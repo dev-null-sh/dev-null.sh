@@ -39,3 +39,18 @@ await test('ends a stream instead of starting one, only when asked by name', () 
     assert.deepEqual(searchActions('stop', live), ['end-stream']);
     assert.deepEqual(searchActions('end stream', offline), []);
 });
+
+await test('opens Devamp only where it can play', () => {
+    const desktop = { isLive: false, hasDevamp: true };
+
+    assert.deepEqual(searchActions('devamp', desktop), ['devamp']);
+    assert.deepEqual(searchActions('winamp', desktop), ['devamp']);
+    assert.deepEqual(searchActions('Webamp', desktop), ['devamp']);
+    assert.deepEqual(searchActions(' llama ', desktop), ['devamp']);
+    assert.deepEqual(searchActions('web', desktop), []);
+    assert.deepEqual(searchActions('win', desktop), []);
+    assert.deepEqual(searchActions('winam', desktop), []);
+    assert.deepEqual(searchActions('dev', desktop), []);
+    assert.deepEqual(searchActions('devam', desktop), []);
+    assert.deepEqual(searchActions('winamp', offline), []);
+});

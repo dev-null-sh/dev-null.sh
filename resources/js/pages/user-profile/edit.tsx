@@ -8,6 +8,7 @@ import { GitHubProfile } from '@/components/github-profile';
 import Heading from '@/components/heading';
 import LanePicker from '@/components/lane-picker';
 import { PasteisModeSetting } from '@/components/pasteis-mode-setting';
+import { PlaylistSetting } from '@/components/playlist-setting';
 import { RemotesSetting } from '@/components/remotes-setting';
 import TimezonePicker from '@/components/timezone-picker';
 import TranslationLanguageSetting from '@/components/translation-language-setting';
@@ -30,6 +31,7 @@ export default function Edit({
     githubSyncedAt,
     activityGraphUrl,
     profileUrl,
+    playlistUrl,
 }: {
     translationLanguage: string | null;
     translationLanguages: TranslationLanguage[];
@@ -38,6 +40,7 @@ export default function Edit({
     githubSyncedAt: string | null;
     activityGraphUrl: string;
     profileUrl: string;
+    playlistUrl: string | null;
 }) {
     const { user } = useUser();
     const now = useNow();
@@ -134,6 +137,8 @@ export default function Edit({
             <PasteisModeSetting />
 
             <RemotesSetting />
+
+            <PlaylistSetting url={playlistUrl} />
 
             <ActivityGraphEmbed
                 activityGraphUrl={activityGraphUrl}

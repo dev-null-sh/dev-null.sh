@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Contracts\Services\GitHubProvider;
+use App\Contracts\Services\PlaylistProvider;
 use App\Enums\Log;
 use App\Enums\ModerationReason;
 use App\Http\Middleware\HandleInertiaRequests;
@@ -95,6 +96,28 @@ it('shows the profile owner and site moderators the user moderation history', fu
 
     $this->get(route('user.show', $user), $inertiaHeaders)
         ->assertJsonPath('props.moderationHistory', null);
+});
+
+it('offers the playlist of a member who shares one, reading its tracks only when asked', function (): void {
+    $track = ['artist' => 'Broey.', 'title' => 'Paradise', 'duration' => 143, 'url' => 'https://api.audius.co/v1/tracks/emKAp/stream?app_name=devnull', 'link' => 'https://audius.co/broeybeats/paradise'];
+    $this->mock(PlaylistProvider::class)->shouldReceive('tracks')->once()->with('https://audius.co/Byte/playlist/lofi')->andReturn([$track]);
+    $user = User::factory()->create(['playlist_url' => 'https://audius.co/Byte/playlist/lofi']);
+
+    $this->get(route('user.show', $user))
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
+            ->where('hasPlaylist', true)
+            ->missing('playlist')
+            ->missing('user.playlist_url')
+            ->reloadOnly('playlist', fn (AssertableInertia $reload): AssertableInertia => $reload
+                ->where('playlist', [$track])));
+});
+
+it('offers no playlist for a member who shares none', function (): void {
+    $this->get(route('user.show', User::factory()->create()))
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
+            ->where('hasPlaylist', false)
+            ->reloadOnly('playlist', fn (AssertableInertia $reload): AssertableInertia => $reload
+                ->where('playlist', [])));
 });
 
 it('says which accounts the bio and company mention are on dev/null', function (): void {
