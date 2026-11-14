@@ -20,7 +20,7 @@ final class DeleteCommitReportRequest extends FormRequest
         $user = $this->user();
         assert($user instanceof User);
 
-        if (! $user->isAdmin()) {
+        if (! $user->canModerate()) {
             return Response::deny();
         }
 

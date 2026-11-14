@@ -20,7 +20,7 @@ final class ShowCommitReportImageRequest extends FormRequest
         assert($report instanceof CommitReport);
         $image = $report->images[(int) $this->route('image')] ?? null;
 
-        return ($user->isAdmin() || $report->reporter_id === $user->id) && $image !== null && Storage::disk()->exists($image['path'])
+        return ($user->canModerate() || $report->reporter_id === $user->id) && $image !== null && Storage::disk()->exists($image['path'])
             ? Response::allow()
             : Response::denyAsNotFound();
     }

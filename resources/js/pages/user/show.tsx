@@ -301,7 +301,7 @@ export default function Show({
                             </>
                         ) : (
                             <>
-                                {moderation && (
+                                {moderation && auth.isAdmin && (
                                     <UserModerationMenu
                                         user={user}
                                         moderation={moderation}
