@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Http;
 
 beforeEach(function (): void {
+    $this->freezeTime();
     $key = openssl_pkey_new(['private_key_bits' => 2048, 'private_key_type' => OPENSSL_KEYTYPE_RSA]);
     openssl_pkey_export($key, $privateKey);
     $this->publicKey = openssl_pkey_get_details($key)['key'];
@@ -28,7 +29,7 @@ beforeEach(function (): void {
     ])]);
 
     $this->device = Device::factory()->withPushToken('fcm-phone')->create();
-    $this->push = new DevicePush('Alice', 'Sent you a message', ['type' => 'message', 'conversation_id' => 'c1'], 'c1');
+    $this->push = new DevicePush('Alice', 'Sent you a message', ['type' => 'message', 'conversation_id' => 'c1'], 300, 'c1');
 });
 
 function fakeFcm(int $status = 200, array $body = ['name' => 'projects/devnull-test/messages/1']): void
@@ -46,7 +47,7 @@ it('sends who did something to the phone, signed with the service account', func
 
     Http::assertSent(function (Request $request): bool {
         if ($request->url() !== 'https://oauth2.googleapis.com/token') {
-            return true;
+            return false;
         }
 
         $claims = JWT::decode($request['assertion'], new Key($this->publicKey, 'RS256'));
@@ -62,18 +63,18 @@ it('sends who did something to the phone, signed with the service account', func
             'token' => 'fcm-phone',
             'notification' => ['title' => 'Alice', 'body' => 'Sent you a message'],
             'data' => ['type' => 'message', 'conversation_id' => 'c1', 'url' => 'devnull://push?type=message&conversation_id=c1'],
-            'android' => ['priority' => 'high'],
-            'apns' => ['payload' => ['aps' => ['sound' => 'default', 'thread-id' => 'c1']]],
+            'android' => ['priority' => 'high', 'ttl' => '300s'],
+            'apns' => ['headers' => ['apns-expiration' => (string) (now()->getTimestamp() + 300)], 'payload' => ['aps' => ['sound' => 'default', 'thread-id' => 'c1']]],
         ]);
 });
 
 it('leaves the thread out of a push that has no group', function (): void {
     fakeFcm();
 
-    new FcmDevicePushProvider()->send($this->device, new DevicePush('Alice', 'Followed you', []));
+    new FcmDevicePushProvider()->send($this->device, new DevicePush('Alice', 'Followed you', [], 86400));
 
     Http::assertSent(fn (Request $request): bool => str_starts_with($request->url(), 'https://fcm.googleapis.com/')
-        && json_decode($request->body(), true)['message']['apns'] === ['payload' => ['aps' => ['sound' => 'default']]]);
+        && json_decode($request->body(), true)['message']['apns'] === ['headers' => ['apns-expiration' => (string) (now()->getTimestamp() + 86400)], 'payload' => ['aps' => ['sound' => 'default']]]);
 });
 
 it('keeps the access token, encrypted, until shortly before it expires', function (): void {

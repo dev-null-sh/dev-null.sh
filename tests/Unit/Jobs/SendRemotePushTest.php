@@ -315,11 +315,17 @@ it('retries only the phones and browsers that failed', function (): void {
     Queue::assertPushed(SendRemotePush::class, fn (SendRemotePush $retry): bool => $retry->subscriptionIds === [] && $retry->deviceIds === [$phone->id] && $retry->tries === 2);
 });
 
-it('still pushes browsers when the phone push service throws, and reports it once without retrying', function (): void {
-    Device::factory()->for($this->recipient)->withPushToken()->count(2)->create();
+it('still pushes browsers when the phone push service throws, and reports it once without retrying any phone', function (): void {
+    Device::factory()->for($this->recipient)->withPushToken()->count(3)->create();
     Exceptions::fake();
     Queue::fake();
-    $this->mock(DevicePushProvider::class)->shouldReceive('send')->once()->andThrow(new RuntimeException('Firebase refused the service account'));
+    // The first phone fails in a way that would be retried, then the service throws on the second.
+    $calls = 0;
+    $this->mock(DevicePushProvider::class)->shouldReceive('send')->twice()->andReturnUsing(function () use (&$calls): bool {
+        throw_if(++$calls === 2, new RuntimeException('Firebase refused the service account'));
+
+        return false;
+    });
     $this->mock(PushNotificationProvider::class)->shouldReceive('send')->once()->andReturnTrue();
 
     new SendRemotePush($this->message->id, $this->recipient->id)->handle(resolve(PushNotificationProvider::class), resolve(DevicePushProvider::class));

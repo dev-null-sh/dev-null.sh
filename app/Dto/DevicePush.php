@@ -22,11 +22,13 @@ final readonly class DevicePush
 
     /**
      * @param  array<string, string>  $data
+     * @param  int  $ttl  Seconds Google and Apple keep the push for a phone that is offline, then drop it.
      */
     public function __construct(
         public string $title,
         public string $body,
         array $data,
+        public int $ttl,
         public ?string $group = null,
     ) {
         $this->data = [...$data, 'url' => self::URL.'?'.http_build_query($data, encoding_type: PHP_QUERY_RFC3986)];
