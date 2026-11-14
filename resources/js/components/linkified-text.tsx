@@ -17,6 +17,7 @@ import { typedProse, withoutCode } from '@/lib/code';
 import type { Color } from '@/lib/colors';
 import { colorsIn } from '@/lib/colors';
 import { mentionPattern } from '@/lib/mentions';
+import { pasteisParts } from '@/lib/pasteis';
 import {
     hrefFor,
     shortenUrl,
@@ -582,25 +583,21 @@ function withPasteis(text: string, pasteisMode: boolean): ReactNode {
         return <CertificateText text={text} />;
     }
 
-    return text
-        .split(
-            /(?<![\p{L}\p{M}\p{N}_])(pastel|pasteis|pastéis)(?![\p{L}\p{M}\p{N}_])/giu,
-        )
-        .map((part, index) =>
-            index % 2 === 0 ? (
-                <CertificateText key={index} text={part} />
-            ) : (
-                <img
-                    key={index}
-                    src="/pastel-de-nata.svg"
-                    alt={part}
-                    title={part}
-                    width={20}
-                    height={20}
-                    className="inline-block size-[1.25em] object-contain align-[-0.2em]"
-                />
-            ),
-        );
+    return pasteisParts(text).map((part, index) =>
+        part.pastel ? (
+            <img
+                key={index}
+                src="/pastel-de-nata.svg"
+                alt={part.text}
+                title={part.text}
+                width={20}
+                height={20}
+                className="inline-block size-[1.25em] object-contain align-[-0.2em]"
+            />
+        ) : (
+            <CertificateText key={index} text={part.text} />
+        ),
+    );
 }
 
 function withWordmarks(
