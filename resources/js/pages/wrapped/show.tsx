@@ -527,7 +527,7 @@ export default function Show({
                             <p className="mt-6 text-lg text-muted-foreground">
                                 @{handle}
                             </p>
-                            {(hasPreviousYear || year < currentYear) && (
+                            {
                                 <nav
                                     aria-label="Wrapped year"
                                     className="mt-4 flex items-center justify-center gap-1 text-sm text-muted-foreground"
@@ -574,7 +574,7 @@ export default function Show({
                                         </span>
                                     )}
                                 </nav>
-                            )}
+                            }
                             <h1 className="mt-2 text-5xl font-bold tracking-tight">
                                 {stats.year} in review
                             </h1>
