@@ -19,6 +19,7 @@ import PrivacyController from '@/actions/App/Http/Controllers/PrivacyController'
 import StarredCommitController from '@/actions/App/Http/Controllers/StarredCommitController';
 import TermsController from '@/actions/App/Http/Controllers/TermsController';
 import { GitHubIcon } from '@/components/github-icon';
+import { PasteisBalance } from '@/components/pasteis-balance';
 import {
     DropdownMenuGroup,
     DropdownMenuItem,
@@ -55,6 +56,7 @@ export function UserMenuContent({ user }: Props) {
                 <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
                     <UserInfo user={user} showHandle={true} />
                 </div>
+                <PasteisBalance className="flex px-1 pb-1.5" />
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
