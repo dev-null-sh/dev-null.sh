@@ -24,7 +24,7 @@ final readonly class FeatureController
 
     public function update(UpdateFeatureRequest $request, Feature $feature, UpdateFeature $action): RedirectResponse
     {
-        $action->handle($feature, $request->boolean('enabled'));
+        $action->handle($feature, $request->boolean('enabled'), $request->has('admin_only') ? $request->boolean('admin_only') : null);
 
         return back();
     }

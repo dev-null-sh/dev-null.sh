@@ -13,10 +13,12 @@ import {
     ShieldCheck,
     SquarePen,
     UserRound,
+    UsersRound,
 } from 'lucide-react';
 import type { ReactElement, ReactNode } from 'react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import ConversationController from '@/actions/App/Http/Controllers/ConversationController';
+import { index as guildIndex } from '@/actions/App/Http/Controllers/GuildController';
 import LogController from '@/actions/App/Http/Controllers/LogController';
 import ModerationController from '@/actions/App/Http/Controllers/ModerationController';
 import NotificationController from '@/actions/App/Http/Controllers/NotificationController';
@@ -70,7 +72,7 @@ const navLabelClassName =
  * Guests see the same items, each taking them to sign in.
  */
 function useNavItems(): (NavItem & { isActive: boolean })[] {
-    const { auth, hasUnmoderatedCommits } = usePage().props;
+    const { auth, hasUnmoderatedCommits, guilds } = usePage().props;
     const { isCurrentUrl, isCurrentOrParentUrl } = useCurrentUrl();
     const { user, log } = auth;
     const unreadMessages = useUnreadMessages();
@@ -113,6 +115,9 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
             href: hrefFor(() => StarredCommitController.index()),
             icon: Star,
         },
+        ...(guilds !== null && guilds !== undefined
+            ? [{ title: 'Guilds', href: guildIndex(), icon: UsersRound }]
+            : []),
         ...(auth.isAdmin
             ? [
                   {
@@ -559,7 +564,7 @@ export function MobileNav({ children }: { children?: ReactNode }) {
     const [isChangelogOpen, setIsChangelogOpen] = useState(false);
     const allItems = useNavItems();
     const menuItems = allItems.filter((item) =>
-        ['Profile', 'Settings', 'Operations'].includes(item.title),
+        ['Profile', 'Settings', 'Operations', 'Guilds'].includes(item.title),
     );
     const items = allItems.filter(
         (item) =>

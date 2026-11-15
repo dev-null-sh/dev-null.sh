@@ -15,6 +15,7 @@ it('has the types of a notification', function (): void {
         'Starred' => 'starred',
         'LeveledUp' => 'leveled_up',
         'FirstCommit' => 'first_commit',
+        'TimedOut' => 'timed_out',
         'WrappedReady' => 'wrapped_ready',
     ]);
 });

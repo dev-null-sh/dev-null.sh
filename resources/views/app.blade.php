@@ -3,6 +3,9 @@
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+        @if (! config('app.service_worker_enabled'))
+            <meta name="service-worker" content="disabled">
+        @endif
         <meta name="description" content="{{ $preview['description'] ?? 'A social network for developers. Sign in with GitHub. Commit messages to the log. Talk with other devs.' }}">
         @if (($appearance ?? 'system') === 'system')
             <meta name="theme-color" content="#f6f7f8" media="(prefers-color-scheme: light)">

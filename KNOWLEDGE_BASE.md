@@ -78,6 +78,7 @@ This file documents the platform's features, stack, and stories. Feature entries
 ## Repository
 
 - **Repository:** [dev-null-sh/dev-null.sh](https://github.com/dev-null-sh/dev-null.sh).
+- **License:** [MIT](LICENSE.md). You can use, copy, change, share and sell the code, also in a commercial product, as long as each copy keeps the copyright notice and the license.
 - **Setup and development:** [README](README.md).
 - **Product terminology and behavior:** [Product guide](PRODUCT.md).
 
@@ -133,7 +134,7 @@ While nobody has claimed an organization's page, it says so to signed-in visitor
 
 After that, members are managed on /dev/null, not mirrored from GitHub. An organization's members open its **Settings** from its page, where the **Members** tab lists everyone, each an **admin** or a **member**. Admins add people by their /dev/null handle, searching by handle or name as they type, except people they blocked or who blocked them, make them admins or members, and remove them. Any member can leave. Its last admin can't leave or become a member. Only its members see who its members are; its page lists its admins to everyone. Your organizations and your role in each are in your data export and go when you delete your account.
 
-Its admins and members can **post as the organization**: in the composer, and in a reply's, they open their avatar and pick the organization, then switch back to themselves the same way. Every commit and reply starts as yourself. A commit from an organization shows the organization alone, with its square avatar and color, at `/@{handle}/commits/{id}`: nobody else sees which member posted it. It belongs to the organization: any of its members can delete it, and none can star it, report it, vote in its poll or give it pastéis. It counts toward no one's level, and blocking or muting the person who posted it doesn't hide it. Moderators see the person who posted it, in the review queue and in reports, and can time out or ban them from their profile. If they delete their account, the organization's commits they posted stay. Its admins and members hear about the organization in their own notifications, all except whoever did it: replies to its commits, quotes of them, stars on them and commits that mention it, said as the organization's, like **replied to @laravel's commit** or **mentioned @laravel**. They all see the organization's pending and rejected commits, like whoever posted them, and all hear when one is rejected, with the reason. Someone removed from the organization keeps what they already heard and hears nothing new, and no longer sees its rejected commits or what they heard about them. They can schedule commits as the organization too, the same way: if they are no longer a member when it is due, it is canceled. When the organization replies, quotes or mentions someone, they hear it from the organization, never from whoever posted it, so blocking or muting that person doesn't silence it; its members hear nothing of what it does to its own commits or mentioning itself. Its first commit isn't announced to its followers, as a person's is. Apps can post as an organization through the API too, by sending its handle as `author`.
+Its admins and members can **post as the organization**: in the composer, in a reply's and in the quote dialog, they open their avatar and pick the organization, then switch back to themselves the same way. Every commit, reply and quote starts as yourself. A commit from an organization shows the organization alone, with its square avatar and color, at `/@{handle}/commits/{id}`: nobody else sees which member posted it. It belongs to the organization: any of its members can delete it, and none can star it, report it, vote in its poll or give it pastéis. It counts toward no one's level, and blocking or muting the person who posted it doesn't hide it. Moderators see the person who posted it, in the review queue and in reports, and can time out or ban them from their profile. If they delete their account, the organization's commits they posted stay. Its admins and members hear about the organization in their own notifications, all except whoever did it: replies to its commits, quotes of them, stars on them and commits that mention it, said as the organization's, like **replied to @laravel's commit** or **mentioned @laravel**. They all see the organization's pending and rejected commits, like whoever posted them, and all hear when one is rejected, with the reason. Someone removed from the organization keeps what they already heard and hears nothing new, and no longer sees its rejected commits or what they heard about them. They can schedule commits as the organization too, the same way: if they are no longer a member when it is due, it is canceled. When the organization replies, quotes or mentions someone, they hear it from the organization, never from whoever posted it, so blocking or muting that person doesn't silence it; its members hear nothing of what it does to its own commits or mentioning itself. Its first commit isn't announced to its followers, as a person's is. Apps can post as an organization through the API too, by sending its handle as `author`.
 
 Every organization has a color, /dev/null's blue until an admin chooses another in the **Profile** tab of its **Settings**, where its admins land: one of the same six lane colors as developers, or a custom one. It rings the organization's avatar, leads its handle, and colors its link preview.
 
@@ -149,7 +150,9 @@ A developer who isn't here yet gets a page with their GitHub avatar, name, handl
 
 Its page shows how many members are waiting to follow them: the members who followed them on GitHub when they were looked up, and the ones who clicked **Follow** on their page, which then reads **Waiting** and can be clicked again to stop waiting. Members also see the people they follow among them. When the developer signs up, everyone waiting follows them, and their notifications show those follows like any others. Who you wait to follow is in your data export, and goes when you delete your account. If you delete your account, your page doesn't come back as one of these, until you sign in again.
 
-Sources: [looking handles up](app/Http/Controllers/ProfileLookupController.php), [lookup page](resources/js/pages/profile/lookup.tsx), [developer page](resources/js/pages/profile/unclaimed.tsx), [GitHub lookups](app/Actions/CreateGitHubProfile.php).
+Its page also says how many commits mention them, like **12 commits mention them**, counting approved commits that mention `@handle` outside code, refreshed within the hour. The commits themselves aren't shown or linked, since they can't answer what's said about them.
+
+Sources: [looking handles up](app/Http/Controllers/ProfileLookupController.php), [lookup page](resources/js/pages/profile/lookup.tsx), [developer page](resources/js/pages/profile/unclaimed.tsx), [GitHub lookups](app/Actions/CreateGitHubProfile.php), [mention count](app/Queries/UnclaimedProfileMentionCountQuery.php).
 
 ### Going live
 
@@ -325,7 +328,7 @@ Sources: [related commits query](app/Queries/RelatedCommitsQuery.php), [related 
 
 ### Quoting commits
 
-Quote a visible commit to publish a new top-level commit with your own commentary and an embedded card pointing to the original. Quotes follow normal commit limits, image support, and moderation. The quote composer has a preview and link-card choice, but no poll or scheduling. Quoting is different from replying: the quote appears in logs as its own post, and it is also listed among the original's replies and counted in its reply count. The original author is notified after approval, except for self-quotes.
+Quote a visible commit to publish a new top-level commit with your own commentary and an embedded card pointing to the original. Quotes follow normal commit limits, image support, and moderation. The quote composer has a preview and link-card choice, but no poll or scheduling. Members of an organization can quote [as the organization](#organization-pages) by picking it from their avatar in the quote dialog. Quoting is different from replying: the quote appears in logs as its own post, and it is also listed among the original's replies and counted in its reply count. The original author is notified after approval, except for self-quotes.
 
 The embedded original only shows content the viewer may see. Deleted originals appear as `[deleted]`; otherwise-inaccessible originals appear as `[unavailable]` without exposing their author or body. There is no comment-free repost action.
 
@@ -383,7 +386,9 @@ Enable **Pastéis mode** in Settings → Profile to give pastry awards to other 
 
 Pastéis do not notify anyone and do not affect Trending. Turning Pastéis mode off hides its controls and counters, including the pastéis count on profiles; people can still give you pastéis. The pastel emoji and mode commemorate Fernando Andrade bringing Portuguese custard pastries to the livestream team, rather than representing a payment or purchasable currency.
 
-Sources: [Pastéis setting](resources/js/components/pasteis-mode-setting.tsx), [award action](app/Actions/CreateCommitPastel.php), [award authorization](app/Http/Requests/CreateCommitPastelRequest.php), [pastry lore](#pastéis-de-nata).
+With Pastéis mode on, the words **pastel**, **pasteis** and **pastéis** in commits automatically show as the pastel emoji. To talk about pastéis without rendering the emoji, write a backslash right before the word, like: `\pastel`.
+
+Sources: [Pastéis setting](resources/js/components/pasteis-mode-setting.tsx), [award action](app/Actions/CreateCommitPastel.php), [award authorization](app/Http/Requests/CreateCommitPastelRequest.php), [pastel words](resources/js/lib/pasteis.ts), [pastry lore](#pastéis-de-nata).
 
 ### Notifications
 
@@ -399,7 +404,7 @@ Pending replies, quotes, and mentions wait for approval before notifying others.
 
 Sources: [notifications page](resources/js/pages/notification/index.tsx), [notification filtering](app/Queries/NotificationBuilder.php), [grouping](app/Queries/NotificationGroupsQuery.php), [moderation notifications](app/Actions/UpdateCommitStatuses.php), [first commit notifications](app/Actions/CreateFirstCommitNotifications.php).
 
-Remotes alerts are controlled under **Settings → Profile → Remotes**. **On-site notifications** and **Notification sound** are on by default. On-site alerts stay inside /dev/null and never ask for browser permission. Sound does not require notification permission and plays only while the site is running; the browser may require interaction before it can play.
+Remotes alerts are controlled under **Settings → Profile → Remotes**. **On-site notifications** and **Notification sound** are on by default. On-site alerts stay inside /dev/null and never ask for browser permission. Sound does not require notification permission and plays only while the site is running; the browser may require interaction before it can play. Choose **MSN Messenger** (the default), **ICQ**, or **AIM**, and use **Preview** to hear it. The choice stays with your account in that browser and does not change Ping or call sounds. The new clips come from [SoundDino’s ICQ archive](https://sounddino.com/en/effects/icq) and [the AIM sound archive](https://archive.org/details/aim7sfx).
 
 **Off-site notifications** are off by default. Turn that separate switch on to allow system notifications from this browser or installed PWA, including when closed. This is an explicit choice for each account and browser; an existing browser permission or an earlier on-site preference does not turn it on. On iPhone and iPad, add /dev/null to your Home Screen and turn the switch on from the installed app. The browser asks for permission only after you choose to enable off-site notifications. Declining permission or a rejected enrollment leaves them off. If /dev/null cannot confirm that a failed enrollment was removed, the switch stays on with an error so you can try turning it off again. Turning it off revokes that account's delivery registration; the browser permission and shared browser subscription can remain for reuse. On-site alerts remain independent. Up to 20 browsers or installed apps per account can have off-site notifications enabled. At the limit, existing enrollments stay active; turn off off-site notifications in one before enabling another.
 
@@ -581,6 +586,7 @@ An app can use the same `/api/v1` for you with signed requests. It keeps an SSH 
 A signed request sees what the web shows you, such as your own pending commits and your organizations'. It can also, with the web's validation, moderation, and rate limits:
 
 - read your account, logs, replies, notifications (including grouped activity), and starred commits;
+- read the organizations you are a member of, your role in each, and whether posting as an organization is switched on;
 - commit, reply, and quote, with images, and delete your commits, with the same undo window as the web;
 - preview commit drafts without publishing them;
 - request a feature or report a bug as `/feature` and `/bug` do, with the same limit of 10 opened issues a day;
@@ -594,6 +600,7 @@ A signed request sees what the web shows you, such as your own pending commits a
 - stash or reopen conversations and orgs, pin and mute them, merge or drop message requests, and send typing indicators;
 - switch Pastéis mode and give pastéis;
 - report commits;
+- read your own timeouts and bans, as your profile shows them;
 - search people and organizations by name or handle, and commits by meaning, with the web's limit of 15 commit searches a minute;
 - schedule commits, list your queue, cancel a scheduled commit, or post it early;
 - pin a commit to your profile, or unpin it;
@@ -605,7 +612,7 @@ A signed request sees what the web shows you, such as your own pending commits a
 
 Signed lists show each commit with its newest reply or quote. Add `?replies_per_page=` with 3, 5, 10, 15, 20, or 25 to show that many replies and quotes, like the replies choice in Settings → Appearance.
 
-Signed request bodies are JSON, or multipart when they carry images or a voice note, so app commits can have images with descriptions or a poll but no link-card choice. Before your first app submission, accept the [commit rules](#moderation) through the web composer. Signed requests are limited to **120 requests per minute per user**. Settings → Devices lists your approved devices, with the app's name when it gave one and when each was last used, and revokes them.
+Signed request bodies are JSON, or multipart when they carry images or a voice note, so app commits can have images with descriptions or a poll but no link-card choice. Before your first app submission, accept the [commit rules](#moderation) through the web composer. Signed requests are limited to **120 requests per minute per user**. Each action's per-minute limit (pastéis, opening issues, and so on) counts on its own, shared between the web and the API. Settings → Devices lists your approved devices, with the app's name when it gave one and when each was last used, and revokes them.
 
 Sources: [signed requests](app/Services/SignedRequests.php), [sign-in page](app/Http/Controllers/MobileAuthorizationController.php), [devices settings](resources/js/pages/device/index.tsx), [API routes](routes/api.php).
 
@@ -649,6 +656,16 @@ Successful issue creation is limited to **ten issues per day per user**, shared 
 
 Sources: [issue command UI](resources/js/components/issue-command.tsx), [issue validation](app/Http/Requests/CreateIssueRequest.php), [issue controller](app/Http/Controllers/IssueController.php), [daily limit](app/Http/Middleware/ThrottleIssues.php), [API issue controller](app/Http/Controllers/Api/IssueController.php).
 
+### Guilds (preview)
+
+Guilds are public groups around hashtags and are not generally available yet. In the preview, matching hashtags become small clickable guild labels; ordinary hashtags still open search. Create a guild from the Guilds overview or a hashtag's search page. From the overview, its display name determines the hashtag: “Laravel 4ever” becomes `#laravel4ever`. Display names and handles each allow up to 60 characters. When claiming a hashtag, the display name must match its letters, numbers and underscores, ignoring case; spaces, punctuation and decorative symbols are ignored, so `/dev/null` is valid for `#devnull`. Accents and underscores remain significant. Its creator joins automatically and maintains its icon and description. Each person can create up to 100 guilds. A guild's name, description and icon pass the same automated moderation as commits before the guild is published or edited; a guild that the moderation flags is not saved.
+
+The Guilds page lists groups by member count. Joining adds matching commits to Following without following every author and clears any existing mute. When a commit appears only because of a joined guild, it says “because you joined” beside the guild label. Leave a guild to reveal its Mute control. Muting hides matching commits from logs and search, including commits by followed authors. You can still open the guild or a commit directly.
+
+Each guild's bulletin board shows commits containing its exact hashtag, newest first, with pagination—not semantic search. Post directly from its composer; the hashtag is added automatically unless already present outside code and links, and is included in the preview. The automatic hashtag and its separator do not use any of your 4,000-character writing allowance, including when scheduling a board post. Hashtags you type yourself still count. Typing a hashtag offers matching guilds in the autocomplete menu; select one with the keyboard or pointer to insert its handle.
+
+Guild descriptions can be reported privately. When a guild loses its moderator, its page, icon, description, memberships and mute preferences disappear; the original hashtag commits remain. A different person can claim the hashtag, but a removed moderator cannot reclaim it.
+
 ### Exporting your data
 
 Choose **Download JSON** in Settings → Profile to export your account data. The export includes:
@@ -657,11 +674,12 @@ Choose **Download JSON** in Settings → Profile to export your account data. Th
 - the days you used /dev/null (dates, not times), oldest first, with which of its apps you used on each (days before apps were tracked say web, whatever you used, and a phone approved before the mobile app started identifying itself says other), and the last of them;
 - your commits and replies (including pending, rejected, and deleted entries still stored), their cached translations, polls, and your votes;
 - stars, followers and people you follow, mutes, blocks, and dismissed **Not interested** suggestions;
+- guilds you moderate, your guild memberships and mutes, reports you submitted, and guild moderator-removal records relating to your account;
 - messages you sent, including links to your voice notes, and notifications;
-- SSH key fingerprints, approved devices, and your timeout history;
+- SSH key fingerprints, approved devices, timeout history, and ban history;
 - active-session metadata: IP address, browser information, and last activity.
 
-Other people's replies and received messages are not included as your authored data. Message images, message reactions, scheduled commits, and ban records are not included either. Reports you filed include their reason, details, and attachment references; reports filed by other people are excluded. Image and voice-note references are URLs, not an archive of the media files. Deleted commit entries do not restore content already erased after the undo window.
+Other people's replies and received messages are not included as your authored data. Message images, message reactions, and scheduled commits are not included either. Reports you filed include their reason, details, and attachment references; reports filed by other people are excluded. Image and voice-note references are URLs, not an archive of the media files. Deleted commit entries do not restore content already erased after the undo window.
 
 The export does not expose session IDs, authentication tokens, private SSH keys, or other people's poll choices. Keep the downloaded JSON private because it includes personal account information. Exports are limited to **three per hour**.
 
@@ -674,6 +692,8 @@ Settings → Profile → **Delete account** opens a confirmation for permanent d
 You can sign in with GitHub again later, but start from a new account rather than restoring the deleted one. Export your data first if you want a copy. Deleting from /dev/null cannot retract copies of public content held elsewhere.
 
 As the privacy policy explains, timeout and ban records retain your GitHub account id, reason, and dates after account deletion, so deleting and recreating an account cannot evade those restrictions. Your GitHub account id is also kept until you sign in again, only so that your page doesn't come back as one of a developer not on /dev/null yet. Deleted content may also remain in backups and logs for a period.
+
+For guilds, which are not generally available yet, a moderator removal retains only the GitHub account ID, hashtag and removal date after account deletion, so the same GitHub account cannot reclaim that guild. Guild descriptions, icons and reports are not retained by that restriction.
 
 Sources: [account deletion confirmation](resources/js/components/delete-user.tsx), [account deletion](app/Actions/DeleteUser.php), [privacy policy](resources/js/pages/privacy/show.tsx).
 
@@ -689,11 +709,11 @@ Posts awaiting automated checks stay pending if those checks fail; a failed chec
 
 Before you first commit, reply, quote, or schedule a commit, the web composer shows the commit rules, and keeps showing them on every attempt until you send with "Got it, commit": no engagement bait, no low-effort posts, no AI-generated posts, no spam or self-promotion, and no harassment, hate, or private information, followed by a link to the terms. Below the rules, a Cloudflare Turnstile check confirms that you are a person and not a bot, and "Got it, commit" stays disabled until it passes. /dev/null sends Cloudflare only the token from that check, never your IP address. Your first submission must come from the web so you can accept these rules; terminal, GitHub Action, and app posting become available afterwards.
 
-During a **timeout**, you can still read and react, but cannot commit, reply, quote, schedule, open issues, send remotes, or start, rename, add people to, or pin messages in orgs from any surface; each attempt says how long is left and why. Scheduled commits wait until the timeout ends. Like bans, timeouts belong to the GitHub account: deleting the /dev/null account and signing in again does not end a timeout or erase its history.
+During a **timeout**, you can still read and react, but cannot commit, reply, quote, schedule, open issues, send remotes, or start, rename, add people to, or pin messages in orgs from any surface; each attempt says how long is left and why. A private notification also records the reason, duration, and time posting resumes. Your profile shows how many timeouts and bans you have had; open it to see each reason, timeout length, and dates. Scheduled commits wait until the timeout ends. Like bans, timeouts belong to the GitHub account: deleting the /dev/null account and signing in again does not end a timeout or erase its history.
 
 A **ban** sends you to a page explaining why, where you can only sign out or delete your account; the app refuses everything but deleting the account, and the terminal refuses posting. A ban belongs to the GitHub account, so deleting the /dev/null account and signing in again does not lift it. Banning someone cancels their scheduled commits, so lifting the ban later does not publish them all at once.
 
-Sources: [status transitions](app/Actions/UpdateCommitStatuses.php), [timeouts](app/Http/Middleware/PreventPostingInTimeout.php), [bans](app/Http/Middleware/RedirectBannedUsers.php), [commit rules](resources/js/components/commit-rules.tsx), [first-submission requirement](app/Http/Middleware/RequireCommitRules.php).
+Sources: [status transitions](app/Actions/UpdateCommitStatuses.php), [timeouts](app/Http/Middleware/PreventPostingInTimeout.php), [timeout notifications](app/Actions/CreateUserTimeoutNotification.php), [moderation history](app/Queries/UserModerationQuery.php), [bans](app/Http/Middleware/RedirectBannedUsers.php), [commit rules](resources/js/components/commit-rules.tsx), [first-submission requirement](app/Http/Middleware/RequireCommitRules.php).
 
 ### About, changelog, and policies
 

@@ -10,8 +10,10 @@ use App\Actions\DeleteUser;
 use App\Actions\UpdateCommitStatuses;
 use App\Enums\CommitStatus;
 use App\Enums\Log;
+use App\Enums\NotificationType;
 use App\Enums\OrganizationRole;
 use App\Jobs\CheckUserLevel;
+use App\Jobs\ModerateCommit;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\Notification;
@@ -61,6 +63,40 @@ it('lets a member reply as the organization', function (): void {
 
     expect($parent->replies()->sole()->author_id)->toBe($this->organization->id)
         ->and(Notification::query()->where('recipient_id', $parent->user_id)->exists())->toBeFalse();
+});
+
+it('lets a member quote a commit as the organization', function (): void {
+    Bus::fake([ModerateCommit::class]);
+    $quoted = Commit::factory()->create();
+
+    $this->actingAs($this->member)
+        ->fromRoute('log.show', Log::Following)
+        ->post(route('commit.store'), ['body' => 'Shipped in 13.1', 'quoted_commit_id' => $quoted->id, 'author' => 'laravel'])
+        ->assertRedirectToRoute('log.show', Log::Following)
+        ->assertInertiaFlash('committed.author', ['handle' => 'Laravel']);
+
+    $quote = Commit::query()->where('quoted_commit_id', $quoted->id)->sole();
+
+    expect($quote->author_id)->toBe($this->organization->id)
+        ->and($quote->user_id)->toBe($this->member->id)
+        ->and($quote->status)->toBe(CommitStatus::Pending)
+        ->and(Notification::query()->exists())->toBeFalse();
+    Bus::assertDispatched(ModerateCommit::class, fn (ModerateCommit $job): bool => $job->commit->is($quote));
+
+    resolve(UpdateCommitStatuses::class)->handle([$quote->id], CommitStatus::Approved);
+
+    expect(Notification::query()->sole())
+        ->recipient_id->toBe($quoted->user_id)
+        ->actor_id->toBe($this->organization->id)
+        ->type->toBe(NotificationType::Quoted);
+});
+
+it('only lets members quote a commit as an organization', function (): void {
+    $this->actingAs(User::factory()->create())
+        ->post(route('commit.store'), ['body' => 'Not mine to post', 'quoted_commit_id' => Commit::factory()->create()->id, 'author' => 'laravel'])
+        ->assertSessionHasErrors(['author' => 'You can only post as an organization you are a member of.']);
+
+    expect(Commit::query()->whereNotNull('quoted_commit_id')->exists())->toBeFalse();
 });
 
 it('lets apps commit as the organization through the API', function (): void {

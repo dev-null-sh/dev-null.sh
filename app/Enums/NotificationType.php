@@ -15,5 +15,6 @@ enum NotificationType: string
     case Starred = 'starred';
     case LeveledUp = 'leveled_up';
     case FirstCommit = 'first_commit';
+    case TimedOut = 'timed_out';
     case WrappedReady = 'wrapped_ready';
 }
