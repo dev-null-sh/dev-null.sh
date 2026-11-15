@@ -24,7 +24,13 @@ final readonly class YearInReviewController
 
         abort_unless($user instanceof User, 404);
 
-        $shareUrl = route('wrapped.show', ['profile' => $profile->handle]);
+        $parameters = ['profile' => $profile->handle];
+
+        if ($year !== $currentYear) {
+            $parameters['year'] = $year;
+        }
+
+        $shareUrl = route('wrapped.show', $parameters);
 
         // Wrapped drops with the notification, every December 3rd at 09:00.
         $unlocksAt = now()->setDate($year, 12, 3)->setTime(9, 0);
@@ -58,7 +64,7 @@ final readonly class YearInReviewController
         ])->withViewData(['preview' => $metadata->page(
             "{$profile->handle}'s {$year} in review - /dev/null",
             "What @{$profile->handle} shipped in {$year}: {$stats['commits']} commits, {$stats['starsEarned']} stars and a {$stats['longestStreak']}-day streak.",
-            route('wrapped.show', ['profile' => $profile->handle]),
+            $shareUrl,
         )]);
     }
 }

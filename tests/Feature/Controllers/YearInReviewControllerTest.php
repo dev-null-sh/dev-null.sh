@@ -23,6 +23,7 @@ it('renders the year in review for guests', function (): void {
             ->where('handle', $user->profile->handle)
             ->where('stats.year', $year)
             ->where('stats.commits', 2)
+            ->where('shareUrl', route('wrapped.show', ['profile' => $user->profile->handle]))
             ->where('stats.starsEarned', 2)
             ->where('stats.topCommit.stars', 2)
             ->where('stats.months.2', 1)
@@ -123,6 +124,21 @@ it('merges language aliases into one entry per post', function (): void {
             ]));
 });
 
+it('renders numeric fence tags without failing', function (): void {
+    $user = User::factory()->create();
+    $year = (int) now()->year;
+    $this->travelTo(Carbon::create($year, 12, 4, 9, 1));
+
+    Commit::factory()->for($user)->create(['body' => "Note\n```123\n456\n```", 'created_at' => now()->setDate($year, 2, 1)]);
+
+    $this->get(route('wrapped.show', ['profile' => $user->profile->handle]))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('stats.languages', [
+                ['language' => '123', 'commits' => 1],
+            ]));
+});
+
 it('opens a past year from a notification link', function (): void {
     $user = User::factory()->create();
     $year = (int) now()->year;
@@ -136,7 +152,8 @@ it('opens a past year from a notification link', function (): void {
             ->component('wrapped/show')
             ->where('locked', false)
             ->where('stats.year', $year - 1)
-            ->where('stats.commits', 1));
+            ->where('stats.commits', 1)
+            ->where('shareUrl', route('wrapped.show', ['profile' => $user->profile->handle, 'year' => $year - 1])));
 });
 
 it('falls back to the current year for a future year', function (): void {
