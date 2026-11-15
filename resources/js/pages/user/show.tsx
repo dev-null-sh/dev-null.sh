@@ -492,7 +492,7 @@ export default function Show({
                         return (
                             <div
                                 key={stat.label}
-                                className="group flex flex-row-reverse gap-1.5"
+                                className="group flex flex-row-reverse"
                             >
                                 <dt className="text-muted-foreground">
                                     <StatLink
@@ -509,6 +509,7 @@ export default function Show({
                                         title={exactCountTitle(stat.count)}
                                     >
                                         {formatCount(stat.count)}
+                                        {'\u00a0'}
                                     </StatLink>
                                 </dd>
                             </div>
