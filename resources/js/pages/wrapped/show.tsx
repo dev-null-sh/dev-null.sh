@@ -1,4 +1,5 @@
-import { Head } from '@inertiajs/react';
+import { Head, Link } from '@inertiajs/react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import {
     useCallback,
     useEffect,
@@ -7,6 +8,7 @@ import {
     useState,
     type ReactNode,
 } from 'react';
+import { show as showWrapped } from '@/actions/App/Http/Controllers/YearInReviewController';
 import AppLogo from '@/components/app-logo';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -39,6 +41,9 @@ type WrappedProps = {
     shareUrl: string;
     locked: boolean;
     unlocksAt: string | null;
+    year: number;
+    currentYear: number;
+    hasPreviousYear: boolean;
 };
 
 function Countdown({ to }: { to: string }) {
@@ -377,6 +382,9 @@ export default function Show({
     shareUrl,
     locked,
     unlocksAt,
+    year,
+    currentYear,
+    hasPreviousYear,
 }: WrappedProps) {
     const [slide, setSlide] = useState(0);
     const [copiedLink, copyLink] = useClipboard();
@@ -448,6 +456,10 @@ export default function Show({
         return () => window.removeEventListener('keydown', onKey);
     }, [slide, go]);
 
+    useEffect(() => {
+        setSlide(0);
+    }, [year]);
+
     return (
         <>
             <Head title={`${handle}'s ${stats.year} in review`} />
@@ -515,6 +527,54 @@ export default function Show({
                             <p className="mt-6 text-lg text-muted-foreground">
                                 @{handle}
                             </p>
+                            {(hasPreviousYear || year < currentYear) && (
+                                <nav
+                                    aria-label="Wrapped year"
+                                    className="mt-4 flex items-center justify-center gap-1 text-sm text-muted-foreground"
+                                >
+                                    {hasPreviousYear ? (
+                                        <Link
+                                            prefetch
+                                            href={showWrapped(handle, {
+                                                query: { year: year - 1 },
+                                            })}
+                                            className="rounded-md p-1.5 hover:bg-muted hover:text-foreground"
+                                            aria-label={`View ${year - 1} Wrapped`}
+                                        >
+                                            <ChevronLeft className="size-4" />
+                                        </Link>
+                                    ) : (
+                                        <span
+                                            className="p-1.5 opacity-30"
+                                            aria-hidden
+                                        >
+                                            <ChevronLeft className="size-4" />
+                                        </span>
+                                    )}
+                                    <span className="min-w-28 font-mono">
+                                        Wrapped · {year}
+                                    </span>
+                                    {year < currentYear ? (
+                                        <Link
+                                            prefetch
+                                            href={showWrapped(handle, {
+                                                query: { year: year + 1 },
+                                            })}
+                                            className="rounded-md p-1.5 hover:bg-muted hover:text-foreground"
+                                            aria-label={`View ${year + 1} Wrapped`}
+                                        >
+                                            <ChevronRight className="size-4" />
+                                        </Link>
+                                    ) : (
+                                        <span
+                                            className="p-1.5 opacity-30"
+                                            aria-hidden
+                                        >
+                                            <ChevronRight className="size-4" />
+                                        </span>
+                                    )}
+                                </nav>
+                            )}
                             <h1 className="mt-2 text-5xl font-bold tracking-tight">
                                 {stats.year} in review
                             </h1>
@@ -716,7 +776,9 @@ export default function Show({
                                 <AppLogo className="text-3xl" />
                             </div>
                             <h2 className="mt-4 text-3xl font-bold tracking-tight">
-                                See you next year, nuller
+                                {year < currentYear
+                                    ? `That was ${year}, nuller`
+                                    : 'See you next year, nuller'}
                             </h2>
                             <p className="mt-3 text-muted-foreground">
                                 Thank you, nullers, for every commit, reply, and
@@ -742,6 +804,13 @@ export default function Show({
                                 >
                                     {copiedSummary ? 'Copied' : 'Copy summary'}
                                 </Button>
+                                {year < currentYear && (
+                                    <Button variant="outline" asChild>
+                                        <Link href={showWrapped(handle)}>
+                                            Back to {currentYear}
+                                        </Link>
+                                    </Button>
+                                )}
                             </div>
                         </div>
                     )}

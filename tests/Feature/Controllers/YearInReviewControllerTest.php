@@ -30,6 +30,10 @@ it('renders the year in review for guests', function (): void {
             ->where('stats.months.4', 1)
             ->where('stats.languages', [])
             ->where('stats.comeback', false)
+            ->where('stats.year', $year)
+            ->where('year', $year)
+            ->where('currentYear', $year)
+            ->where('hasPreviousYear', true)
             ->has('stats.hourCounts', 24));
 });
 
@@ -153,6 +157,9 @@ it('opens a past year from a notification link', function (): void {
             ->where('locked', false)
             ->where('stats.year', $year - 1)
             ->where('stats.commits', 1)
+            ->where('year', $year - 1)
+            ->where('currentYear', $year)
+            ->where('hasPreviousYear', false)
             ->where('shareUrl', route('wrapped.show', ['profile' => $user->profile->handle, 'year' => $year - 1])));
 });
 

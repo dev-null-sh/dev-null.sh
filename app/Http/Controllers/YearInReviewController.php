@@ -35,6 +35,13 @@ final readonly class YearInReviewController
         // Wrapped drops with the notification, every December 3rd at 09:00.
         $unlocksAt = now()->setDate($year, 12, 3)->setTime(9, 0);
 
+        $hasPreviousYear = $user->commits()
+            ->whereBetween('commits.created_at', [
+                now()->setDate($year - 1, 1, 1)->startOfDay(),
+                now()->setDate($year - 1, 12, 31)->endOfDay(),
+            ])
+            ->exists();
+
         if (now()->lt($unlocksAt)) {
             return Inertia::render('wrapped/show', [
                 'handle' => $profile->handle,
@@ -44,6 +51,9 @@ final readonly class YearInReviewController
                 'shareUrl' => $shareUrl,
                 'locked' => true,
                 'unlocksAt' => $unlocksAt->toIso8601String(),
+                'year' => $year,
+                'currentYear' => $currentYear,
+                'hasPreviousYear' => $hasPreviousYear,
             ])->withViewData(['preview' => $metadata->page(
                 "{$profile->handle}'s {$year} Wrapped - /dev/null",
                 "The {$year} Wrapped for @{$profile->handle} unwraps December 3rd.",
@@ -61,6 +71,9 @@ final readonly class YearInReviewController
             'shareUrl' => $shareUrl,
             'locked' => false,
             'unlocksAt' => null,
+            'year' => $year,
+            'currentYear' => $currentYear,
+            'hasPreviousYear' => $hasPreviousYear,
         ])->withViewData(['preview' => $metadata->page(
             "{$profile->handle}'s {$year} in review - /dev/null",
             "What @{$profile->handle} shipped in {$year}: {$stats['commits']} commits, {$stats['starsEarned']} stars and a {$stats['longestStreak']}-day streak.",
