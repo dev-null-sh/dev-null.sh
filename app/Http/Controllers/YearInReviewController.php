@@ -21,6 +21,27 @@ final readonly class YearInReviewController
 
         abort_unless($user instanceof User, 404);
 
+        $shareUrl = route('wrapped.show', ['profile' => $profile->handle]);
+
+        // Wrapped drops with the notification, every December 3rd at 09:00.
+        $unlocksAt = now()->setDate($year, 12, 3)->setTime(9, 0);
+
+        if (now()->lt($unlocksAt)) {
+            return Inertia::render('wrapped/show', [
+                'handle' => $profile->handle,
+                'name' => $user->name,
+                'avatarUrl' => $user->avatar_url,
+                'stats' => null,
+                'shareUrl' => $shareUrl,
+                'locked' => true,
+                'unlocksAt' => $unlocksAt->toIso8601String(),
+            ])->withViewData(['preview' => $metadata->page(
+                "{$profile->handle}'s {$year} Wrapped - /dev/null",
+                "The {$year} Wrapped for @{$profile->handle} unwraps December 3rd.",
+                $shareUrl,
+            )]);
+        }
+
         $stats = $review->get($user, $currentUser, $year);
 
         return Inertia::render('wrapped/show', [
@@ -28,7 +49,9 @@ final readonly class YearInReviewController
             'name' => $user->name,
             'avatarUrl' => $user->avatar_url,
             'stats' => $stats,
-            'shareUrl' => route('wrapped.show', ['profile' => $profile->handle]),
+            'shareUrl' => $shareUrl,
+            'locked' => false,
+            'unlocksAt' => null,
         ])->withViewData(['preview' => $metadata->page(
             "{$profile->handle}'s {$year} in review - /dev/null",
             "What @{$profile->handle} shipped in {$year}: {$stats['commits']} commits, {$stats['starsEarned']} stars and a {$stats['longestStreak']}-day streak.",

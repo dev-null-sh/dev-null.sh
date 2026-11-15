@@ -2,6 +2,7 @@ import { Head } from '@inertiajs/react';
 import {
     useCallback,
     useEffect,
+    useMemo,
     useRef,
     useState,
     type ReactNode,
@@ -34,9 +35,55 @@ type WrappedProps = {
     handle: string;
     name: string;
     avatarUrl: string | null;
-    stats: WrappedStats;
+    stats: WrappedStats | null;
     shareUrl: string;
+    locked: boolean;
+    unlocksAt: string | null;
 };
+
+function Countdown({ to }: { to: string }) {
+    const target = useMemo(() => new Date(to).getTime(), [to]);
+    const [now, setNow] = useState(() => Date.now());
+
+    useEffect(() => {
+        const id = window.setInterval(() => setNow(Date.now()), 1000);
+
+        return () => window.clearInterval(id);
+    }, []);
+
+    const remaining = Math.max(0, target - now);
+    const units: Array<{ value: number; label: string }> = [
+        { value: Math.floor(remaining / 86_400_000), label: 'days' },
+        {
+            value: Math.floor(remaining / 3_600_000) % 24,
+            label: 'hours',
+        },
+        { value: Math.floor(remaining / 60_000) % 60, label: 'mins' },
+        { value: Math.floor(remaining / 1000) % 60, label: 'secs' },
+    ];
+
+    return (
+        <div
+            className="mx-auto mt-8 flex max-w-md items-stretch justify-center gap-2"
+            role="timer"
+            aria-label="Time until Wrapped unlocks"
+        >
+            {units.map((unit) => (
+                <div
+                    key={unit.label}
+                    className="min-w-0 flex-1 rounded-lg border p-3"
+                >
+                    <p className="text-3xl font-bold tracking-tight text-orange-500 tabular-nums">
+                        {String(unit.value).padStart(2, '0')}
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                        {unit.label}
+                    </p>
+                </div>
+            ))}
+        </div>
+    );
+}
 
 function BigNumber({ value, label }: { value: number; label: string }) {
     return (
@@ -309,12 +356,46 @@ export default function Show({
     avatarUrl,
     stats,
     shareUrl,
+    locked,
+    unlocksAt,
 }: WrappedProps) {
     const [slide, setSlide] = useState(0);
     const [copiedLink, copyLink] = useClipboard();
     const [copiedSummary, copySummary] = useClipboard();
     const celebrated = useRef(false);
     const touchStart = useRef<{ x: number; y: number } | null>(null);
+
+    if (locked) {
+        const year = unlocksAt
+            ? new Date(unlocksAt).getFullYear()
+            : new Date().getFullYear();
+
+        return (
+            <>
+                <Head title={`${handle}'s ${year} Wrapped`} />
+                <div className="mx-auto max-w-2xl px-4 py-16 text-center sm:py-24">
+                    <div className="min-h-[480px]">
+                        <Eyebrow>Wrapped · {year}</Eyebrow>
+                        <div className="mt-6 flex justify-center">
+                            <AppLogo className="text-3xl" />
+                        </div>
+                        <h2 className="mt-4 text-3xl font-bold tracking-tight">
+                            Your {year} Wrapped is still being prepared.
+                        </h2>
+                        <p className="mt-3 text-muted-foreground">
+                            It unwraps on December 3rd, and we’ll notify you
+                            when it’s ready.
+                        </p>
+                        {unlocksAt && <Countdown to={unlocksAt} />}
+                    </div>
+                </div>
+            </>
+        );
+    }
+
+    if (!stats) {
+        return null;
+    }
 
     const last = 7;
     const hasCommits = stats.commits > 0;
