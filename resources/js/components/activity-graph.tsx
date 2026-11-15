@@ -414,20 +414,15 @@ function YearGrid({
     };
 
     return (
-        <div
-            ref={(node) => {
-                if (node) {
-                    node.scrollLeft = node.scrollWidth;
-                }
-            }}
-            className="overflow-x-auto pb-1"
-        >
+        // Right to left, so a phone opens on the latest weeks before any script runs; the grid inside reads left to right.
+        <div dir="rtl" className="overflow-x-auto pb-1">
             <div
+                dir="ltr"
                 role="img"
                 aria-label={summary}
-                className="grid min-w-136 grid-cols-[auto_minmax(0,1fr)] gap-x-2 gap-y-1.5"
+                className="grid min-w-136 grid-cols-[auto_minmax(0,1fr)] gap-y-1.5"
             >
-                <span aria-hidden />
+                <span aria-hidden className="sticky left-0 z-1 bg-card" />
                 <div
                     aria-hidden
                     className="grid text-xs text-muted-foreground"
@@ -445,7 +440,7 @@ function YearGrid({
 
                 <div
                     aria-hidden
-                    className="grid grid-rows-7 gap-[3px] text-xs text-muted-foreground"
+                    className="sticky left-0 z-1 grid grid-rows-7 gap-[3px] bg-card pr-2 text-xs text-muted-foreground"
                 >
                     {weekdayLabels.map((label, index) => (
                         <span
