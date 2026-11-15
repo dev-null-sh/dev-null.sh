@@ -45,6 +45,7 @@ function Countdown({ to }: { to: string }) {
     const target = useMemo(() => new Date(to).getTime(), [to]);
     const [now, setNow] = useState(() => Date.now());
     const reloaded = useRef(false);
+    const reloadTimeout = useRef<number | null>(null);
 
     useEffect(() => {
         const id = window.setInterval(() => {
@@ -53,11 +54,20 @@ function Countdown({ to }: { to: string }) {
 
             if (left <= 0 && !reloaded.current) {
                 reloaded.current = true;
-                window.setTimeout(() => window.location.reload(), 1500);
+                reloadTimeout.current = window.setTimeout(
+                    () => window.location.reload(),
+                    1500,
+                );
             }
         }, 1000);
 
-        return () => window.clearInterval(id);
+        return () => {
+            window.clearInterval(id);
+
+            if (reloadTimeout.current !== null) {
+                window.clearTimeout(reloadTimeout.current);
+            }
+        };
     }, [target]);
 
     const remaining = Math.max(0, target - now);
@@ -166,7 +176,7 @@ function archetype(stats: WrappedStats): { name: string; quip: string } {
         };
     }
 
-    const total = stats.commits + stats.replies;
+    const total = stats.commits > 0 ? stats.commits : 1;
     const night =
         (stats.hourCounts[22] ?? 0) +
         (stats.hourCounts[23] ?? 0) +
@@ -251,9 +261,9 @@ function archetype(stats: WrappedStats): { name: string; quip: string } {
 }
 
 function buildInsights(stats: WrappedStats): string[] {
-    const total = stats.commits + stats.replies;
+    const total = stats.commits > 0 ? stats.commits : 1;
 
-    if (total === 0) {
+    if (stats.commits === 0) {
         return ['No commits this year. The graph is a blank canvas.'];
     }
 

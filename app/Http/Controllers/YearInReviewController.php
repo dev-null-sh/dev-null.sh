@@ -9,15 +9,18 @@ use App\Models\User;
 use App\Queries\YearInReviewQuery;
 use App\Services\PageMetadata;
 use Illuminate\Container\Attributes\CurrentUser;
+use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
 final readonly class YearInReviewController
 {
-    public function show(#[CurrentUser] ?User $currentUser, Profile $profile, YearInReviewQuery $review, PageMetadata $metadata): Response
+    public function show(#[CurrentUser] ?User $currentUser, Profile $profile, YearInReviewQuery $review, PageMetadata $metadata, Request $request): Response
     {
         $user = $profile->user;
-        $year = (int) now()->year;
+        $currentYear = (int) now()->year;
+        $requestedYear = $request->integer('year');
+        $year = $requestedYear > 0 && $requestedYear <= $currentYear ? $requestedYear : $currentYear;
 
         abort_unless($user instanceof User, 404);
 

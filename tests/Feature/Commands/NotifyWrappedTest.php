@@ -29,3 +29,12 @@ it('notifies handles with a commit that year, once per year', function (): void 
 
     $this->assertDatabaseCount('notifications', 1);
 });
+
+it('rejects years other than the current year', function (): void {
+    $user = User::factory()->create();
+    Commit::factory()->create(['author_id' => $user->id, 'created_at' => now()->subYear()]);
+
+    $this->artisan('wrapped:notify', ['--year' => (string) ((int) date('Y') - 1)])->assertFailed();
+
+    $this->assertDatabaseCount('notifications', 0);
+});

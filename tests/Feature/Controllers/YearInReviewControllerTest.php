@@ -70,3 +70,83 @@ it('opens wrapped once the unlock moment passes', function (): void {
             ->where('unlocksAt', null)
             ->where('stats.year', $year));
 });
+
+it('counts consecutive calendar days as a streak', function (): void {
+    $user = User::factory()->create();
+    $year = (int) now()->year;
+    $this->travelTo(Carbon::create($year, 12, 4, 9, 1));
+
+    Commit::factory()->for($user)->create(['created_at' => now()->setDate($year, 1, 5)]);
+    Commit::factory()->for($user)->create(['created_at' => now()->setDate($year, 1, 6)]);
+    Commit::factory()->for($user)->create(['created_at' => now()->setDate($year, 1, 7)]);
+
+    $this->get(route('wrapped.show', ['profile' => $user->profile->handle]))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('stats.longestStreak', 3)
+            ->where('stats.comeback', false));
+});
+
+it('flags a 7-day run after a month of silence as a comeback', function (): void {
+    $user = User::factory()->create();
+    $year = (int) now()->year;
+    $this->travelTo(Carbon::create($year, 12, 4, 9, 1));
+
+    Commit::factory()->for($user)->create(['created_at' => now()->setDate($year, 1, 1)]);
+
+    foreach (range(1, 7) as $day) {
+        Commit::factory()->for($user)->create(['created_at' => now()->setDate($year, 3, $day)]);
+    }
+
+    $this->get(route('wrapped.show', ['profile' => $user->profile->handle]))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('stats.longestStreak', 7)
+            ->where('stats.comeback', true));
+});
+
+it('merges language aliases into one entry per post', function (): void {
+    $user = User::factory()->create();
+    $year = (int) now()->year;
+    $this->travelTo(Carbon::create($year, 12, 4, 9, 1));
+
+    Commit::factory()->for($user)->create(['body' => "Note\n```js\nconst a = 1;\n```", 'created_at' => now()->setDate($year, 2, 1)]);
+    Commit::factory()->for($user)->create(['body' => "Note\n```javascript\nconst b = 2;\n```\n```php\necho 1;\n```", 'created_at' => now()->setDate($year, 2, 2)]);
+    Commit::factory()->for($user)->create(['body' => "Note\n```js\nconst c = 3;\n```\n```javascript\nconst d = 4;\n```", 'created_at' => now()->setDate($year, 2, 3)]);
+
+    $this->get(route('wrapped.show', ['profile' => $user->profile->handle]))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('stats.languages', [
+                ['language' => 'JavaScript', 'commits' => 3],
+                ['language' => 'PHP', 'commits' => 1],
+            ]));
+});
+
+it('opens a past year from a notification link', function (): void {
+    $user = User::factory()->create();
+    $year = (int) now()->year;
+    $this->travelTo(Carbon::create($year, 12, 4, 9, 1));
+
+    Commit::factory()->for($user)->create(['created_at' => now()->setDate($year - 1, 6, 15)]);
+
+    $this->get(route('wrapped.show', ['profile' => $user->profile->handle, 'year' => $year - 1]))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('wrapped/show')
+            ->where('locked', false)
+            ->where('stats.year', $year - 1)
+            ->where('stats.commits', 1));
+});
+
+it('falls back to the current year for a future year', function (): void {
+    $user = User::factory()->create();
+    $year = (int) now()->year;
+    $this->travelTo(Carbon::create($year, 12, 4, 9, 1));
+
+    $this->get(route('wrapped.show', ['profile' => $user->profile->handle, 'year' => $year + 5]))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('locked', false)
+            ->where('stats.year', $year));
+});

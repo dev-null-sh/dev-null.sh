@@ -1219,7 +1219,7 @@ export function NotificationContent({
         (!summary && notification.type === 'starred')
             ? show(actor)
             : notification.type === 'wrapped_ready'
-              ? `/@${user.handle}/wrapped`
+              ? `/@${user.handle}/wrapped${wrappedYear ? `?year=${wrappedYear}` : ''}`
               : CommitController.show({
                     profile: isOwnCommit
                         ? (notification.organization ?? user)

@@ -21,6 +21,15 @@ final readonly class YearInReviewQuery
     private const FENCE_EXCLUDED = ['ansi', 'diff', 'fix', 'log', 'output', 'plaintext', 'terminal', 'text', 'txt'];
 
     /** @var array<string, string> */
+    private const LANGUAGE_CANONICAL = [
+        'js' => 'javascript',
+        'sh' => 'bash',
+        'shell' => 'bash',
+        'ts' => 'typescript',
+        'yml' => 'yaml',
+    ];
+
+    /** @var array<string, string> */
     private const LANGUAGE_DISPLAY = [
         'bash' => 'Shell',
         'blade' => 'Blade',
@@ -64,7 +73,7 @@ final readonly class YearInReviewQuery
 
         $starsEarned = (int) DB::table('stars')
             ->join('commits', 'commits.id', '=', 'stars.commit_id')
-            ->where('commits.user_id', $user->id)
+            ->where('commits.author_id', $user->id)
             ->whereBetween('stars.created_at', [$start, $end])
             ->count();
 
@@ -135,10 +144,10 @@ final readonly class YearInReviewQuery
         foreach ($days as $day) {
             $current = CarbonImmutable::parse($day);
 
-            if ($previous !== null && $current->diffInDays($previous) === 1) {
+            if ($previous !== null && $current->toDateString() === $previous->addDay()->toDateString()) {
                 $run++;
             } else {
-                $gap = $previous === null ? 0 : $current->diffInDays($previous);
+                $gap = $previous === null ? 0 : (int) $previous->diffInDays($current);
                 $run = 1;
             }
 
@@ -165,7 +174,10 @@ final readonly class YearInReviewQuery
         foreach ($bodies as $body) {
             preg_match_all('/```([a-zA-Z0-9_+#-]+)/', (string) $body, $matches);
 
-            foreach (array_unique(array_map(strtolower(...), $matches[1])) as $tag) {
+            $tags = array_map(strtolower(...), $matches[1]);
+            $tags = array_map(fn ($tag) => self::LANGUAGE_CANONICAL[$tag] ?? $tag, $tags);
+
+            foreach (array_unique($tags) as $tag) {
                 if (in_array($tag, self::FENCE_EXCLUDED, true)) {
                     continue;
                 }
@@ -179,6 +191,7 @@ final readonly class YearInReviewQuery
         $top = [];
 
         foreach (array_slice($counts, 0, 3, true) as $tag => $commits) {
+            $tag = (string) $tag;
             $top[] = ['language' => self::LANGUAGE_DISPLAY[$tag] ?? ucfirst($tag), 'commits' => $commits];
         }
 
@@ -195,9 +208,10 @@ final readonly class YearInReviewQuery
         $previous = null;
 
         foreach ($days as $day) {
-            $run = $previous !== null && CarbonImmutable::parse($day)->diffInDays($previous) === 1 ? $run + 1 : 1;
+            $current = CarbonImmutable::parse($day);
+            $run = $previous !== null && $current->toDateString() === $previous->addDay()->toDateString() ? $run + 1 : 1;
             $longest = max($longest, $run);
-            $previous = CarbonImmutable::parse($day);
+            $previous = $current;
         }
 
         return $longest;
