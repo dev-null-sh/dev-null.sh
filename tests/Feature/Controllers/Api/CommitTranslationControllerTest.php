@@ -58,11 +58,12 @@ it('hides the commits the web does not translate for the user', function (string
         'blocked' => $this->user->blocking()->attach($commit->user),
         'empty' => $commit->update(['body' => '']),
         'switched off' => resolve(Features::class)->update(Feature::Translations, false),
+        'admins only' => resolve(Features::class)->update(Feature::Translations, true, true),
     };
 
     signedApiRequest($this->keyPair, 'POST', route('api-commit-translation.store', $commit), ['language' => 'en'])
         ->assertNotFound();
-})->with(['pending', 'rejected', 'blocked', 'empty', 'switched off']);
+})->with(['pending', 'rejected', 'blocked', 'empty', 'switched off', 'admins only']);
 
 it('rejects unsupported target languages before calling the provider', function (mixed $language): void {
     $this->mock(TranslationProvider::class)->shouldNotReceive('translate');

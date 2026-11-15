@@ -13,6 +13,7 @@ import type { PollDraft } from '@/components/poll-editor';
 import { Button } from '@/components/ui/button';
 import { useNow } from '@/hooks/use-now';
 import { bodySegments, hasCodeBlock } from '@/lib/code';
+import { bodyWithHashtag } from '@/lib/commit';
 import { hasModKey, useKeyLabels } from '@/lib/keyboard';
 import { cn } from '@/lib/utils';
 import type { BodySegment } from '@/types';
@@ -41,10 +42,12 @@ export type ComposerPreview = ReturnType<typeof useComposerPreview>;
  */
 export function useComposerPreview({
     body,
+    guildHandle,
     textareaRef,
     isSubmittable,
 }: {
     body: string;
+    guildHandle?: string;
     textareaRef: RefObject<HTMLTextAreaElement | null>;
     isSubmittable: boolean;
 }) {
@@ -52,7 +55,7 @@ export function useComposerPreview({
     const [resolved, setResolved] = useState<Resolved | null>(null);
     const previewId = useId();
     const request = useHttp<
-        { body: string },
+        { body: string; guild_handle?: string },
         {
             segments: BodySegment[];
             mentions: Mentions | [];
@@ -62,7 +65,9 @@ export function useComposerPreview({
         body: '',
     });
 
-    const draft = body.trim();
+    const draft = (
+        guildHandle ? bodyWithHashtag(body, guildHandle) : body
+    ).trim();
     const isResolved = resolved?.body === draft;
     const segments = isResolved ? resolved.segments : bodySegments(draft);
 
@@ -71,7 +76,10 @@ export function useComposerPreview({
             return;
         }
 
-        request.transform(() => ({ body: draft }));
+        request.transform(() => ({
+            body: body.trim(),
+            ...(guildHandle && { guild_handle: guildHandle }),
+        }));
 
         try {
             const response = await request.submit(

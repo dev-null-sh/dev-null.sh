@@ -26,7 +26,7 @@ final readonly class CommitSearchQuery
      */
     private const int MINIMUM_TERM_LENGTH = 3;
 
-    public function __construct(private EmbeddingProvider $embeddings, private RelevanceProvider $relevance)
+    public function __construct(private EmbeddingProvider $embeddings, private RelevanceProvider $relevance, private GuildCommitsQuery $guildCommits)
     {
         //
     }
@@ -58,7 +58,7 @@ final readonly class CommitSearchQuery
         /** @var list<float> $vector */
         $vector = $source->embedding ?? Cache::remember('search-embedding:'.hash('sha256', $term), self::CACHE_SECONDS, fn (): array => $this->embeddings->embed($term));
 
-        $candidates = DB::transaction(function () use ($source, $vector, $viewer, $limit): Collection {
+        $candidates = $this->guildCommits->snapshot($viewer, fn (): Collection => DB::transaction(function () use ($source, $vector, $viewer, $limit): Collection {
             if ($source instanceof Commit) {
                 DB::statement('set local hnsw.iterative_scan = strict_order');
             }
@@ -67,6 +67,7 @@ final readonly class CommitSearchQuery
                 ->whereIn('commits.id', $this->nearest($vector, $viewer, $limit * 2, $source))
                 ->visibleTo($viewer)
                 ->withoutMutedAuthorsFor($viewer)
+                ->withoutMutedGuildsFor($viewer)
                 ->withVisibleReplyCount($viewer)
                 ->withContinuationId($viewer)
                 ->withCardDataFor($viewer)
@@ -74,7 +75,7 @@ final readonly class CommitSearchQuery
                 ->limit($limit)
                 ->get()
                 ->toBase();
-        });
+        }));
 
         return $this->onlyRelevant($term, $candidates, related: $source instanceof Commit);
     }

@@ -21,7 +21,7 @@ final class CreateCommitTranslationRequest extends FormRequest
 
         return (($commit->status === CommitStatus::Approved && $commit->isVisibleTo($this->user()))
             || ($commit->status === CommitStatus::Pending && $this->user()?->isAdmin()))
-            && $commit->body !== '' && resolve(CommitTranslations::class)->enabled()
+            && $commit->body !== '' && resolve(CommitTranslations::class)->available()
             ? Response::allow() : Response::denyAsNotFound();
     }
 
