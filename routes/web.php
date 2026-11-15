@@ -362,11 +362,11 @@ Route::middleware('auth')->group(function (): void {
     Route::get('guilds', [GuildController::class, 'index'])->name('guild.index');
     Route::get('guilds/{guild:handle}', [GuildController::class, 'show'])->name('guild.show');
     Route::get('guilds/{guild:handle}/icon', [GuildIconController::class, 'show'])->name('guild-icon.show');
-    Route::post('guilds', [GuildController::class, 'store'])->middleware([PreventPostingInTimeout::class, 'throttle:10,1'])->name('guild.store');
-    Route::put('guilds/{guild:handle}', [GuildController::class, 'update'])->middleware([PreventPostingInTimeout::class, 'throttle:10,1'])->name('guild.update');
+    Route::post('guilds', [GuildController::class, 'store'])->middleware([PreventPostingInTimeout::class, 'throttle:10,1,guilds:'])->name('guild.store');
+    Route::put('guilds/{guild:handle}', [GuildController::class, 'update'])->middleware([PreventPostingInTimeout::class, 'throttle:10,1,guild-updates:'])->name('guild.update');
     Route::put('guild-memberships/{guild}', [GuildMembershipController::class, 'update'])->whereUuid('guild')->middleware('throttle:follows')->name('guild-membership.update');
     Route::put('guild-mutes/{guild}', [GuildMuteController::class, 'update'])->whereUuid('guild')->middleware('throttle:follows')->name('guild-mute.update');
-    Route::post('guild-reports/{guild}', [GuildReportController::class, 'store'])->whereUuid('guild')->middleware('throttle:10,1')->name('guild-report.store');
+    Route::post('guild-reports/{guild}', [GuildReportController::class, 'store'])->whereUuid('guild')->middleware('throttle:10,1,guild-reports:')->name('guild-report.store');
 });
 
 // Profile Search: developers and organizations by name or handle...
@@ -674,7 +674,7 @@ Route::middleware('auth')->group(function (): void {
         ->middleware('throttle:profile-syncs')
         ->name('user-profile.update');
     Route::get('settings/export', ExportController::class)
-        ->middleware(['throttle:exports', 'throttle:5,1'])
+        ->middleware(['throttle:exports', 'throttle:5,1,exports:'])
         ->name('export');
 
     // User Lane...
