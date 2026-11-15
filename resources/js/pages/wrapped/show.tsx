@@ -44,12 +44,21 @@ type WrappedProps = {
 function Countdown({ to }: { to: string }) {
     const target = useMemo(() => new Date(to).getTime(), [to]);
     const [now, setNow] = useState(() => Date.now());
+    const reloaded = useRef(false);
 
     useEffect(() => {
-        const id = window.setInterval(() => setNow(Date.now()), 1000);
+        const id = window.setInterval(() => {
+            const left = target - Date.now();
+            setNow(Date.now());
+
+            if (left <= 0 && !reloaded.current) {
+                reloaded.current = true;
+                window.setTimeout(() => window.location.reload(), 1500);
+            }
+        }, 1000);
 
         return () => window.clearInterval(id);
-    }, []);
+    }, [target]);
 
     const remaining = Math.max(0, target - now);
     const units: Array<{ value: number; label: string }> = [
