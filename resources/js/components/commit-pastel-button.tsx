@@ -3,6 +3,7 @@ import { useEffect, useEffectEvent, useRef } from 'react';
 import { toast } from 'sonner';
 import { store } from '@/actions/App/Http/Controllers/CommitPastelController';
 import { ActionTooltip } from '@/components/action-tooltip';
+import { awarding } from '@/components/pasteis-balance';
 import { useCommitNotFound } from '@/hooks/use-deleted-resources';
 import { useNow } from '@/hooks/use-now';
 import { refreshSharedState, useSharedState } from '@/hooks/use-shared-state';
@@ -13,9 +14,6 @@ import { cn } from '@/lib/utils';
 import type { Commit } from '@/types';
 
 const exhaustedMessage = 'you ran out of pastéis. wait until tomorrow.';
-// One award per user at a time, even across midnight, so a response is never
-// reconciled against another award still in flight.
-const awarding = new Set<string>();
 
 export function CommitPastelButton({
     commit,
