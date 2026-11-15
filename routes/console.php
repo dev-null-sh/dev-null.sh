@@ -14,6 +14,7 @@ Schedule::command('commits:submit-scheduled')->everyMinute()->withoutOverlapping
 Schedule::job(new EndLiveStreams())->everyFiveMinutes();
 Schedule::job(new GenerateHotHeadlineSummaries())->everyFifteenMinutes();
 Schedule::command('model:prune', ['--model' => [Headline::class]])->hourly()->withoutOverlapping();
+Schedule::command('wrapped:notify')->yearlyOn(12, 3, '9:00')->withoutOverlapping();
 
 Schedule::call(function (): void {
     DB::table('pending_file_deletions')->orderBy('id')->chunkById(100, function (Collection $pending): void {

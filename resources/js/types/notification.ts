@@ -66,4 +66,10 @@ export type Notification =
           commit_id: string;
           subject_id: null;
           commit: Omit<Commit, 'author'>;
+      })
+    | (BaseNotification & {
+          type: 'wrapped_ready';
+          commit_id: null;
+          subject_id: null;
+          commit: null;
       });

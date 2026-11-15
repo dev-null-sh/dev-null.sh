@@ -16,6 +16,7 @@ import {
     ChevronsUp,
     GitCommitVertical,
     MessageSquareReply,
+    PartyPopper,
     Quote,
     Star,
     UserPlus,
@@ -1176,6 +1177,10 @@ export function NotificationContent({
         notification.type === 'mentioned' ||
         notification.type === 'first_commit';
     const level = notification.type === 'leveled_up' ? notification : null;
+    const wrappedYear =
+        notification.type === 'wrapped_ready'
+            ? new Date(notification.created_at).getFullYear()
+            : null;
     const Icon = {
         followed: UserPlus,
         leveled_up: ChevronsUp,
@@ -1186,6 +1191,7 @@ export function NotificationContent({
         first_commit: GitCommitVertical,
         approved: Check,
         rejected: X,
+        wrapped_ready: PartyPopper,
     }[notification.type];
     const icon = (
         <Icon
@@ -1202,12 +1208,14 @@ export function NotificationContent({
         notification.type === 'leveled_up' ||
         (!summary && notification.type === 'starred')
             ? show(actor)
-            : CommitController.show({
-                  profile: isOwnCommit
-                      ? (notification.organization ?? user)
-                      : actor,
-                  commit: notification.commit,
-              });
+            : notification.type === 'wrapped_ready'
+              ? `/@${user.handle}/wrapped`
+              : CommitController.show({
+                    profile: isOwnCommit
+                        ? (notification.organization ?? user)
+                        : actor,
+                    commit: notification.commit,
+                });
     const time = (
         <time
             dateTime={notification.created_at}
@@ -1234,9 +1242,11 @@ export function NotificationContent({
         approved: `${organization ? whose : 'Your'} commit was approved`,
         rejected: `${organization ? whose : 'Your'} commit was rejected`,
         leveled_up: level && `You reached level ${level.level}: ${level.rank}`,
+        wrapped_ready: wrappedYear && `Your ${wrappedYear} Wrapped is here!`,
     }[notification.type];
     const excerpt =
         notification.type === 'followed' ||
+        notification.type === 'wrapped_ready' ||
         isImageOnly ? null : notification.type === 'leveled_up' ? (
             <p className="mt-1 text-sm text-muted-foreground">
                 {notification.rank_description}
@@ -1617,6 +1627,14 @@ export function NotificationContent({
                                                         )
                                                     )}
                                                 </>
+                                            ) : notification.type ===
+                                              'wrapped_ready' ? (
+                                                <span
+                                                    className="relative z-10 mr-1 inline-block max-w-full truncate align-bottom font-mono font-semibold"
+                                                    title={`@${user.handle}`}
+                                                >
+                                                    {`@${user.handle}`}
+                                                </span>
                                             ) : (
                                                 <>
                                                     <UserPreview
