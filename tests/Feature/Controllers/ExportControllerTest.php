@@ -127,6 +127,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
             'push_mentions' => true,
             'push_direct_remotes' => true,
             'push_org_remotes' => true,
+            'notification_types' => null,
             'pinned_commit_id' => null,
             'live_platform' => null,
             'live_url' => null,

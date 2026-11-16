@@ -16,7 +16,8 @@ final readonly class UserSettingsController
     /**
      * What the web's settings show only the user: their timezone and the language commits are translated into, `null`
      * to follow the device, whether commits are translated automatically, the languages they may pick from, whether
-     * the web shows them its admin pages, which the app only links to, and what they want pushed to their phones.
+     * the web shows them its admin pages, which the app only links to, what they want pushed to their phones, and which
+     * kinds of notifications they see, as `?type=` takes them.
      */
     public function show(#[CurrentUser] User $user, CommitTranslations $translations): JsonResponse
     {
@@ -32,6 +33,7 @@ final readonly class UserSettingsController
             ])->sortBy('name')->values()->all(),
             'is_admin' => $user->isAdmin(),
             'push' => PushPreference::allFor($user),
+            'notification_types' => $user->notificationTypes(),
         ]])->header('Cache-Control', 'private, no-store');
     }
 }

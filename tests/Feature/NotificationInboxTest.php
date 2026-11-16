@@ -8,12 +8,15 @@ use App\Enums\CommitStatus;
 use App\Enums\ModerationReason;
 use App\Enums\NotificationType;
 use App\Enums\TimeoutDuration;
+use App\Enums\UserUpdate;
+use App\Events\UsersUpdated;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\Commit;
 use App\Models\Notification;
 use App\Models\User;
 use App\Models\UserTimeout;
 use App\Queries\NotificationGroupsQuery;
+use Illuminate\Support\Facades\Event;
 
 it('polls only the unread count outside the inbox without acknowledging activity', function (): void {
     $user = User::factory()->create();
@@ -50,8 +53,8 @@ it('polls only the unread count in a hidden inbox without acknowledging activity
     expect($notice->refresh()->read_at)->toBeNull();
 });
 
-it('filters the menu count using the current users saved notification types', function (string $type, int $expected): void {
-    $user = User::factory()->create();
+it('filters the menu count using the current users saved notification types', function (?string $type, int $expected): void {
+    $user = User::factory()->create(['notification_types' => $type]);
     $thread = Commit::factory()->for($user)->create();
     $reply = Notification::factory()->for($user, 'recipient')->replied($thread)->create();
     Notification::factory()->for($user, 'recipient')->for($reply->commit, 'commit')->mentioned()->read()->create();
@@ -59,8 +62,7 @@ it('filters the menu count using the current users saved notification types', fu
     Notification::factory()->for($user, 'recipient')->create();
     Notification::factory()->for($user, 'recipient')->starred()->create();
 
-    $this->actingAs($user)->withCookie('notification_types_'.$user->id, $type)
-        ->withCookie('notification_types_'.User::factory()->create()->id, 'none')
+    $this->actingAs($user)
         ->withHeaders([
             'X-Inertia' => 'true',
             'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request()),
@@ -69,17 +71,56 @@ it('filters the menu count using the current users saved notification types', fu
         ])->get(route('log.show', ['log' => 'trending', 'type' => 'none']))->assertOk()
         ->assertJsonPath('props.auth.unreadNotificationsCount', $expected);
 
-    expect($reply->refresh()->read_at)->toBeNull();
+    expect($reply->refresh()->read_at)->toBeNull()
+        ->and($user->refresh()->notification_types)->toBe($type);
 })->with([
+    'never chosen' => [null, 4],
     'all types' => ['all', 4],
     'replies' => ['replies', 2],
     'multiple types' => ['replies,stars', 3],
     'only read matches in an unread group' => ['mentions', 0],
     'no matching type' => ['quotes', 0],
     'no selected types' => ['none', 0],
-    'invalid saved filter' => ['invalid', 4],
-    'partially invalid saved filter' => ['replies,invalid', 4],
 ]);
+
+it('takes over the types a browser saved in its cookie before they were kept on the user', function (string $cookie, ?string $saved, int $expected): void {
+    $user = User::factory()->create();
+    Notification::factory()->for($user, 'recipient')->replied()->create();
+    Notification::factory()->for($user, 'recipient')->create();
+
+    $response = $this->actingAs($user)->withCookie('notification_types_'.$user->id, $cookie)
+        ->withCookie('notification_types_'.User::factory()->create()->id, 'none')
+        ->withHeaders([
+            'X-Inertia' => 'true',
+            'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request()),
+            'X-Inertia-Partial-Component' => 'log/show',
+            'X-Inertia-Partial-Data' => 'auth.unreadNotificationsCount',
+        ])->get(route('log.show', ['log' => 'trending']))->assertOk()
+        ->assertJsonPath('props.auth.unreadNotificationsCount', $expected);
+
+    expect($user->refresh()->notification_types)->toBe($saved);
+
+    if ($saved !== null) {
+        $response->assertCookieExpired('notification_types_'.$user->id);
+    }
+})->with([
+    'replies' => ['replies', 'replies', 1],
+    'no selected types' => ['none', 'none', 0],
+    'invalid' => ['invalid', null, 2],
+    'partially invalid' => ['replies,invalid', null, 2],
+]);
+
+it('keeps the types saved on the user over an old cookie', function (): void {
+    $user = User::factory()->create(['notification_types' => 'follows']);
+    Notification::factory()->for($user, 'recipient')->replied()->create();
+    Notification::factory()->for($user, 'recipient')->create();
+
+    $this->actingAs($user)->withCookie('notification_types_'.$user->id, 'replies')
+        ->get(route('notification.index'))
+        ->assertInertia(fn ($page) => $page->has('notifications.data', 1)->where('filters.type', 'follows'));
+
+    expect($user->refresh()->notification_types)->toBe('follows');
+});
 
 it('refreshes the entire loaded inbox window without losing older pages', function (): void {
     $user = User::factory()->create();
@@ -621,18 +662,28 @@ it('combines category filters and applies them to expanded groups', function ():
 it('remembers selected categories for the current account including no categories', function (): void {
     $user = User::factory()->create();
     Notification::factory()->for($user, 'recipient')->create();
-    $cookie = 'notification_types_'.$user->id;
 
     $this->actingAs($user)->get(route('notification.index', ['type' => 'none']))
-        ->assertCookie($cookie, 'none')
         ->assertInertia(fn ($page) => $page->has('notifications.data', 0)->where('filters.type', 'none'));
-    $this->withCookie($cookie, 'none')->get(route('notification.index'))
+    expect($user->refresh()->notification_types)->toBe('none');
+    $this->get(route('notification.index'))
         ->assertInertia(fn ($page) => $page->has('notifications.data', 0)->where('filters.type', 'none'));
-    $this->get(route('notification.index', ['type' => 'all']))
-        ->assertCookie($cookie, 'all')
+    $this->get(route('notification.index', ['type' => '']))
         ->assertInertia(fn ($page) => $page->has('notifications.data', 1)->where('filters.type', 'all'));
+    expect($user->refresh()->notification_types)->toBe('all');
     $this->actingAs(User::factory()->create())->get(route('notification.index'))
         ->assertInertia(fn ($page) => $page->where('filters.type', 'all'));
+});
+
+it('refreshes the unread count wherever the user is signed in when the types change, and only then', function (): void {
+    Event::fake([UsersUpdated::class]);
+    $user = User::factory()->create(['notification_types' => 'replies']);
+
+    $this->actingAs($user)->get(route('notification.index', ['type' => 'replies']))->assertOk();
+    Event::assertNotDispatched(UsersUpdated::class);
+
+    $this->get(route('notification.index', ['type' => 'replies,stars']))->assertOk();
+    Event::assertDispatched(UsersUpdated::class, fn (UsersUpdated $event): bool => $event->userIds === [$user->id] && $event->update === UserUpdate::Notifications);
 });
 
 it('rejects invalid combinations of categories', function (): void {
