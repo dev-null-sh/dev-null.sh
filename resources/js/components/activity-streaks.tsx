@@ -39,6 +39,25 @@ export function ActivityStreaks({
                     </span>
                 </>
             )}
+
+            <span aria-hidden>·</span>
+            <span>
+                shields{' '}
+                <span className="font-medium text-foreground">
+                    {streaks.shields}/2
+                </span>
+            </span>
+            {streaks.protected_days > 0 && (
+                <span>
+                    ({streaks.protected_days}{' '}
+                    {streaks.protected_days === 1 ? 'day' : 'days'} protected)
+                </span>
+            )}
+            <span className="basis-full text-xs">
+                Earn a shield every 7 commit days in a streak, up to 2. Each
+                automatically protects one missed day without adding to your
+                streak length.
+            </span>
         </p>
     );
 }

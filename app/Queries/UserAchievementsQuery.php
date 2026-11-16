@@ -13,6 +13,8 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 /**
+ * @phpstan-import-type UserStreaks from UserStreakQuery
+ *
  * @phpstan-type XpContribution array{count: int, multiplier: int, xp: int}
  * @phpstan-type UserAchievements array{
  *     level: int,
@@ -52,7 +54,7 @@ final readonly class UserAchievementsQuery
     }
 
     /**
-     * @param  array{longest: int, current: int}|null  $streaks
+     * @param  UserStreaks|null  $streaks
      * @return UserAchievements
      */
     public function get(User $user, ?User $viewer, ?array $streaks = null): array

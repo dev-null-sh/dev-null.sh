@@ -278,7 +278,7 @@ it('renders the user commit streaks alongside starred commits', function (): voi
 
     $response->assertOk()
         ->assertInertia(fn ($page) => $page
-            ->where('streaks', ['longest' => 2, 'current' => 1])
+            ->where('streaks', ['longest' => 2, 'current' => 1, 'shields' => 0, 'protected_days' => 0])
             ->where('commits.data.0.id', $commit->id)
             ->where('commits.data.0.stars_count', 1)
             ->where('commits.data.0.starred', true));
@@ -294,7 +294,7 @@ it('does not compute the streaks when reloading only commits', function (string 
     $response->assertOk()
         ->assertInertia(function ($page) use ($tab): void {
             $page->where('tab', $tab)
-                ->where('streaks', ['longest' => 1, 'current' => 1]);
+                ->where('streaks', ['longest' => 1, 'current' => 1, 'shields' => 0, 'protected_days' => 0]);
 
             DB::enableQueryLog();
 
@@ -647,7 +647,7 @@ it('hides deleted commits from profiles', function (): void {
             ->where('user.commits_count', 1)
             ->where('activity.scale', 'day')
             ->where('activity.buckets.23.count', 1)
-            ->where('streaks', ['longest' => 1, 'current' => 1])
+            ->where('streaks', ['longest' => 1, 'current' => 1, 'shields' => 0, 'protected_days' => 0])
             ->has('commits.data', 1)
             ->where('commits.data.0.body', 'Kept'));
 });
