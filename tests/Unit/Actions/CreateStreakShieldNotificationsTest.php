@@ -50,6 +50,7 @@ it('does not send a backlog of historical events or notify from profile reads', 
 });
 
 it('checks inactive users and notifies a broken streak only once while skipping banned users', function (): void {
+    config(['queue.default' => 'sync']);
     $user = User::factory()->create(['streak_shield_notifications_started_at' => now()->subDays(3)]);
     Commit::factory()->for($user)->create(['created_at' => now()->subDays(2)]);
     $banned = User::factory()->create(['banned_at' => now(), 'streak_shield_notifications_started_at' => now()->subDays(3)]);
