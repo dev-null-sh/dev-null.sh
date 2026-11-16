@@ -34,6 +34,7 @@ final class UserFactory extends Factory
                     'github_id' => $attributes['github_id'],
                 ]),
             'email' => fake()->unique()->safeEmail(),
+            'streak_shield_notifications_started_at' => now(),
             'company' => fake()->company(),
             'has_sponsors_listing' => false,
             'preferred_lane' => null,

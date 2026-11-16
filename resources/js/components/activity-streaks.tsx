@@ -54,9 +54,9 @@ export function ActivityStreaks({
                 </span>
             )}
             <span className="basis-full text-xs">
-                Earn a shield every 7 commit days in a streak, up to 2. Each
-                automatically protects one missed day without adding to your
-                streak length.
+                Earn a shield every 7 commit days in a streak, up to 2. With
+                automatic protection enabled in profile settings, each protects
+                one missed day without adding to your streak length.
             </span>
         </p>
     );

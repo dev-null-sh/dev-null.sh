@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Actions\UpdateUserStreakShields;
 use App\Models\Commit;
 use App\Models\User;
 use App\Queries\UserStreakQuery;
@@ -198,4 +199,38 @@ it('ignores future commit days when earning shields', function (): void {
     expect(resolve(UserStreakQuery::class)->get($user, $user))->toBe([
         'longest' => 6, 'current' => 6, 'shields' => 0, 'protected_days' => 0,
     ]);
+});
+
+it('saves shields while protection is off and never repairs an earlier disabled day', function (): void {
+    $user = User::factory()->create();
+    foreach (range(1, 7) as $day) {
+        Commit::factory()->for($user)->create(['created_at' => now()->subDays($day)]);
+    }
+
+    $settings = resolve(UpdateUserStreakShields::class);
+    $query = resolve(UserStreakQuery::class);
+    $settings->handle($user, false);
+    $this->travel(1)->days();
+    expect($query->get($user, $user))->toBe(['longest' => 7, 'current' => 0, 'shields' => 1, 'protected_days' => 0]);
+
+    $settings->handle($user, true);
+    expect($query->get($user, $user)['current'])->toBe(0);
+    Commit::factory()->for($user)->create();
+    $this->travel(2)->days();
+    expect($query->get($user, $user))->toBe(['longest' => 7, 'current' => 1, 'shields' => 0, 'protected_days' => 1]);
+});
+
+it('keeps earlier shield usage intact when automatic protection is disabled', function (): void {
+    $user = User::factory()->create();
+    foreach (range(2, 15) as $day) {
+        Commit::factory()->for($user)->create(['created_at' => now()->subDays($day)]);
+    }
+
+    $query = resolve(UserStreakQuery::class);
+    $before = $query->get($user, $user);
+    resolve(UpdateUserStreakShields::class)->handle($user, false);
+    expect($query->get($user, $user))->toBe($before)
+        ->and($before)->toBe(['longest' => 14, 'current' => 14, 'shields' => 1, 'protected_days' => 1]);
+    $this->travel(1)->days();
+    expect($query->get($user, $user))->toBe(['longest' => 14, 'current' => 0, 'shields' => 1, 'protected_days' => 0]);
 });

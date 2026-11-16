@@ -9,6 +9,7 @@ import Heading from '@/components/heading';
 import LanePicker from '@/components/lane-picker';
 import { PasteisModeSetting } from '@/components/pasteis-mode-setting';
 import { RemotesSetting } from '@/components/remotes-setting';
+import { StreakShieldsSetting } from '@/components/streak-shields-setting';
 import TimezonePicker from '@/components/timezone-picker';
 import TranslationLanguageSetting from '@/components/translation-language-setting';
 import { Button } from '@/components/ui/button';
@@ -125,6 +126,7 @@ export default function Edit({
             />
 
             <TimezonePicker />
+            <StreakShieldsSetting />
 
             <TranslationLanguageSetting
                 language={translationLanguage}

@@ -42,6 +42,7 @@ use Traversable;
  *     schema_version: int,
  *     exported_at: string,
  *     profile: array<string, bool|int|string|null>,
+ *     streak_shield_preferences: array<int, stdClass>,
  *     active_days: Generator<int, ExportActiveDay>,
  *     commits: Generator<int, array<string, mixed>>,
  *     organization_commits: Generator<int, array<string, mixed>>,
@@ -84,7 +85,7 @@ final readonly class CreateExport
     public function handle(User $user): array
     {
         return [
-            'schema_version' => 9,
+            'schema_version' => 10,
             'exported_at' => now()->toIso8601String(),
             'profile' => [
                 'github_id' => $user->github_id,
@@ -102,6 +103,7 @@ final readonly class CreateExport
                 'show_local_time' => $user->show_local_time,
                 'translation_language' => $user->translation_language,
                 'automatic_translation' => $user->automatic_translation ?? true,
+                'automatic_streak_shields' => $user->automatic_streak_shields,
                 'lane_color' => $user->lane_color,
                 'pasteis_mode' => $user->pasteis_mode,
                 'pasteis_received' => $user->pasteis_received,
@@ -125,6 +127,7 @@ final readonly class CreateExport
                 'created_at' => $user->created_at->toIso8601String(),
                 'updated_at' => $user->updated_at->toIso8601String(),
             ],
+            'streak_shield_preferences' => DB::table('streak_shield_preferences')->where('user_id', $user->id)->oldest('effective_on')->get(['effective_on', 'enabled'])->all(),
             'active_days' => $this->activeDays($user),
             'commits' => $this->commits($user),
             'organization_commits' => $this->organizationCommits($user),

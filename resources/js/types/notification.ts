@@ -36,6 +36,12 @@ export type NotificationGroup = Notification & {
 
 export type Notification =
     | (BaseNotification & {
+          type: 'streak_shield_earned' | 'streak_shield_used' | 'streak_ended';
+          commit_id: null;
+          subject_id: null;
+          commit: null;
+      })
+    | (BaseNotification & {
           type: 'followed';
           commit_id: null;
           subject_id: null;

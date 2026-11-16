@@ -25,6 +25,7 @@ final readonly class UserSettingsController
             'show_local_time' => $user->show_local_time,
             'translation_language' => $user->translation_language,
             'automatic_translation' => $user->automatic_translation ?? true,
+            'automatic_streak_shields' => $user->automatic_streak_shields,
             'translation_languages' => collect($translations->languages())->map(fn (string $code): array => [
                 'code' => $code,
                 'name' => Locale::getDisplayLanguage($code, 'en'),

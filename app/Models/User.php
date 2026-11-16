@@ -56,6 +56,8 @@ use LogicException;
  * @property-read CarbonInterface|null $pasteis_given_on
  * @property-read string|null $pinned_commit_id
  * @property-read bool|null $automatic_translation
+ * @property-read bool $automatic_streak_shields
+ * @property-read CarbonInterface $streak_shield_notifications_started_at
  * @property-read string|null $translation_language
  * @property-read string|null $timezone
  * @property-read bool $show_local_time
@@ -102,6 +104,8 @@ use LogicException;
     'remember_token',
     'translation_language',
     'automatic_translation',
+    'automatic_streak_shields',
+    'streak_shield_notifications_started_at',
     'preferred_lane',
     'lane_color',
     'pasteis_mode',
@@ -163,6 +167,7 @@ final class User extends Authenticatable
     protected $attributes = [
         'log' => Log::Following->value,
         'translation_language' => null,
+        'automatic_streak_shields' => true,
         'show_local_time' => false,
         'pasteis_mode' => false,
         'remotes_enabled' => true,
@@ -224,6 +229,8 @@ final class User extends Authenticatable
             'show_local_time' => 'boolean',
             'translation_language' => 'encrypted',
             'automatic_translation' => 'boolean',
+            'automatic_streak_shields' => 'boolean',
+            'streak_shield_notifications_started_at' => 'datetime',
             'log' => Log::class,
             'onboarded_at' => 'datetime',
             'github_follows_imported_at' => 'datetime',

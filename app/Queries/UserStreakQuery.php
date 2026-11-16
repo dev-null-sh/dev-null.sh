@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace App\Queries;
 
+use App\Enums\NotificationType;
 use App\Models\User;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Facades\DB;
 
 /**
  * @phpstan-type UserStreaks array{longest: int, current: int, shields: int, protected_days: int}
+ * @phpstan-type ShieldEvent array{type: NotificationType, day: string, balance: int}
  */
 final readonly class UserStreakQuery
 {
@@ -22,6 +25,24 @@ final readonly class UserStreakQuery
      */
     public function get(User $user, ?User $viewer): array
     {
+        return $this->calculate($user, $viewer)['streaks'];
+    }
+
+    /**
+     * Private owner-visible events for the worker. Profile reads never send notifications.
+     *
+     * @return list<ShieldEvent>
+     */
+    public function events(User $user): array
+    {
+        return $this->calculate($user, $user)['events'];
+    }
+
+    /**
+     * @return array{streaks: UserStreaks, events: list<ShieldEvent>}
+     */
+    private function calculate(User $user, ?User $viewer): array
+    {
         /** @var list<string> $days */
         $days = $user->commits()
             ->visibleTo($viewer)
@@ -32,6 +53,19 @@ final readonly class UserStreakQuery
             ->pluck('day')
             ->all();
 
+        /** @var array<string, bool> $preferences */
+        $preferences = DB::table('streak_shield_preferences')->where('user_id', $user->id)
+            ->oldest('effective_on')->pluck('enabled', 'effective_on')->all();
+        $automatic = $preferences === [] ? $user->automatic_streak_shields : true;
+        $today = CarbonImmutable::today()->toDateString();
+        $hasToday = in_array($today, $days, true);
+
+        // A sentinel covers completed days before today without pretending today has a commit.
+        if (! $hasToday) {
+            $days[] = $today;
+        }
+
+        $events = [];
         $longest = 0;
         $streak = 0;
         $previous = null;
@@ -40,38 +74,55 @@ final readonly class UserStreakQuery
 
         foreach ($days as $day) {
             $date = CarbonImmutable::parse($day);
-            $missedDays = $previous instanceof CarbonImmutable ? (int) $previous->diffInDays($date) - 1 : 0;
-            $coveredDays = min($missedDays, $shields);
-            $shields -= $coveredDays;
+            // Stop spending as soon as a streak breaks, preserving shields when automatic protection is off.
+            for ($missing = $previous?->addDay(); $missing instanceof CarbonImmutable && $missing->lt($date) && $streak > 0; $missing = $missing->addDay()) {
+                $missedDay = $missing->toDateString();
 
-            if ($missedDays > $coveredDays) {
-                $streak = 0;
-                $protectedDays = 0;
-            } else {
-                $protectedDays += $coveredDays;
+                if ($shields > 0 && $this->automaticOn($missedDay, $preferences, $automatic)) {
+                    $shields--;
+                    $protectedDays++;
+                    $events[] = ['type' => NotificationType::StreakShieldUsed, 'day' => $missedDay, 'balance' => $shields];
+                } else {
+                    $streak = 0;
+                    $protectedDays = 0;
+                    $events[] = ['type' => NotificationType::StreakEnded, 'day' => $missedDay, 'balance' => $shields];
+                }
+            }
+
+            if ($day === $today && ! $hasToday) {
+                break;
             }
 
             $streak++;
 
-            if ($streak % 7 === 0) {
-                $shields = min(2, $shields + 1);
+            if ($streak % 7 === 0 && $shields < 2) {
+                $shields++;
+                $events[] = ['type' => NotificationType::StreakShieldEarned, 'day' => $day, 'balance' => $shields];
             }
 
             $longest = max($longest, $streak);
             $previous = $date;
         }
 
-        // Today is still available for committing, so only cover gaps through yesterday.
-        $missedDays = $previous instanceof CarbonImmutable ? max(0, (int) $previous->diffInDays(CarbonImmutable::yesterday())) : 0;
-        $coveredDays = min($missedDays, $shields);
-        $shields -= $coveredDays;
-        $isAlive = $previous instanceof CarbonImmutable && $missedDays === $coveredDays;
-
         return [
-            'longest' => $longest,
-            'current' => $isAlive ? $streak : 0,
-            'shields' => $shields,
-            'protected_days' => $isAlive ? $protectedDays + $coveredDays : 0,
+            'streaks' => ['longest' => $longest, 'current' => $streak, 'shields' => $shields, 'protected_days' => $protectedDays],
+            'events' => $events,
         ];
+    }
+
+    /**
+     * @param  array<string, bool>  $preferences
+     */
+    private function automaticOn(string $day, array $preferences, bool $automatic): bool
+    {
+        foreach ($preferences as $effectiveOn => $enabled) {
+            if ($effectiveOn > $day) {
+                break;
+            }
+
+            $automatic = $enabled;
+        }
+
+        return $automatic;
     }
 }

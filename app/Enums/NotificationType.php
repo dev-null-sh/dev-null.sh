@@ -16,4 +16,7 @@ enum NotificationType: string
     case LeveledUp = 'leveled_up';
     case FirstCommit = 'first_commit';
     case TimedOut = 'timed_out';
+    case StreakShieldEarned = 'streak_shield_earned';
+    case StreakShieldUsed = 'streak_shield_used';
+    case StreakEnded = 'streak_ended';
 }

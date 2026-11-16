@@ -9,6 +9,7 @@ use App\Actions\CreateGuildReport;
 use App\Actions\DeleteGuild;
 use App\Actions\DeleteUser;
 use App\Actions\UpdateDevicePushToken;
+use App\Actions\UpdateUserStreakShields;
 use App\Contracts\Services\TranslationProvider;
 use App\Enums\ModerationReason;
 use App\Enums\NotificationType;
@@ -39,6 +40,20 @@ use Illuminate\Support\Facades\Storage;
 
 it('requires authentication to download personal data', function (): void {
     $this->get(route('export'))->assertRedirectToRoute('home');
+});
+
+it('exports only the users own streak protection preference history', function (): void {
+    $user = User::factory()->create();
+    $other = User::factory()->create();
+    resolve(UpdateUserStreakShields::class)->handle($user, false);
+    resolve(UpdateUserStreakShields::class)->handle($other, true);
+
+    $response = $this->actingAs($user)->get(route('export'));
+    $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
+    expect($data['profile']['automatic_streak_shields'])->toBeFalse()
+        ->and($data['streak_shield_preferences'])->toBe([
+            ['effective_on' => today()->toDateString(), 'enabled' => false],
+        ]);
 });
 
 it('exports a surviving quote reference without the deleted authors tombstone content', function (): void {
@@ -96,7 +111,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
     $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
 
     expect($data)->toBe([
-        'schema_version' => 9,
+        'schema_version' => 10,
         'exported_at' => now()->toIso8601String(),
         'profile' => [
             'github_id' => $user->github_id,
@@ -114,6 +129,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
             'show_local_time' => true,
             'translation_language' => 'ja',
             'automatic_translation' => false,
+            'automatic_streak_shields' => true,
             'lane_color' => '#1a2b3c',
             'pasteis_mode' => true,
             'pasteis_received' => 17,
@@ -137,6 +153,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
             'created_at' => $user->created_at->toIso8601String(),
             'updated_at' => $user->updated_at->toIso8601String(),
         ],
+        'streak_shield_preferences' => [],
         'active_days' => [['date' => now()->toDateString(), 'web_app' => true, 'native_mobile_app' => false, 'lite_mobile_app' => false, 'mac_app' => false, 'other_app' => false]],
         'commits' => [],
         'organization_commits' => [],

@@ -158,6 +158,7 @@ use App\Http\Controllers\UserProfileController;
 use App\Http\Controllers\UserRemotePreferencesController;
 use App\Http\Controllers\UserRemotesController;
 use App\Http\Controllers\UserSitemapController;
+use App\Http\Controllers\UserStreakShieldsController;
 use App\Http\Controllers\UserTermsController;
 use App\Http\Controllers\UserTimeoutController;
 use App\Http\Controllers\UserTimezoneController;
@@ -682,6 +683,7 @@ Route::middleware('auth')->group(function (): void {
 
     // User Timezone...
     Route::put('settings/timezone', [UserTimezoneController::class, 'update'])->name('user-timezone.update');
+    Route::put('settings/streak-shields', [UserStreakShieldsController::class, 'update'])->name('user-streak-shields.update');
 
     Route::put('settings/automatic-translation', [UserAutomaticTranslationController::class, 'update'])->name('user-automatic-translation.update');
     Route::put('settings/translation-language', [UserTranslationLanguageController::class, 'update'])->name('user-translation-language.update');
