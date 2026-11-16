@@ -24,6 +24,8 @@ final readonly class CreateTomChangelogCommits
 
     private const int PerPage = 100;
 
+    private const int MaxPages = 10;
+
     private const int MaxDescriptionLength = 4000;
 
     private const int MaxExplanationLength = 600;
@@ -41,7 +43,7 @@ final readonly class CreateTomChangelogCommits
      * Tom posts one commit for every commit that landed on production since the last one he posted about, oldest
      * first. Only the first-parent line of production counts, as on the changelog: the commits of a merged branch
      * arrive with its merge commit. The first run, or one that can't find where the last left off in the latest
-     * hundred commits, only remembers where production is now, so Tom never floods the log with old changes.
+     * thousand commits, only remembers where production is now, so Tom never floods the log with old changes.
      *
      * Where he got to is saved after every post, so a failure picks up from the commit it failed on.
      */
@@ -54,17 +56,17 @@ final readonly class CreateTomChangelogCommits
         }
 
         $repository = config()->string('services.github.repository');
-        $line = $this->firstParents($this->github->commits($repository, ChangelogQuery::Branch, 1, self::PerPage));
+        $last = Cache::get(self::LastAnnouncedKey);
+        $last = is_string($last) ? $last : null;
+
+        $line = $this->firstParents($repository, $last);
 
         if ($line === []) {
             return;
         }
 
-        $last = Cache::get(self::LastAnnouncedKey);
-        $position = is_string($last) ? array_search($last, array_column($line, 'sha'), true) : false;
-
-        if ($position === false) {
-            if (is_string($last)) {
+        if ($last === null || ($line[count($line) - 1]['parents'][0] ?? null) !== $last) {
+            if ($last !== null) {
                 Log::warning('Tom could not find the last production commit he announced, so he starts again from the latest one.', ['sha' => $last]);
             }
 
@@ -73,7 +75,7 @@ final readonly class CreateTomChangelogCommits
             return;
         }
 
-        foreach (array_reverse(array_slice($line, 0, $position)) as $commit) {
+        foreach (array_reverse($line) as $commit) {
             $this->announce($tom, $repository, $commit);
 
             Cache::forever(self::LastAnnouncedKey, $commit['sha']);
@@ -92,7 +94,8 @@ final readonly class CreateTomChangelogCommits
         }
 
         $number = $headline['pull_request'];
-        $description = $number === null ? null : $this->github->pullRequestDescription($repository, $number);
+        $pullRequest = $number === null ? null : $this->github->pullRequest($repository, $number);
+        $description = $pullRequest['description'] ?? null;
 
         $explanation = mb_trim(new ChangelogWriter()->prompt(json_encode([
             ...$this->titles->parse($headline['title']),
@@ -105,14 +108,15 @@ final readonly class CreateTomChangelogCommits
 
         $url = $number === null ? $commit['url'] : ChangelogQuery::pullRequest($number)['url'];
 
-        $this->createCommit->handle($tom, Str::limit($explanation, self::MaxExplanationLength)."\n\n".$this->credit($commit['author']).' '.$url);
+        $this->createCommit->handle($tom, Str::limit($explanation, self::MaxExplanationLength)."\n\n".$this->credit($pullRequest['author'] ?? $commit['author']).' '.$url);
     }
 
     /**
-     * Authors who are on /dev/null are mentioned by their handle there, found by their GitHub account since a handle
-     * can change on either side. Anyone else keeps their GitHub login, without an @ that would point at someone else.
+     * The author of the pull request, not whoever merged it, or of the commit when it came from none. Authors who are
+     * on /dev/null are mentioned by their handle there, found by their GitHub account since a handle can change on
+     * either side. Anyone else keeps their GitHub login, without an @ that would point at someone else.
      *
-     * @param  array{id: int|null, login: string, avatar_url: string}  $author
+     * @param  array{id: int|null, login: string, ...}  $author
      */
     private function credit(array $author): string
     {
@@ -122,20 +126,31 @@ final readonly class CreateTomChangelogCommits
     }
 
     /**
-     * The line of production from its latest commit back through each first parent, as far as the page goes.
+     * The line of production from its latest commit back through each first parent, up to the commit Tom announced
+     * last, which it leaves out. It reads page after page until it reaches that commit, the history runs out, or the
+     * page limit is hit; the line then goes as far as it got. Without a last commit, the first page is enough.
      *
-     * @param  list<GitHubCommit>  $commits
      * @return list<GitHubCommit>
      */
-    private function firstParents(array $commits): array
+    private function firstParents(string $repository, ?string $last): array
     {
-        $loaded = array_column($commits, null, 'sha');
+        $loaded = [];
         $line = [];
-        $sha = $commits[0]['sha'] ?? null;
+        $sha = null;
 
-        while ($sha !== null && isset($loaded[$sha])) {
-            $line[] = $loaded[$sha];
-            $sha = $loaded[$sha]['parents'][0] ?? null;
+        for ($page = 1; $page <= self::MaxPages; $page++) {
+            $commits = $this->github->commits($repository, ChangelogQuery::Branch, $page, self::PerPage);
+            $loaded += array_column($commits, null, 'sha');
+            $sha ??= $commits[0]['sha'] ?? null;
+
+            while ($sha !== null && $sha !== $last && isset($loaded[$sha])) {
+                $line[] = $loaded[$sha];
+                $sha = $loaded[$sha]['parents'][0] ?? null;
+            }
+
+            if ($sha === null || $sha === $last || $last === null || count($commits) < self::PerPage) {
+                break;
+            }
         }
 
         return $line;

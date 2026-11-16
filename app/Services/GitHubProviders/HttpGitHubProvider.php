@@ -221,7 +221,7 @@ final readonly class HttpGitHubProvider implements GitHubProvider
         ];
     }
 
-    public function pullRequestDescription(string $repository, int $number): ?string
+    public function pullRequest(string $repository, int $number): ?array
     {
         $response = $this->request()->get("repos/{$repository}/pulls/{$number}");
 
@@ -229,9 +229,16 @@ final readonly class HttpGitHubProvider implements GitHubProvider
             return null;
         }
 
-        $body = mb_trim($response->throw()->fluent()->string('body')->value());
+        $pullRequest = $response->throw()->fluent();
+        $description = mb_trim($pullRequest->string('body')->value());
 
-        return $body === '' ? null : $body;
+        return [
+            'description' => $description === '' ? null : $description,
+            'author' => [
+                'id' => $pullRequest->integer('user.id') ?: null,
+                'login' => $pullRequest->string('user.login')->value(),
+            ],
+        ];
     }
 
     public function createIssue(string $title, string $body, array $labels): array

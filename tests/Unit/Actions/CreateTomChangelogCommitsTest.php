@@ -60,14 +60,15 @@ it('posts one commit as Tom for every commit on production since the last one, o
     $github = $this->mock(GitHubProvider::class);
     $github->shouldReceive('commits')->once()->andReturn([
         productionCommit(5, 'fix: centre the dot (#1544)', [4], login: 'nunomaduro'),
-        productionCommit(4, "Merge pull request #1468 from xheaven/emoji\n\nfeat: add emoji picker to quote composer", [3, 9], 14284867, 'xHeaven'),
+        productionCommit(4, "Merge pull request #1468 from xheaven/emoji\n\nfeat: add emoji picker to quote composer", [3, 9], 1, 'nunomaduro'),
         productionCommit(9, 'wip: a commit of the merged branch', [3]),
         productionCommit(3, "Merge branch 'production' into production", [2, 8]),
         productionCommit(2, 'test: run the suite in parallel', [1], login: 'ahosker'),
         productionCommit(1, 'feat: announced before (#1)', []),
     ]);
-    $github->shouldReceive('pullRequestDescription')->with('dev-null-sh/dev-null.sh', 1468)->once()->andReturn('Adds the picker. Trello: https://trello.com/c/abc');
-    $github->shouldReceive('pullRequestDescription')->with('dev-null-sh/dev-null.sh', 1544)->once()->andReturnNull();
+    $github->shouldReceive('pullRequest')->with('dev-null-sh/dev-null.sh', 1468)->once()
+        ->andReturn(['description' => 'Adds the picker. Trello: https://trello.com/c/abc', 'author' => ['id' => 14284867, 'login' => 'xHeaven']]);
+    $github->shouldReceive('pullRequest')->with('dev-null-sh/dev-null.sh', 1544)->once()->andReturn(['description' => null, 'author' => ['id' => null, 'login' => 'nunomaduro']]);
     Cache::forever(CreateTomChangelogCommits::LastAnnouncedKey, productionSha(1));
 
     resolve(CreateTomChangelogCommits::class)->handle();
@@ -105,6 +106,46 @@ it('starts again from the latest commit when it cannot find where it left off', 
     ChangelogWriter::assertNeverPrompted();
 });
 
+it('reads further pages when a merged branch pushes the last announced commit off the first', function (): void {
+    ChangelogWriter::fake(['Two landed.', 'A big branch landed.'])->preventStrayPrompts();
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('commits')->with('dev-null-sh/dev-null.sh', 'production', 1, 100)->once()->andReturn([
+        productionCommit(500, "Merge pull request #1600 from someone/big\n\nfeat: a big branch", [2, 499]),
+        ...array_map(fn (int $number): array => productionCommit($number, 'wip', [$number - 1]), range(499, 401)),
+    ]);
+    $github->shouldReceive('commits')->with('dev-null-sh/dev-null.sh', 'production', 2, 100)->once()->andReturn([
+        productionCommit(400, 'wip', [1]),
+        productionCommit(2, 'feat: two', [1], login: 'someone'),
+        productionCommit(1, 'feat: announced before (#1)', []),
+    ]);
+    $github->shouldReceive('pullRequest')->with('dev-null-sh/dev-null.sh', 1600)->once()->andReturn(['description' => null, 'author' => ['id' => null, 'login' => 'someone']]);
+    Cache::forever(CreateTomChangelogCommits::LastAnnouncedKey, productionSha(1));
+
+    resolve(CreateTomChangelogCommits::class)->handle();
+
+    expect(Commit::query()->oldest('id')->pluck('body')->all())->toBe([
+        "Two landed.\n\nBy someone: https://github.com/dev-null-sh/dev-null.sh/commit/".productionSha(2),
+        "A big branch landed.\n\nBy someone: https://github.com/dev-null-sh/dev-null.sh/pull/1600",
+    ])
+        ->and(Cache::get(CreateTomChangelogCommits::LastAnnouncedKey))->toBe(productionSha(500));
+});
+
+it('starts again from the latest commit when the last one is not in the first ten pages', function (): void {
+    ChangelogWriter::fake()->preventStrayPrompts();
+    $this->mock(GitHubProvider::class)->shouldReceive('commits')->times(10)
+        ->andReturnUsing(fn (string $repository, string $branch, int $page): array => array_map(
+            fn (int $number): array => productionCommit($number, 'feat: change', [$number - 1]),
+            range(5000 - ($page - 1) * 100, 4901 - ($page - 1) * 100),
+        ));
+    Cache::forever(CreateTomChangelogCommits::LastAnnouncedKey, productionSha(77));
+
+    resolve(CreateTomChangelogCommits::class)->handle();
+
+    expect(Cache::get(CreateTomChangelogCommits::LastAnnouncedKey))->toBe(productionSha(5000))
+        ->and(Commit::query()->count())->toBe(0);
+    ChangelogWriter::assertNeverPrompted();
+});
+
 it('picks up from the commit it failed on', function (): void {
     ChangelogWriter::fake(['One.', 'Two.', 'Three.']);
     $github = $this->mock(GitHubProvider::class);
@@ -113,9 +154,9 @@ it('picks up from the commit it failed on', function (): void {
         productionCommit(2, 'feat: two (#2)', [1]),
         productionCommit(1, 'feat: one (#1)', []),
     ]);
-    $github->shouldReceive('pullRequestDescription')->with('dev-null-sh/dev-null.sh', 2)->once()->andReturnNull();
-    $github->shouldReceive('pullRequestDescription')->with('dev-null-sh/dev-null.sh', 3)->once()->andThrow(new ConnectionException('GitHub is down'));
-    $github->shouldReceive('pullRequestDescription')->with('dev-null-sh/dev-null.sh', 3)->once()->andReturnNull();
+    $github->shouldReceive('pullRequest')->with('dev-null-sh/dev-null.sh', 2)->once()->andReturnNull();
+    $github->shouldReceive('pullRequest')->with('dev-null-sh/dev-null.sh', 3)->once()->andThrow(new ConnectionException('GitHub is down'));
+    $github->shouldReceive('pullRequest')->with('dev-null-sh/dev-null.sh', 3)->once()->andReturnNull();
     Cache::forever(CreateTomChangelogCommits::LastAnnouncedKey, productionSha(1));
 
     expect(fn () => resolve(CreateTomChangelogCommits::class)->handle())->toThrow(ConnectionException::class)
