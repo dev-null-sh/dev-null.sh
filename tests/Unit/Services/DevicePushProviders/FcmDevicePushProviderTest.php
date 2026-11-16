@@ -20,13 +20,19 @@ beforeEach(function (): void {
     openssl_pkey_export($key, $privateKey);
     $this->publicKey = openssl_pkey_get_details($key)['key'];
 
-    config(['services.fcm.credentials' => json_encode([
+    config(['services.fcm.credentials' => [
         'type' => 'service_account',
         'project_id' => 'devnull-test',
-        'client_email' => 'push@devnull-test.iam.gserviceaccount.com',
+        'private_key_id' => 'key-1',
         'private_key' => $privateKey,
+        'client_email' => 'push@devnull-test.iam.gserviceaccount.com',
+        'client_id' => '114789356916527470462',
+        'auth_uri' => 'https://accounts.google.com/o/oauth2/auth',
         'token_uri' => 'https://oauth2.googleapis.com/token',
-    ])]);
+        'auth_provider_x509_cert_url' => 'https://www.googleapis.com/oauth2/v1/certs',
+        'client_x509_cert_url' => 'https://www.googleapis.com/robot/v1/metadata/x509/push%40devnull-test.iam.gserviceaccount.com',
+        'universe_domain' => 'googleapis.com',
+    ]]);
 
     $this->device = Device::factory()->withPushToken('fcm-phone')->create();
     $this->push = new DevicePush('Alice', 'Sent you a message', ['type' => 'message', 'conversation_id' => 'c1'], 300, 'c1');
@@ -168,11 +174,16 @@ it('asks to retry when Google cannot hand out an access token right now', functi
     Http::assertSentCount(1);
 })->with([429, 503]);
 
-it('pushes nothing without a service account', function (?string $credentials): void {
+it('pushes nothing without a service account', function (?array $credentials): void {
     config(['services.fcm.credentials' => $credentials]);
     Http::fake();
 
     expect(new FcmDevicePushProvider()->send($this->device, $this->push))->toBeTrue();
 
     Http::assertNothingSent();
-})->with([null, '']);
+})->with([
+    'no credentials' => [null],
+    'an empty array' => [[]],
+    'a missing project' => [['client_email' => 'push@devnull-test.iam.gserviceaccount.com', 'private_key' => 'key', 'token_uri' => 'https://oauth2.googleapis.com/token']],
+    'a missing private key' => [['project_id' => 'devnull-test', 'client_email' => 'push@devnull-test.iam.gserviceaccount.com', 'token_uri' => 'https://oauth2.googleapis.com/token']],
+]);

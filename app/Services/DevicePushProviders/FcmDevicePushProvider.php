@@ -6,6 +6,7 @@ namespace App\Services\DevicePushProviders;
 
 use App\Contracts\Services\DevicePushProvider;
 use App\Dto\DevicePush;
+use App\Dto\FcmCredentials;
 use App\Models\Device;
 use Firebase\JWT\JWT;
 use Illuminate\Contracts\Encryption\DecryptException;
@@ -16,7 +17,7 @@ use Illuminate\Support\Facades\Http;
 
 /**
  * Pushes through Firebase Cloud Messaging's HTTP v1 API, which reaches both platforms: Firebase hands iPhone pushes on
- * to APNs with the key uploaded in its console. The service account's JSON key comes from the environment, never the
+ * to APNs with the key uploaded in its console. The service account's key comes from the environment, never the
  * repository; without it nothing is pushed. It buys an access token, kept encrypted until shortly before it expires.
  */
 final readonly class FcmDevicePushProvider implements DevicePushProvider
@@ -25,14 +26,11 @@ final readonly class FcmDevicePushProvider implements DevicePushProvider
 
     public function send(Device $device, DevicePush $push): bool
     {
-        $json = config('services.fcm.credentials');
+        $credentials = FcmCredentials::fromConfig();
 
-        if (! is_string($json) || $json === '') {
+        if (! $credentials instanceof FcmCredentials) {
             return true;
         }
-
-        /** @var array{project_id: string, client_email: string, private_key: string, token_uri: string} $credentials */
-        $credentials = json_decode($json, true, flags: JSON_THROW_ON_ERROR);
 
         try {
             $accessToken = $this->accessToken($credentials);
@@ -42,7 +40,7 @@ final readonly class FcmDevicePushProvider implements DevicePushProvider
             }
 
             $response = Http::withToken($accessToken)->timeout(10)
-                ->post("https://fcm.googleapis.com/v1/projects/{$credentials['project_id']}/messages:send", ['message' => [
+                ->post("https://fcm.googleapis.com/v1/projects/{$credentials->projectId}/messages:send", ['message' => [
                     'token' => $device->push_token,
                     'notification' => ['title' => $push->title, 'body' => $push->body],
                     'data' => $push->data,
@@ -68,10 +66,8 @@ final readonly class FcmDevicePushProvider implements DevicePushProvider
 
     /**
      * Null when Google can't hand one out right now. Credentials it refuses throw, since retrying won't help.
-     *
-     * @param  array{project_id: string, client_email: string, private_key: string, token_uri: string}  $credentials
      */
-    private function accessToken(array $credentials): ?string
+    private function accessToken(FcmCredentials $credentials): ?string
     {
         $cached = Cache::get(self::AccessTokenKey);
 
@@ -85,14 +81,14 @@ final readonly class FcmDevicePushProvider implements DevicePushProvider
         }
 
         $assertion = JWT::encode([
-            'iss' => $credentials['client_email'],
+            'iss' => $credentials->clientEmail,
             'scope' => 'https://www.googleapis.com/auth/firebase.messaging',
-            'aud' => $credentials['token_uri'],
+            'aud' => $credentials->tokenUri,
             'iat' => now()->getTimestamp(),
             'exp' => now()->addHour()->getTimestamp(),
-        ], $credentials['private_key'], 'RS256');
+        ], $credentials->privateKey, 'RS256');
 
-        $response = Http::asForm()->timeout(10)->post($credentials['token_uri'], [
+        $response = Http::asForm()->timeout(10)->post($credentials->tokenUri, [
             'grant_type' => 'urn:ietf:params:oauth:grant-type:jwt-bearer',
             'assertion' => $assertion,
         ]);
