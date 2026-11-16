@@ -10,6 +10,7 @@ use App\Enums\NotificationType;
 use App\Enums\PushPreference;
 use App\Models\Device;
 use App\Models\Notification;
+use App\Support\PushRetryDelay;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Foundation\Queue\Queueable;
@@ -26,13 +27,15 @@ final class SendNotificationPush implements ShouldQueue
      */
     private const int PHONE_TTL = 86400;
 
+    private const int DEFAULT_TRIES = 3;
+
     /**
      * @param  list<string>|null  $deviceIds
      */
     public function __construct(
         public readonly string $notificationId,
         public readonly ?array $deviceIds = null,
-        public readonly int $tries = 3,
+        public readonly int $tries = self::DEFAULT_TRIES,
     ) {
         //
     }
@@ -88,19 +91,36 @@ final class SendNotificationPush implements ShouldQueue
             self::PHONE_TTL,
         );
         $failed = [];
+        $retryAfterSeconds = null;
 
         foreach (Device::query()->where('user_id', $notification->recipient_id)->whereNotNull('push_token_hash')
             ->when($this->deviceIds !== null, fn (Builder $query): Builder => $query->whereKey($this->deviceIds))
             ->orderBy('id')->get() as $device) {
-            if (! $push->send($device, $message)) {
-                $failed[] = $device->id;
+            $result = $push->send($device, $message);
+
+            if (! $result->retry) {
+                continue;
             }
+
+            $failed[] = $device->id;
+            $retryAfterSeconds = max($retryAfterSeconds ?? 0, $result->retryAfterSeconds ?? 0);
         }
 
-        if ($failed !== [] && $this->attempts() < $this->tries) {
-            // A follow-up starts with a fresh queue attempt count, so carry the remaining budget.
-            dispatch(new self($this->notificationId, $failed, $this->tries - $this->attempts())
-                ->onConnection($this->connection)->onQueue($this->queue))->delay(now()->addSeconds(30));
+        if ($failed === [] || $this->attempts() >= $this->tries) {
+            return;
         }
+
+        // A follow-up starts with a fresh queue attempt count, so carry the remaining budget.
+        dispatch(new self($this->notificationId, $failed, $this->tries - $this->attempts())
+            ->onConnection($this->connection)->onQueue($this->queue))->delay(now()->addSeconds($this->retryDelay($retryAfterSeconds)));
+    }
+
+    /**
+     * What Google asked for, and otherwise twice as long each attempt.
+     */
+    private function retryDelay(?int $retryAfterSeconds): int
+    {
+        // A follow-up carries what is left of the budget, so the remainder says which attempt this is.
+        return PushRetryDelay::secondsFor(self::DEFAULT_TRIES - $this->tries + $this->attempts(), $retryAfterSeconds);
     }
 }

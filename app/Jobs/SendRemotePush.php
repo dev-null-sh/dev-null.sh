@@ -16,6 +16,7 @@ use App\Models\Device;
 use App\Models\Message;
 use App\Models\PushSubscription;
 use App\Models\User;
+use App\Support\PushRetryDelay;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Foundation\Queue\Queueable;
@@ -34,6 +35,8 @@ final class SendRemotePush implements ShouldQueue
      */
     private const int PHONE_TTL = 300;
 
+    private const int DEFAULT_TRIES = 3;
+
     /**
      * @param  list<string>|null  $subscriptionIds
      * @param  list<string>|null  $deviceIds
@@ -42,7 +45,7 @@ final class SendRemotePush implements ShouldQueue
         public readonly int $messageId,
         public readonly string $userId,
         public readonly ?array $subscriptionIds = null,
-        public readonly int $tries = 3,
+        public readonly int $tries = self::DEFAULT_TRIES,
         public readonly ?array $deviceIds = null,
     ) {
         //
@@ -92,6 +95,7 @@ final class SendRemotePush implements ShouldQueue
         }
 
         $failedDevices = [];
+        $retryAfterSeconds = null;
         $conversation = $message->conversation;
 
         if (PushPreference::forConversation($conversation->kind)->isOnFor($user)) {
@@ -118,15 +122,21 @@ final class SendRemotePush implements ShouldQueue
                 foreach (Device::query()->where('user_id', $user->id)->whereNotNull('push_token_hash')
                     ->when($this->deviceIds !== null, fn (Builder $query): Builder => $query->whereKey($this->deviceIds))
                     ->orderBy('id')->get() as $device) {
-                    if (! $devicePush->send($device, $devicePushMessage)) {
-                        $failedDevices[] = $device->id;
+                    $result = $devicePush->send($device, $devicePushMessage);
+
+                    if (! $result->retry) {
+                        continue;
                     }
+
+                    $failedDevices[] = $device->id;
+                    $retryAfterSeconds = max($retryAfterSeconds ?? 0, $result->retryAfterSeconds ?? 0);
                 }
             } catch (Throwable $throwable) {
                 // A push service that throws is misconfigured, and retrying won't help, so report it once and
                 // retry no phone, not even one that failed before it threw. Browsers still get their push.
                 report($throwable);
                 $failedDevices = [];
+                $retryAfterSeconds = null;
             }
         }
 
@@ -143,7 +153,7 @@ final class SendRemotePush implements ShouldQueue
         if (($failed !== [] || $failedDevices !== []) && $this->attempts() < $this->tries) {
             // A follow-up starts with a fresh queue attempt count, so carry the remaining budget.
             dispatch(new self($this->messageId, $this->userId, $failed, $this->tries - $this->attempts(), $failedDevices)
-                ->onConnection($this->connection)->onQueue($this->queue))->delay(now()->addSeconds(30));
+                ->onConnection($this->connection)->onQueue($this->queue))->delay(now()->addSeconds($this->retryDelay($retryAfterSeconds)));
         }
     }
 
@@ -155,5 +165,14 @@ final class SendRemotePush implements ShouldQueue
     {
         return $users->where(fn (Builder $query): Builder => $query->has('pushSubscriptions')
             ->orWhereHas('devices', fn (Builder $devices): Builder => $devices->whereNotNull('push_token_hash')));
+    }
+
+    /**
+     * What Google asked for, and otherwise twice as long each attempt.
+     */
+    private function retryDelay(?int $retryAfterSeconds): int
+    {
+        // A follow-up carries what is left of the budget, so the remainder says which attempt this is.
+        return PushRetryDelay::secondsFor(self::DEFAULT_TRIES - $this->tries + $this->attempts(), $retryAfterSeconds);
     }
 }

@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Http;
 it('pushes nothing anywhere', function (): void {
     Http::fake();
 
-    expect(new NullDevicePushProvider()->send(Device::factory()->withPushToken()->create(), new DevicePush('Alice', 'Followed you', [], 86400)))->toBeTrue();
+    expect(new NullDevicePushProvider()->send(Device::factory()->withPushToken()->create(), new DevicePush('Alice', 'Followed you', [], 86400))->retry)->toBeFalse();
 
     Http::assertNothingSent();
 });

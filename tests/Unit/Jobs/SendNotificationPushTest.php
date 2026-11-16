@@ -7,6 +7,7 @@ use App\Actions\CreateMentionNotifications;
 use App\Actions\CreateReplyNotifications;
 use App\Contracts\Services\DevicePushProvider;
 use App\Dto\DevicePush;
+use App\Dto\DevicePushResult;
 use App\Enums\CommitStatus;
 use App\Jobs\SendNotificationPush;
 use App\Models\Commit;
@@ -29,10 +30,10 @@ beforeEach(function (): void {
 function capturePhonePushes(bool $succeeds = true): ArrayObject
 {
     $sent = new ArrayObject();
-    test()->mock(DevicePushProvider::class)->shouldReceive('send')->andReturnUsing(function (Device $device, DevicePush $push) use ($sent, $succeeds): bool {
+    test()->mock(DevicePushProvider::class)->shouldReceive('send')->andReturnUsing(function (Device $device, DevicePush $push) use ($sent, $succeeds): DevicePushResult {
         $sent[] = [$device->id, $push];
 
-        return $succeeds;
+        return $succeeds ? DevicePushResult::settled() : DevicePushResult::retry();
     });
 
     return $sent;
@@ -152,7 +153,7 @@ it('pushes nothing for kinds without a switch', function (): void {
 it('retries only the phones that failed, within the original budget', function (): void {
     Device::factory()->for($this->recipient)->withPushToken()->create();
     $notification = Notification::factory()->create(['recipient_id' => $this->recipient->id, 'actor_id' => $this->actor->id]);
-    $this->mock(DevicePushProvider::class)->shouldReceive('send')->andReturnUsing(fn (Device $device): bool => $device->id !== $this->phone->id);
+    $this->mock(DevicePushProvider::class)->shouldReceive('send')->andReturnUsing(fn (Device $device): DevicePushResult => $device->id === $this->phone->id ? DevicePushResult::retry() : DevicePushResult::settled());
     Queue::fake();
 
     new SendNotificationPush($notification->id)->handle(resolve(DevicePushProvider::class));
@@ -161,15 +162,25 @@ it('retries only the phones that failed, within the original budget', function (
         && $retry->deviceIds === [$this->phone->id] && $retry->tries === 2 && $retry->delay->equalTo(now()->addSeconds(30)));
 });
 
+it('waits as long as Google asks before retrying a phone', function (): void {
+    $notification = Notification::factory()->create(['recipient_id' => $this->recipient->id, 'actor_id' => $this->actor->id]);
+    $this->mock(DevicePushProvider::class)->shouldReceive('send')->andReturn(DevicePushResult::retry(120));
+    Queue::fake();
+
+    new SendNotificationPush($notification->id)->handle(resolve(DevicePushProvider::class));
+
+    Queue::assertPushed(SendNotificationPush::class, fn (SendNotificationPush $retry): bool => $retry->delay->equalTo(now()->addSeconds(120)));
+});
+
 it('stops retrying after three attempts in all', function (int $previousAttempts): void {
     $notification = Notification::factory()->create(['recipient_id' => $this->recipient->id, 'actor_id' => $this->actor->id]);
-    $this->mock(DevicePushProvider::class)->shouldReceive('send')->times(3 - $previousAttempts)->andReturnFalse();
+    $this->mock(DevicePushProvider::class)->shouldReceive('send')->times(3 - $previousAttempts)->andReturn(DevicePushResult::retry());
     dispatch(new SendNotificationPush($notification->id)->onConnection('database')->onQueue('push-retries'));
     DB::table('jobs')->where('queue', 'push-retries')->update(['attempts' => $previousAttempts]);
 
     for ($attempt = $previousAttempts; $attempt < 3; $attempt++) {
         $this->artisan('queue:work', ['connection' => 'database', '--queue' => 'push-retries', '--once' => true])->assertSuccessful();
-        $this->travel(31)->seconds();
+        $this->travel(121)->seconds();
     }
 
     $this->assertDatabaseCount('jobs', 0);

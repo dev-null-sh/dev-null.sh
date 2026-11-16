@@ -6,11 +6,13 @@ namespace App\Services\DevicePushProviders;
 
 use App\Contracts\Services\DevicePushProvider;
 use App\Dto\DevicePush;
+use App\Dto\DevicePushResult;
 use App\Dto\FcmCredentials;
 use App\Models\Device;
 use Firebase\JWT\JWT;
 use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Http;
@@ -24,22 +26,27 @@ final readonly class FcmDevicePushProvider implements DevicePushProvider
 {
     private const string AccessTokenKey = 'fcm-access-token';
 
-    public function send(Device $device, DevicePush $push): bool
+    /**
+     * Google asks for at least a minute after a rate limit before the next try.
+     */
+    private const int RATE_LIMIT_SECONDS = 60;
+
+    public function send(Device $device, DevicePush $push): DevicePushResult
     {
         $credentials = FcmCredentials::fromConfig();
 
         if (! $credentials instanceof FcmCredentials) {
-            return true;
+            return DevicePushResult::settled();
         }
 
         try {
             $accessToken = $this->accessToken($credentials);
 
-            if ($accessToken === null) {
-                return false;
+            if ($accessToken['token'] === null) {
+                return DevicePushResult::retry($accessToken['retryAfterSeconds']);
             }
 
-            $response = Http::withToken($accessToken)->timeout(10)
+            $response = Http::withToken($accessToken['token'])->timeout(10)
                 ->post("https://fcm.googleapis.com/v1/projects/{$credentials->projectId}/messages:send", ['message' => [
                     'token' => $device->push_token,
                     'notification' => ['title' => $push->title, 'body' => $push->body],
@@ -48,7 +55,7 @@ final readonly class FcmDevicePushProvider implements DevicePushProvider
                     'apns' => ['headers' => ['apns-expiration' => (string) now()->addSeconds($push->ttl)->getTimestamp()], 'payload' => ['aps' => ['sound' => 'default', ...$push->group === null ? [] : ['thread-id' => $push->group]]]],
                 ]]);
         } catch (ConnectionException) {
-            return false;
+            return DevicePushResult::retry();
         }
 
         if (in_array('UNREGISTERED', $response->collect('error.details')->pluck('errorCode')->all(), true)) {
@@ -61,19 +68,48 @@ final readonly class FcmDevicePushProvider implements DevicePushProvider
             Cache::forget(self::AccessTokenKey);
         }
 
-        return ! $response->serverError() && ! $response->unauthorized() && $response->status() !== 429;
+        if (! $response->serverError() && ! $response->unauthorized() && $response->status() !== 429) {
+            return DevicePushResult::settled();
+        }
+
+        return DevicePushResult::retry(self::retryAfterSeconds($response));
     }
 
     /**
-     * Null when Google can't hand one out right now. Credentials it refuses throw, since retrying won't help.
+     * What Google asked us to wait before the next try, in seconds. A rate limit waits a minute even without a header.
      */
-    private function accessToken(FcmCredentials $credentials): ?string
+    private static function retryAfterSeconds(Response $response): ?int
+    {
+        $header = mb_trim($response->header('Retry-After'));
+        $seconds = ctype_digit($header) ? (int) $header : self::dateSeconds($header);
+
+        if ($response->status() === 429) {
+            return max($seconds ?? 0, self::RATE_LIMIT_SECONDS);
+        }
+
+        return $seconds;
+    }
+
+    private static function dateSeconds(string $header): ?int
+    {
+        $timestamp = strtotime($header);
+
+        return $timestamp === false ? null : max(0, $timestamp - now()->getTimestamp());
+    }
+
+    /**
+     * The access token, or null with what Google said to wait when it can't hand one out right now. Credentials it
+     * refuses throw, since retrying won't help.
+     *
+     * @return array{token: string|null, retryAfterSeconds: int|null}
+     */
+    private function accessToken(FcmCredentials $credentials): array
     {
         $cached = Cache::get(self::AccessTokenKey);
 
         if (is_string($cached)) {
             try {
-                return Crypt::decryptString($cached);
+                return ['token' => Crypt::decryptString($cached), 'retryAfterSeconds' => null];
             } catch (DecryptException) {
                 // Cached under an app key that has since been rotated.
                 Cache::forget(self::AccessTokenKey);
@@ -94,7 +130,7 @@ final readonly class FcmDevicePushProvider implements DevicePushProvider
         ]);
 
         if ($response->serverError() || $response->status() === 429) {
-            return null;
+            return ['token' => null, 'retryAfterSeconds' => self::retryAfterSeconds($response)];
         }
 
         $response->throw();
@@ -104,6 +140,6 @@ final readonly class FcmDevicePushProvider implements DevicePushProvider
 
         Cache::put(self::AccessTokenKey, Crypt::encryptString($token), now()->addSeconds($response->fluent()->integer('expires_in', 3600) - 60));
 
-        return $token;
+        return ['token' => $token, 'retryAfterSeconds' => null];
     }
 }

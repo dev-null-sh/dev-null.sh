@@ -6,6 +6,7 @@ use App\Actions\CreateMessage;
 use App\Contracts\Services\DevicePushProvider;
 use App\Contracts\Services\PushNotificationProvider;
 use App\Dto\DevicePush;
+use App\Dto\DevicePushResult;
 use App\Enums\ConversationKind;
 use App\Enums\OrgEvent;
 use App\Enums\RemoteStatus;
@@ -189,7 +190,7 @@ it('stops temporary retries within the original three-attempt budget', function 
 
     for ($attempt = $previousAttempts; $attempt < 3; $attempt++) {
         $this->artisan('queue:work', ['connection' => 'database', '--queue' => 'push-retries', '--once' => true])->assertSuccessful();
-        $this->travel(31)->seconds();
+        $this->travel(121)->seconds();
     }
 
     $this->assertDatabaseCount('jobs', 0);
@@ -223,10 +224,10 @@ it('shows phones who wrote, never what', function (bool $org, ?OrgEvent $event, 
     $phone = Device::factory()->for($this->recipient)->withPushToken()->create();
     $this->mock(PushNotificationProvider::class)->shouldReceive('send')->once()->andReturnTrue();
     $sent = [];
-    $this->mock(DevicePushProvider::class)->shouldReceive('send')->once()->andReturnUsing(function (Device $device, DevicePush $push) use (&$sent): bool {
+    $this->mock(DevicePushProvider::class)->shouldReceive('send')->once()->andReturnUsing(function (Device $device, DevicePush $push) use (&$sent): DevicePushResult {
         $sent[] = [$device->id, $push];
 
-        return true;
+        return DevicePushResult::settled();
     });
 
     new SendRemotePush($this->message->id, $this->recipient->id)->handle(resolve(PushNotificationProvider::class), resolve(DevicePushProvider::class));
@@ -248,7 +249,7 @@ it('names the sender by handle when they have no name', function (): void {
     DB::table('profiles')->where('id', $this->message->user_id)->update(['name' => '']);
     Device::factory()->for($this->recipient)->withPushToken()->create();
     $this->mock(DevicePushProvider::class)->shouldReceive('send')->once()
-        ->with(Mockery::any(), Mockery::on(fn (DevicePush $push): bool => $push->title === '@'.$this->message->user->profile->handle))->andReturnTrue();
+        ->with(Mockery::any(), Mockery::on(fn (DevicePush $push): bool => $push->title === '@'.$this->message->user->profile->handle))->andReturn(DevicePushResult::settled());
 
     new SendRemotePush($this->message->id, $this->recipient->id)->handle(resolve(PushNotificationProvider::class), resolve(DevicePushProvider::class));
 });
@@ -298,7 +299,7 @@ it('pushes nothing to phones that it would not push to browsers', function (stri
 it('pushes a stashed conversation like any other, since a new message brings it back', function (): void {
     $this->participant->update(['archived_at' => now()]);
     Device::factory()->for($this->recipient)->withPushToken()->create();
-    $this->mock(DevicePushProvider::class)->shouldReceive('send')->once()->andReturnTrue();
+    $this->mock(DevicePushProvider::class)->shouldReceive('send')->once()->andReturn(DevicePushResult::settled());
 
     new SendRemotePush($this->message->id, $this->recipient->id)->handle(resolve(PushNotificationProvider::class), resolve(DevicePushProvider::class));
 });
@@ -307,12 +308,24 @@ it('retries only the phones and browsers that failed', function (): void {
     $phone = Device::factory()->for($this->recipient)->withPushToken()->create();
     Device::factory()->for($this->recipient)->withPushToken()->create();
     $this->mock(PushNotificationProvider::class)->shouldReceive('send')->once()->andReturnTrue();
-    $this->mock(DevicePushProvider::class)->shouldReceive('send')->twice()->andReturnUsing(fn (Device $device): bool => $device->id !== $phone->id);
+    $this->mock(DevicePushProvider::class)->shouldReceive('send')->twice()
+        ->andReturnUsing(fn (Device $device): DevicePushResult => $device->id === $phone->id ? DevicePushResult::retry() : DevicePushResult::settled());
     Queue::fake();
 
     new SendRemotePush($this->message->id, $this->recipient->id)->handle(resolve(PushNotificationProvider::class), resolve(DevicePushProvider::class));
 
     Queue::assertPushed(SendRemotePush::class, fn (SendRemotePush $retry): bool => $retry->subscriptionIds === [] && $retry->deviceIds === [$phone->id] && $retry->tries === 2);
+});
+
+it('waits as long as Google asks before retrying a phone', function (): void {
+    Device::factory()->for($this->recipient)->withPushToken()->create();
+    $this->mock(PushNotificationProvider::class)->shouldReceive('send')->once()->andReturnTrue();
+    $this->mock(DevicePushProvider::class)->shouldReceive('send')->once()->andReturn(DevicePushResult::retry(120));
+    Queue::fake();
+
+    new SendRemotePush($this->message->id, $this->recipient->id)->handle(resolve(PushNotificationProvider::class), resolve(DevicePushProvider::class));
+
+    Queue::assertPushed(SendRemotePush::class, fn (SendRemotePush $retry): bool => $retry->delay->equalTo(now()->addSeconds(120)));
 });
 
 it('still pushes browsers when the phone push service throws, and reports it once without retrying any phone', function (): void {
@@ -321,10 +334,10 @@ it('still pushes browsers when the phone push service throws, and reports it onc
     Queue::fake();
     // The first phone fails in a way that would be retried, then the service throws on the second.
     $calls = 0;
-    $this->mock(DevicePushProvider::class)->shouldReceive('send')->twice()->andReturnUsing(function () use (&$calls): bool {
+    $this->mock(DevicePushProvider::class)->shouldReceive('send')->twice()->andReturnUsing(function () use (&$calls): DevicePushResult {
         throw_if(++$calls === 2, RuntimeException::class, 'Firebase refused the service account');
 
-        return false;
+        return DevicePushResult::retry();
     });
     $this->mock(PushNotificationProvider::class)->shouldReceive('send')->once()->andReturnTrue();
 

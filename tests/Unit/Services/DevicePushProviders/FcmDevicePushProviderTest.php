@@ -38,18 +38,18 @@ beforeEach(function (): void {
     $this->push = new DevicePush('Alice', 'Sent you a message', ['type' => 'message', 'conversation_id' => 'c1'], 300, 'c1');
 });
 
-function fakeFcm(int $status = 200, array $body = ['name' => 'projects/devnull-test/messages/1']): void
+function fakeFcm(int $status = 200, array $body = ['name' => 'projects/devnull-test/messages/1'], array $headers = []): void
 {
     Http::fake([
         'https://oauth2.googleapis.com/token' => Http::response(['access_token' => 'access-1', 'expires_in' => 3599]),
-        'https://fcm.googleapis.com/*' => Http::response($body, $status),
+        'https://fcm.googleapis.com/*' => Http::response($body, $status, $headers),
     ]);
 }
 
 it('sends who did something to the phone, signed with the service account', function (): void {
     fakeFcm();
 
-    expect(new FcmDevicePushProvider()->send($this->device, $this->push))->toBeTrue();
+    expect(new FcmDevicePushProvider()->send($this->device, $this->push)->retry)->toBeFalse();
 
     Http::assertSent(function (Request $request): bool {
         if ($request->url() !== 'https://oauth2.googleapis.com/token') {
@@ -103,7 +103,7 @@ it('fetches a new access token when the cached one was encrypted under an older 
     fakeFcm();
     Cache::put('fcm-access-token', 'not-decryptable-with-this-key', now()->addHour());
 
-    expect(new FcmDevicePushProvider()->send($this->device, $this->push))->toBeTrue()
+    expect(new FcmDevicePushProvider()->send($this->device, $this->push)->retry)->toBeFalse()
         ->and(Crypt::decryptString(Cache::get('fcm-access-token')))->toBe('access-1');
 
     Http::assertSentCount(2);
@@ -112,7 +112,7 @@ it('fetches a new access token when the cached one was encrypted under an older 
 it('forgets a token the phone no longer has', function (int $status, array $body): void {
     fakeFcm($status, $body);
 
-    expect(new FcmDevicePushProvider()->send($this->device, $this->push))->toBeTrue()
+    expect(new FcmDevicePushProvider()->send($this->device, $this->push)->retry)->toBeFalse()
         ->and($this->device->fresh())
         ->push_token_hash->toBeNull()
         ->push_token->toBeNull()
@@ -131,24 +131,44 @@ it('keeps a token the phone registered while the push was on its way', function 
     expect($this->device->fresh()->push_token_hash)->toBe(hash('sha256', 'fcm-new'));
 });
 
-it('asks to retry temporary failures, and keeps the token', function (int $status, bool $sent): void {
+it('asks to retry temporary failures, and keeps the token', function (int $status, bool $retry): void {
     fakeFcm($status, ['error' => ['status' => 'X']]);
 
-    expect(new FcmDevicePushProvider()->send($this->device, $this->push))->toBe($sent)
+    expect(new FcmDevicePushProvider()->send($this->device, $this->push)->retry)->toBe($retry)
         ->and($this->device->fresh()->push_token)->toBe('fcm-phone');
 })->with([
-    'a bad request' => [400, true],
-    'a wrong project' => [404, true],
-    'forbidden' => [403, true],
-    'rate limited' => [429, false],
-    'unavailable' => [503, false],
+    'a bad request' => [400, false],
+    'a wrong project' => [404, false],
+    'forbidden' => [403, false],
+    'rate limited' => [429, true],
+    'unavailable' => [503, true],
+]);
+
+it('waits as long as Google asks before trying the phone again', function (int $status, string $header, int $expected): void {
+    fakeFcm($status, ['error' => ['status' => 'X']], ['Retry-After' => $header]);
+
+    expect(new FcmDevicePushProvider()->send($this->device, $this->push)->retryAfterSeconds)->toBe($expected);
+})->with([
+    'unavailable for two minutes' => [503, '120', 120],
+    'unavailable for an hour' => [503, '3600', 3600],
+    'rate limited without a wait' => [429, '', 60],
+    'rate limited for less than a minute' => [429, '30', 60],
+]);
+
+it('waits as long as Google asks before asking for another access token', function (int $status, string $header, int $expected): void {
+    Http::fake(['https://oauth2.googleapis.com/token' => Http::response([], $status, ['Retry-After' => $header])]);
+
+    expect(new FcmDevicePushProvider()->send($this->device, $this->push)->retryAfterSeconds)->toBe($expected);
+})->with([
+    'unavailable for two minutes' => [503, '120', 120],
+    'rate limited without a wait' => [429, '', 60],
 ]);
 
 it('fetches a new access token after one is refused', function (): void {
     fakeFcm(401);
     $provider = new FcmDevicePushProvider();
 
-    expect($provider->send($this->device, $this->push))->toBeFalse();
+    expect($provider->send($this->device, $this->push)->retry)->toBeTrue();
     $provider->send($this->device, $this->push);
 
     Http::assertSentCount(4);
@@ -157,7 +177,7 @@ it('fetches a new access token after one is refused', function (): void {
 it('asks to retry when Firebase cannot be reached', function (): void {
     Http::fake(fn (): never => throw new ConnectionException('timed out'));
 
-    expect(new FcmDevicePushProvider()->send($this->device, $this->push))->toBeFalse();
+    expect(new FcmDevicePushProvider()->send($this->device, $this->push)->retry)->toBeTrue();
 });
 
 it('fails loudly when the service account is refused', function (): void {
@@ -169,7 +189,7 @@ it('fails loudly when the service account is refused', function (): void {
 it('asks to retry when Google cannot hand out an access token right now', function (int $status): void {
     Http::fake(['https://oauth2.googleapis.com/token' => Http::response([], $status)]);
 
-    expect(new FcmDevicePushProvider()->send($this->device, $this->push))->toBeFalse();
+    expect(new FcmDevicePushProvider()->send($this->device, $this->push)->retry)->toBeTrue();
 
     Http::assertSentCount(1);
 })->with([429, 503]);
@@ -178,7 +198,7 @@ it('pushes nothing without a service account', function (?array $credentials): v
     config(['services.fcm.credentials' => $credentials]);
     Http::fake();
 
-    expect(new FcmDevicePushProvider()->send($this->device, $this->push))->toBeTrue();
+    expect(new FcmDevicePushProvider()->send($this->device, $this->push)->retry)->toBeFalse();
 
     Http::assertNothingSent();
 })->with([
