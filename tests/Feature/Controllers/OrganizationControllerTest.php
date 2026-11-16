@@ -281,12 +281,13 @@ it('lists the people of an organization, first joined first, to guests too', fun
 it('lists the people of an organization without anyone across a block or muted, with whether the viewer follows them', function (): void {
     $organization = Organization::factory()->create(['handle' => 'laravel', 'shows_people' => true]);
     $viewer = User::factory()->create();
-    [$friend, $muted, $blocked, $blocker] = User::factory()->count(4)->create()->all();
-    $organization->members()->attach(
-        collect([$friend, $muted, $blocked, $blocker])->mapWithKeys(fn (User $user): array => [$user->id => ['role' => OrganizationRole::Member]])->all(),
-    );
-    $viewer->following()->attach($friend);
-    $friend->following()->attach($viewer);
+    [$followed, $fan, $muted, $blocked, $blocker] = User::factory()->count(5)->create()->all();
+    collect([$followed, $fan, $muted, $blocked, $blocker])->each(fn (User $user, int $index) => $organization->members()->attach($user->id, [
+        'role' => OrganizationRole::Member,
+        'created_at' => now()->subMinutes(5 - $index),
+    ]));
+    $viewer->following()->attach($followed);
+    $fan->following()->attach($viewer);
     $viewer->muting()->attach($muted);
     $viewer->blocking()->attach($blocked);
     $blocker->blocking()->attach($viewer);
@@ -294,10 +295,13 @@ it('lists the people of an organization without anyone across a block or muted, 
     $this->actingAs($viewer)->get('/@laravel?tab=people')
         ->assertOk()
         ->assertInertia(fn ($page) => $page
-            ->has('people.data', 1)
-            ->where('people.data.0.id', $friend->id)
+            ->has('people.data', 2)
+            ->where('people.data.0.id', $followed->id)
             ->where('people.data.0.is_followed', true)
-            ->where('people.data.0.follows_you', true));
+            ->where('people.data.0.follows_you', false)
+            ->where('people.data.1.id', $fan->id)
+            ->where('people.data.1.is_followed', false)
+            ->where('people.data.1.follows_you', true));
 });
 
 it('pages through the people of an organization, first joined first, with the tab in the link to the next page', function (): void {
@@ -328,4 +332,9 @@ it('pages through the people of an organization, first joined first, with the ta
             ->has('people.data', 1)
             ->where('people.data.0.id', $people->last()->id)
             ->missing('people.data.0.pivot'));
+
+    // Once its admins hide the people, that link leads to the commits, without the cursor only the people can read.
+    $organization->update(['shows_people' => false]);
+
+    $this->get($nextPageUrl)->assertRedirect('/@laravel');
 });

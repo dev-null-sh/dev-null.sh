@@ -1,7 +1,7 @@
 import { Form, Head, router } from '@inertiajs/react';
 import { Eye, EyeOff } from 'lucide-react';
 import type { CSSProperties } from 'react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import OrganizationLaneController from '@/actions/App/Http/Controllers/OrganizationLaneController';
 import OrganizationPeopleVisibilityController from '@/actions/App/Http/Controllers/OrganizationPeopleVisibilityController';
 import Heading from '@/components/heading';
@@ -27,12 +27,15 @@ export default function Edit({
     const [selected, setSelected] = useState<Lane | null>(lane);
     const { picked, pick } = usePicked<boolean>();
     const peopleShown = picked ?? showsPeople;
+    // One visibility write at a time, so the server can't save an older pick after a newer one.
+    const pending = useRef(false);
 
     const selectPeopleShown = (value: boolean): void => {
-        if (value === peopleShown) {
+        if (value === peopleShown || pending.current) {
             return;
         }
 
+        pending.current = true;
         let finish = (): void => {};
 
         void withViewTransition(() => {
@@ -45,7 +48,10 @@ export default function Edit({
                 { shows_people: value },
                 {
                     preserveScroll: true,
-                    onFinish: () => finish(),
+                    onFinish: () => {
+                        pending.current = false;
+                        finish();
+                    },
                     onSuccess: () => router.flushAll(),
                 },
             ),

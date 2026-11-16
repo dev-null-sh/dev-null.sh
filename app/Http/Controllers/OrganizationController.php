@@ -47,6 +47,14 @@ final readonly class OrganizationController
             return redirect(route('user.show', $organization->handle).($query === '' ? '' : "?{$query}"), 301, ['Cache-Control' => 'max-age=86400, private']);
         }
 
+        // Resolved once, so a refresh of the organization while the props resolve can't make the tab and its stream disagree.
+        $tab = $request->tab();
+
+        // A link to the next page of people its admins have since hidden carries a cursor the commits can't read...
+        if ($request->filled('cursor') && $request->string('tab')->value() === 'people' && $tab !== 'people') {
+            return redirect()->route('user.show', $organization->handle);
+        }
+
         // What its page shows about the organization changes for everyone on its public channel, and what it shows
         // about the viewer's own relationship to it on theirs.
         $profile = new Channel('profiles.'.$organization->id);
@@ -54,13 +62,13 @@ final readonly class OrganizationController
 
         return Inertia::render('organization/show', [
             'organization' => Inertia::live(fn (): Organization => $organization->refresh(), 'profile', $profile),
-            'tab' => $request->tab(...),
-            ...$request->tab() === 'people' ? [
+            'tab' => $tab,
+            ...$tab === 'people' ? [
                 'people' => Inertia::scroll(fn (): CursorPage => $people->page($organization, $currentUser)),
             ] : [
-                'commits' => Inertia::scroll(fn (): CursorPaginator => ShownStreams::page(($request->tab() === 'mentions' ? $mentions : $organizationCommits)->builder($organization, $currentUser)
+                'commits' => Inertia::scroll(fn (): CursorPaginator => ShownStreams::page(($tab === 'mentions' ? $mentions : $organizationCommits)->builder($organization, $currentUser)
                     ->cursorPaginate(20)
-                    ->appends(['tab' => $request->tab()]))),
+                    ->appends(['tab' => $tab]))),
             ],
             'showsPeople' => Inertia::live(fn (): bool => $organization->refresh()->shows_people, 'profile', $profile),
             'claimUrl' => route('organization-admin.store', $organization),
