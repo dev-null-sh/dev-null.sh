@@ -9,6 +9,7 @@ use App\Contracts\Services\DevicePushProvider;
 use App\Dto\DevicePush;
 use App\Dto\DevicePushResult;
 use App\Enums\CommitStatus;
+use App\Exceptions\DevicePushCredentialsRejected;
 use App\Jobs\SendNotificationPush;
 use App\Models\Commit;
 use App\Models\Device;
@@ -173,23 +174,62 @@ it('waits as long as Google asks before retrying a phone', function (): void {
     Queue::assertPushed(SendNotificationPush::class, fn (SendNotificationPush $retry): bool => $retry->delay->equalTo(now()->addSeconds(120)));
 });
 
-it('reports a refused push service once, without retrying any phone', function (): void {
-    Device::factory()->for($this->recipient)->withPushToken()->create();
+it('preserves failed phones and continues delivery after an unexpected device failure', function (): void {
+    Device::factory()->for($this->recipient)->withPushToken()->count(2)->create();
     $notification = Notification::factory()->create(['recipient_id' => $this->recipient->id, 'actor_id' => $this->actor->id]);
     Exceptions::fake();
     Queue::fake();
+    $sent = [];
+    $this->mock(DevicePushProvider::class)->shouldReceive('send')->times(3)->andReturnUsing(function (Device $device) use (&$sent): DevicePushResult {
+        $sent[] = $device->id;
+
+        throw_if(count($sent) === 2, RuntimeException::class, 'Temporary cache failure');
+
+        return count($sent) === 1 ? DevicePushResult::retry() : DevicePushResult::settled();
+    });
+
+    new SendNotificationPush($notification->id)->handle(resolve(DevicePushProvider::class));
+
+    Exceptions::assertReportedCount(1);
+    Queue::assertPushed(SendNotificationPush::class, fn (SendNotificationPush $retry): bool => $retry->deviceIds === array_slice($sent, 0, 2) && $retry->tries === 2);
+    Queue::assertPushed(SendNotificationPush::class, 1);
+});
+
+it('stops all phone retries when credentials are permanently refused', function (): void {
+    Device::factory()->for($this->recipient)->withPushToken()->count(2)->create();
+    $notification = Notification::factory()->create(['recipient_id' => $this->recipient->id, 'actor_id' => $this->actor->id]);
+    Queue::fake();
     $calls = 0;
-    // The first phone fails in a way that would be retried, then the service throws on the second.
     $this->mock(DevicePushProvider::class)->shouldReceive('send')->twice()->andReturnUsing(function () use (&$calls): DevicePushResult {
-        throw_if(++$calls === 2, RuntimeException::class, 'Firebase refused the service account');
+        throw_if(++$calls === 2, DevicePushCredentialsRejected::class, 'FCM OAuth request failed (HTTP 400).');
 
         return DevicePushResult::retry();
     });
 
     new SendNotificationPush($notification->id)->handle(resolve(DevicePushProvider::class));
 
-    Exceptions::assertReportedCount(1);
     Queue::assertNothingPushed();
+});
+
+it('splits phone delivery into bounded jobs without consuming the retry budget', function (): void {
+    Device::factory()->for($this->recipient)->withPushToken()->count(11)->create();
+    $notification = Notification::factory()->create(['recipient_id' => $this->recipient->id, 'actor_id' => $this->actor->id]);
+    $sent = capturePhonePushes();
+    Queue::fake();
+
+    new SendNotificationPush($notification->id, tries: 2)->onConnection('database')->onQueue('phones')->handle(resolve(DevicePushProvider::class));
+
+    expect($sent)->toHaveCount(5);
+    Queue::assertPushed(SendNotificationPush::class, 2);
+    foreach (Queue::pushed(SendNotificationPush::class) as $batch) {
+        expect(count($batch->deviceIds))->toBeLessThanOrEqual(5);
+        expect($batch->tries)->toBe(2)
+            ->and($batch->connection)->toBe('database')
+            ->and($batch->queue)->toBe('phones');
+        $batch->handle(resolve(DevicePushProvider::class));
+    }
+
+    expect(collect($sent)->pluck(0)->all())->toBe(Device::query()->where('user_id', $this->recipient->id)->orderBy('id')->pluck('id')->all());
 });
 
 it('stops retrying after three attempts in all', function (int $previousAttempts): void {

@@ -3,16 +3,25 @@
 declare(strict_types=1);
 
 use App\Dto\DevicePush;
+use App\Dto\DevicePushResult;
+use App\Dto\FcmCredentials;
+use App\Exceptions\DevicePushCredentialsRejected;
 use App\Models\Device;
+use App\Models\Profile;
+use App\Models\User;
 use App\Services\DevicePushProviders\FcmDevicePushProvider;
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
+use GuzzleHttp\Promise\PromiseInterface;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Request;
-use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 
 beforeEach(function (): void {
     $this->freezeTime();
@@ -44,6 +53,15 @@ function fakeFcm(int $status = 200, array $body = ['name' => 'projects/devnull-t
         'https://oauth2.googleapis.com/token' => Http::response(['access_token' => 'access-1', 'expires_in' => 3599]),
         'https://fcm.googleapis.com/*' => Http::response($body, $status, $headers),
     ]);
+}
+
+function fcmAccessTokenCacheKey(): string
+{
+    $credentials = FcmCredentials::fromConfig();
+
+    return 'fcm-access-token:'.hash('sha256', implode("\0", [
+        $credentials->projectId, $credentials->clientEmail, $credentials->privateKey, $credentials->tokenUri,
+    ]));
 }
 
 it('sends who did something to the phone, signed with the service account', function (): void {
@@ -88,8 +106,8 @@ it('keeps the access token, encrypted, until shortly before it expires', functio
     $provider = new FcmDevicePushProvider();
 
     $provider->send($this->device, $this->push);
-    expect(Cache::get('fcm-access-token'))->not->toContain('access-1')
-        ->and(Crypt::decryptString(Cache::get('fcm-access-token')))->toBe('access-1');
+    expect(Cache::get(fcmAccessTokenCacheKey()))->not->toContain('access-1')
+        ->and(Crypt::decryptString(Cache::get(fcmAccessTokenCacheKey())))->toBe('access-1');
     $this->travel(3500)->seconds();
     $provider->send($this->device, $this->push);
     Http::assertSentCount(3);
@@ -101,15 +119,100 @@ it('keeps the access token, encrypted, until shortly before it expires', functio
 
 it('fetches a new access token when the cached one was encrypted under an older app key', function (): void {
     fakeFcm();
-    Cache::put('fcm-access-token', 'not-decryptable-with-this-key', now()->addHour());
+    Cache::put(fcmAccessTokenCacheKey(), 'not-decryptable-with-this-key', now()->addHour());
 
     expect(new FcmDevicePushProvider()->send($this->device, $this->push)->retry)->toBeFalse()
-        ->and(Crypt::decryptString(Cache::get('fcm-access-token')))->toBe('access-1');
+        ->and(Crypt::decryptString(Cache::get(fcmAccessTokenCacheKey())))->toBe('access-1');
 
     Http::assertSentCount(2);
 });
 
+it('scopes access token reuse and invalidation to the credentials', function (Closure $change): void {
+    $originalCredentials = config('services.fcm.credentials');
+    Http::fake([
+        'https://oauth2.googleapis.com/*' => Http::sequence()
+            ->push(['access_token' => 'access-1', 'expires_in' => 3599])
+            ->push(['access_token' => 'access-2', 'expires_in' => 3599])
+            ->push(['access_token' => 'access-3', 'expires_in' => 3599]),
+        'https://fcm.googleapis.com/*' => Http::sequence()->push()->push([], 401)->push()->push(),
+    ]);
+    $provider = new FcmDevicePushProvider();
+
+    $provider->send($this->device, $this->push);
+    $change();
+    expect($provider->send($this->device, $this->push)->retry)->toBeTrue();
+    expect($provider->send($this->device, $this->push)->retry)->toBeFalse();
+    config(['services.fcm.credentials' => $originalCredentials]);
+    expect($provider->send($this->device, $this->push)->retry)->toBeFalse();
+
+    expect(Http::recorded(fn (Request $request): bool => str_starts_with($request->url(), 'https://fcm.googleapis.com/'))
+        ->map(fn (array $record): array => $record[0]->header('Authorization'))->values()->all())
+        ->toBe([['Bearer access-1'], ['Bearer access-2'], ['Bearer access-3'], ['Bearer access-1']]);
+    Http::assertSentCount(7);
+})->with([
+    'project' => [function (): void {
+        config(['services.fcm.credentials.project_id' => 'other-project']);
+    }],
+    'account' => [function (): void {
+        config(['services.fcm.credentials.client_email' => 'other@devnull-test.iam.gserviceaccount.com']);
+    }],
+    'private key' => [function (): void {
+        $key = openssl_pkey_new(['private_key_bits' => 2048, 'private_key_type' => OPENSSL_KEYTYPE_RSA]);
+        openssl_pkey_export($key, $privateKey);
+        config(['services.fcm.credentials.private_key' => $privateKey]);
+    }],
+    'token endpoint' => [function (): void {
+        config(['services.fcm.credentials.token_uri' => 'https://oauth2.googleapis.com/other-token']);
+    }],
+]);
+
+it('blocks concurrent registration changes during sending but not OAuth', function (string $change): void {
+    $connection = DB::build([...DB::connection()->getConfig(), 'name' => 'fcm-concurrency']);
+    $profile = Profile::factory()->make(['id' => (string) Str::uuid7()]);
+    $this->beforeApplicationDestroyed(function () use ($connection, $profile): void {
+        $connection->table('users')->where('id', $profile->id)->delete();
+        $connection->table('profiles')->where('id', $profile->id)->delete();
+        $connection->disconnect();
+    });
+    $connection->table('profiles')->insert($profile->getAttributes());
+    $user = User::factory()->make(['id' => $profile->id, 'github_id' => $profile->github_id]);
+    $device = Device::factory()->withPushToken('locked-phone')->make(['id' => (string) Str::uuid7(), 'user_id' => $user->id]);
+    $connection->table('users')->insert($user->getAttributes());
+    $connection->table('devices')->insert($device->getAttributes());
+    $device = Device::query()->findOrFail($device->id);
+    $connection->statement("set lock_timeout = '50ms'");
+    $blocked = false;
+    Http::fake([
+        'https://oauth2.googleapis.com/token' => function () use ($connection, $device): PromiseInterface {
+            expect($connection->table('devices')->where('id', $device->id)->update(['name' => 'Changed during OAuth']))->toBe(1);
+
+            return Http::response(['access_token' => 'access-1', 'expires_in' => 3599]);
+        },
+        'https://fcm.googleapis.com/*' => function () use ($connection, $device, $change, &$blocked): PromiseInterface {
+            try {
+                match ($change) {
+                    'clear token' => $connection->table('devices')->where('id', $device->id)->update(['push_token' => null, 'push_token_hash' => null, 'push_platform' => null]),
+                    'replace token' => $connection->table('devices')->where('id', $device->id)->update(['push_token' => Crypt::encryptString('replacement'), 'push_token_hash' => hash('sha256', 'replacement')]),
+                    'delete device' => $connection->table('devices')->where('id', $device->id)->delete(),
+                };
+            } catch (QueryException $queryException) {
+                expect($queryException->getCode())->toBe('55P03');
+                $blocked = true;
+            }
+
+            return Http::response();
+        },
+    ]);
+
+    expect(new FcmDevicePushProvider()->send($device, $this->push)->retry)->toBeFalse();
+
+    expect($blocked)->toBeTrue()
+        ->and($device->fresh())->push_token->toBe('locked-phone')->name->toBe('Changed during OAuth');
+    Http::assertSentCount(2);
+})->with(['clear token', 'replace token', 'delete device']);
+
 it('forgets a token the phone no longer has', function (int $status, array $body): void {
+    Exceptions::fake();
     fakeFcm($status, $body);
 
     expect(new FcmDevicePushProvider()->send($this->device, $this->push)->retry)->toBeFalse()
@@ -117,18 +220,27 @@ it('forgets a token the phone no longer has', function (int $status, array $body
         ->push_token_hash->toBeNull()
         ->push_token->toBeNull()
         ->push_platform->toBeNull();
+
+    Exceptions::assertNothingReported();
 })->with([
     'not found' => [404, ['error' => ['status' => 'NOT_FOUND', 'details' => [['@type' => 'type.googleapis.com/google.firebase.fcm.v1.FcmError', 'errorCode' => 'UNREGISTERED']]]]],
     'unregistered' => [400, ['error' => ['status' => 'INVALID_ARGUMENT', 'details' => [['@type' => 'type.googleapis.com/google.firebase.fcm.v1.FcmError', 'errorCode' => 'UNREGISTERED']]]]],
 ]);
 
 it('keeps a token the phone registered while the push was on its way', function (): void {
-    fakeFcm(404, ['error' => ['details' => [['errorCode' => 'UNREGISTERED']]]]);
-    Device::query()->whereKey($this->device->id)->update(['push_token_hash' => hash('sha256', 'fcm-new')]);
+    Http::fake([
+        'https://oauth2.googleapis.com/token' => Http::response(['access_token' => 'access-1', 'expires_in' => 3599]),
+        'https://fcm.googleapis.com/*' => function (): PromiseInterface {
+            Device::query()->whereKey($this->device->id)->update(['push_token_hash' => hash('sha256', 'fcm-new')]);
+
+            return Http::response(['error' => ['details' => [['errorCode' => 'UNREGISTERED']]]], 404);
+        },
+    ]);
 
     new FcmDevicePushProvider()->send($this->device, $this->push);
 
     expect($this->device->fresh()->push_token_hash)->toBe(hash('sha256', 'fcm-new'));
+    Http::assertSentCount(2);
 });
 
 it('asks to retry temporary failures, and keeps the token', function (int $status, bool $retry): void {
@@ -180,11 +292,130 @@ it('asks to retry when Firebase cannot be reached', function (): void {
     expect(new FcmDevicePushProvider()->send($this->device, $this->push)->retry)->toBeTrue();
 });
 
-it('fails loudly when the service account is refused', function (): void {
-    Http::fake(['https://oauth2.googleapis.com/token' => Http::response(['error' => 'invalid_grant'], 400)]);
+it('releases the registration lock and retries when the send connection fails', function (): void {
+    $transactionLevel = DB::transactionLevel();
+    Http::fake([
+        'https://oauth2.googleapis.com/token' => Http::response(['access_token' => 'access-1', 'expires_in' => 3599]),
+        'https://fcm.googleapis.com/*' => fn (): never => throw new ConnectionException('timed out'),
+    ]);
 
-    new FcmDevicePushProvider()->send($this->device, $this->push);
-})->throws(RequestException::class);
+    expect(new FcmDevicePushProvider()->send($this->device, $this->push)->retry)->toBeTrue();
+
+    expect(DB::transactionLevel())->toBe($transactionLevel);
+    expect($this->device->fresh()->push_token)->toBe('fcm-phone');
+});
+
+it('rejects malformed signing credentials and throttles sanitized reports', function (): void {
+    config(['services.fcm.credentials.private_key' => 'private-invalid-signing-key']);
+    Exceptions::fake();
+    Http::fake();
+    $provider = new FcmDevicePushProvider();
+
+    expect(fn (): DevicePushResult => $provider->send($this->device, $this->push))->toThrow(DevicePushCredentialsRejected::class, 'FCM OAuth credentials could not sign a request.');
+    expect(fn (): DevicePushResult => $provider->send($this->device, $this->push))->toThrow(DevicePushCredentialsRejected::class, 'FCM OAuth credentials could not sign a request.');
+
+    Exceptions::assertReported(fn (DevicePushCredentialsRejected $exception): bool => $exception->getMessage() === 'FCM OAuth credentials could not sign a request.' && ! $exception->getPrevious() instanceof Throwable);
+    Exceptions::assertReportedCount(1);
+    Http::assertNothingSent();
+});
+
+it('does not mistake a cache failure for a permanent signing failure', function (): void {
+    Http::fake();
+    Cache::shouldReceive('get')->once()->andThrow(new DomainException('cache unavailable'));
+
+    expect(fn (): DevicePushResult => new FcmDevicePushProvider()->send($this->device, $this->push))
+        ->toThrow(DomainException::class, 'cache unavailable');
+
+    Http::assertNothingSent();
+});
+
+it('rejects refused credentials and throttles sanitized reports', function (int $status): void {
+    Exceptions::fake();
+    Http::fake(['https://oauth2.googleapis.com/token' => Http::response(['error' => 'private-response-content'], $status)]);
+
+    $provider = new FcmDevicePushProvider();
+    expect(fn (): DevicePushResult => $provider->send($this->device, $this->push))->toThrow(DevicePushCredentialsRejected::class, "FCM OAuth request failed (HTTP {$status}).");
+    expect(fn (): DevicePushResult => $provider->send($this->device, $this->push))->toThrow(DevicePushCredentialsRejected::class, "FCM OAuth request failed (HTTP {$status}).");
+
+    Exceptions::assertReported(fn (DevicePushCredentialsRejected $exception): bool => $exception->getMessage() === "FCM OAuth request failed (HTTP {$status})." && ! $exception->getPrevious() instanceof Throwable);
+    Exceptions::assertReportedCount(1);
+
+    $this->travel(5)->minutes();
+    expect(fn (): DevicePushResult => $provider->send($this->device, $this->push))->toThrow(DevicePushCredentialsRejected::class, "FCM OAuth request failed (HTTP {$status}).");
+
+    Exceptions::assertReportedCount(2);
+    Http::assertSentCount(3);
+})->with([400, 401, 403]);
+
+it('settles unexpected Firebase client errors and throttles sanitized reports', function (int $status): void {
+    Exceptions::fake();
+    fakeFcm($status, ['error' => ['message' => 'private-response-content']]);
+    $provider = new FcmDevicePushProvider();
+
+    expect($provider->send($this->device, $this->push)->retry)->toBeFalse();
+    expect($provider->send($this->device, $this->push)->retry)->toBeFalse();
+
+    Exceptions::assertReported(fn (RuntimeException $exception): bool => $exception->getMessage() === "FCM send request failed (HTTP {$status})." && ! $exception->getPrevious() instanceof Throwable);
+    Exceptions::assertReportedCount(1);
+    Http::assertSentCount(3);
+})->with([400, 403, 404]);
+
+dataset('changed push registrations', [
+    'deleted device' => [function (Device $device): void {
+        $device->delete();
+    }],
+    'cleared token' => [function (Device $device): void {
+        $device->update(['push_token_hash' => null, 'push_token' => null, 'push_platform' => null]);
+    }],
+    'missing encrypted token' => [function (Device $device): void {
+        $device->update(['push_token' => null]);
+    }],
+    'replaced token' => [function (Device $device): void {
+        $device->update(['push_token_hash' => hash('sha256', 'replacement'), 'push_token' => 'replacement']);
+    }],
+    'different owner' => [function (Device $device): void {
+        $device->update(['user_id' => User::factory()->create()->id]);
+    }],
+]);
+
+it('does not send from a stale device snapshot', function (Closure $change): void {
+    fakeFcm();
+    $change($this->device->fresh());
+
+    expect(new FcmDevicePushProvider()->send($this->device, $this->push)->retry)->toBeFalse();
+
+    Http::assertNotSent(fn (Request $request): bool => str_starts_with($request->url(), 'https://fcm.googleapis.com/'));
+})->with('changed push registrations');
+
+it('rechecks registrations after the OAuth request', function (Closure $change): void {
+    Http::fake([
+        'https://oauth2.googleapis.com/token' => function () use ($change): PromiseInterface {
+            $change($this->device->fresh());
+
+            return Http::response(['access_token' => 'access-1', 'expires_in' => 3599]);
+        },
+        'https://fcm.googleapis.com/*' => Http::response(),
+    ]);
+
+    expect(new FcmDevicePushProvider()->send($this->device, $this->push)->retry)->toBeFalse();
+
+    Http::assertNotSent(fn (Request $request): bool => str_starts_with($request->url(), 'https://fcm.googleapis.com/'));
+})->with('changed push registrations');
+
+it('settles a corrupt encrypted phone token without preventing another phone from receiving its push', function (): void {
+    fakeFcm();
+    Exceptions::fake();
+    Device::query()->whereKey($this->device->id)->update(['push_token' => 'corrupt-ciphertext']);
+    $otherDevice = Device::factory()->withPushToken('other-phone')->create();
+    $provider = new FcmDevicePushProvider();
+
+    expect($provider->send($this->device, $this->push)->retry)->toBeFalse();
+    expect($provider->send($otherDevice, $this->push)->retry)->toBeFalse();
+
+    Http::assertSentCount(2);
+    Http::assertSent(fn (Request $request): bool => str_starts_with($request->url(), 'https://fcm.googleapis.com/') && $request['message']['token'] === 'other-phone');
+    Exceptions::assertReported(fn (RuntimeException $exception): bool => $exception->getMessage() === 'FCM device token could not be decrypted.');
+});
 
 it('asks to retry when Google cannot hand out an access token right now', function (int $status): void {
     Http::fake(['https://oauth2.googleapis.com/token' => Http::response([], $status)]);

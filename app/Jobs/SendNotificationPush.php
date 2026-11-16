@@ -6,8 +6,10 @@ namespace App\Jobs;
 
 use App\Contracts\Services\DevicePushProvider;
 use App\Dto\DevicePush;
+use App\Dto\DevicePushResult;
 use App\Enums\NotificationType;
 use App\Enums\PushPreference;
+use App\Exceptions\DevicePushCredentialsRejected;
 use App\Models\Device;
 use App\Models\Notification;
 use App\Support\PushRetryDelay;
@@ -29,6 +31,8 @@ final class SendNotificationPush implements ShouldQueue
     private const int PHONE_TTL = 86400;
 
     private const int DEFAULT_TRIES = 3;
+
+    private const int DEVICES_PER_JOB = 5;
 
     /**
      * @param  list<string>|null  $deviceIds
@@ -94,25 +98,32 @@ final class SendNotificationPush implements ShouldQueue
         $failed = [];
         $retryAfterSeconds = null;
 
-        try {
-            foreach (Device::query()->where('user_id', $notification->recipient_id)->whereNotNull('push_token_hash')
-                ->when($this->deviceIds !== null, fn (Builder $query): Builder => $query->whereKey($this->deviceIds))
-                ->orderBy('id')->get() as $device) {
+        $devices = Device::query()->where('user_id', $notification->recipient_id)->whereNotNull('push_token_hash')
+            ->when($this->deviceIds !== null, fn (Builder $query): Builder => $query->whereKey($this->deviceIds))
+            ->orderBy('id')->get();
+
+        // Queue the rest before sending: even five OAuth exchanges and sends fit within this job's timeout.
+        foreach ($devices->skip(self::DEVICES_PER_JOB)->chunk(self::DEVICES_PER_JOB) as $batch) {
+            dispatch(new self($this->notificationId, array_values($batch->map(fn (Device $device): string => $device->id)->all()), $this->tries - $this->attempts() + 1))
+                ->onConnection($this->connection)->onQueue($this->queue);
+        }
+
+        foreach ($devices->take(self::DEVICES_PER_JOB) as $device) {
+            try {
                 $result = $push->send($device, $message);
-
-                if (! $result->retry) {
-                    continue;
-                }
-
-                $failed[] = $device->id;
-                $retryAfterSeconds = max($retryAfterSeconds ?? 0, $result->retryAfterSeconds ?? 0);
+            } catch (DevicePushCredentialsRejected) {
+                return;
+            } catch (Throwable $throwable) {
+                report($throwable);
+                $result = DevicePushResult::retry();
             }
-        } catch (Throwable $throwable) {
-            // A push service that throws is misconfigured, and retrying won't help, so report it once and retry no
-            // phone, not even one that failed before it threw.
-            report($throwable);
-            $failed = [];
-            $retryAfterSeconds = null;
+
+            if (! $result->retry) {
+                continue;
+            }
+
+            $failed[] = $device->id;
+            $retryAfterSeconds = max($retryAfterSeconds ?? 0, $result->retryAfterSeconds ?? 0);
         }
 
         if ($failed === [] || $this->attempts() >= $this->tries) {
