@@ -23,7 +23,7 @@ final readonly class UserController
      * A signed request gets the profile as the web shows it to that user, with whether they mute it, its achievements
      * and Unix rank, and how many pastéis it was given, which the app only shows in pastéis mode, as the web does. The
      * pinned commit is left out of the commits list, so it comes with the profile, as on the web. Anyone gets which
-     * handles the bio mentions have a page on /dev/null, by lowercase handle, so only those link to one, and whether each
+     * handles the bio and company mention have a page on /dev/null, by lowercase handle, so only those link to one, and whether each
      * is a user, an organization or an unclaimed developer, so the app opens the right screen.
      */
     public function show(ShowApiUserRequest $request, #[CurrentUser] ?User $currentUser, User $user, UserActivityQuery $activity, UserStreakQuery $streaks, UserAchievementsQuery $achievements, PinnedCommitQuery $pinned, ReplyPreviewsQuery $replyPreviews, BioProfilesQuery $bioProfiles): UserResource
