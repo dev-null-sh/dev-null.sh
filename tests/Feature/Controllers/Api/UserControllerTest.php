@@ -5,6 +5,8 @@ declare(strict_types=1);
 use App\Enums\LivePlatform;
 use App\Models\Commit;
 use App\Models\CommitImage;
+use App\Models\Organization;
+use App\Models\Profile;
 use App\Models\User;
 use App\Queries\UserAchievementsQuery;
 use App\Queries\UserActivityQuery;
@@ -31,7 +33,7 @@ it('shows a public profile with public counts', function (): void {
     $response = $this->getJson(route('api-user.show', $user));
 
     $response->assertOk()
-        ->assertExactJson(['bio_profiles' => [], 'data' => [
+        ->assertExactJson(['bio_profiles' => [], 'bio_profile_types' => [], 'data' => [
             'id' => $user->id,
             'handle' => 'octocat',
             'name' => 'The Octocat',
@@ -50,7 +52,9 @@ it('shows a public profile with public counts', function (): void {
             'following_count' => 1,
         ]]);
 
-    expect(json_decode($response->getContent(), flags: JSON_THROW_ON_ERROR)->bio_profiles)->toBeInstanceOf(stdClass::class);
+    expect(json_decode($response->getContent(), flags: JSON_THROW_ON_ERROR))
+        ->bio_profiles->toBeInstanceOf(stdClass::class)
+        ->bio_profile_types->toBeInstanceOf(stdClass::class);
 });
 
 it('never exposes hidden fields', function (): void {
@@ -107,6 +111,22 @@ it('shows no stream once it has run out, before the scheduler clears it', functi
     $this->getJson(route('api-user.show', $user))
         ->assertOk()
         ->assertJsonPath('data.live', null);
+});
+
+it('says whether each profile the bio tags is a user, an organization or an unclaimed developer', function (): void {
+    Organization::factory()->create(['handle' => 'Laravel']);
+    User::factory()->create(['handle' => 'eveline24']);
+    Profile::factory()->create(['handle' => 'taylor']);
+    $user = User::factory()->create(['bio' => 'Thanks @Eveline24, @taylor and @nobody', 'company' => '@laravel']);
+    $keyPair = apiKeyPairFor(User::factory()->create());
+
+    $types = ['eveline24' => 'user', 'taylor' => 'unclaimed', 'laravel' => 'organization'];
+
+    expect($this->getJson(route('api-user.show', $user))->assertOk()->json())
+        ->bio_profiles->toEqual(['eveline24' => 'eveline24', 'taylor' => 'taylor', 'laravel' => 'Laravel'])
+        ->bio_profile_types->toEqual($types);
+
+    expect(signedApiRequest($keyPair, 'GET', route('api-user.show', $user))->assertOk()->json('bio_profile_types'))->toEqual($types);
 });
 
 it('returns not found for unknown handles', function (): void {
@@ -168,6 +188,7 @@ it('shows a signed request the profile as the web shows it to its user', functio
             'achievements' => resolve(UserAchievementsQuery::class)->get($user, $viewer),
             'pinned_commit' => null,
             'bio_profiles' => [],
+            'bio_profile_types' => [],
         ])
         ->assertJsonPath('achievements.rank', 'daemon')
         ->assertJsonPath('achievements.level', 2)
@@ -177,7 +198,9 @@ it('shows a signed request the profile as the web shows it to its user', functio
         ->assertJsonPath('activity.buckets.3', ['date' => '2026-10-12', 'count' => 1])
         ->assertJsonPath('activity.buckets.6', ['date' => '2026-10-15', 'count' => 2]);
 
-    expect(json_decode($response->getContent(), flags: JSON_THROW_ON_ERROR)->bio_profiles)->toBeInstanceOf(stdClass::class);
+    expect(json_decode($response->getContent(), flags: JSON_THROW_ON_ERROR))
+        ->bio_profiles->toBeInstanceOf(stdClass::class)
+        ->bio_profile_types->toBeInstanceOf(stdClass::class);
 });
 
 it('counts the pending commits of a signed-in user on their own profile', function (): void {
