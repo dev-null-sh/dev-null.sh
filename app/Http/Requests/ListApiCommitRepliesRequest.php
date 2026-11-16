@@ -6,6 +6,7 @@ namespace App\Http\Requests;
 
 use App\Models\Commit;
 use App\Models\User;
+use App\Queries\CommitRepliesQuery;
 use Illuminate\Auth\Access\Response;
 use Illuminate\Foundation\Http\FormRequest;
 
@@ -26,7 +27,8 @@ final class ListApiCommitRepliesRequest extends FormRequest
     }
 
     /**
-     * Newest first continues the next_cursor of a reply preview, as on the web.
+     * Newest first continues the next_cursor of a reply preview, as on the web, and a page holds up to 50 replies, or
+     * fewer when the app asks for fewer, as the web's do.
      *
      * @return array<string, list<string>>
      */
@@ -34,6 +36,7 @@ final class ListApiCommitRepliesRequest extends FormRequest
     {
         return [
             'newest' => ['sometimes', 'boolean'],
+            'limit' => ['sometimes', 'integer', 'between:1,'.CommitRepliesQuery::PER_PAGE],
         ];
     }
 }

@@ -16,6 +16,6 @@ final readonly class CommitReplyController
 {
     public function index(ListApiCommitRepliesRequest $request, #[CurrentUser] User $user, Commit $commit, CommitRepliesQuery $replies): AnonymousResourceCollection
     {
-        return CommitResource::collection($replies->paginate($commit, $user, $request->boolean('newest'))->withQueryString());
+        return CommitResource::collection($replies->paginate($commit, $user, $request->boolean('newest'), $request->integer('limit', CommitRepliesQuery::PER_PAGE))->withQueryString());
     }
 }
