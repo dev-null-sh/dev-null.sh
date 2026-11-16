@@ -15,6 +15,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Queue\Attributes\Timeout;
+use Throwable;
 
 #[Timeout(210)]
 final class SendNotificationPush implements ShouldQueue
@@ -93,17 +94,25 @@ final class SendNotificationPush implements ShouldQueue
         $failed = [];
         $retryAfterSeconds = null;
 
-        foreach (Device::query()->where('user_id', $notification->recipient_id)->whereNotNull('push_token_hash')
-            ->when($this->deviceIds !== null, fn (Builder $query): Builder => $query->whereKey($this->deviceIds))
-            ->orderBy('id')->get() as $device) {
-            $result = $push->send($device, $message);
+        try {
+            foreach (Device::query()->where('user_id', $notification->recipient_id)->whereNotNull('push_token_hash')
+                ->when($this->deviceIds !== null, fn (Builder $query): Builder => $query->whereKey($this->deviceIds))
+                ->orderBy('id')->get() as $device) {
+                $result = $push->send($device, $message);
 
-            if (! $result->retry) {
-                continue;
+                if (! $result->retry) {
+                    continue;
+                }
+
+                $failed[] = $device->id;
+                $retryAfterSeconds = max($retryAfterSeconds ?? 0, $result->retryAfterSeconds ?? 0);
             }
-
-            $failed[] = $device->id;
-            $retryAfterSeconds = max($retryAfterSeconds ?? 0, $result->retryAfterSeconds ?? 0);
+        } catch (Throwable $throwable) {
+            // A push service that throws is misconfigured, and retrying won't help, so report it once and retry no
+            // phone, not even one that failed before it threw.
+            report($throwable);
+            $failed = [];
+            $retryAfterSeconds = null;
         }
 
         if ($failed === [] || $this->attempts() >= $this->tries) {

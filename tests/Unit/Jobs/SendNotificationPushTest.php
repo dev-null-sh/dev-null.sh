@@ -16,6 +16,7 @@ use App\Models\Notification;
 use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Queue;
 
 beforeEach(function (): void {
@@ -170,6 +171,25 @@ it('waits as long as Google asks before retrying a phone', function (): void {
     new SendNotificationPush($notification->id)->handle(resolve(DevicePushProvider::class));
 
     Queue::assertPushed(SendNotificationPush::class, fn (SendNotificationPush $retry): bool => $retry->delay->equalTo(now()->addSeconds(120)));
+});
+
+it('reports a refused push service once, without retrying any phone', function (): void {
+    Device::factory()->for($this->recipient)->withPushToken()->create();
+    $notification = Notification::factory()->create(['recipient_id' => $this->recipient->id, 'actor_id' => $this->actor->id]);
+    Exceptions::fake();
+    Queue::fake();
+    $calls = 0;
+    // The first phone fails in a way that would be retried, then the service throws on the second.
+    $this->mock(DevicePushProvider::class)->shouldReceive('send')->twice()->andReturnUsing(function () use (&$calls): DevicePushResult {
+        throw_if(++$calls === 2, RuntimeException::class, 'Firebase refused the service account');
+
+        return DevicePushResult::retry();
+    });
+
+    new SendNotificationPush($notification->id)->handle(resolve(DevicePushProvider::class));
+
+    Exceptions::assertReportedCount(1);
+    Queue::assertNothingPushed();
 });
 
 it('stops retrying after three attempts in all', function (int $previousAttempts): void {
