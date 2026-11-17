@@ -6,7 +6,9 @@ namespace App\Actions;
 
 use App\Enums\UserUpdate;
 use App\Events\UsersUpdated;
+use App\Exceptions\GuildModeratorRemoved;
 use App\Models\Guild;
+use App\Models\User;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 
@@ -17,10 +19,15 @@ final readonly class UpdateGuild
         //
     }
 
-    public function handle(Guild $guild, string $description, string $emoji, ?UploadedFile $icon, bool $removeIcon): void
+    public function handle(Guild $guild, User $user, string $description, string $emoji, ?UploadedFile $icon, bool $removeIcon): void
     {
-        DB::transaction(function () use ($guild, $description, $emoji, $icon, $removeIcon): void {
+        DB::transaction(function () use ($guild, $user, $description, $emoji, $icon, $removeIcon): void {
             $guild = Guild::query()->whereKey($guild->id)->lockForUpdate()->firstOrFail();
+
+            if ($guild->user_id !== $user->id) {
+                throw new GuildModeratorRemoved;
+            }
+
             $path = $guild->icon_path;
 
             if ($icon instanceof UploadedFile || $removeIcon) {

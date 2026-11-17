@@ -63,6 +63,7 @@ use App\Http\Controllers\ForecastController;
 use App\Http\Controllers\GuildController;
 use App\Http\Controllers\GuildIconController;
 use App\Http\Controllers\GuildMembershipController;
+use App\Http\Controllers\GuildModeratorController;
 use App\Http\Controllers\GuildMuteController;
 use App\Http\Controllers\GuildReportController;
 use App\Http\Controllers\HeadlineController;
@@ -619,7 +620,7 @@ Route::middleware('auth')->group(function (): void {
     // Moderation...
     Route::get('moderation', [ModerationController::class, 'show'])->name('moderation.show');
     Route::get('moderation/guilds', [GuildReportController::class, 'index'])->name('guild-report.index');
-    Route::delete('moderation/guilds/{guild}', [GuildController::class, 'destroy'])->whereUuid('guild')->name('guild.destroy');
+    Route::delete('moderation/guilds/{guild}/moderator', [GuildModeratorController::class, 'destroy'])->whereUuid('guild')->name('guild-moderator.destroy');
     Route::delete('moderation/guild-reports/{report}', [GuildReportController::class, 'destroy'])->whereUuid('report')->name('guild-report.destroy');
     Route::get('moderation/reports/{report}/images/{image}', [CommitReportImageController::class, 'show'])->whereUuid('report')->whereIn('image', ['0', '1', '2'])->name('commit-report-image.show');
     Route::get('moderation/reports', [ReportedCommitController::class, 'index'])->name('reported-commit.index');

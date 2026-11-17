@@ -19,7 +19,8 @@ it('is for members only, as each search pays for AI', function (): void {
 });
 
 it('returns the commits matching the query, with what the card renders', function (): void {
-    $commit = Commit::factory()->create(['body' => 'Shipped a new feature', 'embedding' => embeddingVector(0)]);
+    $guild = Guild::factory()->create(['handle' => 'rust']);
+    $commit = Commit::factory()->for($guild)->create(['body' => 'Shipped a new feature', 'embedding' => embeddingVector(0)]);
     Commit::factory()->create(['body' => 'Something else', 'embedding' => embeddingVector(1)]);
 
     $response = $this->getJson('/search/commits?q=feature');
@@ -27,6 +28,7 @@ it('returns the commits matching the query, with what the card renders', functio
     $response->assertOk()
         ->assertJsonCount(2, 'commits')
         ->assertJsonPath('commits.0.id', $commit->id)
+        ->assertJsonPath('commits.0.guild_handle', 'rust')
         ->assertJsonPath('commits.0.stars_count', 0)
         ->assertJsonPath('commits.0.starred', false)
         ->assertJsonPath('commits.0.replies_count', 0)
@@ -54,7 +56,7 @@ it('omits muted guild topics from search even for followed authors while retaini
     $author = User::factory()->create();
     $admin->following()->attach($author);
     $guild = Guild::factory()->create(['handle' => 'rust']);
-    $hidden = Commit::factory()->for($author)->create(['body' => 'Learning #RuSt', 'embedding' => embeddingVector(0)]);
+    $hidden = Commit::factory()->for($author)->for($guild)->create(['body' => 'Learning Rust', 'embedding' => embeddingVector(0)]);
     $visible = Commit::factory()->for($author)->create(['body' => 'Literal `#rust` and #rustlang', 'embedding' => embeddingVector(1)]);
 
     $this->actingAs($admin)->put(route('guild-mute.update', $guild), ['muted' => true])->assertRedirect();

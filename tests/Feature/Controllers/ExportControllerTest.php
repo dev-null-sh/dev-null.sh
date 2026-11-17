@@ -6,7 +6,7 @@ use App\Actions\CreateCommitReport;
 use App\Actions\CreateCommitTranslation;
 use App\Actions\CreateExport;
 use App\Actions\CreateGuildReport;
-use App\Actions\DeleteGuild;
+use App\Actions\DeleteGuildModerator;
 use App\Actions\DeleteUser;
 use App\Actions\UpdateDevicePushToken;
 use App\Contracts\Services\TranslationProvider;
@@ -256,7 +256,7 @@ it('exports all the signed-in users commits including replies, deleted ones, and
     $parent = Commit::factory()->for($other)->rejected()->create(['body' => 'Another developer private parent body']);
     $approved = Commit::factory()->for($user)->create(['body' => "Shipped Unicode support 🚀\nNext: docs.", 'pasteis_count' => 3]);
     $approved->headlines()->create(['name' => 'Unicode support ships']);
-    $pending = Commit::factory()->for($user)->pending()->create();
+    $pending = Commit::factory()->for($user)->for(Guild::factory()->state(['handle' => 'rust']))->pending()->create();
     $rejected = Commit::factory()->for($user)->rejected()->create();
     $reply = Commit::factory()->for($user)->create(['parent_id' => $parent->id]);
     $quote = Commit::factory()->for($user)->create(['quoted_commit_id' => $parent->id]);
@@ -281,6 +281,7 @@ it('exports all the signed-in users commits including replies, deleted ones, and
         'id' => $approved->id,
         'parent_id' => null,
         'quoted_commit_id' => null,
+        'guild_handle' => null,
         'body' => $approved->body,
         'cached_translations' => [
             'source_language' => 'en',
@@ -296,6 +297,7 @@ it('exports all the signed-in users commits including replies, deleted ones, and
         'deleted_at' => null,
     ])
         ->and($commits[$pending->id]['status'])->toBe('pending')
+        ->and($commits[$pending->id]['guild_handle'])->toBe('rust')
         ->and($commits[$rejected->id]['status'])->toBe('rejected')
         ->and($commits[$reply->id]['parent_id'])->toBe($parent->id)
         ->and($commits[$quote->id]['quoted_commit_id'])->toBe($parent->id)
@@ -764,8 +766,8 @@ it('exports only the users guild reports and moderator removals', function (): v
     $guild->members()->attach($user, ['joined_at' => now(), 'muted_at' => now()]);
     $guild->members()->attach(User::factory()->create(), ['joined_at' => now()]);
     resolve(CreateGuildReport::class)->handle(User::factory()->create(), $guild, 'Someone elses report.');
-    resolve(DeleteGuild::class)->handle(Guild::factory()->create(['user_id' => $user->id, 'handle' => 'rust']));
-    resolve(DeleteGuild::class)->handle(Guild::factory()->create(['handle' => 'php']));
+    resolve(DeleteGuildModerator::class)->handle(Guild::factory()->create(['user_id' => $user->id, 'handle' => 'rust']));
+    resolve(DeleteGuildModerator::class)->handle(Guild::factory()->create(['handle' => 'php']));
 
     $data = json_decode($this->actingAs($user)->get(route('export'))->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
 
