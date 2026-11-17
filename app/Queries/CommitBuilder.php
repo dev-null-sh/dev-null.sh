@@ -94,6 +94,18 @@ final class CommitBuilder extends Builder
             ->orWhereNotIn($this->qualifyColumn('author_id'), $user->mutedIds())) : $this;
     }
 
+    public function fromJoinedGuilds(User $user): self
+    {
+        return $this->whereIn($this->qualifyColumn('id'), resolve(GuildCommitsQuery::class)->forPreference($user, muted: false));
+    }
+
+    public function withoutMutedGuildsFor(?User $user): self
+    {
+        return $user instanceof User
+            ? $this->whereNotIn($this->qualifyColumn('id'), resolve(GuildCommitsQuery::class)->forPreference($user, muted: true))
+            : $this;
+    }
+
     /**
      * Deleted commits stay in a thread as tombstones while they still have replies the given user can see.
      * Replies by muted people are left out along with the replies under them.
@@ -162,10 +174,11 @@ final class CommitBuilder extends Builder
      * the picked ones are then loaded as cards, so a commit with thousands of replies does not have every one of them
      * counted and checked for the viewer.
      */
-    public function withReplyPreviews(?User $user): self
+    public function withReplyPreviews(?User $user, bool $inLog = false): self
     {
         $count = RepliesPerPage::of(request())->value;
-        $newest = fn (HasMany $relation): HasMany => $this->newestVisibleOf($relation, $user, $count);
+        $muted = $inLog && $user instanceof User ? resolve(GuildCommitsQuery::class)->forPreference($user, muted: true) : [];
+        $newest = fn (HasMany $relation): HasMany => $this->newestVisibleOf($relation, $user, $count)->whereNotIn('commits.id', $muted);
 
         return $this->with(['replies' => $newest, 'quotes' => $newest])
             ->withContinuationId($user)
@@ -206,7 +219,7 @@ final class CommitBuilder extends Builder
             'quotedCommit' => fn (BelongsTo $query): BelongsTo => $query
                 ->withTrashed()
                 ->where(fn (self $query): self => $query->visibleTo($viewer))
-                ->with(['author', 'linkPreview', 'images'])
+                ->with(['author', 'linkPreview', 'images', 'guild'])
                 ->withPollFor($viewer),
         ]);
     }
@@ -236,7 +249,7 @@ final class CommitBuilder extends Builder
         return $this
             ->withVisibleReplyCount(null)
             ->withCount('stars')
-            ->with(['author', 'linkPreview', 'images', 'parent' => fn (BelongsTo $query): BelongsTo => $query->where('status', CommitStatus::Approved)]);
+            ->with(['author', 'linkPreview', 'images', 'guild', 'parent' => fn (BelongsTo $query): BelongsTo => $query->where('status', CommitStatus::Approved)]);
     }
 
     public function pending(): self
@@ -304,7 +317,7 @@ final class CommitBuilder extends Builder
     public function withCardDataFor(?User $viewer): self
     {
         return $this
-            ->with(['author', 'linkPreview', 'images'])
+            ->with(['author', 'linkPreview', 'images', 'guild'])
             ->withQuotedCommitFor($viewer)
             ->withStarsFor($viewer)
             ->withPollFor($viewer)

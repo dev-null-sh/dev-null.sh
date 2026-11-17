@@ -36,8 +36,9 @@ export type Connectivity = {
 };
 
 export type Feature = {
-    name: 'translations';
+    name: 'translations' | 'guilds';
     enabled: boolean;
+    admin_only: boolean;
 };
 
 export type LinkPreviewHealth = {

@@ -1,7 +1,24 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { CommitSearchResults } from '../../resources/js/lib/commit-search-results.ts';
+import { CommitSearchResults, groupSearchCommits } from '../../resources/js/lib/commit-search-results.ts';
 import type { Commit } from '../../resources/js/types';
+
+await test('groups board matches by guild after regular matches while preserving order within each group', () => {
+    const commits = [
+        { id: 'rust-first', guild_handle: 'rust' },
+        { id: 'plain-first' },
+        { id: 'jobs', guild_handle: 'jobs' },
+        { id: 'rust-second', guild_handle: 'rust' },
+        { id: 'plain-second', guild_handle: null },
+    ] as Commit[];
+
+    assert.deepEqual(groupSearchCommits(commits).map(([handle, group]) => [handle, group.map((commit) => commit.id)]), [
+        [null, ['plain-first', 'plain-second']],
+        ['rust', ['rust-first', 'rust-second']],
+        ['jobs', ['jobs']],
+    ]);
+    assert.deepEqual(groupSearchCommits([]), []);
+});
 
 await test('latest keeps the past week newest first without changing relevance order', (context) => {
     context.mock.method(Date, 'now', () => Date.parse('2026-11-03T12:00:00Z'));

@@ -97,7 +97,22 @@ final readonly class GitHubReadmeQuery
 
         $html = $this->github->readme($login);
 
-        return $html === null ? '' : $this->sanitize($html);
+        return $html === null ? '' : $this->sanitize($this->resolveRelativeImages($html, $login));
+    }
+
+    /**
+     * GitHub's rendered README keeps an image path relative to the README as written, like ./assets/banner.png, and the
+     * sanitizer drops relative images, so a banner kept beside the README never showed. It's resolved against the
+     * profile repository on raw.githubusercontent.com instead, where HEAD follows the default branch, as GitHub itself
+     * shows it. Only the path changes: the sanitizer still checks the scheme and host of the result.
+     */
+    private function resolveRelativeImages(string $html, string $login): string
+    {
+        return preg_replace_callback(
+            '~<img\b[^>]*?\ssrc="\K(?![a-z][a-z0-9+.-]*:|//)[^"]+~i',
+            fn (array $match): string => "https://raw.githubusercontent.com/{$login}/{$login}/HEAD/".mb_ltrim(preg_replace('~^(?:\./)+~', '', $match[0]) ?? $match[0], '/'),
+            $html,
+        ) ?? $html;
     }
 
     /**

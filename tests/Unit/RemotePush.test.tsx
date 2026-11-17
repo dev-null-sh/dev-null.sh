@@ -18,7 +18,7 @@ beforeEach(() => {
     const storage = preferenceStorage();
     storage.set('remote-alerts:me:offsite', 'on');
     vi.stubGlobal('Notification', { permission: 'granted', requestPermission: vi.fn(async () => 'granted') });
-    vi.stubGlobal('document', { cookie: 'XSRF-TOKEN=csrf%20token' });
+    vi.stubGlobal('document', { cookie: 'XSRF-TOKEN=csrf%20token', querySelector: () => null });
     vi.stubGlobal('navigator', { locks, serviceWorker: { getRegistration: async () => registration, register: vi.fn(async () => registration), ready: Promise.resolve(registration) } });
     vi.stubGlobal('fetch', async (url: string, options: RequestInit) => url.endsWith('/push-subscriptions') && options.method === 'GET'
         ? Response.json({ public_key: 'BA' }) : save(url, options));
@@ -110,6 +110,18 @@ test('unsupported browsers reject off-site enrollment and retain their page aler
     vi.stubGlobal('window', { isSecureContext: true });
     await assert.rejects(setRemotePush('me', true), /not supported/);
     assert.equal(save.mock.calls.length, 0);
+});
+
+test('preview opt-out prevents passive and explicit push enrollment', async () => {
+    vi.stubGlobal('document', { querySelector: () => ({}) });
+    const register = vi.spyOn(navigator.serviceWorker, 'register');
+    const requestPermission = vi.spyOn(Notification, 'requestPermission');
+    await syncRemotePush('me');
+    await assert.rejects(setRemotePush('me', true), /not supported/);
+    assert.equal(subscribe.mock.calls.length, 0);
+    assert.equal(save.mock.calls.length, 0);
+    assert.equal(register.mock.calls.length, 0);
+    assert.equal(requestPermission.mock.calls.length, 0);
 });
 
 test('page alerts can be re-enabled even when background delivery is unavailable', async () => {

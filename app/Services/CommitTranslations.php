@@ -33,6 +33,11 @@ final readonly class CommitTranslations
         return $this->features->enabled(Feature::Translations);
     }
 
+    public function available(): bool
+    {
+        return $this->features->available(Feature::Translations, request()->user());
+    }
+
     public function key(Commit $commit): string
     {
         // Previously detected as indeterminate: encoded posts need fresh detection, without evicting other translations.
@@ -71,7 +76,7 @@ final readonly class CommitTranslations
     /** @param Collection<int, Commit> $commits */
     public function attach(Collection $commits, bool $includePending = false): void
     {
-        if (! $this->enabled()) {
+        if (! $this->available()) {
             return;
         }
 
@@ -94,7 +99,7 @@ final readonly class CommitTranslations
      */
     public function translatedSince(Collection $commits, CarbonImmutable $since): array
     {
-        if (! $this->enabled()) {
+        if (! $this->available()) {
             return [];
         }
 
@@ -109,7 +114,7 @@ final readonly class CommitTranslations
     /** @return array<string, mixed>|null */
     public function display(Commit $commit, ?string $language = null, bool $includePending = false): ?array
     {
-        if ($commit->trashed() || ! in_array($commit->status, $includePending ? [CommitStatus::Approved, CommitStatus::Pending] : [CommitStatus::Approved], true) || $commit->body === '' || ! $this->enabled()) {
+        if ($commit->trashed() || ! in_array($commit->status, $includePending ? [CommitStatus::Approved, CommitStatus::Pending] : [CommitStatus::Approved], true) || $commit->body === '' || ! $this->available()) {
             return null;
         }
 

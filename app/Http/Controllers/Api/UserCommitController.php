@@ -31,6 +31,7 @@ final readonly class UserCommitController
         }
 
         return CommitResource::collection($user->commits()
+            ->whereNull('guild_id')
             ->approved()
             ->when(
                 $request->replies(),

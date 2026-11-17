@@ -3,6 +3,7 @@ import {
     index,
     store,
 } from '@/actions/App/Http/Controllers/PushSubscriptionController';
+import { serviceWorkerEnabled } from '@/lib/service-worker';
 import { readStorage, writeStorage } from '@/lib/storage';
 
 class RemotePushRejectedError extends Error {}
@@ -28,7 +29,8 @@ export function remotePushSupported(): boolean {
         'Notification' in window &&
         'PushManager' in window &&
         'locks' in navigator &&
-        'serviceWorker' in navigator
+        'serviceWorker' in navigator &&
+        serviceWorkerEnabled()
     );
 }
 
