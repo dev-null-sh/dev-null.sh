@@ -42,7 +42,7 @@ What exists, one line each (details in the knowledge base):
 - **Guilds (preview):** public communities around hashtags; creators maintain their icon and description. Not generally available yet.
 - **Emails:** an occasional update the admins write to everyone, or to a filtered audience, with one-click unsubscribe. Never per-activity notifications.
 - **Safety:** mute, block, reports, and moderation.
-- **Bots:** Tom answers questions about /dev/null from the knowledge base, the public repository, and aggregate community statistics, and posts a plain-words explanation of every commit that lands on `production`; World answers "hello world". They use @tom and @world until those GitHub owners sign in, then keep working as @devnull-tom and @devnull-world.
+- **Bots:** Tom answers questions about /dev/null from the knowledge base, the public repository, and aggregate community statistics, and posts a plain-words explanation of every change on `production` that people will notice; World answers "hello world". They use @tom and @world until those GitHub owners sign in, then keep working as @devnull-tom and @devnull-world.
 - **Data:** JSON export and account deletion.
 
 Rules every feature must keep:

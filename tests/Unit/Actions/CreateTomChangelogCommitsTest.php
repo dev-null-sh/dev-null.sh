@@ -14,6 +14,9 @@ use App\Models\User;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Queue;
+use Laravel\Ai\Classification;
+use Laravel\Ai\Prompts\ClassificationPrompt;
+use Laravel\Ai\Responses\Data\BooleanAnswer;
 
 function productionSha(int $number): string
 {
@@ -39,6 +42,8 @@ function productionCommit(int $number, string $message, array $parents, ?int $gi
 beforeEach(function (): void {
     config(['ai.providers.opencode.key' => 'test']);
     Queue::fake([ModerateCommit::class, EmbedCommit::class]);
+    Classification::fake(fn (ClassificationPrompt $prompt): array => ['decision' => new BooleanAnswer(str_contains((string) $prompt->state, '"type":"test"') ? 0 : 1)])
+        ->preventStrayClassifications();
     $this->tom = User::factory()->create(['handle' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
 });
 
@@ -54,11 +59,12 @@ it('only remembers where production is on its first run, so old changes are neve
     ChangelogWriter::assertNeverPrompted();
 });
 
-it('posts one commit as Tom for every commit on production since the last one, oldest first', function (): void {
+it('posts one commit as Tom for every change on the changelog since the last one, oldest first', function (): void {
     $member = User::factory()->create(['handle' => 'xheaven', 'github_id' => '14284867']);
-    ChangelogWriter::fake(['Fixed the dot. *whirr*', 'You can pick emoji while quoting now :-)', 'Behind the scenes, the tests run faster.'])->preventStrayPrompts();
+    ChangelogWriter::fake(['You can pick emoji while quoting now :-)', 'Fixed the dot. *whirr*', 'The bell shows up again.'])->preventStrayPrompts();
     $github = $this->mock(GitHubProvider::class);
     $github->shouldReceive('commits')->once()->andReturn([
+        productionCommit(6, 'fix: show the bell', [5], 14284867, 'xHeaven'),
         productionCommit(5, 'fix: centre the dot (#1544)', [4], login: 'nunomaduro'),
         productionCommit(4, "Merge pull request #1468 from xheaven/emoji\n\nfeat: add emoji picker to quote composer", [3, 9], 1, 'nunomaduro'),
         productionCommit(9, 'wip: a commit of the merged branch', [3]),
@@ -74,13 +80,36 @@ it('posts one commit as Tom for every commit on production since the last one, o
     resolve(CreateTomChangelogCommits::class)->handle();
 
     expect(Commit::query()->oldest('id')->get()->map(fn (Commit $commit): array => [$commit->user_id, $commit->parent_id, $commit->body])->all())->toBe([
-        [$this->tom->id, null, "Fixed the dot. *whirr*\n\nBy ahosker: https://github.com/dev-null-sh/dev-null.sh/commit/".productionSha(2)],
         [$this->tom->id, null, "You can pick emoji while quoting now :-)\n\nBy {$member->mention()}: https://github.com/dev-null-sh/dev-null.sh/pull/1468"],
-        [$this->tom->id, null, "Behind the scenes, the tests run faster.\n\nBy nunomaduro: https://github.com/dev-null-sh/dev-null.sh/pull/1544"],
-    ])->and(Cache::get(CreateTomChangelogCommits::LastAnnouncedKey))->toBe(productionSha(5));
-    ChangelogWriter::assertPrompted('{"type":"test","breaking":false,"title":"Run the suite in parallel","description":null}');
+        [$this->tom->id, null, "Fixed the dot. *whirr*\n\nBy nunomaduro: https://github.com/dev-null-sh/dev-null.sh/pull/1544"],
+        [$this->tom->id, null, "The bell shows up again.\n\nBy {$member->mention()}: https://github.com/dev-null-sh/dev-null.sh/commit/".productionSha(6)],
+    ])->and(Cache::get(CreateTomChangelogCommits::LastAnnouncedKey))->toBe(productionSha(6));
+    Classification::assertClassified(fn (ClassificationPrompt $prompt): bool => $prompt->state === '{"type":"test","breaking":false,"title":"Run the suite in parallel","description":null}' && $prompt->asks('decision'));
     ChangelogWriter::assertPrompted('{"type":"feat","breaking":false,"title":"Add emoji picker to quote composer","description":"Adds the picker. Trello: https://trello.com/c/abc"}');
     ChangelogWriter::assertPrompted('{"type":"fix","breaking":false,"title":"Centre the dot","description":null}');
+    ChangelogWriter::assertPrompted('{"type":"fix","breaking":false,"title":"Show the bell","description":null}');
+    ChangelogWriter::assertPromptedTimes(3);
+});
+
+it('remembers it looked at a change nobody would notice, without asking Tom', function (): void {
+    ChangelogWriter::fake()->preventStrayPrompts();
+    $this->mock(GitHubProvider::class)->shouldReceive('commits')->once()->andReturn([
+        productionCommit(2, 'test: run the suite in parallel', [1]),
+        productionCommit(1, 'feat: announced before (#1)', []),
+    ]);
+    Cache::forever(CreateTomChangelogCommits::LastAnnouncedKey, productionSha(1));
+
+    resolve(CreateTomChangelogCommits::class)->handle();
+
+    expect(Commit::query()->count())->toBe(0)
+        ->and(Cache::get(CreateTomChangelogCommits::LastAnnouncedKey))->toBe(productionSha(2));
+    ChangelogWriter::assertNeverPrompted();
+});
+
+it("builds Tom's changelog instructions from the persona his replies use", function (): void {
+    expect(new ChangelogWriter()->instructions())
+        ->toStartWith(mb_trim(view('ai.agents.tom.persona', ['botMention' => '@tom'])->render()))
+        ->toContain('Explain it to them in one public post.');
 });
 
 it('posts nothing when production has not moved', function (): void {
