@@ -6,6 +6,7 @@ namespace App\Http\Requests;
 
 use App\Dto\NewPoll;
 use App\Enums\PollDuration;
+use App\Models\Guild;
 use App\Models\Organization;
 use App\Models\User;
 use App\Rules\OrganizationToPostAs;
@@ -126,8 +127,8 @@ final class CreateScheduledCommitRequest extends FormRequest
         CreateCommitRequest::normalizeBody($this);
     }
 
-    public function passedValidation(): void
+    public function guild(): ?Guild
     {
-        CreateCommitRequest::appendGuildHashtag($this);
+        return Guild::query()->where('handle', $this->string('guild_handle')->value())->first();
     }
 }

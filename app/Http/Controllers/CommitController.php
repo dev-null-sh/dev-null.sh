@@ -8,6 +8,7 @@ use App\Actions\CreateCommit;
 use App\Actions\DeleteCommit;
 use App\Dto\ThreadContinuation;
 use App\Enums\CommitStatus;
+use App\Exceptions\GuildPaused;
 use App\Http\Requests\CreateCommitRequest;
 use App\Http\Requests\DeleteCommitRequest;
 use App\Http\Requests\ShowCommitRequest;
@@ -68,13 +69,18 @@ final readonly class CommitController
         $before = $achievements->unlockedBadgeNames($user);
 
         $organization = $request->organization();
-        $commit = $action->handle($user, $request->string('body')->value(), quotedCommit: $request->quotedCommit(), images: $request->images(), imageDescriptions: $request->imageDescriptions(), linkPreview: $request->linkPreview(), poll: $request->poll(), organization: $organization);
+        try {
+            $commit = $action->handle($user, $request->string('body')->value(), quotedCommit: $request->quotedCommit(), images: $request->images(), imageDescriptions: $request->imageDescriptions(), linkPreview: $request->linkPreview(), poll: $request->poll(), organization: $organization, guild: $request->guild());
+        } catch (GuildPaused) {
+            return back()->withErrors(['guild_handle' => 'This guild is paused until it has a moderator.']);
+        }
 
         $unlocked = $achievements->unlockedBadgeNames($user)->diff($before)->values();
 
         Inertia::flash('committed', [
             'id' => $commit->id,
             'body' => $commit->body,
+            'guild_handle' => $commit->guild?->handle,
             'author' => ['handle' => ($organization ?? $user)->handle],
         ]);
 

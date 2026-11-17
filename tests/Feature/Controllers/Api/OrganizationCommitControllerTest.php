@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Models\Commit;
+use App\Models\Guild;
 use App\Models\Organization;
 use App\Models\User;
 
@@ -12,6 +13,7 @@ it('lists the public commits an organization posted, newest first, without its r
 
     $older = Commit::factory()->for($poster)->create(['author_id' => $laravel->id, 'created_at' => now()->subHour()]);
     $newer = Commit::factory()->for($poster)->create(['author_id' => $laravel->id]);
+    Commit::factory()->for($poster)->for(Guild::factory())->create(['author_id' => $laravel->id]);
     Commit::factory()->for($poster)->for($newer, 'parent')->create(['author_id' => $laravel->id]);
     Commit::factory()->for($poster)->pending()->create(['author_id' => $laravel->id]);
     Commit::factory()->for($poster)->create(['author_id' => $laravel->id])->delete();
@@ -35,6 +37,7 @@ it('lists for a signed request the commits of an organization as the web shows t
 
     $pending = Commit::factory()->for($admin)->pending()->create(['author_id' => $laravel->id]);
     $approved = Commit::factory()->for($admin)->create(['author_id' => $laravel->id, 'created_at' => now()->subHour()]);
+    Commit::factory()->for($admin)->for(Guild::factory())->create(['author_id' => $laravel->id]);
 
     signedApiRequest(apiKeyPairFor($admin), 'GET', route('api-organization-commit.index', 'laravel'))
         ->assertOk()

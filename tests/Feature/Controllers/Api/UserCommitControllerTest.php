@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Jobs\DetectCommitLanguage;
 use App\Models\Commit;
 use App\Models\CommitImage;
+use App\Models\Guild;
 use App\Models\LinkPreview;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -20,6 +21,7 @@ it('lists the public top-level commits of a user, newest first', function (): vo
     Commit::factory()->for($user)->rejected()->create();
     Commit::factory()->for($user)->create()->delete();
     Commit::factory()->create();
+    Commit::factory()->for($user)->for(Guild::factory())->create();
 
     $response = $this->getJson('/api/v1/users/octocat/commits');
 

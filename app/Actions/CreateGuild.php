@@ -39,6 +39,13 @@ final readonly class CreateGuild
                 }
 
                 $this->membership->handle($user, $guild, true);
+            } else {
+                $guild = Guild::query()->whereKey($guild->id)->lockForUpdate()->firstOrFail();
+
+                if ($guild->user_id === null) {
+                    $guild->update(['user_id' => $user->id]);
+                    $this->membership->handle($user, $guild, true);
+                }
             }
 
             return $guild;

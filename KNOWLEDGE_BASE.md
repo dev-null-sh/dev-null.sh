@@ -376,7 +376,7 @@ Sources: [Starred page](resources/js/pages/starred/index.tsx), [Starred controll
 
 ### Pinning a commit
 
-Pin one of your own top-level commits to feature it at the top of your profile's Commits tab. Pinning another replaces the previous pin; unpin to return to the normal list. Replies cannot be pinned, and pinning does not override a commit's visibility or moderation state.
+Pin one of your own top-level commits to feature it at the top of your profile's Commits tab. Pinning another replaces the previous pin; unpin to return to the normal list. Replies and guild board posts cannot be pinned, and pinning does not override a commit's visibility or moderation state.
 
 Sources: [pin authorization](app/Http/Requests/UpdateCommitPinRequest.php), [pin action](app/Actions/UpdateCommitPin.php), [profile page](resources/js/pages/user/show.tsx).
 
@@ -662,9 +662,9 @@ Guilds are public groups around hashtags and are not generally available yet. In
 
 The Guilds page lists groups by member count. Joining adds matching commits to Following without following every author and clears any existing mute. When a commit appears only because of a joined guild, it says “because you joined” beside the guild label. Leave a guild to reveal its Mute control. Muting hides matching commits from logs and search, including commits by followed authors. You can still open the guild or a commit directly.
 
-Each guild's bulletin board shows commits containing its exact hashtag, newest first, with pagination—not semantic search. Post directly from its composer; the hashtag is added automatically unless already present outside code and links, and is included in the preview. The automatic hashtag and its separator do not use any of your 4,000-character writing allowance, including when scheduling a board post. Hashtags you type yourself still count. Typing a hashtag offers matching guilds in the autocomplete menu; select one with the keyboard or pointer to insert its handle.
+Each guild's bulletin board shows commits posted directly to it and regular commits containing its exact hashtag—not semantic search. Matching replies bring their thread onto the board, even when the root has no hashtag. Threads show reply previews and expand like a regular commit log, ordered by root date, newest first. Each page contains 30 distinct root commits; replies do not use up that limit, and Load more adds the next page. Posts from the board's composer stay attached to that guild without an automatic hashtag, including scheduled posts. They count toward the author's commit count but do not appear in their profile log or general feeds. They appear in Following when you join the guild, and in semantic search suggestions and results under a divider with the guild's name and icon. Regular hashtag commits keep appearing on profiles and in feeds as usual. Typing a hashtag offers matching guilds in the autocomplete menu; select one with the keyboard or pointer to insert its handle.
 
-Guild descriptions can be reported privately. When a guild loses its moderator, its page, icon, description, memberships and mute preferences disappear; the original hashtag commits remain. A different person can claim the hashtag, but a removed moderator cannot reclaim it.
+Guild descriptions can be reported privately. When a guild has no moderator, including after its moderator deletes their account, it is paused, not deleted. Its page, posts, icon, description, memberships and mute preferences stay connected. New board posts wait until it has a moderator; scheduled board posts stay pending and keep their guild. Ordinary hashtag commits still appear. A different person can claim the hashtag to resume the same guild, but a removed moderator cannot reclaim it.
 
 ### Exporting your data
 
@@ -687,7 +687,7 @@ Sources: [export settings](resources/js/pages/user-profile/edit.tsx), [export co
 
 ### Deleting your account
 
-Settings → Profile → **Delete account** opens a confirmation for permanent deletion of your /dev/null account; an app can also delete it through the signed API. It does not delete your GitHub account. Your top-level commits and every reply under those threads are erased. Your replies are also removed, except that replies from other people beneath them survive under authorless `[deleted]` placeholders. Your devices, the messages and reactions you sent, and all your uploaded images are erased too; other people's messages in your conversations stay with them. Link cards elsewhere that point to the erased commits are removed as well, since they repeat their text, and so are cards of replies to your commits, since their titles name you. Account deletion is not covered by the 30-second commit undo.
+Settings → Profile → **Delete account** opens a confirmation for permanent deletion of your /dev/null account; an app can also delete it through the signed API. It does not delete your GitHub account. Your top-level commits and every reply under those threads are erased. Your replies are also removed, except that replies from other people beneath them survive under authorless `[deleted]` placeholders. Your devices, the messages and reactions you sent, and your personal uploaded images are erased too; other people's messages in your conversations stay with them. A guild you moderated is paused and keeps its shared icon and description, memberships and other people's posts. Link cards elsewhere that point to the erased commits are removed as well, since they repeat their text, and so are cards of replies to your commits, since their titles name you. Account deletion is not covered by the 30-second commit undo.
 
 You can sign in with GitHub again later, but start from a new account rather than restoring the deleted one. Export your data first if you want a copy. Deleting from /dev/null cannot retract copies of public content held elsewhere.
 

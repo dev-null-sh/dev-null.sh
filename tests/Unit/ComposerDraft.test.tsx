@@ -140,7 +140,7 @@ beforeEach(() => {
     draft.descriptions = [];
 });
 
-test('previews the guild hashtag without spending the draft character budget', () => {
+test('previews guild text unchanged and uses the full draft character budget', () => {
     draft.body = 'Learning Rust';
     let view = render('rust');
     assert.equal(
@@ -153,7 +153,7 @@ test('previews the guild hashtag without spending the draft character budget', (
     )!;
     assert.equal(
         (toggle.props.preview as { draft: string }).draft,
-        'Learning Rust\n\n#rust',
+        'Learning Rust',
     );
     assert.equal(view.form.props.onBefore(), true);
 
@@ -180,7 +180,7 @@ test('previews the guild hashtag without spending the draft character budget', (
         const preview = render('rust').fields.find(
             (element) => element.type === PreviewToggle,
         )!.props.preview as { draft: string };
-        assert.equal(preview.draft, `${body}\n\n#rust`);
+        assert.equal(preview.draft, body);
     }
     draft.body = 'x'.repeat(4000);
     assert.equal(render('rust').form.props.onBefore(), true);
@@ -198,10 +198,25 @@ test('previews the guild hashtag without spending the draft character budget', (
 
 test('recognizes a guild draft after a successful post reload and leaves other drafts alone', () => {
     draft.body = 'Learning Rust';
-    flash = { committed: { body: 'Learning Rust\n\n#rust' } };
+    flash = { committed: { body: 'Learning Rust', guild_handle: 'rust' } };
     render('rust');
     effects.forEach((effect) => effect());
     assert.equal(draft.drop.mock.calls.length, 1);
+});
+
+test('keeps identical restored text when another posting context was submitted', () => {
+    draft.body = 'Learning Rust';
+    for (const [guild, committedGuild] of [
+        ['rust', null],
+        [undefined, 'rust'],
+        ['rust', 'go'],
+    ]) {
+        effects = [];
+        flash = { committed: { body: draft.body, guild_handle: committedGuild } };
+        render(guild ?? undefined);
+        effects.forEach((effect) => effect());
+        assert.equal(draft.drop.mock.calls.length, 0);
+    }
 });
 
 test('preserves restored images and link cards and allows scheduling them', () => {
