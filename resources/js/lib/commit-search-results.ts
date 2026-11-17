@@ -1,5 +1,18 @@
 import type { Commit } from '@/types';
 
+export function groupSearchCommits(commits: Commit[]) {
+    const groups = new Map<string | null, Commit[]>([[null, []]]);
+
+    for (const commit of commits) {
+        const handle = commit.guild_handle ?? null;
+        const group = groups.get(handle) ?? [];
+        group.push(commit);
+        groups.set(handle, group);
+    }
+
+    return [...groups].filter(([, group]) => group.length > 0);
+}
+
 export class CommitSearchResults {
     term: string;
     commits: Commit[];

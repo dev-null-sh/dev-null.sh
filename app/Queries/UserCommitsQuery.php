@@ -19,6 +19,7 @@ final readonly class UserCommitsQuery
     {
         return Commit::query()
             ->where('author_id', $user->id)
+            ->whereNull('guild_id')
             ->visibleTo($viewer)
             ->when(
                 $replies,

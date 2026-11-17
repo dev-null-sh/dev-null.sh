@@ -13,7 +13,6 @@ import type { PollDraft } from '@/components/poll-editor';
 import { Button } from '@/components/ui/button';
 import { useNow } from '@/hooks/use-now';
 import { bodySegments, hasCodeBlock } from '@/lib/code';
-import { bodyWithHashtag } from '@/lib/commit';
 import { hasModKey, useKeyLabels } from '@/lib/keyboard';
 import { cn } from '@/lib/utils';
 import type { BodySegment } from '@/types';
@@ -65,9 +64,7 @@ export function useComposerPreview({
         body: '',
     });
 
-    const draft = (
-        guildHandle ? bodyWithHashtag(body, guildHandle) : body
-    ).trim();
+    const draft = body.trim();
     const isResolved = resolved?.body === draft;
     const segments = isResolved ? resolved.segments : bodySegments(draft);
 

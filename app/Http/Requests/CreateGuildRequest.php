@@ -16,6 +16,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\In;
+use Illuminate\Validation\Rules\Unique;
 use Illuminate\Validation\Validator;
 
 final class CreateGuildRequest extends FormRequest
@@ -27,11 +28,11 @@ final class CreateGuildRequest extends FormRequest
         return $features->available(Feature::Guilds, $this->user()) ? Response::allow() : Response::denyAsNotFound();
     }
 
-    /** @return array<string, list<string|In>> */
+    /** @return array<string, list<string|In|Unique>> */
     public function rules(EmojiShortcodes $emoji): array
     {
         return [
-            'handle' => ['required', 'string', 'max:60', 'regex:/^\p{L}[\p{L}\p{M}\p{N}_]*$/uD', 'unique:guilds,handle'],
+            'handle' => ['required', 'string', 'max:60', 'regex:/^\p{L}[\p{L}\p{M}\p{N}_]*$/uD', Rule::unique('guilds', 'handle')->whereNotNull('user_id')],
             'name' => ['required', 'string', 'max:60'],
             'description' => ['required', 'string', 'max:500'],
             'emoji' => ['required', 'string', Rule::in($emoji->emoji())],
