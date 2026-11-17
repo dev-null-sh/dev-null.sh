@@ -14,6 +14,7 @@ import { trackCommitPhotoPage } from '@/lib/commit-photo';
 import { initializeCommitState } from '@/lib/commit-state';
 import { currentPageComponent, trackCurrentPage } from '@/lib/current-page';
 import { createEcho } from '@/lib/echo';
+import { scrollToFocusedCommit } from '@/lib/focused-commit-scroll';
 import { trackFollowRequests } from '@/lib/follow-requests';
 import { startLiteMobileApp } from '@/lib/lite-mobile-app';
 import { pageTitle } from '@/lib/page-title';
@@ -34,6 +35,7 @@ trackCommitPhotoPage();
 trackVisualViewport();
 trackAnalyticsEvents();
 trackPrefetchedPages();
+router.on('navigate', (event) => scrollToFocusedCommit(event.detail));
 connectRealtime(createEcho());
 // What a page shows was read once the visit bringing all of it started, and the first one once the browser asked for
 // it. A page brought back from history or a prefetch shows what was read back then, and catches up.
