@@ -22,7 +22,6 @@ import { GitHubIcon } from '@/components/github-icon';
 import {
     DropdownMenuGroup,
     DropdownMenuItem,
-    DropdownMenuLabel,
     DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import { UserInfo } from '@/components/user-info';
@@ -51,11 +50,17 @@ export function UserMenuContent({ user }: Props) {
 
     return (
         <>
-            <DropdownMenuLabel className="p-0 font-normal">
-                <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
+            <DropdownMenuItem asChild>
+                <Link
+                    className="w-full cursor-pointer text-left"
+                    href={show(user)}
+                    prefetch
+                    onClick={cleanup}
+                    data-test="user-menu-profile-header"
+                >
                     <UserInfo user={user} showHandle={true} />
-                </div>
-            </DropdownMenuLabel>
+                </Link>
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
                 <DropdownMenuItem asChild>
