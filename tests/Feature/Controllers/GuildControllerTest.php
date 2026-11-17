@@ -25,7 +25,6 @@ use App\Models\Organization;
 use App\Models\ScheduledCommit;
 use App\Models\User;
 use App\Queries\LogCommitsQuery;
-use App\Services\Features;
 use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -817,7 +816,7 @@ it('lets the moderator hand moderation only to a current member', function (): v
     expect($guild->fresh())->user_id->toBe($member->id)->description->toBe('Still hiring.');
 });
 
-it('refuses a handover to members who cannot open guilds, were removed from moderating it or are at the guild limit', function (): void {
+it('refuses a handover to members removed from moderating it or at the guild limit', function (): void {
     $moderator = User::factory()->create(['handle' => 'admin']);
     $member = User::factory()->create();
     $removed = User::factory()->create();
@@ -828,9 +827,7 @@ it('refuses a handover to members who cannot open guilds, were removed from mode
     Guild::factory()->count(CreateGuildRequest::MAX_PER_USER)->create(['user_id' => $busy->id]);
     $payload = ['description' => 'Remote jobs.', 'emoji' => '🌍', 'remove_icon' => false];
 
-    $this->actingAs($moderator)->put(route('guild.update', 'jobs'), [...$payload, 'moderator_id' => $member->id])->assertSessionHasErrors(['moderator_id' => 'This member cannot open guilds yet.']);
-    resolve(Features::class)->update(Feature::Guilds, true, adminOnly: false);
-    $this->put(route('guild.update', 'jobs'), [...$payload, 'moderator_id' => $removed->id])->assertSessionHasErrors(['moderator_id' => 'This member was removed as its moderator.']);
+    $this->actingAs($moderator)->put(route('guild.update', 'jobs'), [...$payload, 'moderator_id' => $removed->id])->assertSessionHasErrors(['moderator_id' => 'This member was removed as its moderator.']);
     $this->put(route('guild.update', 'jobs'), [...$payload, 'moderator_id' => $busy->id])->assertSessionHasErrors(['moderator_id' => 'This member already moderates 100 guilds.']);
     expect($guild->fresh()->user_id)->toBe($moderator->id);
     $this->put(route('guild.update', 'jobs'), [...$payload, 'moderator_id' => $member->id])->assertRedirectToRoute('guild.show', 'jobs');
@@ -869,7 +866,7 @@ it('keeps the moderator when the new one leaves after validation', function (): 
     expect($guild->fresh())->user_id->toBe($moderator->id)->description->toBe($guild->description);
 });
 
-it('suggests only other members who can open guilds to the moderator', function (): void {
+it('suggests only other members to the moderator', function (): void {
     $moderator = User::factory()->create(['handle' => 'admin']);
     $admin = User::factory()->create(['handle' => 'other-admin', 'name' => 'Other Admin']);
     $ada = User::factory()->create(['handle' => 'ada', 'name' => 'Ada Lovelace']);
@@ -886,10 +883,6 @@ it('suggests only other members who can open guilds to the moderator', function 
     $guild->muters()->attach($muter, ['muted_at' => now()]);
 
     $this->actingAs($moderator)->getJson(route('guild-member-suggestion.index', 'jobs'))->assertOk()
-        ->assertJsonPath('members.*.handle', ['other-admin']);
-
-    resolve(Features::class)->update(Feature::Guilds, true, adminOnly: false);
-    $this->getJson(route('guild-member-suggestion.index', 'jobs'))->assertOk()
         ->assertExactJson(['members' => [
             ['id' => $grace->id, 'handle' => 'grace', 'name' => 'Grace Hopper', 'avatar_url' => $grace->avatar_url],
             ['id' => $ada->id, 'handle' => 'ada', 'name' => 'Ada Lovelace', 'avatar_url' => $ada->avatar_url],
@@ -902,4 +895,17 @@ it('suggests only other members who can open guilds to the moderator', function 
 
     $this->actingAs($ada)->getJson(route('guild-member-suggestion.index', 'jobs'))->assertNotFound();
     $this->actingAs($outsider)->getJson(route('guild-member-suggestion.index', 'jobs'))->assertNotFound();
+});
+
+it('refuses to create a guild once a handover filled the creator up after validation', function (): void {
+    $creator = User::factory()->create(['handle' => 'admin']);
+    Guild::factory()->count(CreateGuildRequest::MAX_PER_USER - 1)->create(['user_id' => $creator->id]);
+    $this->app->beforeResolving(CreateGuild::class, function () use ($creator): void {
+        Guild::factory()->create(['user_id' => $creator->id]);
+    });
+
+    $this->actingAs($creator)->post(route('guild.store'), ['handle' => 'jobs', 'name' => 'Jobs', 'description' => 'Hiring.', 'emoji' => '💼'])
+        ->assertSessionHasErrors(['handle' => 'You can create up to 100 guilds.']);
+    expect(Guild::query()->where('handle', 'jobs')->exists())->toBeFalse()
+        ->and(Guild::query()->where('user_id', $creator->id)->count())->toBe(CreateGuildRequest::MAX_PER_USER);
 });

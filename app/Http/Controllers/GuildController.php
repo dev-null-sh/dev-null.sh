@@ -39,6 +39,8 @@ final readonly class GuildController
             $guild = $action->handle($user, $request->string('handle')->value(), $request->string('name')->value(), $request->string('description')->value(), $request->string('emoji')->value(), $icon);
         } catch (GuildModeratorRemoved) {
             return back()->withErrors(['handle' => 'You cannot reclaim a guild you were removed from.']);
+        } catch (GuildModeratorLimitReached) {
+            return back()->withErrors(['handle' => 'You can create up to '.CreateGuildRequest::MAX_PER_USER.' guilds.']);
         }
 
         return to_route('guild.show', $guild->handle);
