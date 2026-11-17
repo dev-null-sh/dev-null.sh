@@ -1,6 +1,7 @@
 import { usePage } from '@inertiajs/react';
 import { ChevronDown } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { useState } from 'react';
 import { OrganizationAvatar } from '@/components/organization-avatar';
 import {
     DropdownMenu,
@@ -10,11 +11,25 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { UserAvatar } from '@/components/user-avatar';
+import { cn } from '@/lib/utils';
 import type { OrganizationAuthor, User } from '@/types';
 
 /**
- * The avatar of a composer, which members of an organization open to post as it instead of themselves, once posting as
- * an organization is switched on. Everyone else just sees their own.
+ * Who a composer posts as. An organization they picked but can no longer post as (removed from it since) gives way to
+ * themselves, so a refused submission isn't sent as it again. `picked` is what they chose, gone or not.
+ */
+export function useAuthor() {
+    const { auth } = usePage().props;
+    const [picked, setAuthor] = useState<OrganizationAuthor | null>(null);
+    const author =
+        auth.organizations.find(({ id }) => id === picked?.id) ?? null;
+
+    return { author, picked, setAuthor };
+}
+
+/**
+ * The avatar of a composer, which members of an organization open to post as it instead of themselves. Everyone else
+ * just sees their own.
  */
 export function AuthorSwitcher({
     user,
@@ -22,16 +37,18 @@ export function AuthorSwitcher({
     onChange,
     children,
     fallback,
+    className,
 }: {
     user: User;
     author: OrganizationAuthor | null;
     onChange: (author: OrganizationAuthor | null) => void;
     children: ReactNode;
     fallback: ReactNode;
+    className?: string;
 }) {
     const { auth } = usePage().props;
 
-    if (!auth.canPostAsOrganization || auth.organizations.length === 0) {
+    if (auth.organizations.length === 0) {
         return fallback;
     }
 
@@ -39,7 +56,7 @@ export function AuthorSwitcher({
         <DropdownMenu>
             <DropdownMenuTrigger
                 aria-label={`Posting as @${(author ?? user).handle}. Choose who to post as`}
-                className="relative flex rounded-full"
+                className={cn('relative flex rounded-full', className)}
                 data-test="author-switcher"
             >
                 {children}

@@ -4,11 +4,13 @@ import * as React from 'react';
 import type { ReactElement, ReactNode } from 'react';
 import { afterEach, beforeEach, test, vi } from 'vite-plus/test';
 import type { OrgMember, User } from '../../resources/js/types';
+import type { Guild } from '../../resources/js/types/guild';
 
 let state: unknown[];
 let cursor = 0;
 let effects: (() => unknown)[];
 const fetchMock = vi.fn();
+let guilds: Guild[] | null = null;
 
 vi.doMock('react', () => ({
     ...React,
@@ -32,7 +34,9 @@ vi.doMock('react-dom', () => ({
     createPortal: (children: unknown) => children,
 }));
 vi.doMock('@inertiajs/react', () => ({
-    usePage: () => ({ props: { repository: 'dev-null-sh/dev-null.sh' } }),
+    usePage: () => ({
+        props: { repository: 'dev-null-sh/dev-null.sh', guilds },
+    }),
 }));
 vi.doMock('../../resources/js/components/user-avatar', () => ({
     UserAvatar: () => null,
@@ -91,9 +95,86 @@ function handles(fields: Element[]) {
 
 beforeEach(() => {
     state = [undefined, { top: 0, left: 0 }];
+    guilds = null;
     fetchMock.mockReset();
     vi.stubGlobal('fetch', fetchMock);
     vi.stubGlobal('document', { body: {} });
+});
+
+test('suggests loaded guilds and inserts the selected hashtag without fetching', () => {
+    guilds = ['rust', 'rustlang', 'laravel'].map(
+        (handle) =>
+            ({
+                id: handle,
+                handle,
+                name: handle,
+                emoji: '💻',
+                icon_url: null,
+            }) as Guild,
+    );
+    state[0] = { kind: 'guild', start: 6, query: 'RU' };
+    cursor = 0;
+    effects = [];
+    const onValueChange = vi.fn();
+    const fields = elements(
+        MentionTextarea({ value: 'Hello #RU', onValueChange }),
+    );
+    const options = fields.filter((element) => element.props.role === 'option');
+    assert.deepEqual(
+        options.map((option) => option.props.id),
+        ['mentions-guild-rust', 'mentions-guild-rustlang'],
+    );
+    const textarea = fields.find((element) => element.type === 'textarea')!;
+    const target = {
+        selectionStart: 9,
+        focus: vi.fn(),
+        setSelectionRange: vi.fn(),
+    };
+    (textarea.props.ref as (element: unknown) => void)(target);
+    vi.stubGlobal('requestAnimationFrame', (callback: () => void) =>
+        callback(),
+    );
+    (options[1].props.onClick as () => void)();
+    assert.deepEqual(onValueChange.mock.calls, [['Hello #rustlang ']]);
+    assert.deepEqual(target.setSelectionRange.mock.calls, [[16, 16]]);
+    effects.slice(0, 2).forEach((effect) => effect());
+    assert.equal(fetchMock.mock.calls.length, 0);
+});
+
+test('does not suggest guilds inside code, URLs, partial handles or when preview data is absent', () => {
+    for (const value of [
+        '`#rust',
+        '```\n#rust',
+        'https://example.com/#rust',
+        'word#rust',
+        '#rust ',
+        '##rust',
+    ]) {
+        guilds = [{ id: 'rust', handle: 'rust', name: 'Rust' } as Guild];
+        cursor = 0;
+        state[0] = null;
+        const fields = elements(
+            MentionTextarea({ value, onValueChange: () => {} }),
+        );
+        const textarea = fields.find((element) => element.type === 'textarea')!;
+        (textarea.props.onSelect as (event: unknown) => void)({
+            currentTarget: {
+                value,
+                selectionStart: value.length,
+                selectionEnd: value.length,
+            },
+        });
+        assert.equal(state[0], null, value);
+    }
+    guilds = null;
+    cursor = 0;
+    const textarea = elements(
+        MentionTextarea({ value: '#rust', onValueChange: () => {} }),
+    ).find((element) => element.type === 'textarea')!;
+    (textarea.props.onSelect as (event: unknown) => void)({
+        currentTarget: { value: '#rust', selectionStart: 5, selectionEnd: 5 },
+    });
+    assert.equal(state[0], null);
 });
 
 test('suggests loaded org members immediately without scheduling a search request', () => {

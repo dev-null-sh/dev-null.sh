@@ -22,7 +22,7 @@ final readonly class HeadlineSummaryCommitsQuery
     {
         $sources = Commit::query()->topLevel()->approved()->whereAttachedTo($headline, 'headlines')
             ->where('body', '!=', '')
-            ->whereBetween('created_at', [$until->copy()->subHours(8), $until])
+            ->whereBetween('created_at', [$until->copy()->subHours(HotHeadlinesQuery::WINDOW_HOURS), $until])
             ->select('commits.id')->distinct('commits.author_id')
             ->orderBy('commits.author_id')->orderByDesc('hot_score')->orderByDesc('id');
 

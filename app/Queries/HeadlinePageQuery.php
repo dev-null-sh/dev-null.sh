@@ -12,7 +12,7 @@ use Illuminate\Support\Collection;
 
 final readonly class HeadlinePageQuery
 {
-    public function __construct(private CommitSearchQuery $search, private HeadlineSummaryQuery $summary)
+    public function __construct(private HeadlineCommitsQuery $commits, private HeadlineSummaryQuery $summary)
     {
         //
     }
@@ -25,7 +25,7 @@ final readonly class HeadlinePageQuery
         return [
             'name' => $headline->name,
             'summary' => fn (): ?string => $this->summary->get($headline, $viewer),
-            'commits' => fn (): Collection => $this->search->get($headline->name, $viewer, since: now()->subWeek()),
+            'commits' => fn (): Collection => $this->commits->get($headline, $viewer),
         ];
     }
 }

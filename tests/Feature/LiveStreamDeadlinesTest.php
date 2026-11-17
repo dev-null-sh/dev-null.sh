@@ -160,7 +160,7 @@ it("says when the stream of each card's author runs out on every other page and 
     $commit = Commit::factory()->for($streamer)->create(['link_preview_id' => $link->id, 'embedding' => embeddingVector(0)]);
     CommitImage::factory()->for($commit)->create(['position' => 0]);
     CommitReport::factory()->create(['commit_id' => $commit->id]);
-    $pending = Commit::factory()->for($streamer)->pending()->create();
+    $pending = Commit::factory()->for($streamer)->pending()->checkedByAi()->create();
     config(['app.admins' => ['moderator']]);
     $moderator = User::factory()->create(['handle' => 'moderator']);
     $moderator->starredCommits()->attach($commit);
