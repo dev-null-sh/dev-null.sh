@@ -6,6 +6,7 @@ namespace App\Http\Controllers;
 
 use App\Actions\CreateGuild;
 use App\Actions\UpdateGuild;
+use App\Exceptions\GuildModeratorLimitReached;
 use App\Exceptions\GuildModeratorNotMember;
 use App\Exceptions\GuildModeratorRemoved;
 use App\Http\Requests\CreateGuildRequest;
@@ -69,6 +70,8 @@ final readonly class GuildController
             return back()->withErrors(['description' => 'You no longer moderate this guild.']);
         } catch (GuildModeratorNotMember) {
             return back()->withErrors(['moderator_id' => 'Pick a member of this guild.']);
+        } catch (GuildModeratorLimitReached) {
+            return back()->withErrors(['moderator_id' => UpdateGuildRequest::moderatorLimitMessage()]);
         }
 
         return to_route('guild.show', $guild->handle);

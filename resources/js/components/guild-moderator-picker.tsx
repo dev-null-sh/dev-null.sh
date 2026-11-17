@@ -61,7 +61,10 @@ export function GuildModeratorPicker({
                             members: Member[];
                         };
                     })
-                    .then((data) => setMembers(data.members))
+                    .then((data) => {
+                        if (!controller.signal.aborted)
+                            setMembers(data.members);
+                    })
                     .catch(() => {
                         if (!controller.signal.aborted) setMembers([]);
                     });
@@ -107,7 +110,11 @@ export function GuildModeratorPicker({
                         maxLength={60}
                         placeholder="Search members"
                         value={query}
-                        onChange={(event) => setQuery(event.target.value)}
+                        onChange={(event) => {
+                            // Results for an older search are dropped at once, so neither Enter nor a click can pick from them.
+                            setQuery(event.target.value);
+                            setMembers(null);
+                        }}
                         onKeyDown={(event) => {
                             if (event.key === 'Enter') {
                                 event.preventDefault();
