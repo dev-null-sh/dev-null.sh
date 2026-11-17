@@ -782,7 +782,7 @@ Sources: [fingerprint matching](resources/js/lib/certificate-hashes.ts), [text r
 | Asset tooling | **Vite+ / Vite** builds frontend assets; **Bun** manages frontend dependencies and runs scripts. |
 | PHP dependencies | **Composer** manages backend dependencies. |
 | Testing and quality | **Pest**, **PHPStan / Larastan**, **TypeScript**, **Laravel Pint**, **Rector**, and frontend formatting and linting through **Vite+**. |
-| AI services | **Laravel AI SDK** runs Tom and public-post translation with **DeepSeek Flash** through **OpenCode Zen**. **OpenAI** generates embeddings, including cached semantic search query embeddings, and handles commit relevance checks and moderation. |
+| AI services | **Laravel AI SDK** runs Tom, language detection and translation of public posts, and headline and hot topic recap writing with **DeepSeek Flash** through **OpenCode Zen**. **OpenAI** generates embeddings, including cached semantic search query embeddings, handles commit relevance checks and moderation, and decides which tools Tom uses, which commits get headlines, and whether a hot topic gets a recap. |
 
 The knowledge base is split into Markdown sections by heading and searched by meaning using vector embeddings in PostgreSQL. Refreshing it skips unchanged sections and reuses their existing embeddings.
 
