@@ -5,17 +5,25 @@ declare(strict_types=1);
 use App\Actions\CreateCommitReport;
 use App\Actions\CreateCommitTopics;
 use App\Actions\CreateCommitTranslation;
+use App\Actions\CreateGuild;
+use App\Actions\CreateGuildReport;
+use App\Actions\DeleteGuildModerator;
 use App\Actions\DeleteUser;
 use App\Actions\UpdateCommitHotScores;
 use App\Contracts\Services\TranslationProvider;
 use App\Dto\ThreadEngagement;
 use App\Enums\OrganizationRole;
+use App\Enums\UserUpdate;
+use App\Events\UsersUpdated;
+use App\Exceptions\GuildModeratorRemoved;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\CommitReport;
 use App\Models\Conversation;
 use App\Models\ConversationParticipant;
 use App\Models\Device;
+use App\Models\Guild;
+use App\Models\GuildReport;
 use App\Models\LinkPreview;
 use App\Models\Message;
 use App\Models\MessageImage;
@@ -25,6 +33,7 @@ use App\Models\Poll;
 use App\Models\PollOption;
 use App\Models\PollVote;
 use App\Models\PushSubscription;
+use App\Models\ScheduledCommit;
 use App\Models\User;
 use App\Queries\HeadlineSummaryQuery;
 use App\Services\CommitTranslations;
@@ -32,11 +41,11 @@ use App\Services\TheAlgorithm;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Storage;
 
 it('may delete a user', function (): void {
     $user = User::factory()->create(['translation_language' => 'ja', 'automatic_translation' => false]);
-
     $action = resolve(DeleteUser::class);
 
     $action->handle($user);
@@ -473,4 +482,68 @@ it('erases browser push subscriptions with the account', function (): void {
     PushSubscription::factory()->create(['user_id' => $user->id]);
     resolve(DeleteUser::class)->handle($user);
     expect(PushSubscription::query()->count())->toBe(0);
+});
+
+it('pauses moderated guilds and preserves other peoples posts memberships and scheduled posts', function (): void {
+    Storage::fake();
+    $user = User::factory()->create();
+    $guild = Guild::factory()->create(['user_id' => $user->id, 'handle' => 'jobs', 'icon_path' => 'guild-icons/example.webp']);
+    Storage::disk()->put($guild->icon_path, 'image');
+    $other = Guild::factory()->create();
+    $commit = Commit::factory()->create(['body' => 'Hiring #jobs']);
+    $board = Commit::factory()->for($user)->for($guild)->create(['body' => 'A board post']);
+    $member = User::factory()->create();
+    $otherBoard = Commit::factory()->for($member)->for($guild)->create();
+    $scheduled = ScheduledCommit::factory()->for($member)->for($guild)->create();
+    $other->members()->attach($user, ['joined_at' => now(), 'muted_at' => now()]);
+    $guild->members()->attach($member, ['joined_at' => now(), 'muted_at' => now()]);
+
+    resolve(DeleteUser::class)->handle($user);
+
+    expect($guild->fresh()->user_id)->toBeNull();
+    $this->assertModelMissing($board);
+    expect($otherBoard->fresh()->guild_id)->toBe($guild->id);
+    expect($scheduled->fresh())->guild_id->toBe($guild->id)->canceled_at->toBeNull();
+    $this->assertDatabaseCount('guild_preferences', 1);
+    $this->assertDatabaseHas('guild_preferences', ['guild_id' => $guild->id, 'user_id' => $member->id, 'joined_at' => now(), 'muted_at' => now()]);
+    $this->assertModelExists($other);
+    $this->assertModelExists($commit);
+    Storage::disk()->assertExists('guild-icons/example.webp');
+});
+
+it('announces paused guilds only to their other members', function (): void {
+    $user = User::factory()->create();
+    $member = User::factory()->create();
+    $stranger = User::factory()->create();
+    $guild = Guild::factory()->create(['user_id' => $user->id]);
+    $guild->members()->attach($user, ['joined_at' => now()]);
+    $guild->members()->attach($member, ['joined_at' => now()]);
+    Guild::factory()->create()->members()->attach($stranger, ['joined_at' => now()]);
+    Event::fake([UsersUpdated::class]);
+
+    resolve(DeleteUser::class)->handle($user);
+
+    foreach ([UserUpdate::Guilds, UserUpdate::Relationships] as $update) {
+        Event::assertDispatched(UsersUpdated::class, fn (UsersUpdated $event): bool => $event->update === $update && $event->userIds === [$member->id]);
+    }
+});
+
+it('erases guild reports but retains only the identity restriction against reclaiming after signup', function (): void {
+    $user = User::factory()->create();
+    $other = User::factory()->create();
+    $guild = Guild::factory()->create();
+    resolve(CreateGuildReport::class)->handle($user, $guild, 'My report.');
+    resolve(CreateGuildReport::class)->handle($other, $guild, 'Other report.');
+    resolve(CreateGuildReport::class)->handle($other, Guild::factory()->create(['user_id' => $user->id]), 'My guild.');
+    resolve(DeleteGuildModerator::class)->handle(Guild::factory()->create(['user_id' => $user->id, 'handle' => 'jobs']));
+    resolve(DeleteGuildModerator::class)->handle(Guild::factory()->create(['user_id' => $other->id, 'handle' => 'rust']));
+
+    resolve(DeleteUser::class)->handle($user);
+
+    expect(GuildReport::query()->pluck('details')->all())->toBe(['Other report.', 'My guild.']);
+    $this->assertDatabaseHas('guild_moderator_removals', ['github_id' => $user->github_id, 'handle' => 'jobs']);
+    $this->assertDatabaseHas('guild_moderator_removals', ['github_id' => $other->github_id, 'handle' => 'rust']);
+    $returning = User::factory()->create(['github_id' => $user->github_id]);
+    expect(fn () => resolve(CreateGuild::class)->handle($returning, 'jobs', 'Jobs', 'Hiring.', '💼', null))
+        ->toThrow(GuildModeratorRemoved::class);
 });

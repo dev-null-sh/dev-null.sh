@@ -25,6 +25,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property-read NotificationType $type
  * @property-read string|null $commit_id
  * @property-read string|null $subject_id
+ * @property-read string|null $timeout_id
  * @property-read string $key
  * @property-read string|null $reason
  * @property-read int|null $level
@@ -35,6 +36,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property-read Profile $actor
  * @property-read Organization|null $organization
  * @property-read Commit|null $commit
+ * @property-read UserTimeout|null $timeout
  * @property-read string $group_id
  * @property-read int $event_count
  * @property-read int $actors_count
@@ -49,6 +51,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'actor_position',
     'second_actor_id',
     'third_actor_id',
+    'timeout_id',
 ])]
 #[UseEloquentBuilder(NotificationBuilder::class)]
 final class Notification extends Model
@@ -128,5 +131,13 @@ final class Notification extends Model
     public function commit(): BelongsTo
     {
         return $this->belongsTo(Commit::class);
+    }
+
+    /**
+     * @return BelongsTo<UserTimeout, $this>
+     */
+    public function timeout(): BelongsTo
+    {
+        return $this->belongsTo(UserTimeout::class);
     }
 }

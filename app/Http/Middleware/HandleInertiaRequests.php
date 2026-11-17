@@ -7,22 +7,26 @@ namespace App\Http\Middleware;
 use App\Contracts\Services\HumanVerificationProvider;
 use App\Dto\ReaderClock;
 use App\Enums\EventTheme;
+use App\Enums\Feature;
 use App\Enums\Log;
 use App\Enums\RepliesPerPage;
 use App\Enums\UserUpdate;
 use App\Http\Requests\ListNotificationsRequest;
 use App\Http\Resources\ShownStreams;
 use App\Models\Commit;
+use App\Models\Guild;
 use App\Models\Organization;
 use App\Models\User;
 use App\Queries\BioProfilesQuery;
 use App\Queries\ConversationsQuery;
 use App\Queries\DevelopersCountQuery;
+use App\Queries\GuildsQuery;
 use App\Queries\HotTopicsQuery;
 use App\Queries\LiveFollowingQuery;
 use App\Queries\NotificationGroupsQuery;
 use App\Queries\SuggestedUsersQuery;
 use App\Services\CommitTranslations;
+use App\Services\Features;
 use Carbon\CarbonInterface;
 use Closure;
 use Illuminate\Broadcasting\Channel;
@@ -157,12 +161,23 @@ final class HandleInertiaRequests extends Middleware
             ],
             // Guests see how many developers are here, next to the sign-in button...
             'developersCount' => fn (): ?int => $user instanceof User ? null : resolve(DevelopersCountQuery::class)->get(),
-            'hasUnmoderatedCommits' => $isAdmin ? $live(fn (): bool => Commit::query()->pending()->exists(), UserUpdate::Moderation) : false,
+            'hasUnmoderatedCommits' => $isAdmin ? $live(fn (): bool => Commit::query()->awaitingModerator()->exists(), UserUpdate::Moderation) : false,
             // The lite mobile app, which draws its own tab bar (see resources/js/lib/lite-mobile-app.ts). Any browser can send this
             // token, so it only ever changes the UI...
             'isLiteMobileApp' => str_contains((string) $request->userAgent(), 'DevNullLite/'),
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'showsWhoToFollow' => $showsWhoToFollow,
+            'guilds' => $user instanceof User
+                ? Inertia::once(fn (): ?array => resolve(Features::class)->available(Feature::Guilds, $user) ? resolve(GuildsQuery::class)->get($user)->map(fn (Guild $guild): array => [
+                    'id' => $guild->id,
+                    ...$guild->toArray(),
+                    'member_count' => $guild->members_count,
+                    'is_joined' => $guild->is_joined,
+                    'is_muted' => $guild->is_muted,
+                    'is_paused' => $guild->user_id === null,
+                    'icon_url' => $guild->icon_path === null ? null : route('guild-icon.show', ['guild' => $guild->handle, 'v' => $guild->updated_at->getTimestampMs()]),
+                ])->all() : null)->until(60)->fresh($request->routeIs('guild.*', 'search.index'))->live(UserUpdate::Guilds->value, new PrivateChannel($user))
+                : null,
             ...$user instanceof User && $liveFollowing !== null ? [
                 // Drawn again when someone followed goes live or stops, never on its own, so it doesn't reshuffle.
                 'liveFollowing' => $liveFollowing,

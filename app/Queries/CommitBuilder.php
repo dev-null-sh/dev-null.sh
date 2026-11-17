@@ -31,7 +31,7 @@ final class CommitBuilder extends Builder
     private const array COLUMNS_BUT_EMBEDDING = [
         'id', 'user_id', 'body', 'created_at', 'updated_at', 'status', 'parent_id', 'deleted_at', 'link_preview_id',
         'quoted_commit_id', 'mentions', 'ai_decision', 'ai_categories', 'root_id', 'hot_score', 'pasteis_count', 'author_id',
-        'headlines_classified_at',
+        'headlines_classified_at', 'guild_id',
     ];
 
     /**
@@ -92,6 +92,18 @@ final class CommitBuilder extends Builder
         return $user instanceof User ? $this->where(fn (Builder $query): Builder => $query
             ->whereNull($this->qualifyColumn('author_id'))
             ->orWhereNotIn($this->qualifyColumn('author_id'), $user->mutedIds())) : $this;
+    }
+
+    public function fromJoinedGuilds(User $user): self
+    {
+        return $this->whereIn($this->qualifyColumn('id'), resolve(GuildCommitsQuery::class)->forPreference($user, muted: false));
+    }
+
+    public function withoutMutedGuildsFor(?User $user): self
+    {
+        return $user instanceof User
+            ? $this->whereNotIn($this->qualifyColumn('id'), resolve(GuildCommitsQuery::class)->forPreference($user, muted: true))
+            : $this;
     }
 
     /**
@@ -162,10 +174,11 @@ final class CommitBuilder extends Builder
      * the picked ones are then loaded as cards, so a commit with thousands of replies does not have every one of them
      * counted and checked for the viewer.
      */
-    public function withReplyPreviews(?User $user): self
+    public function withReplyPreviews(?User $user, bool $inLog = false): self
     {
         $count = RepliesPerPage::of(request())->value;
-        $newest = fn (HasMany $relation): HasMany => $this->newestVisibleOf($relation, $user, $count);
+        $muted = $inLog && $user instanceof User ? resolve(GuildCommitsQuery::class)->forPreference($user, muted: true) : [];
+        $newest = fn (HasMany $relation): HasMany => $this->newestVisibleOf($relation, $user, $count)->whereNotIn('commits.id', $muted);
 
         return $this->with(['replies' => $newest, 'quotes' => $newest])
             ->withContinuationId($user)
@@ -206,7 +219,7 @@ final class CommitBuilder extends Builder
             'quotedCommit' => fn (BelongsTo $query): BelongsTo => $query
                 ->withTrashed()
                 ->where(fn (self $query): self => $query->visibleTo($viewer))
-                ->with(['author', 'linkPreview', 'images'])
+                ->with(['author', 'linkPreview', 'images', 'guild'])
                 ->withPollFor($viewer),
         ]);
     }
@@ -236,12 +249,22 @@ final class CommitBuilder extends Builder
         return $this
             ->withVisibleReplyCount(null)
             ->withCount('stars')
-            ->with(['author', 'linkPreview', 'images', 'parent' => fn (BelongsTo $query): BelongsTo => $query->where('status', CommitStatus::Approved)]);
+            ->with(['author', 'linkPreview', 'images', 'guild', 'parent' => fn (BelongsTo $query): BelongsTo => $query->where('status', CommitStatus::Approved)]);
     }
 
     public function pending(): self
     {
         return $this->where('status', CommitStatus::Pending);
+    }
+
+    /**
+     * The pending commits the AI has checked, or gave up on, like Commit::isBeingChecked().
+     */
+    public function awaitingModerator(): self
+    {
+        return $this->pending()->where(fn (self $query): self => $query
+            ->whereNotNull('ai_decision')
+            ->orWhere('created_at', '<=', now()->subMinutes(Commit::CHECKING_MINUTES)));
     }
 
     /**
@@ -294,7 +317,7 @@ final class CommitBuilder extends Builder
     public function withCardDataFor(?User $viewer): self
     {
         return $this
-            ->with(['author', 'linkPreview', 'images'])
+            ->with(['author', 'linkPreview', 'images', 'guild'])
             ->withQuotedCommitFor($viewer)
             ->withStarsFor($viewer)
             ->withPollFor($viewer)

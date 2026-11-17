@@ -128,6 +128,29 @@ final readonly class PageMetadata
     }
 
     /**
+     * The link preview and structured data of the partners page, with the ladder of its tiers as its image.
+     *
+     * @return WebsiteMetadata
+     */
+    public function partners(): array
+    {
+        return [
+            ...$this->page(
+                'Partners - /dev/null',
+                'The people and companies who sponsor /dev/null on GitHub, and where their money goes: hosting, AI, and getting the team together to build more.',
+                route('partner.index'),
+            ),
+            'images' => [[
+                'url' => url('/images/partners/og.png'),
+                'width' => OpenGraphCanvas::WIDTH,
+                'height' => OpenGraphCanvas::HEIGHT,
+                'type' => 'image/png',
+                'alt' => 'The /dev/null partners, from Distinguished to Junior',
+            ]],
+        ];
+    }
+
+    /**
      * The link preview and structured data of the apps page, with the Mac app described as software once it is published.
      *
      * @param  MacAppRelease|null  $release

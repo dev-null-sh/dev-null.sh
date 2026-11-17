@@ -6,9 +6,12 @@ namespace App\Actions;
 
 use App\Contracts\Services\ModerationProvider;
 use App\Enums\CommitStatus;
+use App\Enums\UserUpdate;
+use App\Events\UsersUpdated;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\PollOption;
+use App\Queries\AdminsQuery;
 use App\Services\EncodedText;
 use Illuminate\Support\Facades\Storage;
 
@@ -23,6 +26,7 @@ final readonly class UpdateCommitAiDecision
         private ModerationProvider $moderation,
         private UpdateCommitStatuses $updateCommitStatuses,
         private EncodedText $encodedText,
+        private AdminsQuery $admins,
     ) {
         //
     }
@@ -55,10 +59,10 @@ final readonly class UpdateCommitAiDecision
 
         if ($scores !== [] && max($scores) >= self::AUTO_REJECT_THRESHOLD) {
             $this->updateCommitStatuses->handle([$commit->id], CommitStatus::Rejected, onlyPending: true);
-        }
-
-        if ($categories === [] && $commit->user !== null) {
+        } elseif ($categories === [] && $commit->user !== null) {
             $this->updateCommitStatuses->handle([$commit->id], CommitStatus::Approved, onlyPending: true);
+        } else {
+            event(new UsersUpdated($this->admins->ids(), UserUpdate::Moderation, ['commits' => [$commit->id]]));
         }
     }
 
