@@ -21,7 +21,7 @@ use Illuminate\Validation\Validator;
 
 final class CreateGuildRequest extends FormRequest
 {
-    private const int MAX_PER_USER = 100;
+    public const int MAX_PER_USER = 100;
 
     public function authorize(Features $features): Response
     {

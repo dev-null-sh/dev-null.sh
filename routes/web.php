@@ -63,6 +63,7 @@ use App\Http\Controllers\ForecastController;
 use App\Http\Controllers\GuildController;
 use App\Http\Controllers\GuildIconController;
 use App\Http\Controllers\GuildMembershipController;
+use App\Http\Controllers\GuildMemberSuggestionController;
 use App\Http\Controllers\GuildModeratorController;
 use App\Http\Controllers\GuildMuteController;
 use App\Http\Controllers\GuildReportController;
@@ -363,6 +364,7 @@ Route::middleware('auth')->group(function (): void {
     Route::get('guilds', [GuildController::class, 'index'])->name('guild.index');
     Route::get('guilds/{guild:handle}', [GuildController::class, 'show'])->name('guild.show');
     Route::get('guilds/{guild:handle}/members', [GuildMembershipController::class, 'index'])->name('guild-membership.index');
+    Route::get('guilds/{guild:handle}/member-suggestions', [GuildMemberSuggestionController::class, 'index'])->middleware('throttle:people')->name('guild-member-suggestion.index');
     Route::get('guilds/{guild:handle}/icon', [GuildIconController::class, 'show'])->name('guild-icon.show');
     Route::post('guilds', [GuildController::class, 'store'])->middleware([PreventPostingInTimeout::class, 'throttle:10,1'])->name('guild.store');
     Route::put('guilds/{guild:handle}', [GuildController::class, 'update'])->middleware([PreventPostingInTimeout::class, 'throttle:10,1'])->name('guild.update');

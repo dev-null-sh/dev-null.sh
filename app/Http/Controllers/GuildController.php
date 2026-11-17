@@ -6,6 +6,7 @@ namespace App\Http\Controllers;
 
 use App\Actions\CreateGuild;
 use App\Actions\UpdateGuild;
+use App\Exceptions\GuildModeratorNotMember;
 use App\Exceptions\GuildModeratorRemoved;
 use App\Http\Requests\CreateGuildRequest;
 use App\Http\Requests\ListGuildsRequest;
@@ -63,9 +64,11 @@ final readonly class GuildController
         assert($icon instanceof UploadedFile || $icon === null);
 
         try {
-            $action->handle($guild, $user, $request->string('description')->value(), $request->string('emoji')->value(), $icon, $request->boolean('remove_icon'));
+            $action->handle($guild, $user, $request->string('description')->value(), $request->string('emoji')->value(), $icon, $request->boolean('remove_icon'), $request->moderator());
         } catch (GuildModeratorRemoved) {
             return back()->withErrors(['description' => 'You no longer moderate this guild.']);
+        } catch (GuildModeratorNotMember) {
+            return back()->withErrors(['moderator_id' => 'Pick a member of this guild.']);
         }
 
         return to_route('guild.show', $guild->handle);
