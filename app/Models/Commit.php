@@ -27,6 +27,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read string $id
  * @property-read string|null $user_id
  * @property-read string|null $author_id
+ * @property-read string|null $guild_id
+ * @property-read Guild|null $guild
  * @property-read string|null $parent_id
  * @property-read string|null $root_id
  * @property-read float $hot_score
@@ -65,6 +67,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
     'user',
     'user_id',
     'author_id',
+    'guild_id',
+    'guild',
     'ai_decision',
     'ai_categories',
     'embedding',
@@ -109,6 +113,12 @@ final class Commit extends Model
      * @var array{body_segments: list<array<string, string|null>>, preview_segments: list<array<string, string|null>>|null}|null
      */
     private ?array $segments = null;
+
+    /** @return BelongsTo<Guild, $this> */
+    public function guild(): BelongsTo
+    {
+        return $this->belongsTo(Guild::class);
+    }
 
     /**
      * @return array<string, string>

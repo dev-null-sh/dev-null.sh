@@ -8,4 +8,5 @@ export type Guild = {
     member_count: number;
     is_joined: boolean;
     is_muted: boolean;
+    is_paused: boolean;
 };
