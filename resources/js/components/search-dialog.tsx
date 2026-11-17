@@ -15,11 +15,13 @@ import {
 import type { KeyboardEvent, ReactNode } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
+import GuildController from '@/actions/App/Http/Controllers/GuildController';
 import HeadlineController from '@/actions/App/Http/Controllers/HeadlineController';
 import ProfileSearchController from '@/actions/App/Http/Controllers/ProfileSearchController';
 import SearchController from '@/actions/App/Http/Controllers/SearchController';
 import { AuthorAvatar } from '@/components/author-avatar';
 import { GuildSearchHeading } from '@/components/commit-search-results';
+import { GuildIcon } from '@/components/guild-icon';
 import { HotTopicContent } from '@/components/hot-topics';
 import { OrganizationAvatar } from '@/components/organization-avatar';
 import { DialogOverlay, DialogPortal } from '@/components/ui/dialog';
@@ -35,6 +37,7 @@ import { signIn } from '@/lib/auth';
 import { searchCandidates } from '@/lib/chat';
 import { searchCommits, TooManySearches } from '@/lib/commit-search';
 import { groupSearchCommits } from '@/lib/commit-search-results';
+import { matchGuilds } from '@/lib/guild-search';
 import { useKeyLabels } from '@/lib/keyboard';
 import type { SearchAction } from '@/lib/search-actions';
 import { searchActions } from '@/lib/search-actions';
@@ -51,6 +54,7 @@ import {
 } from '@/lib/utils';
 import { show } from '@/routes/user';
 import type { Commit, CommitAuthor, Organization, User } from '@/types';
+import type { Guild } from '@/types/guild';
 
 const developerDebounce = 120;
 
@@ -67,14 +71,15 @@ type Option =
     | { kind: 'action'; id: string; action: SearchAction }
     | { kind: 'developer'; id: string; user: User; reason?: string | null }
     | { kind: 'organization'; id: string; organization: Organization }
+    | { kind: 'guild'; id: string; guild: Guild }
     | { kind: 'commit'; id: string; commit: Commit }
     | { kind: 'all'; id: string; needsSignIn: boolean }
     | { kind: 'topic'; id: string; term: string; summary: string | null }
     | { kind: 'recent'; id: string; term: string };
 
 /**
- * Searches developers, organizations and commits. Guests only search developers and organizations: each commit search pays for AI, so they're asked to
- * sign in for those instead. Picking a developer for a new conversation narrows it to developers, says why
+ * Searches developers, organizations, guilds and commits. Guests only search developers and organizations: each commit search pays for AI, so they're asked to
+ * sign in for those instead, and guilds are for members only. Picking a developer for a new conversation narrows it to developers, says why
  * anyone can't be messaged, and hands the pick back instead of opening their profile. Given `onAction`, it also offers
  * to write a commit, open an issue or go live when the search names one, above what it found.
  */
@@ -101,7 +106,7 @@ export function SearchDialog({
     pickerScope?: 'remote' | 'share';
     onCloseAutoFocus?: (event: Event) => void;
 }) {
-    const { auth, hotTopics = [] } = usePage().props;
+    const { auth, hotTopics = [], guilds } = usePage().props;
     const userId = auth.user?.id ?? null;
     const recentSearches = useRecentSearches(userId);
     const keys = useKeyLabels();
@@ -140,6 +145,7 @@ export function SearchDialog({
     const visibleOrganizations = developers
         .resultsFor(developerTerm)
         .filter((found): found is FoundOrganization => 'organization' in found);
+    const visibleGuilds = isPicking ? [] : matchGuilds(guilds, term);
     const visibleCommits = commits.resultsFor(commitTerm);
     const results = optionsFor(
         intent,
@@ -147,6 +153,7 @@ export function SearchDialog({
         intent === 'topic'
             ? visibleOrganizations.slice(0, 2)
             : visibleOrganizations,
+        intent === 'topic' ? visibleGuilds.slice(0, 2) : visibleGuilds,
         visibleCommits,
         commitQuery,
         !isMember,
@@ -289,7 +296,7 @@ export function SearchDialog({
                     <DialogPrimitive.Description className="sr-only">
                         {isPicking
                             ? 'Find a developer by name or handle to message.'
-                            : 'Find developers and organizations by name or handle, or commits by what they are about.'}
+                            : 'Find developers, organizations and guilds by name or handle, or commits by what they are about.'}
                     </DialogPrimitive.Description>
 
                     <div className="flex items-center gap-3 border-b px-4">
@@ -543,6 +550,7 @@ function optionsFor(
     intent: ReturnType<typeof searchIntent>,
     developers: FoundDeveloper[],
     organizations: FoundOrganization[],
+    guilds: Guild[],
     commits: Commit[],
     commitTerm: string,
     needsSignIn: boolean,
@@ -566,6 +574,11 @@ function optionsFor(
             organization,
         }),
     );
+    const guildOptions: Option[] = guilds.map((guild) => ({
+        kind: 'guild',
+        id: `guild-${guild.id}`,
+        guild,
+    }));
     const commitOptions: Option[] = groupSearchCommits(commits)
         .flatMap(([, group]) => group)
         .map((commit) => ({
@@ -583,6 +596,7 @@ function optionsFor(
             ...seeAll,
             ...developerOptions,
             ...organizationOptions,
+            ...guildOptions,
         ];
     }
 
@@ -590,6 +604,7 @@ function optionsFor(
         ...actionOptions,
         ...developerOptions,
         ...organizationOptions,
+        ...guildOptions,
         ...commitOptions,
         ...seeAll,
     ];
@@ -599,6 +614,7 @@ const headings: Record<Option['kind'], ReactNode> = {
     action: 'Actions',
     developer: 'Developers',
     organization: 'Organizations',
+    guild: 'Guilds',
     commit: 'Most relevant commits',
     all: null,
     recent: (
@@ -649,6 +665,10 @@ function hrefFor(
 
     if (option.kind === 'organization') {
         return show(option.organization);
+    }
+
+    if (option.kind === 'guild') {
+        return GuildController.show(option.guild.handle);
     }
 
     if (option.kind === 'commit') {
@@ -762,6 +782,10 @@ function OptionContent({ option }: { option: Option }): ReactNode {
 
     if (option.kind === 'organization') {
         return <OrganizationResult organization={option.organization} />;
+    }
+
+    if (option.kind === 'guild') {
+        return <GuildResult guild={option.guild} />;
     }
 
     if (option.kind === 'commit') {
@@ -896,6 +920,35 @@ function OrganizationResult({ organization }: { organization: Organization }) {
                         title={organization.bio}
                     >
                         {organization.bio}
+                    </span>
+                )}
+            </span>
+        </>
+    );
+}
+
+function GuildResult({ guild }: { guild: Guild }) {
+    return (
+        <>
+            <GuildIcon guild={guild} className="size-9 rounded-md text-lg" />
+            <span className="min-w-0 flex-1">
+                <span className="flex items-baseline gap-1.5">
+                    <span className="truncate font-semibold" title={guild.name}>
+                        {guild.name}
+                    </span>
+                    <span
+                        className="min-w-0 shrink truncate font-mono text-[13px] text-muted-foreground"
+                        title={`#${guild.handle}`}
+                    >
+                        #{guild.handle}
+                    </span>
+                </span>
+                {guild.description && (
+                    <span
+                        className="block truncate text-sm text-muted-foreground"
+                        title={guild.description}
+                    >
+                        {guild.description}
                     </span>
                 )}
             </span>
