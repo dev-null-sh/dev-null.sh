@@ -486,20 +486,42 @@ it('erases browser push subscriptions with the account', function (): void {
 
 it('erases the previews of links to commits that deleted accounts already took with them', function (): void {
     $tombstone = Commit::factory()->create(['user_id' => null, 'body' => '', 'deleted_at' => now()]);
+    $live = Commit::factory()->create();
+    $posted = Commit::factory()->create(['user_id' => null, 'author_id' => Organization::factory()->create()->id]);
     $gone = fake()->uuid();
+    $preview = fn (string $url): LinkPreview => LinkPreview::factory()->create(['url' => $url]);
     $leftovers = collect([
-        LinkPreview::factory()->create(['url' => url("/@gone/commits/{$tombstone->id}")]),
-        LinkPreview::factory()->create(['url' => url('/@gone/commits/'.mb_strtoupper($gone))]),
-        LinkPreview::factory()->create(['url' => str_replace('://', '://www.', url("/@gone/commits/{$gone}"))]),
-    ]);
-    $kept = collect([Commit::factory()->create(), Commit::factory()->create(['deleted_at' => now()])])
-        ->map(fn (Commit $commit): LinkPreview => LinkPreview::factory()->create(['url' => url("/@{$commit->user->handle}/commits/{$commit->id}")]))
-        ->push(LinkPreview::factory()->create(['url' => "https://example.com/@gone/commits/{$gone}"]))
-        ->push(LinkPreview::factory()->create(['url' => str_replace('://', '://not', url("/@gone/commits/{$gone}"))]))
-        ->push(LinkPreview::factory()->create(['url' => 'https://example.com/redirect?to='.url("/@gone/commits/{$gone}")]))
-        ->push(LinkPreview::factory()->create(['url' => url("/@gone?redirect=/commits/{$gone}")]));
+        url("/@gone/commits/{$tombstone->id}"),
+        url('/@gone/commits/'.mb_strtoupper($gone)),
+        str_replace('://', '://www.', url("/@gone/commits/{$gone}")),
+        (string) preg_replace('#^(https?://[^/:]+)(:\d+)?#', '$1:80', url("/@gone/commits/{$gone}")),
+        url('/@gone/commits/'.str_replace('-', '%2D', $tombstone->id)),
+        url("/@gone/%63ommits/{$gone}"),
+        url("/@gone/commits/%2e/{$gone}"),
+        str_replace('/commits/', '\\commits\\', url("/@gone/commits/{$gone}")),
+        url('/@someone/commits/'.Commit::factory()->for($tombstone, 'parent')->create()->id),
+    ])->map($preview);
+    $kept = collect([
+        url("/@{$live->user->handle}/commits/{$live->id}"),
+        url('/@someone/commits/'.Commit::factory()->create(['deleted_at' => now()])->id),
+        url('/@someone/commits/'.Commit::factory()->for($live, 'parent')->create()->id),
+        url("/@org/commits/{$posted->id}"),
+        url('/@org/commits/'.str_replace('-', '%2D', $posted->id)),
+        url('/@someone/commits/'.Commit::factory()->for($posted, 'parent')->create()->id),
+        url('/@someone/commits/'.str_replace('-', '%2D', $live->id)),
+        url("/@someone/%63ommits/{$live->id}"),
+        url("/@someone/commits/%2e/{$live->id}"),
+        url("/@someone/commits/{$gone}/../{$live->id}"),
+        url('/@someone/commits/'.str_repeat('-', 36)),
+        "https://example.com/@gone/commits/{$gone}",
+        "https://example.com/@gone/%63ommits/{$gone}",
+        str_replace('://', '://not', url("/@gone/commits/{$gone}")),
+        str_replace('://', '://example.com\\.', url("/@gone/commits/{$gone}")),
+        'https://example.com/redirect?to='.url("/@gone/commits/{$gone}"),
+        url("/@gone?redirect=/commits/{$gone}"),
+    ])->map($preview);
 
-    $migration = require database_path('migrations/2026_10_27_160000_erase_the_link_previews_of_erased_commits.php');
+    $migration = require database_path('migrations/2026_11_17_120000_erase_the_link_previews_of_erased_commits.php');
     $migration->up();
 
     $leftovers->each(fn (LinkPreview $preview) => $this->assertModelMissing($preview));
