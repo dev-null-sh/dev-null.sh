@@ -10,6 +10,7 @@ export type Lane = number | string;
 export type LiveStream = {
     url: string;
     thumbnail_url: string;
+    ends_at?: string | null;
 };
 
 export type User = {
@@ -50,10 +51,12 @@ export type Auth = {
      * The organizations the user is a member of, whose commits are theirs too.
      */
     organizations: OrganizationAuthor[];
-    // Whether members may post as their organization yet, while it is being rolled out.
-    canPostAsOrganization: boolean;
     isAdmin: boolean;
     automaticTranslation: boolean;
+    /**
+     * The language the reader reads translations in, saved or from the browser.
+     */
+    translationLanguage?: string;
     mustReadCommitRules: boolean;
     termsToAccept: string | null;
     log: Log | null;

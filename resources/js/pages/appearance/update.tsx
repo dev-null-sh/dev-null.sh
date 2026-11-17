@@ -1,5 +1,6 @@
 import { Head } from '@inertiajs/react';
 import AppearanceTabs from '@/components/appearance-tabs';
+import EventThemeSelect from '@/components/event-theme-select';
 import Heading from '@/components/heading';
 import LaneDimmingTabs from '@/components/lane-dimming-tabs';
 import NavigationTabs from '@/components/navigation-tabs';
@@ -19,6 +20,14 @@ export default function Update() {
                     description="System follows your operating system, light by day and dark by night if that's how you have it set."
                 />
                 <AppearanceTabs />
+            </section>
+
+            <section className="border-t px-4 py-6 sm:px-6">
+                <Heading
+                    title="Event theme"
+                    description="Dress up the site for Halloween, Christmas and New Year. Auto picks the theme of the day, from two days before to the day after, and Default keeps the usual colors all year."
+                />
+                <EventThemeSelect />
             </section>
 
             <section className="hidden border-t px-4 py-6 sm:px-6 lg:block">

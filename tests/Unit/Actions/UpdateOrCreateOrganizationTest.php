@@ -4,11 +4,15 @@ declare(strict_types=1);
 
 use App\Actions\UpdateOrCreateOrganization;
 use App\Enums\ProfileType;
+use App\Enums\UserUpdate;
+use App\Events\ProfilesUpdated;
+use App\Events\UsersUpdated;
 use App\Models\Organization;
 use App\Models\Profile;
 use App\Models\User;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 
 it('updates the organization with the same GitHub ID when it is renamed', function (): void {
     $organization = Organization::factory()->create(['github_id' => '958072', 'handle' => 'laravel-old', 'github_synced_at' => now()->subWeek()]);
@@ -74,4 +78,32 @@ it('is followed, once created, by the users following it on GitHub whose follows
 
     expect($organization->followers()->pluck('users.id')->all())->toBe([$follower->id])
         ->and(DB::table('pending_follows')->pluck('user_id')->all())->toBe([$other->id]);
+});
+
+it('tells the users who waited that they follow it now, as following it one by one would', function (): void {
+    Event::fake([UsersUpdated::class, ProfilesUpdated::class]);
+    [$follower, $other] = User::factory()->count(2)->create();
+    DB::table('pending_follows')->insert([
+        ['user_id' => $follower->id, 'github_id' => '958072', 'created_at' => now()],
+        ['user_id' => $other->id, 'github_id' => '1', 'created_at' => now()],
+    ]);
+
+    $organization = resolve(UpdateOrCreateOrganization::class)->handle(['login' => 'laravel', 'id' => 958072]);
+
+    foreach ([UserUpdate::Account, UserUpdate::Relationships] as $update) {
+        Event::assertDispatched(UsersUpdated::class, fn (UsersUpdated $event): bool => $event->update === $update && $event->userIds === [$follower->id]);
+    }
+
+    Event::assertDispatched(ProfilesUpdated::class, fn (ProfilesUpdated $event): bool => $event->changesConnections && $event->profileIds === [$follower->id, $organization->id]);
+    Event::assertNotDispatched(UsersUpdated::class, fn (UsersUpdated $event): bool => in_array($other->id, $event->userIds, true));
+});
+
+it('tells nobody about follows when an organization it already had is synced again', function (): void {
+    Organization::factory()->create(['github_id' => '958072', 'handle' => 'laravel']);
+    Event::fake([UsersUpdated::class, ProfilesUpdated::class]);
+
+    resolve(UpdateOrCreateOrganization::class)->handle(['login' => 'laravel', 'id' => 958072]);
+
+    Event::assertNotDispatched(UsersUpdated::class);
+    Event::assertNotDispatched(ProfilesUpdated::class, fn (ProfilesUpdated $event): bool => $event->changesConnections);
 });

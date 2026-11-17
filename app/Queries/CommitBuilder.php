@@ -94,6 +94,18 @@ final class CommitBuilder extends Builder
             ->orWhereNotIn($this->qualifyColumn('author_id'), $user->mutedIds())) : $this;
     }
 
+    public function fromJoinedGuilds(User $user): self
+    {
+        return $this->whereIn($this->qualifyColumn('id'), resolve(GuildCommitsQuery::class)->forPreference($user, muted: false));
+    }
+
+    public function withoutMutedGuildsFor(?User $user): self
+    {
+        return $user instanceof User
+            ? $this->whereNotIn($this->qualifyColumn('id'), resolve(GuildCommitsQuery::class)->forPreference($user, muted: true))
+            : $this;
+    }
+
     /**
      * Deleted commits stay in a thread as tombstones while they still have replies the given user can see.
      * Replies by muted people are left out along with the replies under them.
@@ -162,10 +174,11 @@ final class CommitBuilder extends Builder
      * the picked ones are then loaded as cards, so a commit with thousands of replies does not have every one of them
      * counted and checked for the viewer.
      */
-    public function withReplyPreviews(?User $user): self
+    public function withReplyPreviews(?User $user, bool $inLog = false): self
     {
         $count = RepliesPerPage::of(request())->value;
-        $newest = fn (HasMany $relation): HasMany => $this->newestVisibleOf($relation, $user, $count);
+        $muted = $inLog && $user instanceof User ? resolve(GuildCommitsQuery::class)->forPreference($user, muted: true) : [];
+        $newest = fn (HasMany $relation): HasMany => $this->newestVisibleOf($relation, $user, $count)->whereNotIn('commits.id', $muted);
 
         return $this->with(['replies' => $newest, 'quotes' => $newest])
             ->withContinuationId($user)
@@ -242,6 +255,16 @@ final class CommitBuilder extends Builder
     public function pending(): self
     {
         return $this->where('status', CommitStatus::Pending);
+    }
+
+    /**
+     * The pending commits the AI has checked, or gave up on, like Commit::isBeingChecked().
+     */
+    public function awaitingModerator(): self
+    {
+        return $this->pending()->where(fn (self $query): self => $query
+            ->whereNotNull('ai_decision')
+            ->orWhere('created_at', '<=', now()->subMinutes(Commit::CHECKING_MINUTES)));
     }
 
     /**
@@ -373,14 +396,14 @@ final class CommitBuilder extends Builder
             ->keyBy('id');
 
         foreach ($previewed as $commit) {
-            $replies = collect($newest[$commit->id])->map(fn (string $id): ?Commit => $cards->get($id))->filter()->values();
+            $replies = new Collection(array_values(array_filter(array_map(fn (int|string $id): ?Commit => $cards->get($id), $newest->get($commit->id, [])))));
             $oldest = $replies->last();
             $cursor = $oldest instanceof Commit && $commit->replies_count > $replies->count()
                 ? new Cursor(['created_at' => $oldest->getRawOriginal('created_at'), 'id' => $oldest->id])->encode()
                 : null;
 
             $commit->setAttribute('reply_preview', [
-                'data' => $replies->map(fn (Commit $reply): array => $reply->toArray())->all(),
+                'data' => $replies,
                 'next_cursor' => $cursor,
                 'prev_cursor' => null,
             ]);

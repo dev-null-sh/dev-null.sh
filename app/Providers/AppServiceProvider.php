@@ -9,6 +9,7 @@ use App\Contracts\Services\EmailDraftProvider;
 use App\Contracts\Services\EmbeddingProvider;
 use App\Contracts\Services\GitHubProvider;
 use App\Contracts\Services\HeadlineProvider;
+use App\Contracts\Services\HumanVerificationProvider;
 use App\Contracts\Services\LinkPreviewProvider;
 use App\Contracts\Services\ModerationProvider;
 use App\Contracts\Services\PushNotificationProvider;
@@ -30,6 +31,8 @@ use App\Services\GitHubProviders\HttpGitHubProvider;
 use App\Services\GitHubProviders\NullGitHubProvider;
 use App\Services\HeadlineProviders\NullHeadlineProvider;
 use App\Services\HeadlineProviders\OpenAIHeadlineProvider;
+use App\Services\HumanVerificationProviders\CloudflareHumanVerificationProvider;
+use App\Services\HumanVerificationProviders\LocalHumanVerificationProvider;
 use App\Services\LinkPreviewProviders\HttpLinkPreviewProvider;
 use App\Services\LinkPreviewProviders\NullLinkPreviewProvider;
 use App\Services\ModerationProviders\NullModerationProvider;
@@ -68,6 +71,7 @@ final class AppServiceProvider extends ServiceProvider
         EmbeddingProvider::class => OpenAIEmbeddingProvider::class,
         GitHubProvider::class => HttpGitHubProvider::class,
         HeadlineProvider::class => OpenAIHeadlineProvider::class,
+        HumanVerificationProvider::class => CloudflareHumanVerificationProvider::class,
         LinkPreviewProvider::class => HttpLinkPreviewProvider::class,
         ModerationProvider::class => OpenAIModerationProvider::class,
         PushNotificationProvider::class => WebPushNotificationProvider::class,
@@ -88,6 +92,7 @@ final class AppServiceProvider extends ServiceProvider
         EmbeddingProvider::class => NullEmbeddingProvider::class,
         GitHubProvider::class => NullGitHubProvider::class,
         HeadlineProvider::class => NullHeadlineProvider::class,
+        HumanVerificationProvider::class => LocalHumanVerificationProvider::class,
         LinkPreviewProvider::class => NullLinkPreviewProvider::class,
         ModerationProvider::class => NullModerationProvider::class,
         PushNotificationProvider::class => NullPushNotificationProvider::class,
@@ -208,6 +213,13 @@ final class AppServiceProvider extends ServiceProvider
         // GitHub fetches every README image through a few proxy addresses, so each graph gets its own budget...
         RateLimiter::for('activity-graph', fn (Request $request): Limit => Limit::perMinute(60)->by("{$request->ip()}|{$request->path()}"));
 
+        // Live updates: joining a channel and catching up after missing updates have budgets of their own, so pages
+        // listening never spend the one for reading and giving...
+        RateLimiter::for('broadcast-authorizations', fn (Request $request): Limit => Limit::perMinute(60)->by($this->userId($request)));
+        RateLimiter::for('live-streams', fn (Request $request): Limit => Limit::perMinute(120)->by($request->user()->id ?? (string) $request->ip()));
+        RateLimiter::for('commit-changes', fn (Request $request): Limit => Limit::perMinute(120)->by($request->user()->id ?? (string) $request->ip()));
+        RateLimiter::for('live-reads', fn (Request $request): Limit => Limit::perMinute(60)->by($request->user()->id ?? (string) $request->ip()));
+
         // Commit actions: rapid j/k with a star on most commits stays well under these...
         RateLimiter::for('stars', fn (Request $request): Limit => Limit::perMinute(60)->by($this->userId($request)));
         RateLimiter::for('pins', fn (Request $request): Limit => Limit::perMinute(20)->by($this->userId($request)));
@@ -241,25 +253,13 @@ final class AppServiceProvider extends ServiceProvider
         ]);
 
         // Every commit search pays for an embedding and a relevance verdict, so it gets a budget of its own...
-        RateLimiter::for('search', function (Request $request): Limit {
-            if ($request->routeIs('headline.show') && $request->header('X-Inertia-Partial-Component') === 'headline/show') {
-                $only = collect(explode(',', $request->header('X-Inertia-Partial-Data', '')))->filter();
-                $except = explode(',', $request->header('X-Inertia-Partial-Except', ''));
-
-                if (($only->isNotEmpty() && $only->doesntContain(fn (string $prop): bool => $prop === 'commits' || str_starts_with($prop, 'commits.')))
-                    || in_array('commits', $except, true)) {
-                    return Limit::none();
-                }
-            }
-
-            return Limit::perMinute(15)
-                ->by($this->userId($request))
-                ->response(fn (Request $request, array $headers): JsonResponse => response()->json(
-                    ['message' => 'Slow down: too many searches. Give it a few seconds.'],
-                    429,
-                    $headers,
-                ));
-        });
+        RateLimiter::for('search', fn (Request $request): Limit => Limit::perMinute(15)
+            ->by($this->userId($request))
+            ->response(fn (Request $request, array $headers): JsonResponse => response()->json(
+                ['message' => 'Slow down: too many searches. Give it a few seconds.'],
+                429,
+                $headers,
+            )));
 
         // Every commit page asks for its related commits, using the stored vector and a relevance verdict...
         RateLimiter::for('related-commits', fn (Request $request): Limit => Limit::perMinute(60)->by(

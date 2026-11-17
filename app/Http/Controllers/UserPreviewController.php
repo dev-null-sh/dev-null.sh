@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Enums\PushAccess;
+use App\Http\Resources\ShownStreams;
 use App\Models\User;
 use App\Queries\BioProfilesQuery;
 use App\Queries\PushAccessQuery;
@@ -17,7 +18,7 @@ final readonly class UserPreviewController
     {
         if (! $currentUser instanceof User) {
             return response()->json([
-                'user' => $user->loadPublicCounts(),
+                'user' => ShownStreams::user($user->loadPublicCounts()),
                 'bioProfiles' => $bioProfiles->get($user),
                 'isFollowing' => false,
                 'followsYou' => false,
@@ -31,7 +32,7 @@ final readonly class UserPreviewController
         $blockerId = $currentUser->blockerIdWith($user);
 
         return response()->json([
-            'user' => $blockerId === null ? $user->loadCounts($currentUser) : $user,
+            'user' => ShownStreams::user($blockerId === null ? $user->loadCounts($currentUser) : $user),
             'bioProfiles' => $bioProfiles->get($user),
             'isFollowing' => $currentUser->isFollowing($user),
             'followsYou' => $user->isFollowing($currentUser),

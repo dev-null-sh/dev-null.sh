@@ -13,7 +13,7 @@ import { ImageViewer } from '@/components/image-viewer';
 import { LinkPreview } from '@/components/link-preview';
 import { bodySegments } from '@/lib/code';
 import { isReplySwipe, replyPull, replyThreshold } from '@/lib/reply-swipe';
-import { cn, laneColor } from '@/lib/utils';
+import { cn, laneTextColor } from '@/lib/utils';
 import type {
     BodySegment,
     Lane,
@@ -152,6 +152,7 @@ export function MessageLinkCard({ message }: { message: Message }) {
             <LinkPreview
                 refreshUrl={MessageLinkPreviewController.show.url(message.id)}
                 preview={message.link_preview}
+                source={{ isMessage: true }}
             />
         </div>
     );
@@ -230,7 +231,7 @@ export function ReplyGhost({
         >
             <span
                 className="max-w-full truncate text-xs font-semibold"
-                style={{ color: laneColor(author.lane) }}
+                style={{ color: laneTextColor(author.lane) }}
             >
                 {author.name}
             </span>

@@ -11,6 +11,7 @@ import type { GraphNodeSpec } from '@/components/graph-canvas';
 import { LiveAvatarMarker } from '@/components/live-stream-card';
 import { OrganizationAvatar } from '@/components/organization-avatar';
 import { UserAvatar } from '@/components/user-avatar';
+import { useLiveStream } from '@/hooks/use-live-stream';
 import { bridgeDuration } from '@/lib/graph';
 import { cn, laneStrokeStyle } from '@/lib/utils';
 import type { OrganizationAuthor, User } from '@/types';
@@ -78,9 +79,9 @@ export function GraphRail({
     // A fresh commit going on below another one, like a reply chained under the last commit of a thread, scales in once
     // the trunk has reached it.
     const waitsForTrunk = isFresh && previousLane !== undefined;
-    // The actions row is 24px tall, or 28px below md, where the secondary actions fold into a menu button. It ends the
+    // The actions row is 28px tall, as tall as its menu button, which takes its room even while hidden. It ends the
     // rail's row: what opens below it, like the reply composer, has a row of its own.
-    const endDotBottom = endsOnActions ? 'bottom-3.5 md:bottom-3' : 'bottom-5';
+    const endDotBottom = endsOnActions ? 'bottom-3.5' : 'bottom-5';
 
     return (
         <div
@@ -167,8 +168,7 @@ export function GraphRail({
                                 'top-auto h-5':
                                     (endsWithDot && !endsOnActions) ||
                                     nodePosition === 'bottom',
-                                'top-auto h-3.5 md:h-3':
-                                    endsWithDot && endsOnActions,
+                                'top-auto h-3.5': endsWithDot && endsOnActions,
                             },
                         )}
                         style={laneStrokeStyle('var(--lane)', {
@@ -393,12 +393,14 @@ export function RailAvatar({
     user,
     progress,
 }: {
-    user: Pick<User, 'name' | 'avatar_url' | 'live'> | OrganizationAuthor;
+    user:
+        | Pick<User, 'id' | 'name' | 'avatar_url' | 'live'>
+        | OrganizationAuthor;
     // Fills the ring clockwise from 0 to 1, as a post grows toward its limit. At 0 the ring stays dashed.
     progress?: number;
 }) {
     const isOrganization = 'type' in user && user.type === 'organization';
-    const isLive = 'live' in user && Boolean(user.live);
+    const isLive = useLiveStream(isOrganization ? null : user) !== null;
 
     return (
         <span

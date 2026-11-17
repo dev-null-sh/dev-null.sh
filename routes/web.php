@@ -9,11 +9,13 @@ use App\Http\Controllers\AppController;
 use App\Http\Controllers\BanController;
 use App\Http\Controllers\BannedController;
 use App\Http\Controllers\BrandController;
+use App\Http\Controllers\BroadcastAuthorizationController;
 use App\Http\Controllers\BulkActivityController;
 use App\Http\Controllers\CallController;
 use App\Http\Controllers\ChangelogController;
 use App\Http\Controllers\Cli\ScriptController;
 use App\Http\Controllers\CommitApprovalController;
+use App\Http\Controllers\CommitChangeController;
 use App\Http\Controllers\CommitContinuationController;
 use App\Http\Controllers\CommitController;
 use App\Http\Controllers\CommitImageController;
@@ -22,6 +24,7 @@ use App\Http\Controllers\CommitOpenGraphImageController;
 use App\Http\Controllers\CommitPastelController;
 use App\Http\Controllers\CommitPhotoController;
 use App\Http\Controllers\CommitPinController;
+use App\Http\Controllers\CommitPollController;
 use App\Http\Controllers\CommitPollVoteController;
 use App\Http\Controllers\CommitPreviewController;
 use App\Http\Controllers\CommitRejectionController;
@@ -57,12 +60,19 @@ use App\Http\Controllers\FailedJobRetryController;
 use App\Http\Controllers\FailedJobsController;
 use App\Http\Controllers\FeatureController;
 use App\Http\Controllers\ForecastController;
+use App\Http\Controllers\GuildController;
+use App\Http\Controllers\GuildIconController;
+use App\Http\Controllers\GuildMembershipController;
+use App\Http\Controllers\GuildMuteController;
+use App\Http\Controllers\GuildReportController;
 use App\Http\Controllers\HeadlineController;
+use App\Http\Controllers\HumanVerificationController;
 use App\Http\Controllers\InboxController;
 use App\Http\Controllers\IssueController;
 use App\Http\Controllers\IssueSuggestionController;
 use App\Http\Controllers\JoinLinkController;
 use App\Http\Controllers\LinkController;
+use App\Http\Controllers\LiveStreamController;
 use App\Http\Controllers\LocalSessionController;
 use App\Http\Controllers\LogController;
 use App\Http\Controllers\MentionController;
@@ -94,6 +104,7 @@ use App\Http\Controllers\OrgCallController;
 use App\Http\Controllers\OrgCallIceServerController;
 use App\Http\Controllers\OrgController;
 use App\Http\Controllers\OrgMemberController;
+use App\Http\Controllers\OrgMentionController;
 use App\Http\Controllers\OrgMessageController;
 use App\Http\Controllers\OrgMuteController;
 use App\Http\Controllers\OrgPinController;
@@ -119,6 +130,7 @@ use App\Http\Controllers\SessionController;
 use App\Http\Controllers\SiteActivityController;
 use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\StarredCommitController;
+use App\Http\Controllers\SuggestedUserStateController;
 use App\Http\Controllers\SuggestionDismissalController;
 use App\Http\Controllers\SystemHealthController;
 use App\Http\Controllers\TermsController;
@@ -157,6 +169,7 @@ use App\Http\Middleware\RequireCommitRules;
 use App\Http\Middleware\SerializePushSessions;
 use App\Http\Middleware\SerializePushSubscriptions;
 use App\Http\Middleware\ThrottleCommits;
+use App\Http\Middleware\ThrottleIssues;
 use App\Models\Profile;
 use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
 use Illuminate\Http\Request;
@@ -182,13 +195,18 @@ Route::middleware('guest')->group(function (): void {
         Route::post('login/local', [LocalSessionController::class, 'store'])->name('local-login.store');
     } else {
         Route::get('login', [SessionController::class, 'create'])
-            ->middleware('throttle:10,1')
+            ->middleware('throttle:10,1,login:')
             ->name('login');
     }
 
     Route::get('auth/github/callback', [SessionController::class, 'store'])
-        ->middleware('throttle:10,1')
+        ->middleware('throttle:10,1,login-callback:')
         ->name('login.store');
+
+    Route::get('human-verification', [HumanVerificationController::class, 'show'])->name('human-verification.show');
+    Route::post('human-verification', [HumanVerificationController::class, 'store'])
+        ->middleware('throttle:10,1,human-verification:')
+        ->name('human-verification.store');
 
     // A link by email, for a guest on a phone who'd rather join from their computer...
     Route::post('join-links', [JoinLinkController::class, 'store'])
@@ -310,10 +328,22 @@ Route::get('@{profile:handle}/commits/{commit}/og.png', [CommitOpenGraphImageCon
 Route::get('commit-images/{commitImage}', [CommitImageController::class, 'show'])
     ->whereUuid('commitImage')
     ->name('commit-image.show');
+Route::get('live-streams', [LiveStreamController::class, 'index'])
+    ->middleware('throttle:live-streams')
+    ->name('live-stream.index');
+Route::get('commits/changes', [CommitChangeController::class, 'index'])
+    ->middleware('throttle:commit-changes')
+    ->name('commit-change.index');
 Route::get('commits/{commit}/link-preview', [CommitLinkPreviewController::class, 'show'])
     ->name('commit-link-preview.show');
 Route::get('commits/{commit}/status', [CommitStatusController::class, 'show'])
     ->name('commit-status.show');
+Route::get('commits/{commit}/translation', [CommitTranslationController::class, 'show'])
+    ->middleware('throttle:live-reads')
+    ->name('commit-translation.show');
+Route::get('commits/{commit}/poll', [CommitPollController::class, 'show'])
+    ->middleware('throttle:live-reads')
+    ->name('commit-poll.show');
 Route::get('commits/{commit}/replies', [CommitReplyController::class, 'index'])
     ->withTrashed()
     ->name('commit-reply.index');
@@ -328,6 +358,17 @@ Route::get('search', [SearchController::class, 'index'])
     ->middleware('auth')
     ->name('search.index');
 
+Route::middleware('auth')->group(function (): void {
+    Route::get('guilds', [GuildController::class, 'index'])->name('guild.index');
+    Route::get('guilds/{guild:handle}', [GuildController::class, 'show'])->name('guild.show');
+    Route::get('guilds/{guild:handle}/icon', [GuildIconController::class, 'show'])->name('guild-icon.show');
+    Route::post('guilds', [GuildController::class, 'store'])->middleware([PreventPostingInTimeout::class, 'throttle:10,1'])->name('guild.store');
+    Route::put('guilds/{guild:handle}', [GuildController::class, 'update'])->middleware([PreventPostingInTimeout::class, 'throttle:10,1'])->name('guild.update');
+    Route::put('guild-memberships/{guild}', [GuildMembershipController::class, 'update'])->whereUuid('guild')->middleware('throttle:follows')->name('guild-membership.update');
+    Route::put('guild-mutes/{guild}', [GuildMuteController::class, 'update'])->whereUuid('guild')->middleware('throttle:follows')->name('guild-mute.update');
+    Route::post('guild-reports/{guild}', [GuildReportController::class, 'store'])->whereUuid('guild')->middleware('throttle:10,1')->name('guild-report.store');
+});
+
 // Profile Search: developers and organizations by name or handle...
 Route::get('search/profiles', [ProfileSearchController::class, 'index'])
     ->middleware('throttle:people')
@@ -340,18 +381,23 @@ Route::get('search/commits', [CommitSearchController::class, 'index'])
 
 Route::get('headlines/{headline}', [HeadlineController::class, 'show'])
     ->whereUuid('headline')
-    ->middleware(['auth', 'throttle:search'])
+    ->middleware('auth')
     ->name('headline.show');
 
 Route::middleware('auth')->group(function (): void {
     Route::post('issues', [IssueController::class, 'store'])
-        ->middleware([PreventPostingInTimeout::class, 'throttle:10,1'])
+        ->middleware([PreventPostingInTimeout::class, 'throttle:10,1,issues:', ThrottleIssues::class])
         ->name('issue.store');
 
     // Session...
     Route::get('push-subscriptions', [PushSubscriptionController::class, 'index'])->name('push-subscription.index');
-    Route::post('push-subscriptions', [PushSubscriptionController::class, 'store'])->middleware(['throttle:30,1', SerializePushSessions::class, SerializePushSubscriptions::class])->name('push-subscription.store');
+    Route::post('push-subscriptions', [PushSubscriptionController::class, 'store'])->middleware(['throttle:30,1,push-subscriptions:', SerializePushSessions::class, SerializePushSubscriptions::class])->name('push-subscription.store');
     Route::delete('push-subscriptions', [PushSubscriptionController::class, 'destroy'])->middleware(SerializePushSessions::class)->name('push-subscription.destroy');
+
+    // Live updates, on the user's own private channel...
+    Route::post('broadcasting/auth', [BroadcastAuthorizationController::class, 'store'])
+        ->middleware('throttle:broadcast-authorizations')
+        ->name('broadcast-authorization.store');
 
     Route::post('logout', [SessionController::class, 'destroy'])
         ->middleware(SerializePushSessions::class)
@@ -370,7 +416,7 @@ Route::middleware('auth')->group(function (): void {
     // Claiming an organization's page, which GitHub confirms the user belongs to...
     Route::post('organizations/{organization}/claim', [OrganizationAdminController::class, 'store'])
         ->whereUuid('organization')
-        ->middleware('throttle:10,1')
+        ->middleware('throttle:10,1,organization-claims:')
         ->name('organization-admin.store');
 
     // Organization Members, which admins manage in the organization's settings...
@@ -379,7 +425,7 @@ Route::middleware('auth')->group(function (): void {
         ->name('organization-member.index');
     Route::post('organizations/{organization}/settings/members', [OrganizationMemberController::class, 'store'])
         ->whereUuid('organization')
-        ->middleware('throttle:30,1')
+        ->middleware('throttle:30,1,organization-members:')
         ->name('organization-member.store');
     Route::put('organizations/{organization}/settings/members/{member:handle}', [OrganizationMemberController::class, 'update'])
         ->whereUuid('organization')
@@ -446,7 +492,7 @@ Route::middleware('auth')->group(function (): void {
         ->middleware('throttle:stars')
         ->name('commit-star.store');
     Route::post('commits/{commit}/pasteis', [CommitPastelController::class, 'store'])
-        ->middleware('throttle:60,1')
+        ->middleware('throttle:60,1,pasteis:')
         ->name('commit-pastel.store');
     Route::post('commits/{commit}/reports', [CommitReportController::class, 'store'])
         ->middleware('throttle:commit-reports')
@@ -503,6 +549,7 @@ Route::middleware('auth')->group(function (): void {
         Route::delete('remotes/orgs/{org}/call', [OrgCallController::class, 'destroy'])->whereUuid('org')->name('org-call.destroy');
         Route::get('remotes/orgs/{org}/messages', [OrgMessageController::class, 'index'])->whereUuid('org')->name('org-message.index');
         Route::put('remotes/orgs/{org}/read', [OrgReadController::class, 'update'])->whereUuid('org')->name('org-read.update');
+        Route::delete('remotes/orgs/{org}/mentions', [OrgMentionController::class, 'destroy'])->whereUuid('org')->name('org-mention.destroy');
         Route::put('remotes/orgs/{org}/typing', [OrgTypingController::class, 'update'])->whereUuid('org')->name('org-typing.update');
         Route::post('remotes/orgs/{org}/archive', [OrgArchiveController::class, 'store'])->whereUuid('org')->name('org-archive.store');
         Route::delete('remotes/orgs/{org}/archive', [OrgArchiveController::class, 'destroy'])->whereUuid('org')->name('org-archive.destroy');
@@ -571,6 +618,9 @@ Route::middleware('auth')->group(function (): void {
 
     // Moderation...
     Route::get('moderation', [ModerationController::class, 'show'])->name('moderation.show');
+    Route::get('moderation/guilds', [GuildReportController::class, 'index'])->name('guild-report.index');
+    Route::delete('moderation/guilds/{guild}', [GuildController::class, 'destroy'])->whereUuid('guild')->name('guild.destroy');
+    Route::delete('moderation/guild-reports/{report}', [GuildReportController::class, 'destroy'])->whereUuid('report')->name('guild-report.destroy');
     Route::get('moderation/reports/{report}/images/{image}', [CommitReportImageController::class, 'show'])->whereUuid('report')->whereIn('image', ['0', '1', '2'])->name('commit-report-image.show');
     Route::get('moderation/reports', [ReportedCommitController::class, 'index'])->name('reported-commit.index');
     Route::delete('moderation/reports/{report}', [CommitReportController::class, 'destroy'])->name('commit-report.destroy');
@@ -605,7 +655,7 @@ Route::middleware('auth')->group(function (): void {
     Route::post('operations/emails/test', [TestEmailController::class, 'store'])->name('test-email.store');
     Route::post('operations/emails/preview', [EmailPreviewController::class, 'store'])->name('email-preview.store');
     Route::post('operations/emails/draft', [EmailDraftController::class, 'store'])
-        ->middleware('throttle:10,1')
+        ->middleware('throttle:10,1,email-drafts:')
         ->name('email-draft.store');
 
     // Mention Suggestions...
@@ -709,6 +759,8 @@ Route::middleware('auth')->group(function (): void {
         ->name('user-block.destroy');
 
     // Suggestion Dismissal...
+    Route::get('suggested-user-states', [SuggestedUserStateController::class, 'index'])
+        ->middleware('throttle:live-reads')->name('suggested-user-state.index');
     Route::post('@{user:handle}/dismiss', [SuggestionDismissalController::class, 'store'])
         ->name('suggestion-dismissal.store');
 

@@ -25,6 +25,7 @@ final class UpdateFeatureRequest extends FormRequest
     {
         return [
             'enabled' => ['required', 'boolean'],
+            'admin_only' => ['sometimes', 'required', 'boolean'],
         ];
     }
 }

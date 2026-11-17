@@ -16,6 +16,10 @@ const shortcodePattern = new RegExp(
 );
 
 export function emojify(text: string): string {
+    if (!text.includes(':')) {
+        return text;
+    }
+
     return text.replace(
         shortcodePattern,
         (_, name: string) => shortcodeEmoji[name],
@@ -26,6 +30,10 @@ export function emojifyInput(
     text: string,
     caret: number,
 ): { text: string; caret: number } {
+    if (!text.includes(':')) {
+        return { text, caret };
+    }
+
     const emojifyTyped = (typed: string) => mapTypedProse(typed, emojify);
 
     return {
@@ -80,21 +88,23 @@ export function searchEmoji(
         .replace(/^:+|:+$/g, '');
     const best = new Map<string, { name: string; rank: number }>();
 
-    Object.keys(shortcodeEmoji)
-        .filter((name) => name.includes(partial))
-        .forEach((name) => {
-            const emoji = shortcodeEmoji[name];
-            const rank = matchRank(name, partial);
-            const current = best.get(emoji);
+    for (const name of shortcodeNames) {
+        if (!name.includes(partial)) {
+            continue;
+        }
 
-            if (
-                current === undefined ||
-                rank < current.rank ||
-                (rank === current.rank && name.length < current.name.length)
-            ) {
-                best.set(emoji, { name, rank });
-            }
-        });
+        const emoji = shortcodeEmoji[name];
+        const rank = matchRank(name, partial);
+        const current = best.get(emoji);
+
+        if (
+            current === undefined ||
+            rank < current.rank ||
+            (rank === current.rank && name.length < current.name.length)
+        ) {
+            best.set(emoji, { name, rank });
+        }
+    }
 
     return [...best.entries()]
         .sort(

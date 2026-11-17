@@ -56,7 +56,23 @@ export function graphEdges(
     drawing: ReadonlySet<string> = new Set(),
 ): GraphEdge[] {
     const byId = new Map(nodes.map((node) => [node.id, node]));
+    const repliesByParent = new Map<string, GraphNode[]>();
+    const successorsByAfter = new Map<string, GraphNode[]>();
     const edges: GraphEdge[] = [];
+
+    for (const node of nodes) {
+        if (node.parent !== undefined) {
+            const replies = repliesByParent.get(node.parent) ?? [];
+            replies.push(node);
+            repliesByParent.set(node.parent, replies);
+        }
+
+        if (node.after !== undefined) {
+            const successors = successorsByAfter.get(node.after) ?? [];
+            successors.push(node);
+            successorsByAfter.set(node.after, successors);
+        }
+    }
 
     for (const node of nodes) {
         const previous =
@@ -70,16 +86,12 @@ export function graphEdges(
             node.parent === undefined ? undefined : byId.get(node.parent);
 
         if (parent) {
-            const continues = nodes.some(
+            const continues = (successorsByAfter.get(parent.id) ?? []).some(
                 (other) =>
-                    other.after === parent.id &&
-                    other.y > node.y &&
-                    !drawing.has(trunkId(parent, other)),
+                    other.y > node.y && !drawing.has(trunkId(parent, other)),
             );
-            const above = nodes
-                .filter(
-                    (other) => other.parent === parent.id && other.y < node.y,
-                )
+            const above = (repliesByParent.get(parent.id) ?? [])
+                .filter((other) => other.y < node.y)
                 .reduce<GraphNode | undefined>(
                     (closest, other) =>
                         closest === undefined || other.y > closest.y
@@ -277,6 +289,17 @@ export function leavingOf(
     );
 
     return clip === -1 ? { opacity } : { opacity, clip };
+}
+
+/**
+ * Whether a line folds away with the replies folding, like the branch to a reply as its thread hides its replies: it
+ * draws itself back out, the way it drew itself in.
+ */
+export function isFolding(
+    edge: GraphEdge,
+    folding: ReadonlySet<string>,
+): boolean {
+    return folding.has(edge.from) || folding.has(edge.to);
 }
 
 export function sameNodes(a: GraphNode[], b: GraphNode[]): boolean {

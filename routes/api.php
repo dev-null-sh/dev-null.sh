@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Exceptions\ApiException;
+use App\Http\Controllers\Api\BroadcastAuthorizationController;
 use App\Http\Controllers\Api\CallController;
 use App\Http\Controllers\Api\CommitController as ApiCommitController;
 use App\Http\Controllers\Api\CommitPastelController;
@@ -29,6 +30,9 @@ use App\Http\Controllers\Api\ConversationReadController;
 use App\Http\Controllers\Api\ConversationTypingController;
 use App\Http\Controllers\Api\CurrentUserController;
 use App\Http\Controllers\Api\DeviceController;
+use App\Http\Controllers\Api\DevicePushTokenController;
+use App\Http\Controllers\Api\HeadlineController;
+use App\Http\Controllers\Api\IssueController;
 use App\Http\Controllers\Api\IssueSuggestionController;
 use App\Http\Controllers\Api\LiveFollowingController;
 use App\Http\Controllers\Api\LogController;
@@ -75,9 +79,11 @@ use App\Http\Controllers\Api\UserFollowersController;
 use App\Http\Controllers\Api\UserFollowingController;
 use App\Http\Controllers\Api\UserLaneController;
 use App\Http\Controllers\Api\UserLiveController;
+use App\Http\Controllers\Api\UserModerationHistoryController;
 use App\Http\Controllers\Api\UserMuteController;
 use App\Http\Controllers\Api\UserPasteisModeController;
 use App\Http\Controllers\Api\UserProfileController;
+use App\Http\Controllers\Api\UserPushPreferencesController;
 use App\Http\Controllers\Api\UserRemotePreferencesController;
 use App\Http\Controllers\Api\UserRemotesController;
 use App\Http\Controllers\Api\UserSearchController;
@@ -85,6 +91,7 @@ use App\Http\Controllers\Api\UserSettingsController;
 use App\Http\Controllers\Api\UserTermsController;
 use App\Http\Controllers\Api\UserTimezoneController;
 use App\Http\Controllers\Api\UserTranslationLanguageController;
+use App\Http\Controllers\Api\WebSessionController;
 use App\Http\Controllers\Cli\CommitController;
 use App\Http\Controllers\Cli\KeyLookupController;
 use App\Http\Middleware\AuthenticateSignedRequest;
@@ -92,7 +99,12 @@ use App\Http\Middleware\AuthenticateSshSignature;
 use App\Http\Middleware\PreventPostingInTimeout;
 use App\Http\Middleware\RequireCommitRules;
 use App\Http\Middleware\ThrottleCommits;
+use App\Http\Middleware\ThrottleIssues;
+use App\Http\Middleware\UpdateLastSeenAt;
+use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
+use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Session\Middleware\StartSession;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('cli')->group(function (): void {
@@ -100,7 +112,7 @@ Route::prefix('cli')->group(function (): void {
         ->middleware([AuthenticateSshSignature::class, PreventPostingInTimeout::class, RequireCommitRules::class, ThrottleCommits::class])
         ->name('cli-commit.store');
     Route::post('key-lookups', [KeyLookupController::class, 'store'])
-        ->middleware('throttle:60,1')
+        ->middleware('throttle:60,1,key-lookups:')
         ->name('cli-key-lookup.store');
 });
 
@@ -147,6 +159,11 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
     // Signed by the mobile app with an SSH key that the user approved as a device...
     Route::middleware(AuthenticateSignedRequest::class)->group(function (): void {
         Route::get('me', [CurrentUserController::class, 'show'])->name('api-current-user.show');
+
+        // Live updates, on the user's own private channel...
+        Route::post('broadcasting/auth', [BroadcastAuthorizationController::class, 'store'])
+            ->middleware('throttle:broadcast-authorizations')
+            ->name('api-broadcast-authorization.store');
         Route::delete('me', [CurrentUserController::class, 'destroy'])->name('api-current-user.destroy');
 
         // Pastéis...
@@ -171,6 +188,9 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         // User Settings: what the web's settings show only the user...
         Route::get('me/settings', [UserSettingsController::class, 'show'])->name('api-user-settings.show');
 
+        // User Moderation History: the timeouts and bans the web shows on the user's own profile...
+        Route::get('me/moderation-history', [UserModerationHistoryController::class, 'show'])->name('api-user-moderation-history.show');
+
         // User Timezone and Translation, as the web's settings save them...
         Route::put('me/timezone', [UserTimezoneController::class, 'update'])->name('api-user-timezone.update');
         Route::put('me/automatic-translation', [UserAutomaticTranslationController::class, 'update'])->name('api-user-automatic-translation.update');
@@ -181,6 +201,17 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         Route::delete('me/devices/{device}', [DeviceController::class, 'destroy'])
             ->whereUuid('device')
             ->name('api-device.destroy');
+
+        // Web session: the lite mobile app's web view signs in with cookies made for the device. It isn't a visit: the page it loads next is...
+        Route::post('me/web-session', [WebSessionController::class, 'store'])
+            ->withoutMiddleware(UpdateLastSeenAt::class)
+            ->middleware([EncryptCookies::class, AddQueuedCookiesToResponse::class, StartSession::class])
+            ->name('api-web-session.store');
+
+        // Push notifications: the token pushes reach the phone that signs the request with, and what the user wants pushed...
+        Route::put('me/push-token', [DevicePushTokenController::class, 'update'])->name('api-device-push-token.update');
+        Route::delete('me/push-token', [DevicePushTokenController::class, 'destroy'])->name('api-device-push-token.destroy');
+        Route::put('me/push-preferences', [UserPushPreferencesController::class, 'update'])->name('api-user-push-preferences.update');
 
         // Who follows whom, for members like on the web, so scrapers can't walk the graph...
         Route::get('users/{user:handle}/followers', [UserFollowersController::class, 'index'])
@@ -202,6 +233,12 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             ->middleware('throttle:search')
             ->name('api-commit-search.index');
 
+        // Hot topics: the headlines the web's aside shows, and each one's page with its recap...
+        Route::get('headlines', [HeadlineController::class, 'index'])->name('api-headline.index');
+        Route::get('headlines/{headline}', [HeadlineController::class, 'show'])
+            ->whereUuid('headline')
+            ->name('api-headline.show');
+
         // Composer suggestions: people to mention and /dev/null issues to reference, as the web's composer suggests them...
         Route::get('search/mentions', [MentionSuggestionController::class, 'index'])
             ->middleware('throttle:people')
@@ -209,6 +246,11 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         Route::get('search/issues', [IssueSuggestionController::class, 'index'])
             ->middleware('throttle:issue-suggestions')
             ->name('api-issue-suggestion.index');
+
+        // Feature requests and bug reports, opened on GitHub as the web's /feature and /bug commands open them...
+        Route::post('issues', [IssueController::class, 'store'])
+            ->middleware([PreventPostingInTimeout::class, 'throttle:10,1,issues:', ThrottleIssues::class])
+            ->name('api-issue.store');
 
         // User Remotes: the switch from the web's settings, and the settings menu on its Remotes page...
         Route::put('me/remotes', [UserRemotesController::class, 'update'])->name('api-user-remotes.update');
@@ -272,7 +314,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
 
         // Commit Pastel...
         Route::post('commits/{commit}/pasteis', [CommitPastelController::class, 'store'])
-            ->middleware('throttle:60,1')
+            ->middleware('throttle:60,1,pasteis:')
             ->name('api-commit-pastel.store');
 
         // Commit Poll Vote...
@@ -309,7 +351,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
 
         // Organization Admin: claiming an organization's page, which GitHub confirms the user belongs to...
         Route::post('organizations/{handle}/claim', [OrganizationAdminController::class, 'store'])
-            ->middleware('throttle:10,1')
+            ->middleware('throttle:10,1,organization-claims:')
             ->name('api-organization-admin.store');
 
         // Who to Follow...

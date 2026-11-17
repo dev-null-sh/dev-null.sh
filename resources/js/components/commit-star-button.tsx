@@ -1,6 +1,6 @@
 import { router, useHttp, usePage } from '@inertiajs/react';
 import { Star } from 'lucide-react';
-import { useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { useContext, useEffect, useState } from 'react';
 import type { Ref } from 'react';
 import CommitStarController from '@/actions/App/Http/Controllers/CommitStarController';
 import { ActionTooltip } from '@/components/action-tooltip';
@@ -61,19 +61,16 @@ export function CommitStarButton({
     const mutations = polling?.mutations ?? localMutations;
     const canPoll =
         (isOwn || commit.status === 'approved') && auth.user !== null;
-    const element = useRef<HTMLElement>(null);
-    const setElement = useCallback((node: HTMLElement | null) => {
-        element.current = node;
-    }, []);
+    const [element, setElement] = useState<HTMLElement | null>(null);
 
     useEffect(() => {
-        if (!polling || !canPoll || !element.current) {
+        if (!polling || !canPoll || !element) {
             return;
         }
 
         return polling.subscribe({
             id: commit.id,
-            element: element.current,
+            element,
             prepare: () =>
                 mutations.prepare(commit.id, (stars) => {
                     refreshSharedState(
@@ -90,7 +87,7 @@ export function CommitStarButton({
                     );
                 }),
         });
-    }, [polling, mutations, canPoll, commit.id, isOwn]);
+    }, [polling, mutations, canPoll, commit.id, isOwn, element]);
 
     if (isOwn) {
         return (

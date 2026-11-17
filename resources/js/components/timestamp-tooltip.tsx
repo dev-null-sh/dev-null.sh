@@ -1,5 +1,6 @@
 import { usePage } from '@inertiajs/react';
 import * as TooltipPrimitive from '@radix-ui/react-tooltip';
+import { useRef, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import {
     Tooltip,
@@ -27,9 +28,35 @@ export function TimestampTooltip({
     author?: User;
     children: ReactNode;
 }) {
+    const [isOpen, setIsOpen] = useState(false);
+    const tap = useRef({ isTouch: false, wasOpen: false });
+
     return (
-        <Tooltip>
-            <TooltipTrigger asChild>{children}</TooltipTrigger>
+        <Tooltip open={isOpen} onOpenChange={setIsOpen}>
+            <TooltipTrigger
+                asChild
+                onPointerDown={(event) => {
+                    // Before the tooltip's own handler, which closes it on any press of its trigger.
+                    tap.current = {
+                        isTouch: event.pointerType === 'touch',
+                        wasOpen: isOpen,
+                    };
+                }}
+                onClickCapture={(event) => {
+                    const { isTouch, wasOpen } = tap.current;
+                    tap.current = { isTouch: false, wasOpen: false };
+
+                    // Touch can't hover, so the first tap shows the times instead of following the link or opening the
+                    // commit around it. A second tap, with the times showing, goes through.
+                    if (isTouch && !wasOpen) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        setIsOpen(true);
+                    }
+                }}
+            >
+                {children}
+            </TooltipTrigger>
             <ZonedTimesTooltip date={date} author={author} />
         </Tooltip>
     );

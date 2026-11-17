@@ -6,6 +6,7 @@ import {
     ChevronRight,
     FileCode,
     Flame,
+    GitCommitHorizontal,
     GitMerge,
     Key,
     Server,
@@ -18,6 +19,7 @@ import {
 import type { CSSProperties } from 'react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { DragonBallIcon } from '@/components/dragon-ball-icon';
+import { MushroomCloudIcon } from '@/components/mushroom-cloud-icon';
 import { PastelDeNataIcon } from '@/components/pastel-de-nata-icon';
 import {
     Popover,
@@ -51,6 +53,8 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
     'bot-off': BotOff,
     bomb: Bomb,
     'dragon-ball': DragonBallIcon,
+    'mushroom-cloud': MushroomCloudIcon,
+    'git-commit-horizontal': GitCommitHorizontal,
 };
 
 export function AchievementsShelf({
@@ -155,10 +159,6 @@ export function AchievementsShelf({
                     <Award className="size-4 text-foreground" />
                     <span className="font-medium text-foreground group-hover:underline">
                         Lv. {achievements.level} · {achievements.rank}
-                    </span>
-                    <span aria-hidden>·</span>
-                    <span title={`${formatExactCount(achievements.xp)} XP`}>
-                        {formatCount(achievements.xp)} XP
                     </span>
                 </button>
                 <button

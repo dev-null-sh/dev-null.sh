@@ -1,17 +1,26 @@
-import { Head, router, usePage } from '@inertiajs/react';
-import { ArrowRight, History, Search, Sparkles, X } from 'lucide-react';
+import { Tab, TabGroup, TabList, TabPanel, TabPanels } from '@headlessui/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
+import { ArrowRight, History, Plus, Search, X } from 'lucide-react';
 import type { FormEvent } from 'react';
 import { useEffect, useRef, useState } from 'react';
+import { show as showGuild } from '@/actions/App/Http/Controllers/GuildController';
 import SearchController from '@/actions/App/Http/Controllers/SearchController';
 import { SearchResults } from '@/components/commit-search-results';
+import { GuildDialog } from '@/components/guild-dialog';
+import { GuildIcon } from '@/components/guild-icon';
+import { HotTopics } from '@/components/hot-topics';
+import { Button } from '@/components/ui/button';
 import { rememberSearch, useRecentSearches } from '@/hooks/use-recent-searches';
 import AppLayout from '@/layouts/app-layout';
-import { searchCommits, suggestedQueries } from '@/lib/commit-search';
-import type { Commit } from '@/types';
+import { searchCommits } from '@/lib/commit-search';
+import { CommitSearchResults } from '@/lib/commit-search-results';
 
 const skeletonDelay = 300;
 
-type Results = { term: string; commits: Commit[] };
+type Results = {
+    relevant: CommitSearchResults;
+    latest: CommitSearchResults;
+};
 
 export default function Index({ query }: { query: string }) {
     const userId = usePage().props.auth.user?.id ?? null;
@@ -84,18 +93,106 @@ export default function Index({ query }: { query: string }) {
                 </form>
             </header>
 
+            <HashtagGuild key={query} query={query} />
+
             {query !== '' && (
-                <SearchResults results={results} isWaiting={isWaiting} />
+                <TabGroup key={query}>
+                    <TabList
+                        aria-label="Search result order"
+                        className="flex border-b"
+                    >
+                        {['Most relevant', 'Latest'].map((title) => (
+                            <Tab
+                                key={title}
+                                className="relative flex min-h-12 flex-1 justify-center py-3.5 text-[15px] font-medium text-muted-foreground transition-colors outline-none hover:bg-accent hover:text-foreground data-selected:text-foreground md:outline-offset-[-3px] md:focus-visible:[outline-style:auto]"
+                            >
+                                <span className="relative">
+                                    {title}
+                                    <span
+                                        aria-hidden
+                                        className="absolute inset-x-0 -bottom-3.5 h-[3px] bg-primary opacity-0 in-data-selected:opacity-100"
+                                    />
+                                </span>
+                            </Tab>
+                        ))}
+                    </TabList>
+                    <TabPanels>
+                        <TabPanel>
+                            <SearchResults
+                                results={results?.relevant ?? null}
+                                isWaiting={isWaiting}
+                            />
+                        </TabPanel>
+                        <TabPanel>
+                            <SearchResults
+                                results={results?.latest ?? null}
+                                isWaiting={isWaiting}
+                                heading="Latest commits · past week"
+                                empty="No matches from the past week. Try Most relevant for older matches, or search for another idea."
+                            />
+                        </TabPanel>
+                    </TabPanels>
+                </TabGroup>
             )}
             {recentSearches.length > 0 && (
-                <Suggestions onPick={pick} recent={recentSearches} />
+                <RecentSearches onPick={pick} recent={recentSearches} />
             )}
-            <Suggestions onPick={pick} exclude={query} />
+            <div className="px-4 py-6 sm:px-6">
+                <HotTopics />
+            </div>
         </>
     );
 }
 
 Index.layout = AppLayout;
+
+function HashtagGuild({ query }: { query: string }) {
+    const { guilds } = usePage().props;
+    const handle = /^#\p{L}[\p{L}\p{M}\p{N}_]{0,59}$/u.test(query)
+        ? query.slice(1).toLowerCase()
+        : null;
+
+    if (!guilds || !handle) {
+        return null;
+    }
+
+    const guild = guilds.find((guild) => guild.handle === handle);
+
+    return (
+        <div className="flex items-center justify-between gap-3 border-b px-4 py-4 sm:px-6">
+            {guild ? (
+                <>
+                    <div className="flex min-w-0 items-center gap-2">
+                        <GuildIcon guild={guild} />
+                        <span
+                            className="truncate font-semibold"
+                            title={guild.name}
+                        >
+                            {guild.name}
+                        </span>
+                    </div>
+                    <Button asChild variant="outline">
+                        <Link prefetch href={showGuild(handle)}>
+                            View guild
+                        </Link>
+                    </Button>
+                </>
+            ) : (
+                <>
+                    <p className="min-w-0 text-sm text-muted-foreground">
+                        Give this hashtag a public home.
+                    </p>
+                    <GuildDialog key={handle} handle={handle}>
+                        <Button variant="outline">
+                            <Plus aria-hidden className="size-4" />
+                            Create a guild
+                        </Button>
+                    </GuildDialog>
+                </>
+            )}
+        </div>
+    );
+}
 
 /**
  * Keeps showing the previous results while the next ones load, and only reaches for a skeleton when there is nothing
@@ -114,10 +211,14 @@ function useCommitSearch(query: string) {
         const timeout = setTimeout(() => setIsWaiting(true), skeletonDelay);
 
         searchCommits(query, undefined, controller.signal)
-            .then((commits) => setResults({ term: query, commits }))
+            .then((commits) => {
+                const relevant = new CommitSearchResults(query, commits);
+                setResults({ relevant, latest: relevant.latest() });
+            })
             .catch(() => {
                 if (!controller.signal.aborted) {
-                    setResults({ term: query, commits: [] });
+                    const relevant = new CommitSearchResults(query, []);
+                    setResults({ relevant, latest: relevant.latest() });
                 }
             })
             .finally(() => {
@@ -136,37 +237,27 @@ function useCommitSearch(query: string) {
     return { results, isWaiting };
 }
 
-function Suggestions({
+function RecentSearches({
     onPick,
-    exclude,
     recent,
 }: {
     onPick: (term: string) => void;
-    exclude?: string;
-    recent?: string[];
+    recent: string[];
 }) {
-    const visible =
-        recent ?? suggestedQueries.filter((term) => term !== exclude);
-    const headingId = recent ? 'recent-searches' : 'search-suggestions';
-
     return (
-        <section aria-labelledby={headingId} className="px-4 py-6 sm:px-6">
+        <section
+            aria-labelledby="recent-searches"
+            className="px-4 py-6 sm:px-6"
+        >
             <h2
-                id={headingId}
+                id="recent-searches"
                 className="mb-3 flex items-center gap-2 font-semibold"
             >
-                {recent ? (
-                    <History
-                        aria-hidden
-                        className="size-4 text-muted-foreground"
-                    />
-                ) : (
-                    <Sparkles aria-hidden className="size-4 text-primary" />
-                )}
-                {recent ? 'Recent searches' : 'Try searching for…'}
+                <History aria-hidden className="size-4 text-muted-foreground" />
+                Recent searches
             </h2>
             <ul className="space-y-2">
-                {visible.map((term) => (
+                {recent.map((term) => (
                     <li key={term}>
                         <button
                             type="button"

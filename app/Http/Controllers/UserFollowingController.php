@@ -22,6 +22,10 @@ final readonly class UserFollowingController
         return Inertia::render('user/connections', [
             'user' => $user,
             'type' => ConnectionType::Following,
+            'loadedDigest' => Inertia::optional(fn (): array => [
+                'users' => $connections->loadedDigest($connections->builder($user->following(), $currentUser), $request->loaded('users')),
+                'organizations' => $connections->loadedDigest($organizations->builder($user, $currentUser), $request->loaded('organizations')),
+            ]),
             'users' => Inertia::scroll(fn () => $connections->builder($user->following(), $currentUser)
                 ->cursorPaginate(30)),
             // Above the people, a few at a time on demand, with a cursor of their own.

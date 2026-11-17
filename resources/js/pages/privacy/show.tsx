@@ -168,7 +168,7 @@ export default function Show() {
                                 <strong>Technical data:</strong> IP address,
                                 browser and device information, logs, and how
                                 you use the service, such as the days you used
-                                it.
+                                it and which of our apps you used on them.
                             </>,
                             <>
                                 <strong>From the iOS app:</strong> a key the app
@@ -291,6 +291,12 @@ export default function Show() {
                         GitHub account id, the reason, and when it happened. It
                         stops a banned GitHub account from signing up again, and
                         keeps a timeout from ending early by signing up again.
+                    </p>
+                    <p>
+                        If you are removed as a guild moderator, we retain your
+                        GitHub account ID, the guild hashtag and removal date,
+                        including after account deletion, to prevent you from
+                        reclaiming that guild with the same GitHub account.
                     </p>
                     <p>
                         When you delete your account, we keep your GitHub ID

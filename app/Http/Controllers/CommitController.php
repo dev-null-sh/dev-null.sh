@@ -11,6 +11,7 @@ use App\Enums\CommitStatus;
 use App\Http\Requests\CreateCommitRequest;
 use App\Http\Requests\DeleteCommitRequest;
 use App\Http\Requests\ShowCommitRequest;
+use App\Http\Resources\ShownStreams;
 use App\Models\Commit;
 use App\Models\Profile;
 use App\Models\User;
@@ -21,9 +22,8 @@ use App\Queries\CommitRepliesQuery;
 use App\Queries\UserAchievementsQuery;
 use App\Services\PageMetadata;
 use Illuminate\Container\Attributes\CurrentUser;
-use Illuminate\Contracts\Pagination\CursorPaginator;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Support\Collection;
+use Illuminate\Pagination\CursorPaginator;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -56,10 +56,10 @@ final readonly class CommitController
         );
 
         return Inertia::render('commit/show', [
-            'commit' => $getCommit,
-            'ancestors' => fn (): Collection => $ancestors->get($commit, $currentUser),
-            'continuation' => $getContinuation,
-            'replies' => fn (): ?CursorPaginator => $getContinuation()->commits->isEmpty() ? $getReplies() : null,
+            'commit' => fn (): ?array => ShownStreams::commit($getCommit()),
+            'ancestors' => fn (): array => ShownStreams::commits($ancestors->get($commit, $currentUser)),
+            'continuation' => fn (): array => ShownStreams::continuation($getContinuation()),
+            'replies' => fn (): ?CursorPaginator => $getContinuation()->commits->isEmpty() ? ShownStreams::page($getReplies()) : null,
         ])->withViewData(['preview' => $preview]);
     }
 

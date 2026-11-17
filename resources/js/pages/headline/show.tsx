@@ -1,6 +1,7 @@
-import { Head } from '@inertiajs/react';
+import { Head, usePage } from '@inertiajs/react';
 import { SearchResults } from '@/components/commit-search-results';
 import AppLayout from '@/layouts/app-layout';
+import { CommitSearchResults } from '@/lib/commit-search-results';
 import type { Commit } from '@/types';
 
 export default function Show({
@@ -12,6 +13,10 @@ export default function Show({
     summary: string | null;
     commits: Commit[];
 }) {
+    const results = new CommitSearchResults(name, commits).latest(
+        usePage().props.now,
+    );
+
     return (
         <>
             <Head title={`${name} · Hot topics`} />
@@ -35,7 +40,7 @@ export default function Show({
                 )}
             </header>
             <SearchResults
-                results={{ term: name, commits }}
+                results={results}
                 heading="What nullers have been saying"
                 empty="No matching commits from the past week."
             />

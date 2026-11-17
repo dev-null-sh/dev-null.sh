@@ -8,6 +8,7 @@ use App\Actions\CreateOrganizationMember;
 use App\Actions\DeleteOrganizationMember;
 use App\Actions\UpdateOrganizationMemberRole;
 use App\Enums\OrganizationRole;
+use App\Enums\UserUpdate;
 use App\Exceptions\OrganizationMustHaveAnAdmin;
 use App\Http\Requests\CreateOrganizationMemberRequest;
 use App\Http\Requests\DeleteOrganizationMemberRequest;
@@ -15,7 +16,9 @@ use App\Http\Requests\ListOrganizationMembersRequest;
 use App\Http\Requests\UpdateOrganizationMemberRequest;
 use App\Models\Organization;
 use App\Models\User;
+use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Container\Attributes\CurrentUser;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -32,12 +35,13 @@ final readonly class OrganizationMemberController
     {
         return Inertia::render('organization-member/index', [
             'organization' => $organization,
-            'role' => $organization->roleOf($user),
-            'members' => $organization->members()
+            // Changed by another admin, the members and the user's own role read again, the form being filled in stays.
+            'role' => Inertia::live(fn (): ?OrganizationRole => $organization->roleOf($user), UserUpdate::Account->value, new PrivateChannel($user)),
+            'members' => Inertia::live(fn (): Collection => $organization->members()
                 ->oldest('organization_members.created_at')
                 ->withCasts(['joined_at' => 'datetime'])
                 ->get(['users.*', 'organization_members.role', 'organization_members.created_at as joined_at'])
-                ->makeHidden('pivot'),
+                ->makeHidden('pivot'), UserUpdate::Account->value, new PrivateChannel($user)),
         ]);
     }
 

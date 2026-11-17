@@ -22,6 +22,7 @@ import {
     CallConsole,
     OrgCallConsole,
 } from '@/components/chat/call';
+import { MentionsBell } from '@/components/chat/mentions-bell';
 import {
     LiftedMessage,
     MessageImages,
@@ -88,6 +89,7 @@ import type { ReactionUsage } from '@/lib/reactions';
 import { isRemoteMuted, playPing } from '@/lib/remote-notifications';
 import { restoreScrollAnchor, scrollAnchorOf } from '@/lib/scroll-anchor';
 import type { ScrollAnchor } from '@/lib/scroll-anchor';
+import { watchSeenMentions } from '@/lib/seen-mentions';
 import {
     characterCount,
     cn,
@@ -391,7 +393,7 @@ export function ConversationThread({
     );
 
     const jumpTo = useCallback(
-        async (id: number) => {
+        async (id: number): Promise<boolean> => {
             jumpRequest.current?.abort();
             glideCancel.current?.();
             glideCancel.current = null;
@@ -414,7 +416,7 @@ export function ConversationThread({
                 const found = await loadMessage(target, id, request.signal);
 
                 if (request.signal.aborted) {
-                    return;
+                    return false;
                 }
 
                 // Let the store's last page render before locating the original bubble.
@@ -425,7 +427,7 @@ export function ConversationThread({
                 }
 
                 if (request.signal.aborted) {
-                    return;
+                    return false;
                 }
 
                 bubble = scroller.current?.querySelector<HTMLElement>(
@@ -438,7 +440,7 @@ export function ConversationThread({
 
             if (!bubble) {
                 toast.error('Could not load this message. Try again.');
-                return;
+                return false;
             }
 
             anchor.current = null;
@@ -446,6 +448,8 @@ export function ConversationThread({
             bubble.scrollIntoView({ block: 'center', behavior: 'instant' });
             bubble.dataset.flash = '';
             window.setTimeout(() => delete bubble.dataset.flash, 1200);
+
+            return true;
         },
         [target],
     );
@@ -503,6 +507,35 @@ export function ConversationThread({
     useEffect(() => {
         messagesRef.current = messages;
     }, [messages]);
+
+    const orgId = current.kind === 'org' ? current.org.id : null;
+    const seenMentions = useRef<ReturnType<typeof watchSeenMentions> | null>(
+        null,
+    );
+    const mentionIds = (thread?.mentions ?? noMessages)
+        .map((message) => message.id)
+        .join();
+
+    useEffect(() => {
+        if (current.kind !== 'org' || !isVisible || scroller.current === null) {
+            return;
+        }
+
+        const watcher = watchSeenMentions(scroller.current, current.org);
+        seenMentions.current = watcher;
+
+        return () => {
+            watcher.stop();
+            seenMentions.current = null;
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [orgId, isVisible]);
+
+    useEffect(() => {
+        seenMentions.current?.track(
+            mentionIds === '' ? [] : mentionIds.split(',').map(Number),
+        );
+    }, [orgId, isVisible, mentionIds, messages]);
 
     useLayoutEffect(() => {
         const element = scroller.current;
@@ -881,30 +914,33 @@ export function ConversationThread({
             </div>
 
             {(isBrowsingHistory || isScrolledBack || unseen > 0) && (
-                <button
-                    type="button"
-                    onClick={jumpToLatest}
-                    aria-label={
-                        isBrowsingHistory || unseen === 0
+                // Anchored to the top of the composer, so it rises with a growing draft instead of covering it.
+                <div className="relative h-0 shrink-0">
+                    <button
+                        type="button"
+                        onClick={jumpToLatest}
+                        aria-label={
+                            isBrowsingHistory || unseen === 0
+                                ? 'Back to present'
+                                : undefined
+                        }
+                        className="absolute bottom-10 left-1/2 flex min-h-9 -translate-x-1/2 items-center gap-1.5 rounded-md bg-primary px-3 py-2 text-xs font-medium whitespace-nowrap text-primary-foreground shadow-lg focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
+                    >
+                        {isJumping ? (
+                            <Spinner aria-hidden className="size-3.5" />
+                        ) : (
+                            <ArrowDown aria-hidden className="size-3.5" />
+                        )}
+                        {isBrowsingHistory || unseen === 0
                             ? 'Back to present'
-                            : undefined
-                    }
-                    className="absolute bottom-[calc(var(--composer-height,4rem)+2.5rem)] left-1/2 flex min-h-9 -translate-x-1/2 items-center gap-1.5 rounded-md bg-primary px-3 py-2 text-xs font-medium whitespace-nowrap text-primary-foreground shadow-lg focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
-                >
-                    {isJumping ? (
-                        <Spinner aria-hidden className="size-3.5" />
-                    ) : (
-                        <ArrowDown aria-hidden className="size-3.5" />
-                    )}
-                    {isBrowsingHistory || unseen === 0
-                        ? 'Back to present'
-                        : `${unseen} new`}
-                    {isJumping && (
-                        <span className="sr-only" role="status">
-                            Loading original message
-                        </span>
-                    )}
-                </button>
+                            : `${unseen} new`}
+                        {isJumping && (
+                            <span className="sr-only" role="status">
+                                Loading original message
+                            </span>
+                        )}
+                    </button>
+                </div>
             )}
 
             {isOpen && draft.attachments.isDraggingFiles && (
@@ -937,6 +973,17 @@ export function ConversationThread({
                     onReplySettled={settleReplyPreview}
                     isCompact={isCompact}
                     autoFocus={autoFocus}
+                    mentions={
+                        current.kind === 'org' && (
+                            <MentionsBell
+                                org={current.org}
+                                mentions={thread?.mentions ?? noMessages}
+                                count={thread?.mentions_count ?? 0}
+                                isCompact={isCompact}
+                                onJump={jumpTo}
+                            />
+                        )
+                    }
                     typing={
                         target.kind === 'org'
                             ? (thread?.typing ?? []).length > 0
@@ -1727,6 +1774,7 @@ function Composer({
     isCompact,
     autoFocus,
     typing,
+    mentions,
     onSend,
     onReplySettled,
 }: {
@@ -1739,6 +1787,10 @@ function Composer({
     isCompact: boolean;
     autoFocus: boolean;
     typing: string | null;
+    /**
+     * The org's mentions bell, after Call.
+     */
+    mentions?: ReactNode;
     /**
      * Called as the user pushes, so the thread follows their own message down.
      */
@@ -2132,6 +2184,7 @@ function Composer({
                                 isCompact={isCompact}
                                 onClick={() => setIsConfirmingCall(true)}
                             />
+                            {mentions}
                         </>
                     )}
                     <Button

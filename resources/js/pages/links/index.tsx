@@ -1,36 +1,45 @@
 import { Head, Link, router } from '@inertiajs/react';
-import { ArrowLeft, Link2 } from 'lucide-react';
-import type { FormEvent } from 'react';
+import { ArrowLeft, ExternalLink, Link2, Star } from 'lucide-react';
+import type { CSSProperties, FormEvent, MouseEvent } from 'react';
 import { useState } from 'react';
 import CommitLinkPreviewController from '@/actions/App/Http/Controllers/CommitLinkPreviewController';
 import LinkController from '@/actions/App/Http/Controllers/LinkController';
 import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
+import { GraphCanvas } from '@/components/graph-canvas';
+import { GraphRail, RailSegment } from '@/components/graph-rail';
 import { HiddenLinkPreviewContext } from '@/components/hidden-link-preview-context';
 import { LinkPreview } from '@/components/link-preview';
+import { LinkTopicCommits } from '@/components/link-topic-commits';
+import { Button } from '@/components/ui/button';
 import AppLayout from '@/layouts/app-layout';
+import { clickedCommit } from '@/lib/commit-click';
+import { exactCountTitle, formatCount } from '@/lib/numbers';
 import { hostname } from '@/lib/urls';
-import { formatRelativeTime } from '@/lib/utils';
+import { cn, laneColor } from '@/lib/utils';
 import type {
     Commit,
     CursorPaginated,
     LinkPreview as LinkPreviewData,
 } from '@/types';
 
-type TopLink = {
+type LinkDetails = Pick<LinkPreviewData, 'title' | 'description'>;
+
+type TopLink = LinkDetails & {
     url: string;
-    title: string | null;
-    site_name: string | null;
     people: number;
     commits: number;
-    last_mentioned_at: string;
+    stars: number;
+    top_commits: Commit[];
 };
+
+type LinkStats = { commits: number; people: number };
 
 type Props =
     | { url: null; topLinks: TopLink[] }
     | {
           url: string;
           link: LinkPreviewData | null;
-          stats: { commits: number; people: number };
+          stats: LinkStats;
           commits: CursorPaginated<Commit> | null;
       };
 
@@ -38,12 +47,118 @@ function commitCount(count: number) {
     return `${count} commit${count === 1 ? '' : 's'}`;
 }
 
-function peopleCount(count: number) {
-    return count === 1 ? '1 person' : `${count} people`;
+/** A stand-in until the app reads icons itself, when it fetches a link's page. */
+function siteFavicon(url: string): string | null {
+    return URL.canParse(url) ? `https://favicon.show/${hostname(url)}` : null;
+}
+
+/**
+ * Links have no colour of their own yet, so each one gets a lane of the palette, the same one every time.
+ */
+function linkLane(url: string): string {
+    const hash = Array.from(url).reduce(
+        (sum, character) => (sum * 31 + character.charCodeAt(0)) % 1_000_003,
+        7,
+    );
+
+    return laneColor(hash % 6);
+}
+
+/** The whole link, without the protocol and the www. most links start with. */
+function displayedLink(url: string): string {
+    return url.replace(/^https?:\/\/(?:www\.)?/u, '');
+}
+
+function linkPage(url: string) {
+    return LinkController.index({ query: { url } });
 }
 
 export default function Index(props: Props) {
-    const [draft, setDraft] = useState(props.url ?? '');
+    return props.url === null ? (
+        <TopLinks links={props.topLinks} />
+    ) : (
+        <LinkPage
+            url={props.url}
+            link={props.link}
+            stats={props.stats}
+            commits={props.commits}
+        />
+    );
+}
+
+function TopicIcon({
+    iconUrl,
+    className,
+}: {
+    iconUrl: string | null;
+    className?: string;
+}) {
+    const [isBroken, setIsBroken] = useState(false);
+    const hasIcon = iconUrl !== null && !isBroken;
+
+    return (
+        <span
+            className={cn(
+                // White in both themes, as most icons are drawn for a light tab bar.
+                'flex items-center justify-center overflow-hidden rounded-md border text-muted-foreground',
+                hasIcon ? 'bg-white p-[12%]' : 'bg-muted',
+                className,
+            )}
+        >
+            {hasIcon ? (
+                <img
+                    src={iconUrl}
+                    alt=""
+                    referrerPolicy="no-referrer"
+                    onError={() => setIsBroken(true)}
+                    className="size-full object-contain"
+                />
+            ) : (
+                <Link2 aria-hidden className="size-1/2" />
+            )}
+        </span>
+    );
+}
+
+/** The image a page gives for sharing it, as large as sites draw it, leading to the page. */
+function SocialCard({ url, imageUrl }: { url: string; imageUrl: string }) {
+    const [isBroken, setIsBroken] = useState(false);
+
+    return isBroken ? null : (
+        <a
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer nofollow ugc"
+            tabIndex={-1}
+            className="mt-4 block overflow-hidden rounded-lg border transition-opacity hover:opacity-90"
+        >
+            <img
+                src={imageUrl}
+                alt=""
+                referrerPolicy="no-referrer"
+                onError={() => setIsBroken(true)}
+                className="aspect-[1.91/1] w-full bg-muted object-cover"
+            />
+        </a>
+    );
+}
+
+function LinkCount({ count, label }: { count: number; label: string }) {
+    return (
+        <li className="flex gap-1.5">
+            <span
+                className="font-mono font-medium tabular-nums"
+                title={exactCountTitle(count)}
+            >
+                {formatCount(count)}
+            </span>
+            <span className="text-muted-foreground">{label}</span>
+        </li>
+    );
+}
+
+function TopLinks({ links }: { links: TopLink[] }) {
+    const [draft, setDraft] = useState('');
 
     const submit = (event: FormEvent) => {
         event.preventDefault();
@@ -65,7 +180,7 @@ export default function Index(props: Props) {
                     <input
                         type="url"
                         inputMode="url"
-                        autoFocus={props.url === null}
+                        autoFocus
                         value={draft}
                         onChange={(event) => setDraft(event.target.value)}
                         placeholder="Paste a link to see every commit about it"
@@ -76,28 +191,6 @@ export default function Index(props: Props) {
                 </form>
             </header>
 
-            {props.url === null ? (
-                <TopLinks links={props.topLinks} />
-            ) : (
-                <LinkCommits
-                    url={props.url}
-                    link={props.link}
-                    stats={props.stats}
-                    commits={props.commits}
-                />
-            )}
-        </>
-    );
-}
-
-function TopLinks({ links }: { links: TopLink[] }) {
-    return (
-        <>
-            <p className="border-b px-4 py-3 text-sm text-muted-foreground sm:px-6">
-                Most shared links in the last 30 days, by people who used them
-                as their link card.
-            </p>
-
             {links.length === 0 ? (
                 <div className="px-4 py-12 text-center sm:px-6">
                     <EmptyFeed command="fatal: no links shared yet">
@@ -105,44 +198,129 @@ function TopLinks({ links }: { links: TopLink[] }) {
                     </EmptyFeed>
                 </div>
             ) : (
-                <ol>
-                    {links.map((link, index) => (
-                        <li key={link.url} className="border-b">
-                            <Link
-                                prefetch
-                                href={LinkController.index({
-                                    query: { url: link.url },
-                                })}
-                                className="flex gap-3 px-4 py-3 transition-colors hover:bg-accent focus-visible:bg-accent sm:px-6"
-                            >
-                                <span className="w-5 shrink-0 pt-0.5 text-right font-mono text-[13px] text-muted-foreground tabular-nums">
-                                    {index + 1}
-                                </span>
-                                <span className="flex min-w-0 flex-1 flex-col">
-                                    <span className="truncate font-mono text-[13px] text-muted-foreground">
-                                        {link.site_name ?? hostname(link.url)}
-                                    </span>
-                                    <span className="line-clamp-2 text-[15px] leading-snug font-medium wrap-break-word">
-                                        {link.title ?? link.url}
-                                    </span>
-                                    <span className="mt-1 text-sm text-muted-foreground">
-                                        {peopleCount(link.people)} ·{' '}
-                                        {commitCount(link.commits)} · last{' '}
-                                        {formatRelativeTime(
-                                            link.last_mentioned_at,
-                                        )}
-                                    </span>
-                                </span>
-                            </Link>
-                        </li>
+                <GraphCanvas>
+                    {links.map((link) => (
+                        <LinkTopic key={link.url} link={link} />
                     ))}
-                </ol>
+                </GraphCanvas>
             )}
         </>
     );
 }
 
-function LinkCommits({
+/**
+ * A link in the list of topics, drawn like a commit with replies: the topic stands where the author would, its line in
+ * the topic's colour, and its most starred commits nest below, each in its own author's colour.
+ */
+function LinkTopic({ link }: { link: TopLink }) {
+    const lane = linkLane(link.url);
+    const href = linkPage(link.url);
+    const nodeId = `topic:${link.url}`;
+    const endId = `${nodeId}:end`;
+    const hasMore = link.commits > link.top_commits.length;
+    const shownLink = displayedLink(link.url);
+    const title = link.title ?? shownLink;
+
+    const openClickedCommit = (event: MouseEvent<HTMLElement>) => {
+        const click = clickedCommit(
+            event,
+            window.getSelection()?.toString() ?? '',
+            window.location.pathname,
+        );
+
+        if (click?.newTab) {
+            window.open(click.url, '_blank', 'noopener');
+        } else if (click) {
+            router.visit(click.url);
+        }
+    };
+
+    return (
+        <section
+            aria-label={title}
+            className="grid grid-cols-[4rem_minmax(0,1fr)] sm:grid-cols-[4.5rem_minmax(0,1fr)]"
+            data-test="topic"
+        >
+            <GraphRail
+                lane={lane}
+                endsWithDot
+                endsOnActions
+                hasReplyTail={link.top_commits.length > 0}
+                graph={{ id: nodeId, endId }}
+                node={
+                    <Link
+                        prefetch
+                        href={href}
+                        tabIndex={-1}
+                        className="flex rounded-lg"
+                    >
+                        <span className="relative flex rounded-lg bg-card">
+                            <span className="relative flex rounded-lg border-2 border-(--lane) p-0.5">
+                                <TopicIcon
+                                    iconUrl={siteFavicon(link.url)}
+                                    className="size-10"
+                                />
+                            </span>
+                        </span>
+                    </Link>
+                }
+            />
+
+            <div className="min-w-0 pt-3 pr-4">
+                <Link
+                    prefetch
+                    href={href}
+                    title={title}
+                    className="block truncate text-[15px] font-semibold hover:underline"
+                >
+                    {title}
+                </Link>
+                {title !== shownLink && (
+                    <a
+                        href={link.url}
+                        target="_blank"
+                        rel="noopener noreferrer nofollow ugc"
+                        title={link.url}
+                        className="mt-0.5 block truncate font-mono text-[13px] text-muted-foreground hover:text-foreground hover:underline"
+                    >
+                        {shownLink}
+                    </a>
+                )}
+                <p className="mt-1 flex min-h-7 items-center gap-3 text-[13px] text-muted-foreground tabular-nums md:min-h-6">
+                    <span
+                        className="inline-flex items-center gap-1.5"
+                        aria-label={`${link.stars} ${link.stars === 1 ? 'star' : 'stars'}`}
+                        title={exactCountTitle(link.stars)}
+                    >
+                        <Star aria-hidden className="size-4" />
+                        {formatCount(link.stars)}
+                    </span>
+                    <span>{commitCount(link.commits)}</span>
+                </p>
+            </div>
+            <RailSegment />
+
+            <div
+                className="min-w-0 border-b pr-4 pb-3"
+                onClick={openClickedCommit}
+                onAuxClick={openClickedCommit}
+            >
+                <LinkTopicCommits
+                    commits={link.top_commits}
+                    lane={lane}
+                    graphParent={endId}
+                    more={hasMore ? { count: link.commits, href } : undefined}
+                />
+            </div>
+        </section>
+    );
+}
+
+/**
+ * A link's own page, like an organization's: who it is at the top, then its commits, each standing on its own in its
+ * author's lane, like in a log.
+ */
+function LinkPage({
     url,
     link,
     stats,
@@ -150,69 +328,131 @@ function LinkCommits({
 }: {
     url: string;
     link: LinkPreviewData | null;
-    stats: { commits: number; people: number };
+    stats: LinkStats;
     commits: CursorPaginated<Commit> | null;
 }) {
+    const title = link?.title ?? displayedLink(url);
+    const lane = linkLane(url);
     const firstCommit = commits?.data[0];
 
     return (
         <>
-            <div className="border-b px-4 py-3 sm:px-6">
+            <Head title={title} />
+
+            <div className="sticky top-0 z-10 flex h-14 items-center gap-3 border-b bg-card px-4 sm:px-6">
                 <Link
                     prefetch
                     href={LinkController.index()}
-                    className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+                    aria-label="All links"
+                    className="-ml-1.5 shrink-0 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                 >
-                    <ArrowLeft aria-hidden className="size-3.5" />
-                    Most shared links
+                    <ArrowLeft aria-hidden className="size-4" />
                 </Link>
+                <p className="min-w-0 truncate font-semibold">{title}</p>
+                <p className="shrink-0 font-mono text-[13px] text-muted-foreground">
+                    link
+                </p>
+            </div>
 
-                {link && firstCommit ? (
+            <header className="border-b px-4 pt-6 pb-5 sm:px-6">
+                <div className="flex items-start justify-between gap-4">
+                    <span
+                        className="flex rounded-lg ring-2 ring-(--lane) ring-offset-4 ring-offset-card"
+                        style={{ '--lane': lane } as CSSProperties}
+                    >
+                        <TopicIcon
+                            iconUrl={siteFavicon(url)}
+                            className="size-16 rounded-lg"
+                        />
+                    </span>
+
+                    <Button variant="outline" asChild>
+                        <a
+                            href={url}
+                            target="_blank"
+                            rel="noopener noreferrer nofollow ugc"
+                        >
+                            <ExternalLink />
+                            Open link
+                        </a>
+                    </Button>
+                </div>
+
+                <h1 className="mt-4 text-2xl font-semibold tracking-tight text-balance wrap-break-word">
+                    {title}
+                </h1>
+                <p className="mt-0.5 flex items-center gap-1.5 font-mono text-sm text-muted-foreground">
+                    <span
+                        aria-hidden
+                        className="size-2 shrink-0 rounded-full"
+                        style={{ background: lane }}
+                    />
+                    <a
+                        href={url}
+                        target="_blank"
+                        rel="noopener noreferrer nofollow ugc"
+                        title={url}
+                        className="min-w-0 truncate hover:text-foreground hover:underline"
+                    >
+                        {displayedLink(url)}
+                    </a>
+                </p>
+
+                {link?.description && (
+                    <p className="mt-3 max-w-prose text-[15px] leading-relaxed wrap-break-word">
+                        {link.description}
+                    </p>
+                )}
+
+                {link?.embed && firstCommit ? (
                     <LinkPreview
                         refreshUrl={CommitLinkPreviewController.show.url(
                             firstCommit.id,
                         )}
                         preview={link}
+                        source={{ commitId: firstCommit.id }}
                     />
-                ) : null}
+                ) : (
+                    link?.image_url && (
+                        <SocialCard url={url} imageUrl={link.image_url} />
+                    )
+                )}
 
-                <a
-                    href={url}
-                    target="_blank"
-                    rel="noopener noreferrer nofollow ugc"
-                    className="mt-2 block truncate font-mono text-[13px] text-muted-foreground hover:text-foreground"
-                >
-                    {url}
-                </a>
+                <ul className="mt-4 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+                    <LinkCount
+                        count={stats.commits}
+                        label={stats.commits === 1 ? 'commit' : 'commits'}
+                    />
+                    <LinkCount
+                        count={stats.people}
+                        label={stats.people === 1 ? 'person' : 'people'}
+                    />
+                </ul>
+            </header>
 
-                {stats.commits > 0 && (
-                    <p className="mt-1 text-sm font-medium">
-                        {commitCount(stats.commits)} by{' '}
-                        {peopleCount(stats.people)}, oldest first
-                    </p>
+            <div className="min-h-dvh">
+                {commits === null ? (
+                    <div className="px-4 py-12 text-center sm:px-6">
+                        <EmptyFeed command="fatal: no commits about this link">
+                            No commit uses this exact link as its card yet.
+                        </EmptyFeed>
+                    </div>
+                ) : (
+                    <HiddenLinkPreviewContext value={link?.url ?? null}>
+                        <CommitFeed
+                            commits={commits}
+                            isRanked
+                            end="That's every commit about this link."
+                            empty={
+                                <EmptyFeed command="fatal: no commits about this link">
+                                    No commit you can see uses this link as its
+                                    card.
+                                </EmptyFeed>
+                            }
+                        />
+                    </HiddenLinkPreviewContext>
                 )}
             </div>
-
-            {commits === null ? (
-                <div className="px-4 py-12 text-center sm:px-6">
-                    <EmptyFeed command="fatal: no commits about this link">
-                        No commit uses this exact link as its card yet.
-                    </EmptyFeed>
-                </div>
-            ) : (
-                <HiddenLinkPreviewContext value={link?.url ?? null}>
-                    <CommitFeed
-                        commits={commits}
-                        end="That's every commit about this link."
-                        empty={
-                            <EmptyFeed command="fatal: no commits about this link">
-                                No commit you can see uses this link as its
-                                card.
-                            </EmptyFeed>
-                        }
-                    />
-                </HiddenLinkPreviewContext>
-            )}
         </>
     );
 }

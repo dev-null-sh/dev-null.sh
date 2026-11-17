@@ -5,7 +5,12 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Enums\CommitStatus;
+use App\Enums\CommitUpdate;
 use App\Enums\NotificationType;
+use App\Enums\UserUpdate;
+use App\Events\CommitsUpdated;
+use App\Events\ProfilesUpdated;
+use App\Events\UsersUpdated;
 use App\Jobs\CheckUserLevel;
 use App\Jobs\LinkCommitTopics;
 use App\Jobs\ProcessCommitHeadlines;
@@ -15,6 +20,7 @@ use App\Models\Headline;
 use App\Models\Notification;
 use App\Models\Poll;
 use App\Models\User;
+use App\Queries\AdminsQuery;
 use App\Queries\CommitBuilder;
 use App\Queries\ProfileRecipientsQuery;
 use App\Queries\TomQuery;
@@ -33,6 +39,7 @@ final readonly class UpdateCommitStatuses
         private UpdateCommitHotScores $updateCommitHotScores,
         private TomQuery $tomQuery,
         private ProfileRecipientsQuery $recipients,
+        private AdminsQuery $admins,
     ) {
         //
     }
@@ -58,6 +65,8 @@ final readonly class UpdateCommitStatuses
             }
 
             Commit::query()->whereKey($commits->modelKeys())->update(['status' => $status]);
+
+            $notified = Notification::query()->whereIn('commit_id', $commits->modelKeys())->distinct()->pluck('recipient_id');
 
             Notification::query()
                 ->whereIn('commit_id', $commits->modelKeys())
@@ -129,6 +138,16 @@ final readonly class UpdateCommitStatuses
                 User::query()->whereKey($personal->pluck('user_id')->filter()->unique()->values()->all())->get()
                     ->each(fn (User $author) => dispatch(new CheckUserLevel($author))->afterCommit());
             }
+
+            // The commits still have the status they had, so those everyone saw before or sees now are announced.
+            event(new CommitsUpdated($commits->filter(fn (Commit $commit): bool => $commit->status === CommitStatus::Approved || $status === CommitStatus::Approved), CommitUpdate::Visibility));
+
+            $authors = $commits->pluck('user_id')->filter()->values()->all();
+            event(new UsersUpdated($authors, UserUpdate::Commits));
+            event(new UsersUpdated($authors, UserUpdate::ScheduledCommits));
+            event(new UsersUpdated($notified->concat(Notification::query()->whereIn('commit_id', $commits->modelKeys())->distinct()->pluck('recipient_id')), UserUpdate::Notifications));
+            event(new ProfilesUpdated($commits->pluck('author_id')));
+            event(new UsersUpdated($this->admins->ids(), UserUpdate::Moderation, ['commits' => array_values($commits->map(fn (Commit $commit): string => $commit->id)->all())]));
         });
     }
 }

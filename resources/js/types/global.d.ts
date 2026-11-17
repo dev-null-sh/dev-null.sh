@@ -1,6 +1,7 @@
 import type { SharedClock } from '@/lib/utils';
 import type { Auth, SuggestedUser, User } from '@/types/auth';
 import type { Commit } from '@/types/commit';
+import type { Guild } from '@/types/guild';
 import type {
     CommittedFlash,
     DeletedFlash,
@@ -27,13 +28,21 @@ declare module '@inertiajs/core' {
         sharedPageProps: {
             name: string;
             repository: string;
+            humanVerificationSiteKey: string;
             auth: Auth;
             /** For guests: how many developers are here, rounded down (12,000). */
             developersCount: number | null;
             hasUnmoderatedCommits: boolean;
+            isLiteMobileApp: boolean;
             sidebarOpen: boolean;
             showsWhoToFollow: boolean;
+            guilds: Guild[] | null;
             dimsLanes: boolean;
+            /** The event theme on the page for this reader, if any. */
+            eventTheme: string | null;
+            /** The year a New Year greeting wishes. */
+            eventYear: number;
+            eventThemeChoice: string;
             repliesPerPage: number;
             clock: SharedClock;
             /** When the server rendered the page, in milliseconds. */

@@ -4,21 +4,29 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Enums\CommitUpdate;
 use App\Enums\ConversationKind;
+use App\Enums\UserUpdate;
+use App\Events\CommitsUpdated;
+use App\Events\UsersUpdated;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\CommitReport;
 use App\Models\Conversation;
+use App\Models\ConversationParticipant;
+use App\Models\Guild;
 use App\Models\Headline;
 use App\Models\Message;
 use App\Models\MessageImage;
 use App\Models\MessageVoice;
+use App\Models\Notification;
 use App\Models\ScheduledCommit;
 use App\Models\User;
 use App\Queries\CommitBuilder;
 use App\Services\CommitTranslations;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
@@ -50,13 +58,25 @@ final readonly class DeleteUser
                 ->lazyById(500)
                 ->map(resolve(CommitTranslations::class)->key(...))->unique()->all();
 
+            // Read before anything goes, to tell whoever showed or heard about it once it is gone.
+            $vanishing = $this->touchedCommits($user)->approved()->get(['id', 'parent_id', 'quoted_commit_id']);
+            $notified = Notification::query()->where('actor_id', $user->id)->distinct()->pluck('recipient_id');
+            $partners = ConversationParticipant::query()
+                ->whereIn('conversation_id', ConversationParticipant::query()->where('user_id', $user->id)->select('conversation_id'))
+                ->whereNot('user_id', $user->id)
+                ->distinct()
+                ->pluck('user_id');
+
             // Locked first, in statements of their own, so a topic lookup running meanwhile either links before this deletes its
             // links or finds the commit erased. The threads are locked before their replies, so no reply joins them in between.
             $user->commits()->withTrashed()->topLevel()->orderBy('id')->lockForUpdate()->pluck('id');
             $this->touchedCommits($user)->orderBy('id')->lockForUpdate()->pluck('id');
 
             // Report creation holds shared reporter and commit locks until its attachment paths are saved.
-            $imagePaths = [...$this->reportImagePaths($user), ...$this->imagePaths($user), ...$this->scheduledImagePaths($user), ...$this->messageImagePaths($user), ...$this->messageVoicePaths($user)];
+            $guilds = Guild::query()->where('user_id', $user->id)->orderBy('id')->lockForUpdate()->get();
+            $guildMembers = DB::table('guild_preferences')->whereIn('guild_id', $guilds->modelKeys())->whereNot('user_id', $user->id)->pluck('user_id');
+            $guildIcons = $guilds->flatMap(fn (Guild $guild): array => $guild->icon_path === null ? [] : [$guild->icon_path])->all();
+            $imagePaths = [...$guildIcons, ...$this->reportImagePaths($user), ...$this->imagePaths($user), ...$this->scheduledImagePaths($user), ...$this->messageImagePaths($user), ...$this->messageVoicePaths($user)];
             resolve(DeleteStoredFiles::class)->retain($imagePaths);
 
             DB::table('commit_topics')->whereIn('commit_id', $this->touchedCommits($user)->select('id'))->delete();
@@ -83,10 +103,15 @@ final readonly class DeleteUser
             $user->organizations()->detach();
             $user->followedOrganizations()->detach();
             DB::table('user_active_days')->where('user_id', $user->id)->delete();
-
             $user->delete();
             $user->profile->delete();
             DB::table('deleted_github_accounts')->insertOrIgnore(['github_id' => $user->github_id]);
+
+            $vanishing->chunk(100)->each(fn (Collection $commits) => event(new CommitsUpdated($commits, CommitUpdate::Visibility)));
+            event(new UsersUpdated($notified, UserUpdate::Notifications));
+            event(new UsersUpdated($partners, UserUpdate::Inbox));
+            event(new UsersUpdated($guildMembers, UserUpdate::Guilds));
+            event(new UsersUpdated($guildMembers, UserUpdate::Relationships));
 
             foreach ($translationKeys as $key) {
                 Cache::forget($key);

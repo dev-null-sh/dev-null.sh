@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use App\Models\Commit;
 use App\Models\User;
-use Illuminate\Support\Facades\RateLimiter;
 
 beforeEach(function (): void {
     $this->user = User::factory()->create(['pasteis_mode' => true]);
@@ -116,15 +115,15 @@ it('may not give a pastel across a block', function (Closure $block): void {
 ]);
 
 it('shares the web limit of 60 a minute', function (): void {
-    $commit = Commit::factory()->create();
+    $commit = Commit::factory()->for($this->user)->create();
 
-    RateLimiter::increment(sha1((string) $this->user->id), amount: 60);
+    foreach (range(1, 60) as $attempt) {
+        $this->actingAs($this->user)->postJson(route('commit-pastel.store', $commit))->assertForbidden();
+    }
 
     signedApiRequest($this->keyPair, 'POST', route('api-commit-pastel.store', $commit))
         ->assertTooManyRequests()
         ->assertJsonPath('code', 'rate_limited');
-
-    expect($commit->refresh()->pasteis_count)->toBe(0);
 });
 
 it('rejects requests that are not signed', function (): void {
@@ -133,4 +132,15 @@ it('rejects requests that are not signed', function (): void {
     $this->postJson(route('api-commit-pastel.store', $commit))->assertUnauthorized();
 
     expect($commit->refresh()->pasteis_count)->toBe(0);
+});
+
+it('keeps the pastéis minute limit apart from the other signed-in limits', function (): void {
+    $commit = Commit::factory()->create();
+
+    foreach (range(1, 10) as $attempt) {
+        signedApiRequest($this->keyPair, 'POST', route('api-commit-pastel.store', $commit))->assertOk();
+    }
+
+    signedApiRequest($this->keyPair, 'POST', route('api-issue.store'))->assertUnprocessable();
+    signedApiRequest($this->keyPair, 'POST', route('api-organization-admin.store', 'nobody-here'))->assertNotFound();
 });

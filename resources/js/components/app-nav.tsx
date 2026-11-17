@@ -13,10 +13,12 @@ import {
     ShieldCheck,
     SquarePen,
     UserRound,
+    UsersRound,
 } from 'lucide-react';
 import type { ReactElement, ReactNode } from 'react';
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import ConversationController from '@/actions/App/Http/Controllers/ConversationController';
+import { index as guildIndex } from '@/actions/App/Http/Controllers/GuildController';
 import LogController from '@/actions/App/Http/Controllers/LogController';
 import ModerationController from '@/actions/App/Http/Controllers/ModerationController';
 import NotificationController from '@/actions/App/Http/Controllers/NotificationController';
@@ -48,6 +50,15 @@ import { useCurrentUrl } from '@/hooks/use-current-url';
 import { useMediaQuery } from '@/hooks/use-media-query';
 import { useNavOpen } from '@/hooks/use-nav-open';
 import { useKeyLabels } from '@/lib/keyboard';
+import {
+    hideLiteMobileAppTabs,
+    setLiteMobileAppTabs,
+    useDocumentTheme,
+    useIsModalOpen,
+} from '@/lib/lite-mobile-app';
+import type { LiteMobileAppTabs as LiteMobileAppTabsState } from '@/lib/lite-mobile-app-tabs';
+import { liteMobileAppTabs } from '@/lib/lite-mobile-app-tabs';
+import { scrollLogToTop } from '@/lib/log-scroll';
 import { browserTimeZone, cn, toUrl } from '@/lib/utils';
 import { home, login } from '@/routes';
 import { show } from '@/routes/user';
@@ -61,7 +72,7 @@ const navLabelClassName =
  * Guests see the same items, each taking them to sign in.
  */
 function useNavItems(): (NavItem & { isActive: boolean })[] {
-    const { auth, hasUnmoderatedCommits } = usePage().props;
+    const { auth, hasUnmoderatedCommits, guilds } = usePage().props;
     const { isCurrentUrl, isCurrentOrParentUrl } = useCurrentUrl();
     const { user, log } = auth;
     const unreadMessages = useUnreadMessages();
@@ -104,6 +115,9 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
             href: hrefFor(() => StarredCommitController.index()),
             icon: Star,
         },
+        ...(guilds !== null && guilds !== undefined
+            ? [{ title: 'Guilds', href: guildIndex(), icon: UsersRound }]
+            : []),
         ...(auth.isAdmin
             ? [
                   {
@@ -156,13 +170,25 @@ function NavLink({
     iconsOnly?: boolean;
     children: ReactNode;
 }) {
-    const { auth } = usePage().props;
+    const {
+        component,
+        props: { auth },
+    } = usePage();
+    const onClick =
+        item.title === 'Log' && component === 'log/show'
+            ? scrollLogToTop
+            : undefined;
     const title = iconsOnly ? undefined : item.description;
 
     if (auth.user === null) {
         return (
             <NavTooltip label={iconsOnly ? item.title : null}>
-                <a href={toUrl(item.href)} title={title} className={className}>
+                <a
+                    href={toUrl(item.href)}
+                    onClick={onClick}
+                    title={title}
+                    className={className}
+                >
                     {children}
                 </a>
             </NavTooltip>
@@ -173,7 +199,8 @@ function NavLink({
         <NavTooltip label={iconsOnly ? item.title : null}>
             <Link
                 href={item.href}
-                prefetch
+                onClick={onClick}
+                prefetch={onClick === undefined}
                 cacheFor="10s"
                 viewTransition
                 aria-current={item.isActive ? 'page' : undefined}
@@ -284,7 +311,7 @@ export function AppNav({
                             : LogController.show(auth.log)
                     }
                     viewTransition
-                    className="mb-8 grid shrink-0 grid-rows-[36px_20px] gap-y-1 rounded-md px-3"
+                    className="mb-14 grid shrink-0 grid-rows-[36px_0px] rounded-md px-3 nav-wide:mb-8 nav-wide:grid-rows-[36px_20px] nav-wide:gap-y-1"
                     aria-label={
                         auth.log === null
                             ? '/dev/null, go to the home page'
@@ -301,7 +328,7 @@ export function AppNav({
 
             <nav
                 aria-label="Main"
-                className="flex min-h-0 flex-1 scrollbar-none flex-col gap-1 overflow-y-auto [&>*]:shrink-0"
+                className="-mx-1 -mt-1 flex min-h-0 flex-1 scroll-py-1 scrollbar-none flex-col gap-1 overflow-y-auto p-1 [&>*]:shrink-0"
             >
                 {items.map((item) => (
                     <NavLink
@@ -508,7 +535,9 @@ export function MobileCommitButton({
             aria-label="Write a commit"
             title="Write a commit"
             className={cn(
-                'absolute right-4 bottom-full mb-4 size-14 rounded-lg shadow-lg transition-opacity duration-200 [view-transition-name:mobile-commit-button] md:hidden',
+                'absolute right-4 bottom-full mb-4 size-14 rounded-lg shadow-lg transition-[opacity,translate] duration-200 [view-transition-name:mobile-commit-button] md:hidden',
+                // In the lite mobile app, while reading down a page shrinks its tab bar
+                '[:root[data-tab-bar-collapsed]_&]:pointer-events-none [:root[data-tab-bar-collapsed]_&]:translate-y-[calc(100%+3rem)] [:root[data-tab-bar-collapsed]_&]:opacity-0',
                 { 'pointer-events-none opacity-0': isHidden },
             )}
             data-test="mobile-commit-button"
@@ -522,7 +551,7 @@ export function MobileCommitButton({
  * Shares its real height, safe area included, as `--mobile-nav-height`, so full-screen pages can end right above it.
  */
 export function MobileNav({ children }: { children?: ReactNode }) {
-    const { auth } = usePage().props;
+    const { auth, isLiteMobileApp } = usePage().props;
     const timeZone = auth.user?.timezone ?? browserTimeZone();
     const {
         changelog,
@@ -535,7 +564,7 @@ export function MobileNav({ children }: { children?: ReactNode }) {
     const [isChangelogOpen, setIsChangelogOpen] = useState(false);
     const allItems = useNavItems();
     const menuItems = allItems.filter((item) =>
-        ['Profile', 'Settings', 'Operations'].includes(item.title),
+        ['Profile', 'Settings', 'Operations', 'Guilds'].includes(item.title),
     );
     const items = allItems.filter(
         (item) =>
@@ -571,6 +600,21 @@ export function MobileNav({ children }: { children?: ReactNode }) {
         };
     }, []);
 
+    // The lite mobile app draws the tabs itself. The nav keeps the height of its tab bar, which the app adds to the safe
+    // area, so the commit button floats above the bar and full-screen pages end right above it.
+    if (isLiteMobileApp) {
+        return (
+            <nav
+                ref={nav}
+                aria-label="Main"
+                className="pointer-events-none fixed inset-x-0 bottom-0 z-20 pb-[env(safe-area-inset-bottom)] *:pointer-events-auto md:hidden [:root[data-keyboard-open]_&]:hidden"
+            >
+                {children}
+                <LiteMobileAppNavTabs items={allItems} />
+            </nav>
+        );
+    }
+
     return (
         <nav
             ref={nav}
@@ -583,7 +627,7 @@ export function MobileNav({ children }: { children?: ReactNode }) {
                     key={item.title}
                     item={item}
                     className={cn(
-                        'flex min-w-0 flex-1 flex-col items-center gap-1 py-1 text-[11px] font-medium tracking-tight text-muted-foreground',
+                        'flex min-w-0 flex-1 flex-col items-center py-1.5 text-muted-foreground',
                         { 'text-primary': item.isActive },
                     )}
                 >
@@ -603,14 +647,14 @@ export function MobileNav({ children }: { children?: ReactNode }) {
                             <NavIcon item={item} />
                         </span>
                     </span>
-                    <span className="max-w-full truncate">{item.title}</span>
+                    <span className="sr-only">{item.title}</span>
                 </NavLink>
             ))}
             <DropdownMenu>
                 <DropdownMenuTrigger
                     aria-label="More navigation"
                     className={cn(
-                        'flex min-w-0 flex-1 flex-col items-center gap-1 py-1 text-[11px] font-medium tracking-tight text-muted-foreground',
+                        'flex min-w-0 flex-1 flex-col items-center py-1.5 text-muted-foreground',
                         {
                             'text-primary': menuItems.some(
                                 (item) => item.isActive,
@@ -630,7 +674,6 @@ export function MobileNav({ children }: { children?: ReactNode }) {
                     >
                         <MobileMenuIcon className="size-5" />
                     </span>
-                    <span>Menu</span>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
                     className="w-48 md:hidden"
@@ -688,4 +731,40 @@ export function MobileNav({ children }: { children?: ReactNode }) {
             />
         </nav>
     );
+}
+
+/**
+ * Hands the main items of the navigation to the lite mobile app's tab bar.
+ */
+function LiteMobileAppNavTabs({
+    items,
+}: {
+    items: (NavItem & { isActive: boolean })[];
+}) {
+    const { url } = usePage();
+    const [appearance, tint] = useDocumentTheme().split(' ');
+    const isModalOpen = useIsModalOpen();
+    const key = JSON.stringify(
+        liteMobileAppTabs(
+            items.map((item) => ({
+                title: item.title,
+                url: toUrl(item.href),
+                badge: item.badge,
+            })),
+            new URL(url, 'https://dev-null.sh').pathname,
+            {
+                appearance: appearance === 'light' ? 'light' : 'dark',
+                tint: tint || null,
+                isModalOpen,
+            },
+        ),
+    );
+
+    useEffect(() => {
+        setLiteMobileAppTabs(JSON.parse(key) as LiteMobileAppTabsState);
+    }, [key]);
+
+    useEffect(() => hideLiteMobileAppTabs, []);
+
+    return null;
 }

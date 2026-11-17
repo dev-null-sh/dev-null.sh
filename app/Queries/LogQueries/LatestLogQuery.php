@@ -16,9 +16,10 @@ final readonly class LatestLogQuery implements LogQuery
         return Commit::query()
             ->visibleTo($user)
             ->withoutMutedAuthorsFor($user)
+            ->withoutMutedGuildsFor($user)
             ->topLevel()
             ->withVisibleReplyCount($user)
-            ->withReplyPreviews($user)
+            ->withReplyPreviews($user, inLog: true)
             ->withCardDataFor($user)
             ->latest()
             ->latest('id');

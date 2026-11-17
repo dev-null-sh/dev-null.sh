@@ -79,6 +79,7 @@ const orgThread: OrgThread = {
     role: 'maintainer',
     access: 'open',
     pinned: [],
+    mentions: [], mentions_count: 0,
 };
 
 function heldFetch(): {

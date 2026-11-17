@@ -2,7 +2,8 @@ import type { HttpExceptionResponse } from '@inertiajs/core';
 
 /**
  * What was deleted, or hidden from the viewer, while they were still looking at it: those commits and pages stay on
- * screen as they were last seen, with every action off, instead of turning into a 404 before they reload.
+ * screen as they were last seen, with every action off, instead of turning into a 404 before they reload. A commit
+ * heard to be back, as when its deletion is undone elsewhere, gets its actions back.
  */
 export function createDeletedResources() {
     const commits = new Set<string>();
@@ -20,6 +21,11 @@ export function createDeletedResources() {
 
     return {
         markCommit: (id: string) => mark(commits, id),
+        restoreCommit: (id: string) => {
+            if (commits.delete(id)) {
+                listeners.forEach((notify) => notify());
+            }
+        },
         markPage: (url: string) => mark(pages, url),
         hasCommit: (id: string) => commits.has(id),
         hasPage: (url: string) => pages.has(url),

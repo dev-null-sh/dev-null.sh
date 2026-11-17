@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Enums\CommitStatus;
+use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\CommitReport;
@@ -471,4 +472,23 @@ it('shows moderators who posted a reported organization commit', function (): vo
             ->where('reports.data.0.commit.poster.handle', 'taylor')
             ->missing('reports.data.0.commit.user')
             ->missing('reports.data.1.commit.poster'));
+});
+
+it('lists the reports filed and dismissed since a queue last read, so a queue that started listening late can catch up', function (): void {
+    $moderator = User::factory()->create(['handle' => 'moderator-demo']);
+    $read = now()->subSeconds(30);
+    CommitReport::factory()->create(['created_at' => now()->subMinute()]);
+    CommitReport::factory()->create(['created_at' => now()->subMinutes(2), 'dismissed_at' => now()->subMinute()]);
+    $filed = CommitReport::factory()->create();
+    CommitReport::factory()->for(Commit::factory()->pending())->create();
+    $dismissed = CommitReport::factory()->create(['created_at' => now()->subMinute(), 'dismissed_at' => now()]);
+
+    $this->actingAs($moderator)->get(route('reported-commit.index', ['since' => $read->getTimestampMs()]), [
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) resolve(HandleInertiaRequests::class)->version(request()),
+        'X-Inertia-Partial-Component' => 'moderation/reports',
+        'X-Inertia-Partial-Data' => 'reportChanges',
+    ])->assertOk()
+        ->assertJsonPath('props.reportChanges', ['filed' => [$filed->id], 'dismissed' => [$dismissed->id]])
+        ->assertJsonMissingPath('props.reports');
 });
