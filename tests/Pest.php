@@ -2,7 +2,9 @@
 
 declare(strict_types=1);
 
+use App\Actions\CreateDeviceAuthorization;
 use App\Contracts\Services\EmbeddingProvider;
+use App\Dto\DeviceAuthorization;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Jobs\UnfurlLink;
 use App\Models\Device;
@@ -407,4 +409,15 @@ function digestOf(string ...$ids): string
     sort($ids, SORT_STRING);
 
     return hash('sha256', implode(',', $ids));
+}
+
+/**
+ * Starts a sign-in from a terminal for a key, as POST /api/v1/device-authorizations does, and returns what it hands
+ * out: the device code the terminal polls with, and the authorization behind it, with the code the user types.
+ *
+ * @return array{device_code: string, authorization: DeviceAuthorization}
+ */
+function pendingDeviceAuthorization(string $fingerprint = 'SHA256:key', string $deviceName = 'devnull on a laptop'): array
+{
+    return resolve(CreateDeviceAuthorization::class)->handle($fingerprint, $deviceName);
 }
