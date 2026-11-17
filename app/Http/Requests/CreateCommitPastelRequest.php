@@ -21,8 +21,8 @@ final class CreateCommitPastelRequest extends FormRequest
 
         return match (true) {
             ! $user->pasteis_mode => Response::deny(),
-            $commit->user_id === $user->id => Response::deny('You cannot award your own commit.'),
-            $commit->user_id === null, ! $commit->isVisibleTo($user) => Response::denyAsNotFound(),
+            $commit->isOwnedBy($user) => Response::deny('You cannot award your own commit.'),
+            $commit->user_id === null, $commit->author_id !== $commit->user_id, ! $commit->isVisibleTo($user) => Response::denyAsNotFound(),
             default => Response::allow(),
         };
     }

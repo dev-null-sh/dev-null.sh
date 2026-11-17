@@ -60,9 +60,19 @@ vi.doMock('react', () => ({
         ];
     },
 }));
+const organization = {
+    type: 'organization',
+    id: 'laravel',
+    handle: 'laravel',
+    lane: null,
+};
+const organizations = [organization];
 vi.doMock('@inertiajs/react', async () => ({
     ...(await vi.importActual('@inertiajs/react')),
-    usePage: () => ({ props: { auth: { user, isAdmin: false } }, flash }),
+    usePage: () => ({
+        props: { auth: { user, isAdmin: false, organizations } },
+        flash,
+    }),
     useHttp: () => http,
 }));
 vi.doMock('../../resources/js/hooks/use-user', () => ({
@@ -88,6 +98,7 @@ const { LinkCardPicker } =
     await import('../../resources/js/components/link-card-picker');
 const { PollEditor } =
     await import('../../resources/js/components/poll-editor');
+const { GraphRail } = await import('../../resources/js/components/graph-rail');
 
 type Element = ReactElement<Record<string, unknown>>;
 
@@ -110,9 +121,9 @@ function elements(node: ReactNode): Element[] {
     ];
 }
 
-function render() {
+function render(guildHandle?: string) {
     cursor = 0;
-    const form = CommitComposer({});
+    const form = CommitComposer({ guildHandle });
     const fields = elements(
         form.props.children({ processing: false, errors: {} }),
     );
@@ -129,6 +140,70 @@ beforeEach(() => {
     draft.descriptions = [];
 });
 
+test('previews the guild hashtag without spending the draft character budget', () => {
+    draft.body = 'Learning Rust';
+    let view = render('rust');
+    assert.equal(
+        view.form.props.transform({ body: draft.body }).body,
+        'Learning Rust',
+    );
+    assert.equal(view.form.props.transform({}).guild_handle, 'rust');
+    const toggle = view.fields.find(
+        (element) => element.type === PreviewToggle,
+    )!;
+    assert.equal(
+        (toggle.props.preview as { draft: string }).draft,
+        'Learning Rust\n\n#rust',
+    );
+    assert.equal(view.form.props.onBefore(), true);
+
+    for (const body of ['Learning #RUST!', '`#rust` then #rust', '(#rust)']) {
+        draft.body = body;
+        const preview = render('rust').fields.find(
+            (element) => element.type === PreviewToggle,
+        )!.props.preview as { draft: string };
+        assert.equal(preview.draft, body);
+    }
+    for (const body of [
+        '#rustlang',
+        '#rust_dev',
+        '`#rust`',
+        '```text\n#rust\n```',
+        'https://example.com?q=#rust',
+        'example.com?q=#rust',
+        'not#rust',
+        '&#rust',
+        '/#rust',
+        '>#rust',
+    ]) {
+        draft.body = body;
+        const preview = render('rust').fields.find(
+            (element) => element.type === PreviewToggle,
+        )!.props.preview as { draft: string };
+        assert.equal(preview.draft, `${body}\n\n#rust`);
+    }
+    draft.body = 'x'.repeat(4000);
+    assert.equal(render('rust').form.props.onBefore(), true);
+    draft.body += 'x';
+    view = render('rust');
+    assert.equal(view.form.props.onBefore(), false);
+    assert.equal(
+        view.fields.find((element) => element.props.type === 'submit')?.props
+            .disabled,
+        true,
+    );
+    draft.body = '';
+    assert.equal(render('rust').form.props.onBefore(), false);
+});
+
+test('recognizes a guild draft after a successful post reload and leaves other drafts alone', () => {
+    draft.body = 'Learning Rust';
+    flash = { committed: { body: 'Learning Rust\n\n#rust' } };
+    render('rust');
+    effects.forEach((effect) => effect());
+    assert.equal(draft.drop.mock.calls.length, 1);
+});
+
 test('preserves restored images and link cards and allows scheduling them', () => {
     draft.images = [image];
     draft.descriptions = ['A restored screenshot'];
@@ -140,6 +215,7 @@ test('preserves restored images and link cards and allows scheduling them', () =
     assert.deepEqual(form.props.transform(data), {
         ...data,
         commit_rules_accepted: true,
+        human_verification_token: '',
         images: [image],
         image_descriptions: ['A restored screenshot'],
     });
@@ -265,6 +341,7 @@ test('removing restored images enables polls and successful posting resets the p
         assert.deepEqual(view.form.props.transform(data), {
             ...data,
             commit_rules_accepted: true,
+            human_verification_token: '',
         });
         view.form.props.onSuccess({
             flash: { toast: { type: 'error', message: 'Slow down' } },
@@ -353,6 +430,7 @@ test('schedules in UTC with pasted images and the chosen link card', () => {
     assert.deepEqual(view.form.props.transform({ body: draft.body }), {
         body: draft.body,
         commit_rules_accepted: true,
+        human_verification_token: '',
         scheduled_at: scheduledAt,
     });
     assert.equal(
@@ -388,6 +466,7 @@ test('schedules in UTC with pasted images and the chosen link card', () => {
     assert.deepEqual(view.form.props.transform(data), {
         ...data,
         commit_rules_accepted: true,
+        human_verification_token: '',
         images: [image],
         image_descriptions: [''],
         scheduled_at: scheduledAt,
@@ -408,6 +487,7 @@ test('submits token-shaped text and restored images without secret approval', ()
     assert.deepEqual(form.props.transform({ body: draft.body }), {
         body: draft.body,
         commit_rules_accepted: true,
+        human_verification_token: '',
         images: [image],
         image_descriptions: ['A restored screenshot'],
     });
@@ -443,6 +523,7 @@ test('previews restored images and descriptions while keeping them attached when
     assert.deepEqual(view.form.props.transform({ body: draft.body }), {
         body: draft.body,
         commit_rules_accepted: true,
+        human_verification_token: '',
         images: [image],
         image_descriptions: ['A restored screenshot'],
     });
@@ -697,6 +778,50 @@ test('commands are not offered while the draft has images, a poll or a schedule'
     );
 });
 
+test('schedules as the organization picked from the avatar', () => {
+    const node = () =>
+        render().fields.find((element) => element.type === GraphRail)!.props
+            .node as Element;
+    const find = (key: string, value: unknown) =>
+        render().fields.find((element) => element.props[key] === value)!;
+
+    (find('aria-controls', 'body-schedule').props.onClick as () => void)();
+    (node().props.onChange as (author: unknown) => void)(organization);
+    (find('id', 'body-scheduled-at').props.onChange as (value: string) => void)(
+        '2026-10-17T10:30',
+    );
+
+    assert.equal(node().props.author, organization);
+    assert.deepEqual(render().form.props.transform({ body: draft.body }), {
+        body: draft.body,
+        commit_rules_accepted: true,
+        human_verification_token: '',
+        author: 'laravel',
+        scheduled_at: new Date('2026-10-17T10:30')
+            .toISOString()
+            .replace(/\.\d{3}Z$/, '+00:00'),
+    });
+});
+
+test('posts as themselves once the picked organization is no longer theirs', () => {
+    const node = () =>
+        render().fields.find((element) => element.type === GraphRail)!.props
+            .node as Element;
+
+    (node().props.onChange as (author: unknown) => void)(organization);
+    organizations.length = 0;
+
+    try {
+        assert.equal(node().props.author, null);
+        assert.equal(
+            'author' in render().form.props.transform({ body: draft.body }),
+            false,
+        );
+    } finally {
+        organizations.push(organization);
+    }
+});
+
 test('turning scheduling off clears the chosen time and commits now', () => {
     const find = (key: string, value: unknown) =>
         render().fields.find((element) => element.props[key] === value);
@@ -722,6 +847,7 @@ test('turning scheduling off clears the chosen time and commits now', () => {
     assert.deepEqual(render().form.props.transform({ body: draft.body }), {
         body: draft.body,
         commit_rules_accepted: true,
+        human_verification_token: '',
     });
 
     (find('aria-controls', 'body-schedule')!.props.onClick as () => void)();

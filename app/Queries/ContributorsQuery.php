@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Queries;
 
+use App\Contracts\Services\GitHubProvider;
 use App\Models\User;
-use App\Services\GitHub;
 use Illuminate\Http\Client\HttpClientException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Fluent;
@@ -29,7 +29,7 @@ final readonly class ContributorsQuery
      */
     private const array Agents = ['ampagent', 'claude'];
 
-    public function __construct(private GitHub $github)
+    public function __construct(private GitHubProvider $github)
     {
         //
     }
@@ -61,6 +61,15 @@ final readonly class ContributorsQuery
     }
 
     /**
+     * How many commits the user's GitHub account has in the repository, as GitHub counts them, from the same list the
+     * About page shows. Zero when it has none, or GitHub didn't answer.
+     */
+    public function commits(User $user): int
+    {
+        return array_column($this->accounts() ?? [], 'commits', 'github_id')[$user->github_id] ?? 0;
+    }
+
+    /**
      * The GitHub accounts behind the contributors. A failed read is kept for a minute, so an outage doesn't send every
      * visitor to GitHub.
      *
@@ -79,16 +88,7 @@ final readonly class ContributorsQuery
 
             try {
                 for ($page = 1; $page <= self::MaxPages; $page++) {
-                    $accounts = $this->github->request()->get("repos/{$repository}/contributors", [
-                        'per_page' => self::PerPage,
-                        'page' => $page,
-                    ])->throw()->collect();
-
-                    if ($accounts->isNotEmpty() && ! array_is_list($accounts->all())) {
-                        $contributors = false;
-
-                        break;
-                    }
+                    $accounts = collect($this->github->contributors($repository, $page, self::PerPage));
 
                     $contributors = [...$contributors, ...$accounts->where('type', 'User')
                         ->mapInto(Fluent::class)

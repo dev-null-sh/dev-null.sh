@@ -1,8 +1,8 @@
 import AppWordmark from '@/components/app-wordmark';
-import { codePattern } from '@/lib/code';
+import { splitCode } from '@/lib/code';
 
 export function WordmarkText({ children }: { children: string }) {
-    return children.split(codePattern).flatMap((segment, segmentIndex) =>
+    return splitCode(children).flatMap((segment, segmentIndex) =>
         segmentIndex % 2 === 1
             ? segment
             : segment

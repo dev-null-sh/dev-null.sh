@@ -36,11 +36,13 @@ final readonly class Mentions
     /**
      * Finds where each "@handle" is in the text, by the same rules and also skipping code, so a client can link it
      * to the profile like the web does. The handle keeps its case, and the offset and length count characters in
-     * the whole text and include the "@".
+     * the whole text and include the "@". The kind says whether it mentions one of the given organizations, by
+     * lowercase handle, or anyone else.
      *
-     * @return list<array{handle: string, offset: int, length: int}>
+     * @param  array<string, string>  $organizations
+     * @return list<array{handle: string, offset: int, length: int, kind: 'user'|'organization'}>
      */
-    public function positions(string $text): array
+    public function positions(string $text, array $organizations = []): array
     {
         $positions = [];
         $offset = 0;
@@ -54,6 +56,7 @@ final readonly class Mentions
                         'handle' => $match[1][0],
                         'offset' => $offset + mb_strlen(mb_strcut($part, 0, $match[0][1])),
                         'length' => mb_strlen($match[0][0]),
+                        'kind' => array_key_exists(mb_strtolower($match[1][0]), $organizations) ? 'organization' : 'user',
                     ];
                 }
             }

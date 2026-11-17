@@ -3,8 +3,10 @@
 declare(strict_types=1);
 
 use App\Models\Commit;
+use App\Models\Organization;
 use App\Models\User;
 use App\Queries\LogQueries\FollowingLogQuery;
+use App\Services\Features;
 use Illuminate\Support\Facades\DB;
 
 it('returns no commits for guests', function (): void {
@@ -30,8 +32,19 @@ it('includes own commits and commits of followed users newest first', function (
     $commits = $query->builder($user)->get();
 
     expect($commits->modelKeys())->toBe([$followedCommit->id, $own->id])
-        ->and($commits->first()->relationLoaded('user'))->toBeTrue()
+        ->and($commits->first()->relationLoaded('author'))->toBeTrue()
         ->and($commits->first()->relationLoaded('linkPreview'))->toBeTrue();
+});
+
+it('includes the commits of followed organizations', function (): void {
+    $user = User::factory()->create();
+    $followed = Organization::factory()->create();
+    $user->followedOrganizations()->attach($followed);
+
+    $fromFollowed = Commit::factory()->create(['author_id' => $followed->id]);
+    Commit::factory()->create(['author_id' => Organization::factory()->create()->id]);
+
+    expect(resolve(FollowingLogQuery::class)->builder($user)->get()->modelKeys())->toBe([$fromFollowed->id]);
 });
 
 it('orders commits by creation date rather than insertion order', function (): void {
@@ -52,6 +65,7 @@ it('resolves followed users in a subquery instead of loading their ids', functio
     $user = User::factory()->create();
 
     $user->following()->attach(User::factory()->count(3)->create());
+    resolve(Features::class)->all();
 
     DB::enableQueryLog();
 

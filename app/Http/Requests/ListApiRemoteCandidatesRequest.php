@@ -37,8 +37,16 @@ final class ListApiRemoteCandidatesRequest extends FormRequest
         return [
             'q' => ['nullable', 'string', 'max:100'],
             'org' => ['nullable', 'uuid'],
-            'for' => ['nullable', 'in:remote,org'],
+            'for' => ['nullable', 'in:remote,org,share'],
         ];
+    }
+
+    /**
+     * Whether people are being picked to share a commit with, which also says when a request stands in the way.
+     */
+    public function isSharing(): bool
+    {
+        return $this->input('for') === 'share';
     }
 
     /**

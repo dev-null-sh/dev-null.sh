@@ -19,7 +19,7 @@ final readonly class PinnedCommitQuery
         }
 
         return Commit::query()
-            ->whereBelongsTo($user)
+            ->where('author_id', $user->id)
             ->visibleTo($viewer)
             ->topLevel()
             ->withVisibleReplyCount($viewer)

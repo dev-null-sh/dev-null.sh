@@ -4,6 +4,8 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { index as issueSuggestions } from '@/actions/App/Http/Controllers/IssueSuggestionController';
 import MentionSuggestionController from '@/actions/App/Http/Controllers/MentionSuggestionController';
+import { GuildIcon } from '@/components/guild-icon';
+import { OrganizationAvatar } from '@/components/organization-avatar';
 import { Spinner } from '@/components/ui/spinner';
 import { UserAvatar } from '@/components/user-avatar';
 import { typedProse } from '@/lib/code';
@@ -13,10 +15,10 @@ import { issueReferenceBeforeCaret } from '@/lib/issue-reference';
 import { suggestionPosition } from '@/lib/suggestion-position';
 import { toastWhenThrottled } from '@/lib/throttle';
 import { characterCount, cn, laneColor, limitCharacters } from '@/lib/utils';
-import type { OrgMember, User } from '@/types';
+import type { Organization, OrgMember, User } from '@/types';
 
 type Trigger = {
-    kind: 'mention' | 'emoji' | 'issue';
+    kind: 'mention' | 'emoji' | 'issue' | 'guild';
     start: number;
     query: string;
 };
@@ -27,15 +29,17 @@ type IssueSuggestion = {
     url: string;
 };
 
-type Suggestions = {
-    key: string;
+type MentionResults = {
     users: User[];
+    organizations: Organization[];
 };
+
+type Suggestions = MentionResults & { key: string };
 
 type Position = ReturnType<typeof suggestionPosition>;
 
 const debounce = 120;
-const cache = new Map<string, User[]>();
+const cache = new Map<string, MentionResults>();
 
 export function clearMentionSuggestionsCache(): void {
     cache.clear();
@@ -80,6 +84,7 @@ function triggerAt(
     textarea: HTMLTextAreaElement,
     suggestsMentions: boolean,
     suggestsIssues: boolean,
+    suggestsGuilds: boolean,
 ): Trigger | null {
     if (textarea.selectionStart !== textarea.selectionEnd) {
         return null;
@@ -115,7 +120,17 @@ function triggerAt(
         ? issueReferenceBeforeCaret(textarea.value, caret)
         : null;
 
-    return issue ? { kind: 'issue', ...issue } : null;
+    if (issue) return { kind: 'issue', ...issue };
+
+    const guild = suggestsGuilds
+        ? (typedProse(before).at(-1) ?? '').match(
+              /(?:^|[\s([{])#(\p{L}[\p{L}\p{M}\p{N}_]*|)$/u,
+          )
+        : null;
+
+    return guild && !/^[\p{L}\p{M}\p{N}_/#-]/u.test(textarea.value.slice(caret))
+        ? { kind: 'guild', start: caret - guild[1].length - 1, query: guild[1] }
+        : null;
 }
 
 /**
@@ -175,7 +190,7 @@ async function fetchSuggestions(
     reply: string | undefined,
     quote: string | undefined,
     signal: AbortSignal,
-): Promise<User[]> {
+): Promise<MentionResults> {
     const response = await fetch(
         MentionSuggestionController.index({
             query: { q: query, org, reply, quote },
@@ -195,16 +210,16 @@ async function fetchSuggestions(
         throw new Error('Unable to load suggestions');
     }
 
-    const data = (await response.json()) as { users: User[] };
+    const data = (await response.json()) as MentionResults;
     // Replies need fresh participants when someone joins the thread.
     if (!reply) {
         cache.set(
             `${org ?? ''}:${reply ?? ''}:${quote ?? ''}:${query.toLowerCase()}`,
-            data.users,
+            data,
         );
     }
 
-    return data.users;
+    return data;
 }
 
 /**
@@ -272,7 +287,7 @@ export function MentionTextarea({
     reply?: string;
     quote?: string;
 }) {
-    const { repository } = usePage().props;
+    const { repository, guilds } = usePage().props;
     const id = useId();
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const listRef = useRef<HTMLUListElement>(null);
@@ -311,7 +326,12 @@ export function MentionTextarea({
     };
 
     const track = (textarea: HTMLTextAreaElement) => {
-        const next = triggerAt(textarea, suggestsMentions, suggestsIssues);
+        const next = triggerAt(
+            textarea,
+            suggestsMentions,
+            suggestsIssues,
+            suggestsIssues && !!guilds?.length,
+        );
 
         if (
             next?.kind === 'issue' &&
@@ -356,7 +376,7 @@ export function MentionTextarea({
         const timeout = setTimeout(
             () =>
                 fetchSuggestions(query, org, reply, quote, controller.signal)
-                    .then((users) => setResults({ key, users }))
+                    .then((data) => setResults({ key, ...data }))
                     .catch(() => undefined),
             query === '' ? 0 : debounce,
         );
@@ -472,32 +492,56 @@ export function MentionTextarea({
                   .map(({ user }) => user);
     const current =
         local !== null && key !== null
-            ? { key, users: local }
+            ? { key, users: local, organizations: [] }
             : key !== null && cached
-              ? { key, users: cached }
+              ? { key, ...cached }
               : results;
     const suggestions =
         key !== null && current?.key === key ? current.users : [];
+    const organizations =
+        key !== null && current?.key === key ? current.organizations : [];
     const emojiQuery =
         trigger?.kind === 'emoji' ? trigger.query.toLowerCase() : '';
     const emojis = emojiQuery === '' ? [] : searchEmoji(emojiQuery);
+    const guildQuery =
+        trigger?.kind === 'guild' ? trigger.query.toLowerCase() : '';
+    const matchingGuilds =
+        trigger?.kind === 'guild'
+            ? (guilds ?? [])
+                  .filter(
+                      (guild) =>
+                          guild.handle.includes(guildQuery) ||
+                          guild.name.toLowerCase().includes(guildQuery),
+                  )
+                  .toSorted(
+                      (a, b) =>
+                          Number(b.handle.startsWith(guildQuery)) -
+                          Number(a.handle.startsWith(guildQuery)),
+                  )
+                  .slice(0, 6)
+            : [];
     const optionCount =
-        trigger?.kind === 'issue'
-            ? issue
-                ? 1
-                : 0
-            : trigger?.kind === 'emoji'
-              ? emojis.length
-              : suggestions.length;
+        trigger?.kind === 'guild'
+            ? matchingGuilds.length
+            : trigger?.kind === 'issue'
+              ? issue
+                  ? 1
+                  : 0
+              : trigger?.kind === 'emoji'
+                ? emojis.length
+                : suggestions.length + organizations.length;
     const selectedIndex = Math.min(activeIndex, Math.max(0, optionCount - 1));
     const isOpen =
         trigger !== null &&
         position !== null &&
-        (trigger.kind === 'issue'
-            ? issue !== null
-            : trigger.kind === 'emoji'
-              ? emojis.length > 0
-              : suggestions.length > 0 || query !== '');
+        (trigger.kind === 'guild'
+            ? matchingGuilds.length > 0
+            : trigger.kind === 'issue'
+              ? issue !== null
+              : trigger.kind === 'emoji'
+                ? emojis.length > 0
+                : suggestions.length + organizations.length > 0 ||
+                  query !== '');
 
     const insert = (text: string, separator: string) => {
         const textarea = textareaRef.current;
@@ -548,7 +592,8 @@ export function MentionTextarea({
         });
     };
 
-    const select = (user: User) => insert(`@${user.handle}`, ' ');
+    const select = (account: User | Organization) =>
+        insert(`@${account.handle}`, ' ');
 
     const selectEmoji = (emoji: EmojiSuggestion) => insert(emoji.emoji, '');
 
@@ -579,10 +624,16 @@ export function MentionTextarea({
 
                 if (trigger?.kind === 'issue' && issue) {
                     insert(issue.url, ' ');
+                } else if (trigger?.kind === 'guild') {
+                    insert(`#${matchingGuilds[selectedIndex].handle}`, ' ');
                 } else if (trigger?.kind === 'emoji') {
                     selectEmoji(emojis[selectedIndex]);
                 } else {
-                    select(suggestions[selectedIndex]);
+                    select(
+                        selectedIndex < suggestions.length
+                            ? suggestions[selectedIndex]
+                            : organizations[selectedIndex - suggestions.length],
+                    );
                 }
 
                 return;
@@ -607,21 +658,27 @@ export function MentionTextarea({
 
     const activeId = !isOpen
         ? undefined
-        : trigger?.kind === 'issue'
-          ? `${id}-issue-${issue?.number}`
-          : trigger?.kind === 'emoji'
-            ? emojis[selectedIndex] &&
-              `${id}-emoji-${emojis[selectedIndex].name}`
-            : suggestions[selectedIndex] &&
-              `${id}-mention-${suggestions[selectedIndex].id}`;
+        : trigger?.kind === 'guild'
+          ? `${id}-guild-${matchingGuilds[selectedIndex].id}`
+          : trigger?.kind === 'issue'
+            ? `${id}-issue-${issue?.number}`
+            : trigger?.kind === 'emoji'
+              ? emojis[selectedIndex] &&
+                `${id}-emoji-${emojis[selectedIndex].name}`
+              : selectedIndex < suggestions.length
+                ? `${id}-mention-${suggestions[selectedIndex].id}`
+                : organizations[selectedIndex - suggestions.length] &&
+                  `${id}-mention-${organizations[selectedIndex - suggestions.length].handle}`;
 
     const isSearching = current?.key !== key;
     const listId =
-        trigger?.kind === 'issue'
-            ? `${id}-issues`
-            : trigger?.kind === 'emoji'
-              ? `${id}-emojis`
-              : `${id}-mentions`;
+        trigger?.kind === 'guild'
+            ? `${id}-guilds`
+            : trigger?.kind === 'issue'
+              ? `${id}-issues`
+              : trigger?.kind === 'emoji'
+                ? `${id}-emojis`
+                : `${id}-mentions`;
 
     return (
         <>
@@ -684,7 +741,63 @@ export function MentionTextarea({
                         data-mention-suggestions
                         data-test="mention-suggestions"
                     >
-                        {trigger?.kind === 'issue' && issue ? (
+                        {trigger?.kind === 'guild' ? (
+                            <ul
+                                ref={listRef}
+                                id={listId}
+                                role="listbox"
+                                aria-label="Mention a guild"
+                                className="min-h-0 overflow-y-auto overscroll-contain p-1.5"
+                            >
+                                {matchingGuilds.map((guild, index) => (
+                                    <li
+                                        key={guild.id}
+                                        id={`${id}-guild-${guild.id}`}
+                                        role="option"
+                                        aria-selected={index === selectedIndex}
+                                        onMouseMove={() =>
+                                            setActiveIndex(index)
+                                        }
+                                        onClick={() =>
+                                            insert(`#${guild.handle}`, ' ')
+                                        }
+                                        className={cn(
+                                            'flex cursor-pointer items-center gap-2.5 rounded-sm px-2.5 py-2',
+                                            {
+                                                'bg-accent':
+                                                    index === selectedIndex,
+                                            },
+                                        )}
+                                    >
+                                        <GuildIcon
+                                            guild={guild}
+                                            className="size-8 shrink-0 rounded-sm text-xl"
+                                        />
+                                        <span className="min-w-0 flex-1">
+                                            <span
+                                                className="block truncate text-sm font-semibold"
+                                                title={guild.name}
+                                            >
+                                                <Highlighted
+                                                    text={guild.name}
+                                                    query={guildQuery}
+                                                />
+                                            </span>
+                                            <span
+                                                className="block truncate font-mono text-xs text-muted-foreground"
+                                                title={`#${guild.handle}`}
+                                            >
+                                                #
+                                                <Highlighted
+                                                    text={guild.handle}
+                                                    query={guildQuery}
+                                                />
+                                            </span>
+                                        </span>
+                                    </li>
+                                ))}
+                            </ul>
+                        ) : trigger?.kind === 'issue' && issue ? (
                             <ul
                                 ref={listRef}
                                 id={listId}
@@ -769,7 +882,7 @@ export function MentionTextarea({
                                     </li>
                                 ))}
                             </ul>
-                        ) : suggestions.length > 0 ? (
+                        ) : suggestions.length + organizations.length > 0 ? (
                             <ul
                                 ref={listRef}
                                 id={listId}
@@ -846,6 +959,67 @@ export function MentionTextarea({
                                                 {
                                                     'opacity-100':
                                                         index === selectedIndex,
+                                                },
+                                            )}
+                                        >
+                                            ↵
+                                        </kbd>
+                                    </li>
+                                ))}
+                                {organizations.map((organization, index) => (
+                                    <li
+                                        key={organization.handle}
+                                        id={`${id}-mention-${organization.handle}`}
+                                        role="option"
+                                        aria-selected={
+                                            suggestions.length + index ===
+                                            selectedIndex
+                                        }
+                                        onMouseMove={() =>
+                                            setActiveIndex(
+                                                suggestions.length + index,
+                                            )
+                                        }
+                                        onClick={() => select(organization)}
+                                        className={cn(
+                                            'flex cursor-pointer items-center gap-2.5 rounded-sm px-2.5 py-2',
+                                            {
+                                                'bg-accent':
+                                                    suggestions.length +
+                                                        index ===
+                                                    selectedIndex,
+                                            },
+                                        )}
+                                        data-test="organization-suggestion"
+                                    >
+                                        <OrganizationAvatar
+                                            organization={organization}
+                                            className="size-8 shrink-0"
+                                        />
+                                        <span className="min-w-0 flex-1">
+                                            <span className="block truncate text-sm font-semibold">
+                                                <Highlighted
+                                                    text={organization.name}
+                                                    query={query ?? ''}
+                                                />
+                                            </span>
+                                            <span className="block truncate font-mono text-xs text-muted-foreground">
+                                                @
+                                                <Highlighted
+                                                    text={organization.handle}
+                                                    query={query ?? ''}
+                                                />
+                                            </span>
+                                        </span>
+                                        <kbd
+                                            aria-hidden
+                                            className={cn(
+                                                'hidden shrink-0 font-mono text-xs text-muted-foreground opacity-0 sm:block',
+                                                {
+                                                    'opacity-100':
+                                                        suggestions.length +
+                                                            index ===
+                                                        selectedIndex,
                                                 },
                                             )}
                                         >

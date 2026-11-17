@@ -183,6 +183,7 @@ export default function Show({
                             renderName={(handle) => (
                                 <UserPreview user={{ handle }}>
                                     <Link
+                                        prefetch
                                         href={UserController.show(handle)}
                                         className="underline-offset-4 hover:underline"
                                     >

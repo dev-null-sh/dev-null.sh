@@ -20,9 +20,10 @@ export function ImageViewer({
     className,
     styles,
     toolbarButtons = [],
+    showZoomButton = true,
     controls,
 }: {
-    images: ShownImage[];
+    images: (ShownImage & { alt?: string })[];
     index: number | null;
     onView: (index: number) => void;
     onClose: () => void;
@@ -31,6 +32,7 @@ export function ImageViewer({
     className?: string;
     styles?: LightboxProps['styles'];
     toolbarButtons?: ReactNode[];
+    showZoomButton?: boolean;
     controls?: () => ReactNode;
 }) {
     const [captionedImageId, setCaptionedImageId] = useState<string | null>(
@@ -70,7 +72,7 @@ export function ImageViewer({
         () =>
             images.map((image, imageIndex, all) => ({
                 src: image.url,
-                alt: commitImageAlt(image, imageIndex, all.length),
+                alt: image.alt ?? commitImageAlt(image, imageIndex, all.length),
                 width: image.width,
                 height: image.height,
                 ...(downloadUrl && {
@@ -129,6 +131,7 @@ export function ImageViewer({
             }}
             toolbar={{ buttons: [...toolbarButtons, 'close'] }}
             render={{
+                ...(!showZoomButton && { buttonZoom: () => null }),
                 ...(!hasMultipleImages && {
                     buttonPrev: () => null,
                     buttonNext: () => null,

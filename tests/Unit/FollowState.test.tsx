@@ -19,6 +19,7 @@ type VisitOptions = {
     preserveState?: boolean;
     preserveScroll?: boolean;
     onHttpException?: (response: { status: number }) => boolean | void;
+    onStart?: () => void;
     onSuccess?: () => void;
     onError?: () => void;
     onNetworkError?: () => void;
@@ -36,6 +37,7 @@ const toasts: string[] = [];
 vi.doMock('react', () => ({
     ...React,
     useEffect: () => {},
+    useEffectEvent: (callback: unknown) => callback,
     useLayoutEffect: () => {},
     useRef: (initial: unknown) => ({ current: initial }),
     useState: (initial: unknown) => [
@@ -75,7 +77,10 @@ vi.doMock('@inertiajs/react', async () => ({
             }
 
             return () =>
-                navigateListeners.splice(navigateListeners.indexOf(listener), 1);
+                navigateListeners.splice(
+                    navigateListeners.indexOf(listener),
+                    1,
+                );
         },
         replaceProp: (
             _key: string,
@@ -96,7 +101,7 @@ vi.doMock('../../resources/js/lib/chat', async () => ({
     blockPartner: async () => true,
 }));
 
-const { FollowButton } =
+const { FollowButton, prepareFollowingUpdate } =
     await import('../../resources/js/components/follow-button');
 const { UserPreview } =
     await import('../../resources/js/components/user-preview');
@@ -108,6 +113,8 @@ const { UserSafetyMenu } =
     await import('../../resources/js/components/user-safety-menu');
 const { ConversationActions } =
     await import('../../resources/js/components/chat/conversation-actions');
+const { default: Connections } =
+    await import('../../resources/js/pages/user/connections');
 
 vi.stubGlobal('window', {
     matchMedia: () => ({ matches: false }),
@@ -167,6 +174,7 @@ function suggestion(handle: string): SuggestedUser {
         show_local_time: false,
         followed_by_following_count: 0,
         followers_count: 0,
+        follows_you: false,
     } as unknown as SuggestedUser;
 }
 
@@ -188,20 +196,81 @@ function isSuggested(user: SuggestedUser): boolean {
     return row.props.inert !== true;
 }
 
-function blockFromSafetyMenu(user: SuggestedUser): void {
-    const block = find(
+function safetyMenuBlock(user: SuggestedUser): ReactElement<Props> | null {
+    const dialog = find(
         UserSafetyMenu({ user, isMuting: false, isBlocking: false }),
-        (props) => props.children === 'Block',
+        (props) => 'open' in props && props.user === user,
     );
+    assert.ok(dialog);
+
+    return find(render(dialog), (props) => props.children === 'Block');
+}
+
+function blockFromSafetyMenu(user: SuggestedUser): void {
+    const block = safetyMenuBlock(user);
     assert.ok(block);
     (block.props.onClick as () => void)();
     visits.at(-1)?.onSuccess?.();
 }
 
+function previewContent(user: SuggestedUser, isFollowing = false): ReactNode {
+    showPreview = true;
+    const preview = UserPreview({ user: user as User, children: user.name });
+    showPreview = false;
+
+    const content = find(preview, (props) => 'onMenuOpenChange' in props);
+    assert.ok(content);
+
+    return render({
+        ...content,
+        props: {
+            ...content.props,
+            data: {
+                isFollowing,
+                followsYou: user.follows_you,
+                isMuting: false,
+                isBlocking: false,
+                isUnavailable: false,
+                user: { ...user, followers_count: 0 } as unknown as Profile,
+            },
+        },
+    });
+}
+
 function previewFollowButton(
     user: SuggestedUser,
     isFollowing = false,
-    onChange?: (data: { user: Profile }) => void,
+): ReactElement<Props> {
+    const button = find(
+        previewContent(user, isFollowing),
+        (props) => props['data-test'] === 'user-preview-follow-button',
+    );
+    assert.ok(button);
+
+    return button;
+}
+
+function previewFollowersCount(
+    user: SuggestedUser,
+    isFollowing: boolean,
+): unknown {
+    const followers = find(
+        previewContent(user, isFollowing),
+        (props) =>
+            (props.href as { url?: string } | undefined)?.url?.endsWith(
+                '/followers',
+            ) === true,
+    );
+    assert.ok(followers);
+
+    return find(followers.props.children, (props) =>
+        String(props.className).includes('font-mono'),
+    )?.props.children;
+}
+
+function previewMenu(
+    user: SuggestedUser,
+    canPush: boolean,
 ): ReactElement<Props> {
     showPreview = true;
     const preview = UserPreview({ user: user as User, children: user.name });
@@ -210,27 +279,37 @@ function previewFollowButton(
     const content = find(preview, (props) => 'onMenuOpenChange' in props);
     assert.ok(content);
 
-    const button = find(
+    const menu = find(
         render({
             ...content,
             props: {
                 ...content.props,
-                ...(onChange && { onChange }),
                 data: {
-                    isFollowing,
-                    followsYou: false,
+                    isFollowing: false,
+                    followsYou: true,
                     isMuting: false,
                     isBlocking: false,
                     isUnavailable: false,
+                    canPush,
                     user: { ...user, followers_count: 0 } as unknown as Profile,
                 },
             },
         }),
-        (props) => props['data-test'] === 'user-preview-follow-button',
+        (props) => 'isMuting' in props,
     );
-    assert.ok(button);
+    assert.ok(menu);
 
-    return button;
+    return menu;
+}
+
+function previewRemote(
+    user: SuggestedUser,
+    canPush: boolean,
+): ReactElement<Props> | null {
+    return find(
+        render(previewMenu(user, canPush)),
+        (props) => props['data-test'] === 'user-remote',
+    );
 }
 
 function followFromProfile(user: SuggestedUser): void {
@@ -240,8 +319,115 @@ function followFromProfile(user: SuggestedUser): void {
     );
     assert.ok(profileButton);
 
+    (profileButton.props.onStart as () => void)();
     (profileButton.props.onSuccess as () => void)();
+    (profileButton.props.onFinish as () => void)();
 }
+
+test('a live follow read cannot undo a follow completed after that read began', () => {
+    const user = suggestion('newer-follow');
+    const apply = prepareFollowingUpdate(user, () => {});
+    followFromProfile(user);
+
+    apply(false);
+
+    assert.equal(suggestionLabel(user), 'Unfollow @newer-follow');
+});
+
+test('a live read begun during a pending follow does not undo it after completion', () => {
+    const user = suggestion('pending-live-follow');
+    const button = find(
+        FollowButton({ user, isFollowing: false }),
+        (props) => props['data-test'] === 'follow-button',
+    );
+    assert.ok(button);
+    (button.props.onStart as () => void)();
+    const apply = prepareFollowingUpdate(user, () => {});
+    (button.props.onFinish as () => void)();
+
+    apply(false);
+
+    assert.equal(suggestionLabel(user), 'Unfollow @pending-live-follow');
+});
+
+test('the profile preview menu offers a remote when they could be pushed to', () => {
+    assert.deepEqual(previewRemote(suggestion('pushable'), true)?.props.href, {
+        url: '/remotes/@pushable',
+        method: 'get',
+    });
+    assert.equal(previewRemote(suggestion('unreachable'), false), null);
+});
+
+test('the safety menu reports a block or unblock once it goes through, but not a mute', () => {
+    const user = suggestion('reported');
+    const changes: string[] = [];
+    const onBlockChange = () => changes.push('changed');
+    const menu = UserSafetyMenu({
+        user,
+        isMuting: false,
+        isBlocking: false,
+        onBlockChange,
+    });
+
+    const mute = find(
+        menu,
+        (props) =>
+            Array.isArray(props.children) &&
+            props.children.includes('Mute @reported'),
+    );
+    assert.ok(mute);
+    (mute.props.onSelect as () => void)();
+    visits.at(-1)?.onSuccess?.();
+    assert.deepEqual(changes, []);
+
+    const dialog = find(menu, (props) => props.onBlockChange !== undefined);
+    assert.ok(dialog);
+    const block = find(render(dialog), (props) => props.children === 'Block');
+    assert.ok(block);
+    (block.props.onClick as () => void)();
+    assert.deepEqual(changes, []);
+    visits.at(-1)?.onSuccess?.();
+    assert.deepEqual(changes, ['changed']);
+
+    const unblock = find(
+        UserSafetyMenu({
+            user,
+            isMuting: false,
+            isBlocking: true,
+            onBlockChange,
+        }),
+        (props) =>
+            Array.isArray(props.children) &&
+            props.children.includes('Unblock @reported'),
+    );
+    assert.ok(unblock);
+    (unblock.props.onSelect as () => void)();
+    assert.deepEqual(changes, ['changed']);
+    visits.at(-1)?.onSuccess?.();
+
+    assert.deepEqual(changes, ['changed', 'changed']);
+});
+
+test('the profile preview reloads itself after a block or unblock from its menu', () => {
+    const fetched: string[] = [];
+    const original = globalThis.fetch;
+    globalThis.fetch = ((url: string) => {
+        fetched.push(url);
+
+        return new Promise(() => {});
+    }) as typeof fetch;
+
+    try {
+        (
+            previewMenu(suggestion('reloaded'), true).props
+                .onBlockChange as () => void
+        )();
+    } finally {
+        globalThis.fetch = original;
+    }
+
+    assert.deepEqual(fetched, ['/@reloaded/preview']);
+});
 
 test('a suggestion who follows you offers to follow back, at a width that fits it', () => {
     const user = { ...suggestion('freek'), follows_you: true };
@@ -253,6 +439,172 @@ test('a suggestion who follows you offers to follow back, at a width that fits i
     assert.equal(suggestionLabel(user), 'Follow back @freek');
     assert.match(String(button?.props.className), /\bmin-w-26\b/);
     assert.equal(suggestionLabel(suggestion('jess')), 'Follow @jess');
+});
+
+test('a preview offers to follow back when they already follow you', () => {
+    const user = { ...suggestion('preview-follower'), follows_you: true };
+    const button = previewFollowButton(user);
+
+    assert.equal(button.props['aria-label'], 'Follow back @preview-follower');
+    assert.equal(
+        render(button.props.children as ReactElement<Props>),
+        'Follow back',
+    );
+});
+
+for (const followsYou of [true, false]) {
+    for (const isFollowing of [true, false]) {
+        test(`a connection with follows_you=${followsYou} and is_followed=${isFollowing} has the right follow label`, () => {
+            const person = {
+                ...suggestion(`connection-${followsYou}-${isFollowing}`),
+                is_followed: isFollowing,
+                follows_you: followsYou,
+            };
+            const row = find(
+                Connections({
+                    user: suggestion('viewer'),
+                    type: 'followers',
+                    users: {
+                        data: [person],
+                        next_cursor: null,
+                        prev_cursor: null,
+                    },
+                }),
+                (props) => props.person === person,
+            );
+            assert.ok(row);
+            const control = render(row) as ReactElement<Props>;
+            const button = find(
+                render(control),
+                (props) => 'aria-label' in props,
+            );
+            assert.ok(button);
+            assert.equal(
+                button.props['aria-label'],
+                `${isFollowing ? 'Unfollow' : followsYou ? 'Follow back' : 'Follow'} @${person.handle}`,
+            );
+            assert.match(String(control.props.className), /\bmin-w-26\b/);
+        });
+    }
+}
+
+for (const type of [
+    'followers',
+    'followers_you_know',
+    'following',
+    'mutuals',
+] as const) {
+    for (const followsYou of [true, false]) {
+        test(`${type} shows the follows-you badge only for a viewer's follower on the Followers or Following tab (${followsYou})`, () => {
+            const page = Connections({
+                user: suggestion('someone-else'),
+                type,
+                users: {
+                    data: [
+                        {
+                            ...suggestion('connection-badge'),
+                            is_followed: true,
+                            follows_you: followsYou,
+                        },
+                    ],
+                    next_cursor: null,
+                    prev_cursor: null,
+                },
+            });
+
+            assert.equal(
+                find(page, (props) => props.children === 'Follows you') !==
+                    null,
+                (type === 'followers' || type === 'following') && followsYou,
+            );
+            if ((type === 'followers' || type === 'following') && followsYou) {
+                const handleRow = find(
+                    page,
+                    (props) =>
+                        Array.isArray(props.children) &&
+                        props.children.some(
+                            (child: ReactNode) =>
+                                React.isValidElement<Props>(child) &&
+                                child.props.children === 'Follows you',
+                        ),
+                );
+                assert.ok(handleRow);
+                assert.ok(
+                    find(
+                        handleRow,
+                        (props) => props.title === '@connection-badge',
+                    ),
+                );
+            }
+        });
+    }
+}
+
+for (const followsYou of [true, false]) {
+    test(`your own Following list shows the follows-you badge only for a viewer's follower (${followsYou})`, () => {
+        const page = Connections({
+            user: suggestion('viewer'),
+            type: 'following',
+            users: {
+                data: [
+                    {
+                        ...suggestion('own-following'),
+                        is_followed: true,
+                        follows_you: followsYou,
+                    },
+                ],
+                next_cursor: null,
+                prev_cursor: null,
+            },
+        });
+
+        assert.equal(
+            find(page, (props) => props.children === 'Follows you') !== null,
+            followsYou,
+        );
+    });
+}
+
+for (const isFollowing of [true, false]) {
+    test(`your own Followers list hides the redundant follows-you badge (following=${isFollowing})`, () => {
+        const page = Connections({
+            user: suggestion('viewer'),
+            type: 'followers',
+            users: {
+                data: [
+                    {
+                        ...suggestion(`own-follower-${isFollowing}`),
+                        is_followed: isFollowing,
+                        follows_you: true,
+                    },
+                ],
+                next_cursor: null,
+                prev_cursor: null,
+            },
+        });
+
+        assert.equal(
+            find(page, (props) => props.children === 'Follows you'),
+            null,
+        );
+    });
+}
+
+test('a preview offers to follow someone who does not follow you', () => {
+    const button = previewFollowButton(suggestion('preview-stranger'));
+
+    assert.equal(button.props['aria-label'], 'Follow @preview-stranger');
+    assert.equal(
+        render(button.props.children as ReactElement<Props>),
+        'Follow',
+    );
+});
+
+test('a preview still offers to unfollow someone you already follow back', () => {
+    const user = { ...suggestion('preview-mutual'), follows_you: true };
+    const button = previewFollowButton(user, true);
+
+    assert.equal(button.props['aria-label'], 'Unfollow @preview-mutual');
 });
 
 test('a follow from their profile shows in who to follow', () => {
@@ -279,6 +631,34 @@ test('blocking someone from their preview or profile takes them out of who to fo
     blockFromSafetyMenu(user);
 
     assert.ok(!isSuggested(user));
+});
+
+function muteItemLabel(user: SuggestedUser): unknown {
+    const item = find(
+        UserSafetyMenu({ user, isMuting: false, isBlocking: false }),
+        (props) => typeof props.onSelect === 'function',
+    );
+    assert.ok(item);
+
+    return (item.props.children as ReactNode[]).at(-1);
+}
+
+test('a mute shows at once and rolls back when it fails', () => {
+    const user = suggestion('noisy');
+    const mute = find(
+        UserSafetyMenu({ user, isMuting: false, isBlocking: false }),
+        (props) => typeof props.onSelect === 'function',
+    );
+    assert.ok(mute);
+
+    (mute.props.onSelect as () => void)();
+    visits.at(-1)?.onStart?.();
+
+    assert.equal(muteItemLabel(user), 'Unmute @noisy');
+
+    visits.at(-1)?.onNetworkError?.();
+
+    assert.equal(muteItemLabel(user), 'Mute @noisy');
 });
 
 test('a follow refused because they blocked you says so and takes them out of who to follow', () => {
@@ -320,7 +700,9 @@ test('a follow from their preview shows in who to follow', () => {
     const user = suggestion('nuno');
 
     (previewFollowButton(user).props.onClick as () => void)();
+    visits.at(-1)?.onStart?.();
     visits.at(-1)?.onSuccess?.();
+    visits.at(-1)?.onFinish?.();
 
     assert.equal(suggestionLabel(user), 'Unfollow @nuno');
 });
@@ -346,12 +728,28 @@ test('blocking someone you follow from chat shows them as not followed in who to
     assert.ok(!isSuggested(user));
 });
 
-for (const failure of ['onError', 'onNetworkError', 'onCancel'] as const) {
-    test(`a follow from their preview that ends in ${failure} leaves who to follow unchanged`, () => {
+for (const failure of [
+    'onNetworkError',
+    'onCancel',
+    'onHttpException',
+] as const) {
+    test(`a follow from their preview shows at once and rolls back when it ends in ${failure}`, () => {
         const user = suggestion(`jess-${failure}`);
 
         (previewFollowButton(user).props.onClick as () => void)();
-        visits.at(-1)?.[failure]?.();
+        visits.at(-1)?.onStart?.();
+
+        assert.equal(suggestionLabel(user), `Unfollow @jess-${failure}`);
+
+        const visit = visits.at(-1);
+
+        if (failure === 'onHttpException') {
+            visit?.onHttpException?.({ status: 500 });
+        } else {
+            visit?.[failure]?.();
+        }
+
+        visit?.onFinish?.();
 
         assert.equal(suggestionLabel(user), `Follow @jess-${failure}`);
     });
@@ -368,18 +766,16 @@ test('a cached preview offers to unfollow someone followed elsewhere', () => {
     assert.equal(visits.at(-1)?.method, 'delete');
 });
 
-test('unfollowing through a cached preview keeps its follower count', () => {
+test('a cached preview counts a follow made elsewhere, and stops counting it once unfollowed', () => {
     const user = suggestion('counted');
     followFromProfile(user);
-    const changes: { user: Profile }[] = [];
 
-    (
-        previewFollowButton(user, false, (data) => changes.push(data)).props
-            .onClick as () => void
-    )();
-    visits.at(-1)?.onSuccess?.();
+    assert.equal(previewFollowersCount(user, false), '1');
 
-    assert.equal(changes.at(-1)?.user.followers_count, 0);
+    (previewFollowButton(user, false).props.onClick as () => void)();
+    visits.at(-1)?.onStart?.();
+
+    assert.equal(previewFollowersCount(user, false), '0');
 });
 
 test('a preview unfollow that fails after a block keeps who to follow unfollowed', () => {
@@ -388,11 +784,9 @@ test('a preview unfollow that fails after a block keeps who to follow unfollowed
 
     (previewFollowButton(user, true).props.onClick as () => void)();
     const unfollow = visits.at(-1);
+    unfollow?.onStart?.();
 
-    const block = find(
-        UserSafetyMenu({ user, isMuting: false, isBlocking: false }),
-        (props) => props.children === 'Block',
-    );
+    const block = safetyMenuBlock(user);
     assert.ok(block);
     (block.props.onClick as () => void)();
     visits.at(-1)?.onSuccess?.();
@@ -442,13 +836,11 @@ test('a second click on a follow still on its way sends nothing', () => {
     (suggestionFollowLink(user).onStart as () => void)();
 
     const pending = suggestionFollowLink(user);
-    assert.equal(pending.disabled, true);
     assert.equal((pending.onBefore as () => boolean)(), false);
 
     (pending.onFinish as () => void)();
 
     const finished = suggestionFollowLink(user);
-    assert.equal(finished.disabled, false);
     assert.equal((finished.onBefore as () => boolean)(), true);
 });
 
@@ -542,9 +934,9 @@ function suggestionRow(user: SuggestedUser): Props {
 }
 
 function dismissSuggestion(user: SuggestedUser): boolean {
-    return (
-        suggestionRow(user).onDismiss as (onFailed: () => void) => boolean
-    )(() => {});
+    return (suggestionRow(user).onDismiss as (onFailed: () => void) => boolean)(
+        () => {},
+    );
 }
 
 function hasElementNamed(node: ReactNode, name: string): boolean {

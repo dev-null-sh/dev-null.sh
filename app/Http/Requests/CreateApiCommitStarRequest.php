@@ -23,7 +23,7 @@ final class CreateApiCommitStarRequest extends FormRequest
         assert($commit instanceof Commit);
 
         return match (true) {
-            $commit->user_id === $user->id => Response::deny(),
+            $commit->isOwnedBy($user) => Response::deny(),
             $commit->isVisibleTo($user) => Response::allow(),
             default => Response::denyAsNotFound(),
         };

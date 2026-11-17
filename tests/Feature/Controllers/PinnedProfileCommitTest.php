@@ -66,11 +66,11 @@ it('shows a pinned commit once above the log with visible reply counts and uncha
         ->assertOk()
         ->assertInertia(fn ($page) => $page
             ->where('pinnedCommit.id', $pinned->id)
-            ->where('pinnedCommit.user.lane', 4)
+            ->where('pinnedCommit.author.lane', 4)
             ->where('pinnedCommit.replies_count', 1)
             ->where('pinnedCommit.stars_count', 1)
             ->where('pinnedCommit.starred', true)
-            ->missing('pinnedCommit.user.pinned_commit_id')
+            ->missing('pinnedCommit.author.pinned_commit_id')
             ->missing('user.pinned_commit_id')
             ->where('user.commits_count', 2)
             ->where('activity.scale', 'day')
@@ -94,7 +94,7 @@ it('includes the quoted commit of a pinned quote', function (bool $signedIn): vo
         ->assertInertia(fn ($page) => $page
             ->where('pinnedCommit.id', $pinned->id)
             ->where('pinnedCommit.quoted_commit.body', 'The quoted commit')
-            ->where('pinnedCommit.quoted_commit.user.handle', 'taylorotwell'));
+            ->where('pinnedCommit.quoted_commit.author.handle', 'taylorotwell'));
 })->with(['guest' => false, 'signed in' => true]);
 
 it('keeps cursor ordering and excludes a pin on every page including tied timestamps', function (): void {

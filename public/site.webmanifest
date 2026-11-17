@@ -9,8 +9,8 @@
     "scope": "/",
     "display": "standalone",
     "orientation": "any",
-    "background_color": "#f6f7f8",
-    "theme_color": "#f6f7f8",
+    "background_color": "#111112",
+    "theme_color": "#111112",
     "categories": ["social", "developer tools"],
     "prefer_related_applications": false,
     "launch_handler": {

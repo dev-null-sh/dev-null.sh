@@ -1,4 +1,4 @@
-import type { VisitOptions } from '@inertiajs/core';
+import type { VisitCallbacks, VisitOptions } from '@inertiajs/core';
 import { Link, router, usePage } from '@inertiajs/react';
 import type { InertiaLinkProps } from '@inertiajs/react';
 import { UserCheck, UserPlus } from 'lucide-react';
@@ -12,7 +12,11 @@ import {
     TooltipContent,
     TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { refreshSharedState, useSharedState } from '@/hooks/use-shared-state';
+import {
+    refreshSharedState,
+    sharedValue,
+    useSharedState,
+} from '@/hooks/use-shared-state';
 import { signIn } from '@/lib/auth';
 import { toastWhenThrottled } from '@/lib/throttle';
 import { cn } from '@/lib/utils';
@@ -85,6 +89,38 @@ export function useIsFollowing(
 const isPendingKey = (user: Pick<User, 'id'>): string =>
     `follow_pending:${user.id}`;
 
+const followingVersions = new Map<string, number>();
+const followingRetries = new Map<string, Set<() => void>>();
+
+/** A read already on its way cannot undo a follow clicked while it was out. */
+export function prepareFollowingUpdate(
+    user: Pick<User, 'id'>,
+    retry: () => void,
+): (following: boolean) => void {
+    const version = followingVersions.get(user.id);
+    const wasPending = sharedValue(isPendingKey(user)) === true;
+
+    return (following) => {
+        if (
+            !wasPending &&
+            version === followingVersions.get(user.id) &&
+            sharedValue(isPendingKey(user)) !== true
+        ) {
+            refreshSharedState(new Map([[isFollowingKey(user), following]]));
+
+            return;
+        }
+
+        if (sharedValue(isPendingKey(user)) === true) {
+            const retries = followingRetries.get(user.id) ?? new Set();
+            retries.add(retry);
+            followingRetries.set(user.id, retries);
+        } else {
+            retry();
+        }
+    };
+}
+
 const hasBlockKey = (user: Pick<User, 'id'>): string => `has_block:${user.id}`;
 
 /**
@@ -123,6 +159,60 @@ export function onFollowHttpException(
     toast.error(`You can't follow @${user.handle}.`);
 
     return false;
+}
+
+export function useFollow(
+    user: Pick<User, 'id' | 'handle'>,
+    initialIsFollowing: boolean,
+): {
+    isFollowing: boolean;
+    callbacks: Pick<
+        VisitCallbacks,
+        | 'onBefore'
+        | 'onStart'
+        | 'onCancel'
+        | 'onNetworkError'
+        | 'onHttpException'
+        | 'onFinish'
+    >;
+} {
+    const [isFollowing, setIsFollowing] = useIsFollowing(
+        user,
+        initialIsFollowing,
+    );
+    const [isPending, setIsPending] = useSharedState<boolean>(
+        isPendingKey(user),
+        false,
+    );
+    const rollBack = () => setIsFollowing(isFollowing);
+
+    return {
+        isFollowing,
+        callbacks: {
+            onBefore: () => !isPending,
+            onStart: () => {
+                followingVersions.set(
+                    user.id,
+                    (followingVersions.get(user.id) ?? 0) + 1,
+                );
+                setIsPending(true);
+                setIsFollowing(!isFollowing);
+            },
+            onCancel: rollBack,
+            onNetworkError: rollBack,
+            onHttpException: (response) => {
+                rollBack();
+
+                return onFollowHttpException(user, response);
+            },
+            onFinish: () => {
+                setIsPending(false);
+                const retries = followingRetries.get(user.id);
+                followingRetries.delete(user.id);
+                retries?.forEach((retry) => retry());
+            },
+        },
+    };
 }
 
 export function FollowLabel({
@@ -175,14 +265,7 @@ export function FollowButton({
         component,
         props: { auth, log, commits },
     } = usePage<{ commits?: CursorPaginated<Commit> }>();
-    const [isFollowing, setIsFollowing] = useIsFollowing(
-        user,
-        initialIsFollowing,
-    );
-    const [isPending, setIsPending] = useSharedState<boolean>(
-        isPendingKey(user),
-        false,
-    );
+    const { isFollowing, callbacks } = useFollow(user, initialIsFollowing);
     const { isJustToggled, markToggled, onMouseLeave } = useFollowHover();
 
     if (auth.user === null) {
@@ -215,13 +298,7 @@ export function FollowButton({
                 as="button"
                 preserveScroll
                 async
-                onBefore={() => !isPending}
-                onStart={() => setIsPending(true)}
-                onFinish={() => setIsPending(false)}
-                disabled={isPending}
-                onHttpException={(response) =>
-                    onFollowHttpException(user, response)
-                }
+                {...callbacks}
                 aria-label={
                     isFollowing
                         ? `Unfollow @${user.handle}`
@@ -233,7 +310,6 @@ export function FollowButton({
                     onClick?.(event);
                 }}
                 onSuccess={(page) => {
-                    setIsFollowing(!isFollowing);
                     router.flushAll();
                     onSuccess?.(page);
                 }}
@@ -272,10 +348,7 @@ export function FollowIconButton({
         component,
         props: { log, commits },
     } = usePage<{ commits?: CursorPaginated<Commit> }>();
-    const [isFollowing, setIsFollowing] = useIsFollowing(
-        user,
-        initialIsFollowing,
-    );
+    const { isFollowing, callbacks } = useFollow(user, initialIsFollowing);
     const Icon = isFollowing ? UserCheck : UserPlus;
 
     return (
@@ -292,13 +365,8 @@ export function FollowIconButton({
                     preserveState
                     preserveScroll
                     async
-                    onHttpException={(response) =>
-                        onFollowHttpException(user, response)
-                    }
-                    onSuccess={() => {
-                        setIsFollowing(!isFollowing);
-                        router.flushAll();
-                    }}
+                    {...callbacks}
+                    onSuccess={() => router.flushAll()}
                     aria-label={
                         isFollowing
                             ? `Unfollow @${user.handle}`

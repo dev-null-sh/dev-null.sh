@@ -18,7 +18,7 @@ it('suggests the latest commit of each other user', function (): void {
     $commits = resolve(SuggestedCommitsQuery::class)->get($user);
 
     expect($commits->pluck('id')->all())->toBe([$latest->id, $other->id])
-        ->and($commits->first()->relationLoaded('user'))->toBeTrue();
+        ->and($commits->first()->relationLoaded('author'))->toBeTrue();
 });
 
 it('only suggests approved commits', function (): void {

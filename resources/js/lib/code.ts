@@ -1,13 +1,22 @@
 import type { BodySegment } from '@/types';
 
 // Keep in sync with app/Services/CodeSpans.php: a fenced code block, from a line starting with ``` or more (and maybe
-// a language) to a line that is only ``` or more, or inline code between two backticks on one line.
-const committedCode = String.raw`(?<![^\n])\`{3,}[^\`\r\n]*\r?\n(?:[\s\S]*?\r?\n)?\`{3,}[ \t]*(?![^\r\n])|\`[^\`\r\n]+\``;
-export const codePattern = new RegExp(`(${committedCode})`);
+// a language) to a line that is only as many backticks or more, so a block can hold a shorter fence, or inline code
+// between two backticks on one line.
+const committedCode = String.raw`(?<![^\n])(\`{3,})[^\`\r\n]*\r?\n(?:[\s\S]*?\r?\n)?\2\`*[ \t]*(?![^\r\n])|\`[^\`\r\n]+\``;
+const codePattern = new RegExp(`(${committedCode})`);
 // While typing, a block or inline code that isn't closed yet also runs to the end of the text.
 const typedCodePattern = new RegExp(
     `(${committedCode}|${String.raw`(?<![^\n])\`\`\`[\s\S]*$|\`[^\`\r\n]*$`})`,
 );
+
+/**
+ * Splits the text into prose and code, alternating: even indexes are prose (maybe empty), odd ones are code. The
+ * fence the pattern captures to close a block isn't a part.
+ */
+export function splitCode(text: string, pattern = codePattern): string[] {
+    return text.split(pattern).filter((_, index) => index % 3 !== 2);
+}
 
 const isBlock = (part: string | undefined): boolean =>
     part?.startsWith('```') ?? false;
@@ -23,11 +32,28 @@ function escapeHtml(text: string): string {
 
 function block(part: string): BodySegment {
     const lines = part.replaceAll('\r\n', '\n').split('\n');
-    const language = lines[0].replace(/^`+/, '').trim().split(/[ \t]/)[0];
+    const tokens = [
+        ...lines[0]
+            .replace(/^`+/, '')
+            .matchAll(
+                /\{[^}]*\}|([A-Za-z][\w-]*)=(?:"([^"]*)"|'([^']*)')|([^ \t{]+)/g,
+            ),
+    ];
+    const language = tokens[0]?.[4] ?? null;
+    const attributes = new Map<string, string>();
+
+    for (const [, key, double, single] of tokens) {
+        const value = double ?? single;
+
+        if (key !== undefined && value !== '' && !attributes.has(key)) {
+            attributes.set(key, value);
+        }
+    }
 
     return {
         type: 'block',
-        language: language === '' ? null : language,
+        language,
+        filename: attributes.get('title') ?? attributes.get('filename') ?? null,
         html: escapeHtml(lines.slice(1, -1).join('\n')),
     };
 }
@@ -39,8 +65,7 @@ export function mapProse(
     text: string,
     callback: (prose: string) => string,
 ): string {
-    return text
-        .split(codePattern)
+    return splitCode(text)
         .map((part, index) => (index % 2 === 0 ? callback(part) : part))
         .join('');
 }
@@ -50,8 +75,7 @@ export function mapProse(
  * place in the text.
  */
 export function withoutCode(text: string): string {
-    return text
-        .split(codePattern)
+    return splitCode(text)
         .map((part, index) =>
             index % 2 === 0 ? part : ' '.repeat(part.length),
         )
@@ -65,8 +89,7 @@ export function mapTypedProse(
     text: string,
     callback: (prose: string) => string,
 ): string {
-    return text
-        .split(typedCodePattern)
+    return splitCode(text, typedCodePattern)
         .map((part, index) => (index % 2 === 0 ? callback(part) : part))
         .join('');
 }
@@ -76,7 +99,7 @@ export function mapTypedProse(
  * only the server highlights code.
  */
 export function bodySegments(text: string): BodySegment[] {
-    const parts = text.split(codePattern);
+    const parts = splitCode(text);
     const segments: BodySegment[] = [];
 
     parts.forEach((part, index) => {
@@ -163,5 +186,7 @@ export function bodyBlocks(
  * The prose being typed, without the code.
  */
 export function typedProse(text: string): string[] {
-    return text.split(typedCodePattern).filter((_, index) => index % 2 === 0);
+    return splitCode(text, typedCodePattern).filter(
+        (_, index) => index % 2 === 0,
+    );
 }

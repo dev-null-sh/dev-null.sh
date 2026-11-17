@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Models\Commit;
 use App\Models\Message;
+use App\Models\Organization;
 use App\Models\User;
 
 dataset('rate limits', [
@@ -41,7 +42,7 @@ dataset('rate limits', [
     ],
     'people lookups' => [
         fn (): array => [
-            ['GET', route('user-search.index', ['q' => 'nuno'])],
+            ['GET', route('profile-search.index', ['q' => 'nuno'])],
             ['GET', route('mention-suggestion.index', ['q' => 'nuno'])],
             ['GET', route('user-preview.show', User::factory()->create())],
             ['GET', route('mention.preview', User::factory()->create())],
@@ -110,7 +111,7 @@ it('renders the too many requests page when exporting too often', function (): v
 
 it('shares a people lookup limit per guest IP without limiting other visitors', function (): void {
     $user = User::factory()->create(['handle' => 'octocat']);
-    $search = route('user-search.index', ['q' => 'octo']);
+    $search = route('profile-search.index', ['q' => 'octo']);
     $preview = route('user-preview.show', $user);
     $mentionPreview = route('mention.preview', $user);
     $requests = [$search, $preview, $mentionPreview];
@@ -171,11 +172,39 @@ it('shares the JSON star budget across commits and replies without consuming oth
 
     $this->put(route('commit-pin.update', $ownCommit))->assertRedirect();
     $this->post(route('user-follow.store', $commit->user))->assertRedirect();
-    $this->getJson(route('user-search.index', ['q' => $commit->user->handle]))->assertOk();
+    $this->getJson(route('profile-search.index', ['q' => $commit->user->handle]))->assertOk();
     $this->get(route('export'))->assertOk();
 
     $this->actingAs(User::factory()->create())
         ->postJson(route('commit-star.store', $reply))
         ->assertOk()
         ->assertExactJson(['starred' => true, 'stars_count' => 1]);
+});
+
+it('keeps each signed-in action’s minute limit apart from the others', function (): void {
+    $user = User::factory()->create(['pasteis_mode' => true]);
+    $ownCommit = Commit::factory()->for($user)->create();
+    $organization = Organization::factory()->create();
+
+    foreach (range(1, 30) as $attempt) {
+        $this->actingAs($user)->postJson(route('commit-pastel.store', $ownCommit))->assertForbidden();
+    }
+
+    $this->postJson(route('issue.store'))->assertUnprocessable();
+    $this->postJson(route('push-subscription.store'))->assertForbidden();
+    $this->postJson(route('organization-admin.store', $organization))->assertRedirect();
+    $this->postJson(route('organization-member.store', $organization))->assertNotFound();
+});
+
+it('keeps each guest route’s minute limit apart from the others', function (): void {
+    config(['services.github.client_id' => 'client-id', 'services.github.client_secret' => 'secret']);
+
+    foreach (range(1, 10) as $attempt) {
+        $this->get(route('login'))->assertRedirect();
+        $this->call('POST', route('cli-key-lookup.store'), content: 'not a key')->assertNotFound();
+    }
+
+    $this->get(route('login'))->assertTooManyRequests();
+    $this->get(route('login.store'))->assertRedirect(route('login'));
+    $this->postJson(route('human-verification.store'))->assertUnprocessable();
 });

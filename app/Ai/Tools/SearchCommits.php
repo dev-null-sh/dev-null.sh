@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Ai\Tools;
 
 use App\Models\Commit;
-use App\Models\User;
+use App\Models\Profile;
 use App\Queries\CommitSearchQuery;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\JsonSchema\Types\Type;
@@ -29,11 +29,11 @@ final class SearchCommits implements Tool
 
         return resolve(CommitSearchQuery::class)
             ->get(mb_substr($request->string('query')->value(), 0, 200), null, limit: 5)
-            ->filter(fn (Commit $commit): bool => $commit->user instanceof User)
+            ->filter(fn (Commit $commit): bool => $commit->author instanceof Profile)
             ->map(fn (Commit $commit): array => [
-                'author' => $commit->user?->handle,
+                'author' => $commit->author?->handle,
                 'body' => mb_substr($commit->body, 0, 2000),
-                'url' => route('commit.show', [$commit->user, $commit]),
+                'url' => route('commit.show', [$commit->author, $commit]),
                 'posted_at' => $commit->created_at->toIso8601String(),
             ])
             ->values()

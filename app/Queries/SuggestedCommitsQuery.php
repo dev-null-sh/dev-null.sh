@@ -15,20 +15,21 @@ final readonly class SuggestedCommitsQuery
      */
     public function get(User $user, int $limit = 3): Collection
     {
-        return Commit::query()
+        return resolve(GuildCommitsQuery::class)->snapshot($user, fn (): Collection => Commit::query()
             ->visibleTo($user)
             ->withoutMutedAuthorsFor($user)
+            ->withoutMutedGuildsFor($user)
             ->topLevel()
             ->withStarsFor($user)
-            ->whereNot('user_id', $user->id)
+            ->whereNot('author_id', $user->id)
             ->latest()
             ->latest('id')
             ->limit(50)
             ->get()
-            ->unique('user_id')
+            ->unique('author_id')
             ->take($limit)
             ->values()
-            ->load('user')
-            ->toBase();
+            ->load('author')
+            ->toBase());
     }
 }

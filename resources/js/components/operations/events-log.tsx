@@ -133,6 +133,7 @@ function EventRow({
                             {' '}
                             {isProfile ? (
                                 <Link
+                                    prefetch
                                     href={profile}
                                     className="font-mono text-[13px] underline-offset-4 hover:underline"
                                 >

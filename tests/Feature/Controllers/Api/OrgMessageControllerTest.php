@@ -11,6 +11,8 @@ beforeEach(function (): void {
 
 it('loads an org with its members, events and who is typing, as the web thread does', function (): void {
     [$nuno, $taylor] = followersOf($this->user, 2);
+    $nuno->profile->update(['name' => 'Zed']);
+    $taylor->profile->update(['name' => 'Ada']);
     $org = createOrg($this->user, [$nuno, $taylor], 'dev/null core');
     $message = pushToOrg($nuno, $org, 'ship it');
 
@@ -30,9 +32,10 @@ it('loads an org with its members, events and who is typing, as the web thread d
         ->assertJsonPath('data.messages.1.user.lane', $nuno->lane())
         ->assertJsonPath('data.members.0.user.handle', 'octocat')
         ->assertJsonPath('data.members.0.role', 'maintainer')
-        ->assertJsonPath('data.members.1.user.handle', $nuno->handle)
+        ->assertJsonPath('data.members.1.user.handle', $taylor->handle)
         ->assertJsonPath('data.members.1.role', 'contributor')
-        ->assertJsonPath('data.members.2.read_through_id', $message->id)
+        ->assertJsonPath('data.members.1.read_through_id', $message->id)
+        ->assertJsonPath('data.members.2.user.handle', $nuno->handle)
         ->assertJsonPath('data.typing', [$taylor->handle])
         ->assertJsonPath('data.role', 'maintainer')
         ->assertJsonPath('data.is_archived', false)
@@ -81,6 +84,19 @@ it('hands over the pinned messages as the thread shows them, until they are unch
 
     expect(signedApiRequest($this->keyPair, 'GET', route('api-org-message.index', ['org' => $org, 'after' => $message->id, 'reactions_after' => $version]))->json('data'))
         ->toHaveKey('pinned', null);
+});
+
+it('hands over the messages that mention the user as the thread shows them', function (): void {
+    [$nuno] = followersOf($this->user, 1);
+    $org = createOrg($this->user, [$nuno]);
+    $message = pushToOrg($nuno, $org, "@{$this->user->handle} can you review?");
+
+    signedApiRequest($this->keyPair, 'GET', route('api-org-message.index', $org))
+        ->assertOk()
+        ->assertJsonPath('data.mentions.0.id', $message->id)
+        ->assertJsonPath('data.mentions.0.body', "@{$this->user->handle} can you review?")
+        ->assertJsonPath('data.mentions.0.user.lane', $nuno->lane())
+        ->assertJsonPath('data.mentions.0.created_at', $message->created_at->toIso8601ZuluString());
 });
 
 it('keeps people out of orgs they are not in', function (): void {

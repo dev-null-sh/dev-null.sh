@@ -13,13 +13,19 @@ import type { PollDraft } from '@/components/poll-editor';
 import { Button } from '@/components/ui/button';
 import { useNow } from '@/hooks/use-now';
 import { bodySegments, hasCodeBlock } from '@/lib/code';
+import { bodyWithHashtag } from '@/lib/commit';
 import { hasModKey, useKeyLabels } from '@/lib/keyboard';
 import { cn } from '@/lib/utils';
 import type { BodySegment } from '@/types';
 
 type Mentions = Record<string, string>;
 
-type Resolved = { body: string; segments: BodySegment[]; mentions: Mentions };
+type Resolved = {
+    body: string;
+    segments: BodySegment[];
+    mentions: Mentions;
+    organizationMentions: Mentions;
+};
 
 const isModifierEnter = (event: KeyboardEvent) =>
     event.key === 'Enter' && hasModKey(event);
@@ -36,10 +42,12 @@ export type ComposerPreview = ReturnType<typeof useComposerPreview>;
  */
 export function useComposerPreview({
     body,
+    guildHandle,
     textareaRef,
     isSubmittable,
 }: {
     body: string;
+    guildHandle?: string;
     textareaRef: RefObject<HTMLTextAreaElement | null>;
     isSubmittable: boolean;
 }) {
@@ -47,13 +55,19 @@ export function useComposerPreview({
     const [resolved, setResolved] = useState<Resolved | null>(null);
     const previewId = useId();
     const request = useHttp<
-        { body: string },
-        { segments: BodySegment[]; mentions: Mentions | [] }
+        { body: string; guild_handle?: string },
+        {
+            segments: BodySegment[];
+            mentions: Mentions | [];
+            organization_mentions: Mentions | [];
+        }
     >({
         body: '',
     });
 
-    const draft = body.trim();
+    const draft = (
+        guildHandle ? bodyWithHashtag(body, guildHandle) : body
+    ).trim();
     const isResolved = resolved?.body === draft;
     const segments = isResolved ? resolved.segments : bodySegments(draft);
 
@@ -62,7 +76,10 @@ export function useComposerPreview({
             return;
         }
 
-        request.transform(() => ({ body: draft }));
+        request.transform(() => ({
+            body: body.trim(),
+            ...(guildHandle && { guild_handle: guildHandle }),
+        }));
 
         try {
             const response = await request.submit(
@@ -75,6 +92,11 @@ export function useComposerPreview({
                 mentions: Array.isArray(response.mentions)
                     ? {}
                     : response.mentions,
+                organizationMentions: Array.isArray(
+                    response.organization_mentions,
+                )
+                    ? {}
+                    : response.organization_mentions,
             });
         } catch {
             // The preview keeps the code unhighlighted and the mentions as text.
@@ -103,6 +125,7 @@ export function useComposerPreview({
         draft,
         segments,
         mentions: isResolved ? resolved.mentions : null,
+        organizationMentions: isResolved ? resolved.organizationMentions : null,
         previewId,
         toggle: (moveFocus = false) => show(!isPreviewing, moveFocus),
         close: () => setIsPreviewing(false),
@@ -196,6 +219,7 @@ export function ComposerPreviewBody({
                 <CommitBody
                     segments={preview.segments}
                     mentions={preview.mentions}
+                    organizationMentions={preview.organizationMentions}
                     className="text-[15px]"
                 />
             ) : (
@@ -252,7 +276,7 @@ export function ComposerPollPreview({
     return (
         <div className={className} data-test="composer-poll-preview">
             <CommitPoll
-                commit={{ id: '', user_id: '', status: 'pending' }}
+                commit={{ id: '', author: { id: '' }, status: 'pending' }}
                 poll={{
                     id: '',
                     closes_at: auth.isAdmin

@@ -40,6 +40,7 @@ export function FollowersYouKnow({
         >
             <Link
                 href={list}
+                prefetch
                 aria-label="Followers you know"
                 className="flex shrink-0 -space-x-1.5 rounded-full focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
             >
@@ -59,6 +60,7 @@ export function FollowersYouKnow({
                         {index > 0 && (others > 0 ? ', ' : ' and ')}
                         <Link
                             href={show(person)}
+                            prefetch
                             className="font-mono text-[13px] font-medium wrap-anywhere text-foreground hover:underline"
                         >
                             @{person.handle}
@@ -69,7 +71,7 @@ export function FollowersYouKnow({
                     <>
                         {' '}
                         and{' '}
-                        <Link href={list} className="hover:underline">
+                        <Link href={list} prefetch className="hover:underline">
                             {others} {others === 1 ? 'other' : 'others'} you
                             follow
                         </Link>

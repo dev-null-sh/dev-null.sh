@@ -16,6 +16,7 @@ import {
     entranceDelay,
     entranceDraw,
     graphEdges,
+    isFolding,
     isOnScreen,
     leavingOf,
     nodeIdentity,
@@ -29,6 +30,7 @@ import type {
     GraphNode,
     LeavingRow,
     NodeAnimation,
+    Overhang,
     Point,
 } from '@/lib/graph';
 import { cn } from '@/lib/utils';
@@ -222,6 +224,8 @@ type Leaving = LeavingRow & Size & { x: number; y: number };
 
 const noLeaving: Leaving[] = [];
 
+const noFolding: ReadonlySet<string> = new Set();
+
 /**
  * A row marked `data-graph-leaving`, like a deleted card fading and collapsing: the part of it its clipping still
  * shows, and how faded it is up to the canvas.
@@ -338,6 +342,38 @@ function snap(value: number): number {
 }
 
 /**
+ * What a node marks `data-graph-overhang` as hanging off it, like a LIVE badge over the bottom of an avatar's ring, grown
+ * by the ring the attribute gives, in px.
+ */
+function overhangsOf(element: HTMLElement, box: DOMRect): Overhang[] {
+    return [
+        ...element.querySelectorAll<HTMLElement>('[data-graph-overhang]'),
+    ].map((overhang) => {
+        const rect = overhang.getBoundingClientRect();
+        const ring = Number(overhang.dataset.graphOverhang) || 0;
+
+        return {
+            x: snap(rect.left - box.left - ring),
+            y: snap(rect.top - box.top - ring),
+            width: snap(rect.width + 2 * ring),
+            height: snap(rect.height + 2 * ring),
+            radius:
+                (Number.parseFloat(
+                    getComputedStyle(overhang).borderTopLeftRadius,
+                ) || 0) + ring,
+        };
+    });
+}
+
+function isOverhang(node: Node): boolean {
+    return (
+        node instanceof HTMLElement &&
+        (node.dataset.graphOverhang !== undefined ||
+            node.querySelector('[data-graph-overhang]') !== null)
+    );
+}
+
+/**
  * The CSS animations running on a node and on the elements around it, up to the canvas, with the time they have left.
  */
 function runningAnimations(
@@ -389,6 +425,7 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
     const [nodes, setNodes] = useState<GraphNode[]>([]);
     const [size, setSize] = useState<Size>({ width: 0, height: 0 });
     const [leaving, setLeaving] = useState(noLeaving);
+    const [folding, setFolding] = useState<ReadonlySet<string>>(noFolding);
     const hasDrawn = useRef(false);
 
     const clip = useCallback(() => {
@@ -416,15 +453,23 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
             element,
             row: leavingRow(element, box, container),
         }));
+        const folds = [...container.querySelectorAll('[data-graph-folding]')];
+        const foldingIds = new Set<string>();
         const measured = [...entries.current.values()]
             .filter(({ element }) => element.isConnected)
             .map(({ element, spec }) => {
                 const centre = layoutCentre(element, container);
+                const overhangs = overhangsOf(element, box);
                 rows.find((row) => row.element.contains(element))?.row.ids.add(
                     spec.id,
                 );
 
+                if (folds.some((fold) => fold.contains(element))) {
+                    foldingIds.add(spec.id);
+                }
+
                 return {
+                    ...(overhangs.length > 0 && { overhangs }),
                     id: spec.id,
                     lane: spec.lane,
                     after: spec.after,
@@ -453,6 +498,12 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
             rows.length === 0 && current.length === 0
                 ? current
                 : rows.map(({ row }) => row),
+        );
+        setFolding((current) =>
+            current.size === foldingIds.size &&
+            [...foldingIds].every((nodeId) => current.has(nodeId))
+                ? current
+                : foldingIds,
         );
         setNodes((current) =>
             sameNodes(current, measured) ? current : measured,
@@ -545,7 +596,8 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
 
         // Nodes also move without anything resizing, like cards trading places when the feed reorders. Other changes
         // inside a card, like an image done loading, move no node unless they resize the container, which the resize
-        // observer reports.
+        // observer reports. An overhang, like the LIVE badge as its user goes live, comes and goes out of the layout,
+        // so nothing resizes either.
         const mutations = new MutationObserver((records) => {
             const elements = [
                 ...[...entries.current.values()].map(({ element }) => element),
@@ -554,11 +606,17 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
             departed.current.clear();
 
             if (
-                records.some((record) =>
-                    [...record.addedNodes, ...record.removedNodes].some(
-                        (node) =>
+                records.some(
+                    ({ type, target, addedNodes, removedNodes }) =>
+                        // Replies folding away move nothing: their lines draw themselves out from where they are.
+                        type === 'attributes' ||
+                        [...addedNodes, ...removedNodes].some((node) =>
                             elements.some((element) => node.contains(element)),
-                    ),
+                        ) ||
+                        ([...addedNodes, ...removedNodes].some(isOverhang) &&
+                            elements.some((element) =>
+                                element.contains(target),
+                            )),
                 )
             ) {
                 measureNow();
@@ -576,6 +634,7 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
             mutations.observe(containerRef.current, {
                 childList: true,
                 subtree: true,
+                attributeFilter: ['data-graph-folding'],
             });
             containerRef.current.addEventListener('animationend', settle);
         }
@@ -696,6 +755,26 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
                                     )}
                                 />
                             ))}
+                            {nodes.flatMap((node) =>
+                                (node.overhangs ?? []).map(
+                                    (overhang, index) => (
+                                        <rect
+                                            key={`${node.id}-${index}`}
+                                            x={overhang.x}
+                                            y={overhang.y}
+                                            width={overhang.width}
+                                            height={overhang.height}
+                                            rx={overhang.radius}
+                                            fill="black"
+                                            clipPath={clipOf(
+                                                leaving.findIndex((row) =>
+                                                    row.ids.has(node.id),
+                                                ),
+                                            )}
+                                        />
+                                    ),
+                                ),
+                            )}
                         </mask>
                         {leaving.map((row, index) => (
                             <clipPath key={index} id={`${id}-leaving-${index}`}>
@@ -713,6 +792,7 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
                                 id={`${id}-${index}`}
                                 edge={edge}
                                 draw={entering.get(edge.id)}
+                                isFolding={isFolding(edge, folding)}
                                 onDrawn={onDrawn}
                             />
                         ))}
@@ -746,9 +826,11 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
                                             : undefined
                                     }
                                     mask={
-                                        entering.has(edge.id)
-                                            ? `url(#${id}-${index}-draw)`
-                                            : undefined
+                                        isFolding(edge, folding)
+                                            ? `url(#${id}-${index}-undraw)`
+                                            : entering.has(edge.id)
+                                              ? `url(#${id}-${index}-draw)`
+                                              : undefined
                                     }
                                     data-test={
                                         edge.dashed
@@ -769,12 +851,15 @@ function EdgeDefs({
     id,
     edge,
     draw,
+    isFolding = false,
     onDrawn,
 }: {
     id: string;
     edge: GraphEdge;
     /** Set while the line draws itself in, after its nodes have scaled in. */
     draw?: Draw;
+    /** Whether the line draws itself back out, as the replies it leads to fold away. */
+    isFolding?: boolean;
     onDrawn: (edgeId: string) => void;
 }) {
     const from = draw?.from ?? 0;
@@ -792,6 +877,21 @@ function EdgeDefs({
         // eslint-disable-next-line react-hooks/exhaustive-deps
         [from, edge.d],
     );
+
+    if (isFolding) {
+        return (
+            <mask id={`${id}-undraw`} maskUnits="userSpaceOnUse">
+                <path
+                    d={edge.d}
+                    stroke="white"
+                    strokeWidth={strokeWidth * 4}
+                    pathLength={1}
+                    strokeDasharray="1 1"
+                    className="motion-safe:animate-graph-undraw"
+                />
+            </mask>
+        );
+    }
 
     if (draw === undefined) {
         return null;

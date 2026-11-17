@@ -18,7 +18,7 @@ final class DeleteCommitRequest extends FormRequest
         $commit = $this->route('commit');
         assert($commit instanceof Commit);
 
-        return $user->id === $commit->user_id;
+        return $commit->isOwnedBy($user);
     }
 
     /**

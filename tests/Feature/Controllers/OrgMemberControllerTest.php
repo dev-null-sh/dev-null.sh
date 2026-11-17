@@ -7,6 +7,7 @@ use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\MessageImage;
 use App\Models\MessageVoice;
+use App\Models\Profile;
 use App\Models\User;
 use Illuminate\Support\Facades\Storage;
 
@@ -38,6 +39,8 @@ it('lets only maintainers add, up to a hundred', function (): void {
     $this->actingAs($mark)->postJson(route('org-member.store', $org), ['members' => [$last->handle, $extra->handle], 'share_history' => true])
         ->assertUnprocessable()->assertJsonValidationErrors('members');
     $this->postJson(route('org-member.store', $org), ['members' => ['nobody-by-that-name'], 'share_history' => true])
+        ->assertUnprocessable()->assertJsonValidationErrors('members.0');
+    $this->postJson(route('org-member.store', $org), ['members' => [Profile::factory()->create()->handle], 'share_history' => true])
         ->assertUnprocessable()->assertJsonValidationErrors('members.0');
     $this->postJson(route('org-member.store', $org), ['members' => [$last->handle], 'share_history' => true])->assertNoContent();
     $this->postJson(route('org-member.store', $org), ['members' => [$extra->handle], 'share_history' => true])

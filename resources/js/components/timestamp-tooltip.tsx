@@ -1,5 +1,6 @@
 import { usePage } from '@inertiajs/react';
 import * as TooltipPrimitive from '@radix-ui/react-tooltip';
+import { useRef, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import {
     Tooltip,
@@ -21,19 +22,48 @@ export function TimestampTooltip({
     children,
 }: {
     date: string;
-    author: User;
+    /**
+     * Whose local time to show next to the reader's, when it's a person's.
+     */
+    author?: User;
     children: ReactNode;
 }) {
+    const [isOpen, setIsOpen] = useState(false);
+    const tap = useRef({ isTouch: false, wasOpen: false });
+
     return (
-        <Tooltip>
-            <TooltipTrigger asChild>{children}</TooltipTrigger>
+        <Tooltip open={isOpen} onOpenChange={setIsOpen}>
+            <TooltipTrigger
+                asChild
+                onPointerDown={(event) => {
+                    // Before the tooltip's own handler, which closes it on any press of its trigger.
+                    tap.current = {
+                        isTouch: event.pointerType === 'touch',
+                        wasOpen: isOpen,
+                    };
+                }}
+                onClickCapture={(event) => {
+                    const { isTouch, wasOpen } = tap.current;
+                    tap.current = { isTouch: false, wasOpen: false };
+
+                    // Touch can't hover, so the first tap shows the times instead of following the link or opening the
+                    // commit around it. A second tap, with the times showing, goes through.
+                    if (isTouch && !wasOpen) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        setIsOpen(true);
+                    }
+                }}
+            >
+                {children}
+            </TooltipTrigger>
             <ZonedTimesTooltip date={date} author={author} />
         </Tooltip>
     );
 }
 
 /** The tooltip itself, once the surrounding one has mounted: its parts need it. */
-function ZonedTimesTooltip({ date, author }: { date: string; author: User }) {
+function ZonedTimesTooltip({ date, author }: { date: string; author?: User }) {
     if (!useTooltipArmed()) {
         return null;
     }
@@ -51,7 +81,7 @@ function ZonedTimesTooltip({ date, author }: { date: string; author: User }) {
     );
 }
 
-function ZonedTimes({ date, author }: { date: string; author: User }) {
+function ZonedTimes({ date, author }: { date: string; author?: User }) {
     const { auth } = usePage().props;
 
     const columns = [
@@ -60,7 +90,9 @@ function ZonedTimes({ date, author }: { date: string; author: User }) {
             lane: auth.user?.lane,
             timeZone: auth.user?.timezone ?? browserTimeZone(),
         },
-        ...(author.timezone !== null && author.id !== auth.user?.id
+        ...(author !== undefined &&
+        author.timezone !== null &&
+        author.id !== auth.user?.id
             ? [
                   {
                       who: author.name.split(' ')[0],

@@ -2,16 +2,23 @@
 
 declare(strict_types=1);
 
+use App\Contracts\Services\EmbeddingProvider;
+use App\Contracts\Services\RelevanceProvider;
 use App\Models\Commit;
-use Illuminate\Support\Facades\Http;
+use App\Models\Guild;
+use App\Models\User;
 
 beforeEach(function (): void {
-    config(['ai.providers.openai.key' => 'sk-test']);
+    $this->actingAs(User::factory()->create());
 });
 
-it('returns the commits matching the query, to guests too, with what the card renders', function (): void {
-    fakeSearch();
+it('is for members only, as each search pays for AI', function (): void {
+    $this->app['auth']->forgetGuards();
 
+    $this->getJson('/search/commits?q=feature')->assertUnauthorized();
+});
+
+it('returns the commits matching the query, with what the card renders', function (): void {
     $commit = Commit::factory()->create(['body' => 'Shipped a new feature', 'embedding' => embeddingVector(0)]);
     Commit::factory()->create(['body' => 'Something else', 'embedding' => embeddingVector(1)]);
 
@@ -23,13 +30,14 @@ it('returns the commits matching the query, to guests too, with what the card re
         ->assertJsonPath('commits.0.stars_count', 0)
         ->assertJsonPath('commits.0.starred', false)
         ->assertJsonPath('commits.0.replies_count', 0)
-        ->assertJsonPath('commits.0.user.id', $commit->user->id)
+        ->assertJsonPath('commits.0.author.id', $commit->user->id)
         ->assertJsonStructure(['commits' => [['body_segments', 'created_at']]])
         ->assertJsonMissingPath('commits.0.embedding');
 });
 
 it('drops the candidates the decision model calls irrelevant', function (): void {
-    fakeSearch([true, false]);
+    $relevance = $this->mock(RelevanceProvider::class);
+    $relevance->shouldReceive('decideRelevance')->with('indexing', ['About indexing', 'About something else'], false)->once()->andReturn([true, false]);
 
     $relevant = Commit::factory()->create(['body' => 'About indexing', 'embedding' => embeddingVector(0)]);
     Commit::factory()->create(['body' => 'About something else', 'embedding' => embeddingVector(1)]);
@@ -40,9 +48,22 @@ it('drops the candidates the decision model calls irrelevant', function (): void
         ->assertJsonPath('commits.0.id', $relevant->id);
 });
 
-it('returns no more than the requested limit', function (): void {
-    fakeSearch();
+it('omits muted guild topics from search even for followed authors while retaining literal lookalikes', function (): void {
+    config(['app.admins' => ['admin']]);
+    $admin = User::factory()->create(['handle' => 'admin']);
+    $author = User::factory()->create();
+    $admin->following()->attach($author);
+    $guild = Guild::factory()->create(['handle' => 'rust']);
+    $hidden = Commit::factory()->for($author)->create(['body' => 'Learning #RuSt', 'embedding' => embeddingVector(0)]);
+    $visible = Commit::factory()->for($author)->create(['body' => 'Literal `#rust` and #rustlang', 'embedding' => embeddingVector(1)]);
 
+    $this->actingAs($admin)->put(route('guild-mute.update', $guild), ['muted' => true])->assertRedirect();
+    $this->getJson('/search/commits?q=rust')->assertOk()->assertJsonCount(1, 'commits')->assertJsonPath('commits.0.id', $visible->id);
+    $this->put(route('guild-mute.update', $guild), ['muted' => false])->assertRedirect();
+    $this->getJson('/search/commits?q=rust')->assertOk()->assertJsonCount(2, 'commits')->assertJsonPath('commits.0.id', $hidden->id);
+});
+
+it('returns no more than the requested limit', function (): void {
     Commit::factory()->count(3)->create(['embedding' => embeddingVector(0)]);
 
     $this->getJson('/search/commits?q=feature&limit=2')
@@ -50,15 +71,14 @@ it('returns no more than the requested limit', function (): void {
         ->assertJsonCount(2, 'commits');
 });
 
-it('returns nothing, and asks openai nothing, for a term shorter than three characters', function (): void {
-    Http::fake();
+it('returns nothing, and embeds nothing, for a term shorter than three characters', function (): void {
+    $embeddings = $this->mock(EmbeddingProvider::class);
+    $embeddings->shouldNotReceive('embed');
     Commit::factory()->create(['embedding' => embeddingVector(0)]);
 
     $this->getJson('/search/commits?q=ab')
         ->assertOk()
         ->assertJsonCount(0, 'commits');
-
-    Http::assertNothingSent();
 });
 
 it('rejects overly long queries and out-of-range limits', function (string $query): void {
@@ -69,9 +89,7 @@ it('rejects overly long queries and out-of-range limits', function (string $quer
     'a limit over 100' => ['q=feature&limit=101'],
 ]);
 
-it('asks guests to slow down after 15 searches a minute', function (): void {
-    Http::fake();
-
+it('asks people to slow down after 15 searches a minute', function (): void {
     for ($attempt = 0; $attempt < 15; $attempt++) {
         $this->getJson('/search/commits?q=ab')->assertOk();
     }

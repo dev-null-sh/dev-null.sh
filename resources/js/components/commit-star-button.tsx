@@ -1,6 +1,6 @@
 import { router, useHttp, usePage } from '@inertiajs/react';
 import { Star } from 'lucide-react';
-import { useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { useContext, useEffect, useState } from 'react';
 import type { Ref } from 'react';
 import CommitStarController from '@/actions/App/Http/Controllers/CommitStarController';
 import { ActionTooltip } from '@/components/action-tooltip';
@@ -8,6 +8,7 @@ import { CommitStarPollingContext } from '@/components/commit-star-polling';
 import { CommitStargazersDialog } from '@/components/commit-stargazers-dialog';
 import { StarredRemovalContext } from '@/components/starred-removal-context';
 import { useCommitNotFound } from '@/hooks/use-deleted-resources';
+import { useOwnsCommit } from '@/hooks/use-owns-commit';
 import { refreshSharedState, useSharedState } from '@/hooks/use-shared-state';
 import { signIn } from '@/lib/auth';
 import { createCommitStarMutations } from '@/lib/commit-star-mutations';
@@ -31,14 +32,16 @@ function starLabel(starred: boolean, count: number): string {
 
 export function CommitStarButton({
     commit,
+    keyShortcut,
     className,
 }: {
     commit: Commit;
+    keyShortcut?: string;
     className?: string;
 }) {
     const { auth } = usePage().props;
     const commitNotFound = useCommitNotFound();
-    const isOwn = commit.user_id === auth.user?.id;
+    const isOwn = useOwnsCommit()(commit);
     const [starred, setStarred] = useSharedState(
         commitStateKey('starred', commit.id),
         commit.starred,
@@ -58,19 +61,16 @@ export function CommitStarButton({
     const mutations = polling?.mutations ?? localMutations;
     const canPoll =
         (isOwn || commit.status === 'approved') && auth.user !== null;
-    const element = useRef<HTMLElement>(null);
-    const setElement = useCallback((node: HTMLElement | null) => {
-        element.current = node;
-    }, []);
+    const [element, setElement] = useState<HTMLElement | null>(null);
 
     useEffect(() => {
-        if (!polling || !canPoll || !element.current) {
+        if (!polling || !canPoll || !element) {
             return;
         }
 
         return polling.subscribe({
             id: commit.id,
-            element: element.current,
+            element,
             prepare: () =>
                 mutations.prepare(commit.id, (stars) => {
                     refreshSharedState(
@@ -87,7 +87,7 @@ export function CommitStarButton({
                     );
                 }),
         });
-    }, [polling, mutations, canPoll, commit.id, isOwn]);
+    }, [polling, mutations, canPoll, commit.id, isOwn, element]);
 
     if (isOwn) {
         return (
@@ -156,13 +156,17 @@ export function CommitStarButton({
     };
 
     return (
-        <ActionTooltip label={starred ? 'Unstar' : 'Star'}>
+        <ActionTooltip
+            label={starred ? 'Unstar' : 'Star'}
+            shortcut={keyShortcut}
+        >
             <button
                 ref={setElement}
                 aria-disabled={request.processing}
                 type="button"
                 onClick={toggle}
                 aria-pressed={starred}
+                aria-keyshortcuts={keyShortcut}
                 aria-label={starLabel(starred, count)}
                 className={cn(
                     'group/star inline-flex items-center gap-1 rounded-md px-1.5 py-1 font-mono text-[13px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
@@ -231,7 +235,7 @@ function StarCount({
                     {count > 0 && (
                         <span
                             data-test="star-count"
-                            className="min-w-[1ch] text-left"
+                            className="min-w-[1ch] text-left tabular-nums"
                         >
                             {formatCount(count)}
                         </span>

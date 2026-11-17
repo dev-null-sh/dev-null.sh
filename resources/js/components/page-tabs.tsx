@@ -6,12 +6,14 @@ export function PageTabs({
     label,
     tabs,
     preserveScroll = false,
+    preserveState = false,
     prefetch = true,
     only,
     reset,
 }: {
     label: string;
     preserveScroll?: boolean;
+    preserveState?: boolean;
     prefetch?: boolean;
     only?: InertiaLinkProps['only'];
     reset?: string[];
@@ -23,6 +25,7 @@ export function PageTabs({
         shortTitle?: string;
         href: NonNullable<InertiaLinkProps['href']>;
         isActive: boolean;
+        onClick?: InertiaLinkProps['onClick'];
     }[];
 }) {
     const indicatorName = `tab-indicator-${label.toLowerCase().replaceAll(/[^a-z0-9]+/gu, '-')}`;
@@ -33,9 +36,11 @@ export function PageTabs({
                 <Link
                     key={tab.title}
                     href={tab.href}
+                    onClick={tab.onClick}
                     prefetch={prefetch}
                     viewTransition
                     preserveScroll={preserveScroll}
+                    preserveState={preserveState}
                     only={only}
                     // Link exposes custom headers for both visits and prefetches, but no reset option.
                     headers={

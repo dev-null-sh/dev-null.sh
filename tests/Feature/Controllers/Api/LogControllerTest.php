@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Actions\UpdateCommitHotScores;
+use App\Enums\LivePlatform;
 use App\Enums\Log;
 use App\Jobs\DetectCommitLanguage;
 use App\Models\Commit;
@@ -58,6 +59,7 @@ it('lists the latest commits of everyone, newest first', function (): void {
         'link_preview' => null,
         'images' => [],
         'author' => [
+            'type' => 'user',
             'id' => $author->id,
             'handle' => 'octocat',
             'name' => 'The Octocat',
@@ -70,6 +72,7 @@ it('lists the latest commits of everyone, newest first', function (): void {
             'html_url' => route('user.show', $author),
             'feed_url' => route('user-feed.show', $author),
             'created_at' => now()->toIso8601ZuluString(),
+            'live' => null,
             'lane' => $author->lane(),
         ],
         'body_segments' => [['type' => 'text', 'text' => 'It was DNS.']],
@@ -118,7 +121,7 @@ it('shows what the web shows on a commit', function (): void {
         ->assertJsonPath('data.0.stars_count', 2)
         ->assertJsonPath('data.0.starred', true)
         ->assertJsonPath('data.0.is_pinned', true)
-        ->assertJsonPath('data.0.mentions', [['handle' => 'NunoMaduro', 'offset' => 4, 'length' => 11]])
+        ->assertJsonPath('data.0.mentions', [['handle' => 'NunoMaduro', 'offset' => 4, 'length' => 11, 'kind' => 'user']])
         ->assertJsonPath('data.0.link_preview', [
             'url' => 'https://laravel.com',
             'title' => $linkPreview->title,
@@ -136,6 +139,31 @@ it('shows what the web shows on a commit', function (): void {
             'url' => route('commit-image.show', $image),
         ]])
         ->assertJsonPath('data.0.author.lane', 4);
+});
+
+it('tells on each commit whether its author is live', function (): void {
+    $this->freezeSecond();
+
+    $streamer = User::factory()->create([
+        'live_platform' => LivePlatform::Twitch,
+        'live_url' => 'https://www.twitch.tv/octocat',
+        'live_ends_at' => now()->addHour(),
+    ]);
+    $live = Commit::factory()->for($streamer)->create(['created_at' => now()]);
+    $offline = Commit::factory()->create(['created_at' => now()->subMinute()]);
+
+    $response = signedApiRequest($this->keyPair, 'GET', route('api-log.show', 'latest'));
+
+    $response->assertOk()
+        ->assertJsonPath('data.0.id', $live->id)
+        ->assertJsonPath('data.0.author.live', [
+            'platform' => 'twitch',
+            'url' => 'https://www.twitch.tv/octocat',
+            'thumbnail_url' => 'https://static-cdn.jtvnw.net/previews-ttv/live_user_octocat-1280x720.jpg',
+            'ends_at' => now()->addHour()->toIso8601ZuluString(),
+        ])
+        ->assertJsonPath('data.1.id', $offline->id)
+        ->assertJsonPath('data.1.author.live', null);
 });
 
 it('only shows the saves and stars of the user', function (): void {
@@ -204,6 +232,29 @@ it('lists commits 20 at a time with a cursor to the next page', function (): voi
         ->assertJsonPath('data.1.body', 'Commit 21')
         ->assertJsonPath('meta.next_cursor', null);
 });
+
+it('shows as many reply previews as the client asks for, newest first', function (): void {
+    $commit = Commit::factory()->create(['created_at' => now()->subHour()]);
+    $replies = Commit::factory()->for($commit, 'parent')->count(4)
+        ->state(new Sequence(fn (Sequence $sequence): array => ['created_at' => now()->subMinutes(10 - $sequence->index)]))
+        ->create();
+
+    $response = signedApiRequest($this->keyPair, 'GET', route('api-log.show', ['latest', 'replies_per_page' => 3]));
+
+    $response->assertOk()
+        ->assertJsonPath('data.0.reply_preview.data.*.id', [$replies[3]->id, $replies[2]->id, $replies[1]->id]);
+
+    expect($response->json('data.0.reply_preview.next_cursor'))->toBeString();
+});
+
+it('shows one reply preview when the client asks for a count the web does not offer', function (string $count): void {
+    $commit = Commit::factory()->create(['created_at' => now()->subHour()]);
+    Commit::factory()->for($commit, 'parent')->count(4)->create();
+
+    $response = signedApiRequest($this->keyPair, 'GET', route('api-log.show', ['latest', 'replies_per_page' => $count]));
+
+    $response->assertOk()->assertJsonCount(1, 'data.0.reply_preview.data');
+})->with(['7', '3abc']);
 
 it('does not query each commit or author', function (): void {
     Queue::fake([DetectCommitLanguage::class]);

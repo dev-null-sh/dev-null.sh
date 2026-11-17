@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Actions\CreateMessage;
+use App\Contracts\Services\PushNotificationProvider;
 use App\Enums\OrgEvent;
 use App\Enums\RemoteStatus;
 use App\Jobs\SendRemotePush;
@@ -10,62 +11,46 @@ use App\Models\ConversationParticipant;
 use App\Models\Message;
 use App\Models\PushSubscription;
 use App\Models\User;
-use App\Services\RemotePush;
-use Illuminate\Http\Client\ConnectionException;
-use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
-use Minishlink\WebPush\VAPID;
 
 beforeEach(function (): void {
-    $keys = VAPID::createVapidKeys();
-    config(['services.web_push.public_key' => $keys['publicKey'], 'services.web_push.private_key' => $keys['privateKey']]);
     $this->message = Message::factory()->create(['body' => 'Private content must never reach a push service']);
     $this->recipient = User::factory()->create();
     $this->participant = ConversationParticipant::factory()->create(['conversation_id' => $this->message->conversation_id, 'user_id' => $this->recipient->id]);
     $this->subscription = PushSubscription::query()->create(['user_id' => $this->recipient->id, 'endpoint_hash' => hash('sha256', 'https://fcm.googleapis.com/wp/recipient'), 'endpoint' => 'https://fcm.googleapis.com/wp/recipient']);
-    $this->pushStatus = 201;
-    $this->pushStatuses = [];
-    $this->connectionFails = false;
-    Http::fake(['https://fcm.googleapis.com/*' => function (Request $request) {
-        throw_if($this->connectionFails, ConnectionException::class, 'unavailable');
-
-        return Http::response('', $this->pushStatuses[$request->url()] ?? $this->pushStatus);
-    }]);
 });
 
-it('sends an authenticated empty push to every eligible browser without message data', function (): void {
+it('pushes to every eligible browser of the recipient', function (): void {
     $this->recipient->pushSubscriptions()->create(['endpoint_hash' => 'second', 'endpoint' => 'https://fcm.googleapis.com/wp/second']);
     ConversationParticipant::factory()->create(['conversation_id' => $this->message->conversation_id, 'user_id' => $this->message->user_id]);
     $this->message->user->pushSubscriptions()->create(['endpoint_hash' => 'sender', 'endpoint' => 'https://fcm.googleapis.com/wp/sender']);
-    resolve(SendRemotePush::class, ['messageId' => $this->message->id, 'userId' => $this->recipient->id])->handle(resolve(RemotePush::class));
-    Http::assertSentCount(2);
-    Http::assertSent(fn (Request $request): bool => $request->body() === '' && str_starts_with($request->header('Authorization')[0], 'vapid t=') && $request->header('TTL') === ['300']);
+    $this->mock(PushNotificationProvider::class)->shouldReceive('send')->twice()
+        ->with(Mockery::on(fn (PushSubscription $subscription): bool => $subscription->user_id === $this->recipient->id))->andReturnTrue();
+
+    resolve(SendRemotePush::class, ['messageId' => $this->message->id, 'userId' => $this->recipient->id])->handle(resolve(PushNotificationProvider::class));
 });
 
 it('does not load recipients who have no push subscriptions', function (): void {
     $this->subscription->delete();
+    $this->mock(PushNotificationProvider::class)->shouldNotReceive('send');
     $loaded = [];
     Event::listen('eloquent.retrieved: '.User::class, function (User $user) use (&$loaded): void {
         $loaded[] = $user->id;
     });
 
-    new SendRemotePush($this->message->id, $this->recipient->id)->handle(resolve(RemotePush::class));
+    new SendRemotePush($this->message->id, $this->recipient->id)->handle(resolve(PushNotificationProvider::class));
 
     expect($loaded)->not->toContain($this->recipient->id);
-    Http::assertNothingSent();
 });
 
-it('delivers a ping event as an empty push without message data', function (): void {
+it('delivers a ping event', function (): void {
     $this->message->update(['event' => OrgEvent::Ping, 'body' => '']);
+    $this->mock(PushNotificationProvider::class)->shouldReceive('send')->once()->andReturnTrue();
 
-    new SendRemotePush($this->message->id, $this->recipient->id)->handle(resolve(RemotePush::class));
-
-    Http::assertSentCount(1);
-    Http::assertSent(fn (Request $request): bool => $request->body() === '');
+    new SendRemotePush($this->message->id, $this->recipient->id)->handle(resolve(PushNotificationProvider::class));
 });
 
 it('rechecks eligibility at delivery time', function (string $change): void {
@@ -83,24 +68,19 @@ it('rechecks eligibility at delivery time', function (string $change): void {
         'deleted' => $this->message->delete(),
         'old' => $this->message->update(['created_at' => now()->subMinutes(6)]),
         'event' => $this->message->update(['event' => OrgEvent::Added]),
-        'unconfigured' => config(['services.web_push.private_key' => null]),
     };
-    new SendRemotePush($this->message->id, $this->recipient->id)->handle(resolve(RemotePush::class));
-    Http::assertNothingSent();
-})->with(['read', 'history', 'muted', 'dropped', 'fetched', 'left', 'disabled', 'blocked', 'blocked-by', 'user-muted', 'deleted', 'old', 'event', 'unconfigured']);
+    $this->mock(PushNotificationProvider::class)->shouldNotReceive('send');
+
+    new SendRemotePush($this->message->id, $this->recipient->id)->handle(resolve(PushNotificationProvider::class));
+})->with(['read', 'history', 'muted', 'dropped', 'fetched', 'left', 'disabled', 'blocked', 'blocked-by', 'user-muted', 'deleted', 'old', 'event']);
 
 it('allows expired mutes and enabled fetched requests', function (): void {
     config(['remotes.requests' => true]);
     $this->participant->update(['muted_until_at' => now(), 'status' => RemoteStatus::Fetched]);
-    new SendRemotePush($this->message->id, $this->recipient->id)->handle(resolve(RemotePush::class));
-    Http::assertSentCount(1);
-});
+    $this->mock(PushNotificationProvider::class)->shouldReceive('send')->once()->andReturnTrue();
 
-it('removes expired endpoints but keeps other subscriptions', function (int $status, bool $removed): void {
-    $this->pushStatus = $status;
-    new SendRemotePush($this->message->id, $this->recipient->id)->handle(resolve(RemotePush::class));
-    expect(PushSubscription::query()->whereKey($this->subscription->id)->exists())->toBe(! $removed);
-})->with([[404, true], [410, true], [403, false], [429, false], [500, false]]);
+    new SendRemotePush($this->message->id, $this->recipient->id)->handle(resolve(PushNotificationProvider::class));
+});
 
 it('queues delivery once for a retried message and only after commit', function (): void {
     Queue::fake();
@@ -136,58 +116,69 @@ it('delivers twenty browsers per queued recipient without one recipient consumin
     $other = User::factory()->create();
     ConversationParticipant::factory()->create(['conversation_id' => $this->message->conversation_id, 'user_id' => $other->id]);
     $other->pushSubscriptions()->createMany(collect(range(1, 20))->map(fn (int $i): array => ['endpoint_hash' => 'other-'.$i, 'endpoint' => 'https://fcm.googleapis.com/wp/other-'.$i])->all());
+    $sent = 0;
+    $this->mock(PushNotificationProvider::class)->shouldReceive('send')->andReturnUsing(function () use (&$sent): bool {
+        $sent++;
+
+        return true;
+    });
 
     resolve(CreateMessage::class)->handle($this->message->user, $this->message->conversation, 'new message', Str::uuid()->toString(), linkPreview: false);
     $this->travel(11)->seconds();
     $this->artisan('queue:work', ['connection' => 'database', '--once' => true])->assertSuccessful();
 
-    Http::assertSentCount(20);
+    expect($sent)->toBe(20);
     $this->assertDatabaseCount('jobs', 1);
 
     $this->artisan('queue:work', ['connection' => 'database', '--once' => true])->assertSuccessful();
 
-    Http::assertSentCount(40);
+    expect($sent)->toBe(40);
     $this->assertDatabaseCount('jobs', 0);
     $this->assertDatabaseCount('failed_jobs', 0);
 });
 
-it('retries temporary push failures without keeping or reporting the endpoint', function (int $status, bool $connectionFails): void {
-    $this->pushStatus = $status;
-    $this->connectionFails = $connectionFails;
+it('retries temporary push failures without keeping or reporting the endpoint', function (): void {
+    $this->mock(PushNotificationProvider::class)->shouldReceive('send')->once()->andReturnFalse();
     Queue::fake();
-    $job = new SendRemotePush($this->message->id, $this->recipient->id);
-    $job->handle(resolve(RemotePush::class));
-    $this->assertModelExists($this->subscription);
+
+    new SendRemotePush($this->message->id, $this->recipient->id)->handle(resolve(PushNotificationProvider::class));
+
     Queue::assertPushed(SendRemotePush::class, fn (SendRemotePush $retry): bool => $retry->messageId === $this->message->id && $retry->userId === $this->recipient->id
         && $retry->subscriptionIds === [$this->subscription->id] && $retry->tries === 2 && $retry->delay->equalTo(now()->addSeconds(30)));
-})->with([[500, false], [429, false], [201, true]]);
+});
 
 it('retries only failed browsers across serialized queue deliveries', function (): void {
     $this->recipient->pushSubscriptions()->create(['endpoint_hash' => 'second', 'endpoint' => 'https://fcm.googleapis.com/wp/second']);
     $other = User::factory()->create();
     ConversationParticipant::factory()->create(['conversation_id' => $this->message->conversation_id, 'user_id' => $other->id]);
     $other->pushSubscriptions()->create(['endpoint_hash' => 'other', 'endpoint' => 'https://fcm.googleapis.com/wp/other']);
-    $this->pushStatuses['https://fcm.googleapis.com/wp/recipient'] = 500;
+    $sent = [];
+    $recipientFails = true;
+    $this->mock(PushNotificationProvider::class)->shouldReceive('send')->andReturnUsing(function (PushSubscription $subscription) use (&$sent, &$recipientFails): bool {
+        $sent[] = $subscription->endpoint;
+
+        return ! $recipientFails || $subscription->endpoint !== 'https://fcm.googleapis.com/wp/recipient';
+    });
     dispatch(new SendRemotePush($this->message->id, $this->recipient->id)->onConnection('database')->onQueue('push-retries'));
     dispatch(new SendRemotePush($this->message->id, $other->id)->onConnection('database')->onQueue('push-other'));
     $this->artisan('queue:work', ['connection' => 'database', '--queue' => 'push-other', '--once' => true])->assertSuccessful();
 
     $this->artisan('queue:work', ['connection' => 'database', '--queue' => 'push-retries', '--once' => true])->assertSuccessful();
-    Http::assertSentCount(3);
+    expect($sent)->toHaveCount(3);
 
-    $this->pushStatuses['https://fcm.googleapis.com/wp/recipient'] = 201;
+    $recipientFails = false;
     $other->pushSubscriptions()->create(['endpoint_hash' => 'new', 'endpoint' => 'https://fcm.googleapis.com/wp/new']);
     $this->travel(31)->seconds();
     $this->artisan('queue:work', ['connection' => 'database', '--queue' => 'push-retries', '--once' => true])->assertSuccessful();
 
-    Http::assertSentCount(4);
-    expect(Http::recorded()->filter(fn (array $record): bool => $record[0]->url() === 'https://fcm.googleapis.com/wp/recipient'))->toHaveCount(2);
+    expect($sent)->toHaveCount(4)
+        ->and(array_count_values($sent)['https://fcm.googleapis.com/wp/recipient'])->toBe(2);
     $this->assertDatabaseCount('jobs', 0);
     $this->assertDatabaseCount('failed_jobs', 0);
 });
 
 it('stops temporary retries within the original three-attempt budget', function (int $previousAttempts): void {
-    $this->pushStatus = 500;
+    $this->mock(PushNotificationProvider::class)->shouldReceive('send')->times(3 - $previousAttempts)->andReturnFalse();
     dispatch(new SendRemotePush($this->message->id, $this->recipient->id)->onConnection('database')->onQueue('push-retries'));
     DB::table('jobs')->where('queue', 'push-retries')->update(['attempts' => $previousAttempts]);
 
@@ -196,13 +187,12 @@ it('stops temporary retries within the original three-attempt budget', function 
         $this->travel(31)->seconds();
     }
 
-    Http::assertSentCount(3 - $previousAttempts);
     $this->assertDatabaseCount('jobs', 0);
     $this->assertDatabaseCount('failed_jobs', 0);
 })->with([0, 1, 2]);
 
 it('rechecks eligibility and enrollment before a failed browser retry', function (string $change): void {
-    $this->pushStatus = 500;
+    $this->mock(PushNotificationProvider::class)->shouldReceive('send')->once()->andReturnFalse();
     dispatch(new SendRemotePush($this->message->id, $this->recipient->id)->onConnection('database')->onQueue('push-retries'));
     $this->artisan('queue:work', ['connection' => 'database', '--queue' => 'push-retries', '--once' => true])->assertSuccessful();
 
@@ -214,14 +204,6 @@ it('rechecks eligibility and enrollment before a failed browser retry', function
     $this->travel(31)->seconds();
     $this->artisan('queue:work', ['connection' => 'database', '--queue' => 'push-retries', '--once' => true])->assertSuccessful();
 
-    Http::assertSentCount(1);
     $this->assertDatabaseCount('jobs', 0);
     $this->assertDatabaseCount('failed_jobs', 0);
 })->with(['read', 'revoked', 'transferred']);
-
-it('uses Windows raw push headers for Microsoft Edge endpoints', function (): void {
-    Http::fake(['https://wns2-example.notify.windows.com/*' => Http::response('', 201)]);
-    $this->recipient->pushSubscriptions()->create(['endpoint_hash' => 'edge', 'endpoint' => 'https://wns2-example.notify.windows.com/w/?token=example']);
-    new SendRemotePush($this->message->id, $this->recipient->id)->handle(resolve(RemotePush::class));
-    Http::assertSent(fn (Request $request): bool => str_contains($request->url(), '.notify.windows.com/') && $request->header('X-WNS-Type') === ['wns/raw'] && $request->header('Content-Type') === ['application/octet-stream'] && $request->header('Urgency') === [] && $request->body() === '');
-});

@@ -6,6 +6,7 @@ import {
     targetKey,
     watchInbox,
     watchRemoteAlerts,
+    watchRemoteUpdates,
     watchThread,
 } from '@/lib/chat';
 import type { ChatState, ChatTarget, ThreadState } from '@/lib/chat';
@@ -37,6 +38,16 @@ export function useRemoteAlerts(userId: string | null): void {
         () =>
             enabled && userId !== null ? watchRemoteAlerts(userId) : undefined,
         [enabled, userId, offsite],
+    );
+}
+
+/**
+ * Keeps the remotes current from the user's live updates, on every page, so the dock and Remotes share them.
+ */
+export function useRemoteUpdates(userId: string | null): void {
+    useEffect(
+        () => (userId !== null ? watchRemoteUpdates(userId) : undefined),
+        [userId],
     );
 }
 
