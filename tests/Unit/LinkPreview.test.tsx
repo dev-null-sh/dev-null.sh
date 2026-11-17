@@ -51,7 +51,7 @@ async function render(
     return result.body;
 }
 
-void test('shows a dev/null commit link card as the commit, opened in place', async () => {
+test('shows a dev/null commit link card as the commit, opened in place', async () => {
     const body = await render(commitCard);
 
     assert.match(body, new RegExp(`<a[^>]*href="/@nunomaduro/commits/${id}"`));
@@ -62,21 +62,21 @@ void test('shows a dev/null commit link card as the commit, opened in place', as
     assert.doesNotMatch(body, /<img\b/);
 });
 
-void test("keeps a dev/null commit's own image as the thumbnail", async () => {
+test("keeps a dev/null commit's own image as the thumbnail", async () => {
     const image = `https://dev-null.sh/commit-images/${id}`;
     const body = await render({ ...commitCard, image_url: image });
 
     assert.match(body, new RegExp(`<img[^>]*src="${image}"`));
 });
 
-void test('shows a dev/null commit link card without a link inside a quote', async () => {
+test('shows a dev/null commit link card without a link inside a quote', async () => {
     const body = await render(commitCard, true);
 
     assert.doesNotMatch(body, /<a\b/);
     assert.match(body, />shipping it</);
 });
 
-void test('leaves every other link card as it was', async () => {
+test('leaves every other link card as it was', async () => {
     const body = await render({
         ...commitCard,
         url: 'https://laravel.com',
@@ -91,7 +91,7 @@ void test('leaves every other link card as it was', async () => {
     assert.match(body, /<img[^>]*src="https:\/\/laravel.com\/og.png"/);
 });
 
-void test('waits for a dev/null commit link card without a thumbnail', async () => {
+test('waits for a dev/null commit link card without a thumbnail', async () => {
     const pending = await render({ ...commitCard, is_pending: true });
     const other = await render({
         ...commitCard,
