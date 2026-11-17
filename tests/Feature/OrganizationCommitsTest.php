@@ -16,6 +16,7 @@ use App\Jobs\CheckUserLevel;
 use App\Jobs\ModerateCommit;
 use App\Models\Commit;
 use App\Models\CommitImage;
+use App\Models\Guild;
 use App\Models\Notification;
 use App\Models\Organization;
 use App\Models\Poll;
@@ -236,6 +237,7 @@ it('exports the images and polls of what someone posted for an organization, eve
 it('lists the commits of an organization on its page, first', function (): void {
     $commit = Commit::factory()->create(['author_id' => $this->organization->id]);
     Commit::factory()->for($commit, 'parent')->create(['author_id' => $this->organization->id]);
+    Commit::factory()->for(Guild::factory())->create(['author_id' => $this->organization->id]);
 
     $this->get('/@Laravel')
         ->assertOk()

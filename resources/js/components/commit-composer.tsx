@@ -54,7 +54,6 @@ import {
 import { useUser } from '@/hooks/use-user';
 import {
     bodyCharacterCount,
-    bodyWithHashtag,
     isSavedAs,
     maxBodyLength,
     maxRawBodyLength,
@@ -371,7 +370,7 @@ function CommitComposerBody({
 
                     {guildHandle && (
                         <p className="text-xs text-muted-foreground">
-                            #{guildHandle} is added automatically if missing.
+                            Posted to this guild, not your profile log.
                         </p>
                     )}
                     {issue.hint && (
@@ -688,9 +687,6 @@ export function CommitComposer({
         guildHandle ? `guild:${guildHandle}` : 'commit',
     );
     const { body } = stash;
-    const submittedBody = guildHandle
-        ? bodyWithHashtag(body, guildHandle)
-        : body;
     const linkCard = useLinkCard(body);
     const [draftVersion, setDraftVersion] = useState(0);
     const drop = () => {
@@ -758,7 +754,8 @@ export function CommitComposer({
     useEffect(() => {
         if (
             committed !== undefined &&
-            isSavedAs(submittedBody, committed.body)
+            (committed.guild_handle ?? null) === (guildHandle ?? null) &&
+            isSavedAs(body, committed.body)
         ) {
             drop();
         }

@@ -23,6 +23,8 @@ final class SubmitScheduledCommitsCommand extends Command
         $scheduledCommits = ScheduledCommit::query()->whereNull('submitted_at')->whereNull('canceled_at')
             ->whereDoesntHave('user.timeouts', fn (Builder $query): Builder => $query->where('ends_at', '>', now()))
             ->whereDoesntHave('user.ban')
+            ->where(fn (Builder $query): Builder => $query->whereNull('guild_id')
+                ->orWhereHas('guild', fn (Builder $guilds): Builder => $guilds->whereNotNull('user_id')))
             ->where('scheduled_at', '<=', now())->oldest('scheduled_at')->orderBy('id')->limit(100)->get(['id']);
 
         foreach ($scheduledCommits as $scheduled) {

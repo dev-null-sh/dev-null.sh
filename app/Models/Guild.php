@@ -11,10 +11,11 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * @property-read string $id
- * @property-read string $user_id
+ * @property-read string|null $user_id
  * @property-read string $handle
  * @property-read string $name
  * @property-read string $description
@@ -33,6 +34,12 @@ final class Guild extends Model
     use HasFactory;
 
     use HasUuids;
+
+    /** @return HasMany<Commit, $this> */
+    public function commits(): HasMany
+    {
+        return $this->hasMany(Commit::class);
+    }
 
     /** @return BelongsToMany<User, $this> */
     public function members(): BelongsToMany

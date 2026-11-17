@@ -20,6 +20,7 @@ final readonly class SuggestedCommitsQuery
             ->withoutMutedAuthorsFor($user)
             ->withoutMutedGuildsFor($user)
             ->topLevel()
+            ->whereNull('guild_id')
             ->withStarsFor($user)
             ->whereNot('author_id', $user->id)
             ->latest()

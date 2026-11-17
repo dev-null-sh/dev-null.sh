@@ -8,6 +8,13 @@ import type { Guild } from '../../resources/js/types/guild';
 let state: unknown[];
 let cursor = 0;
 const errors = { setError: vi.fn(), clearErrors: vi.fn() };
+vi.doMock('@inertiajs/react', async () => ({
+    ...(await vi.importActual('@inertiajs/react')),
+    usePage: () => ({ props: { guilds: [] } }),
+}));
+vi.doMock('../../resources/js/layouts/app-layout', () => ({
+    default: () => null,
+}));
 vi.doMock('react', () => ({
     ...React,
     useRef: () => ({ current: errors }),
@@ -35,6 +42,8 @@ const { GuildDialog } =
     await import('../../resources/js/components/guild-dialog');
 const { GuildPreferences } =
     await import('../../resources/js/components/guild-preferences');
+const { default: GuildIndex } =
+    await import('../../resources/js/pages/guild/index');
 type Element = ReactElement<Record<string, unknown>>;
 function elements(node: ReactNode): Element[] {
     if (!React.isValidElement(node)) return [];
@@ -63,6 +72,65 @@ beforeEach(() => {
     state = [];
     cursor = 0;
     vi.clearAllMocks();
+});
+
+test('refreshes card data with directory search and navigation so newly created guilds can render', () => {
+    const view = elements(
+        GuildIndex({
+            query: 'rust',
+            guildPage: { data: [], current_page: 2, last_page: 3, total: 50 },
+        }),
+    );
+    const form = view.find((element) => element.type === Form)!;
+    const searches = (form.props.options as { only: string[] }).only;
+    const navigation = view.filter((element) =>
+        Array.isArray(element.props.only),
+    );
+
+    assert.equal(navigation.length, 3);
+    for (const only of [
+        searches,
+        ...navigation.map((element) => element.props.only as string[]),
+    ]) {
+        assert.ok(only.includes('guildPage'));
+        assert.ok(only.includes('guilds'));
+    }
+});
+
+test('keeps the search input mounted while accepting drafts and restored queries', () => {
+    const input = (query: string) => {
+        cursor = 0;
+        const form = elements(
+            GuildIndex({
+                query,
+                guildPage: {
+                    data: [],
+                    current_page: 1,
+                    last_page: 1,
+                    total: 0,
+                },
+            }),
+        ).find((element) => element.type === Form)!;
+        return elements(
+            (form.props.children as (props: unknown) => ReactNode)({
+                processing: false,
+                errors: {},
+            }),
+        ).find((element) => element.props.name === 'q')!;
+    };
+    const initial = input('rust');
+    (initial.props.onChange as (event: unknown) => void)({
+        target: { value: 'laravel' },
+    });
+    assert.equal(input('rust').props.value, 'laravel');
+    input('laravel');
+    const submitted = input('laravel');
+    assert.equal(submitted.key, initial.key);
+    assert.equal(submitted.props.value, 'laravel');
+    input('rust');
+    const restored = input('rust');
+    assert.equal(restored.key, initial.key);
+    assert.equal(restored.props.value, 'rust');
 });
 
 test('cancels invalid guild creation before Inertia sends a request and accepts decorated matches', () => {

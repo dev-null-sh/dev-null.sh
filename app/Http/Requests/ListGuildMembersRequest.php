@@ -9,17 +9,16 @@ use App\Services\Features;
 use Illuminate\Auth\Access\Response;
 use Illuminate\Foundation\Http\FormRequest;
 
-final class DeleteGuildRequest extends FormRequest
+final class ListGuildMembersRequest extends FormRequest
 {
     public function authorize(Features $features): Response
     {
-        return $this->user()?->isAdmin() && $features->available(Feature::Guilds, $this->user())
-            ? Response::allow() : Response::denyAsNotFound();
+        return $features->available(Feature::Guilds, $this->user()) ? Response::allow() : Response::denyAsNotFound();
     }
 
-    /** @return array{} */
+    /** @return array<string, list<string>> */
     public function rules(): array
     {
-        return [];
+        return ['page' => ['sometimes', 'integer', 'min:1']];
     }
 }

@@ -2,9 +2,13 @@
 
 declare(strict_types=1);
 
+use App\Actions\CreateCommit;
 use App\Actions\CreateGuild;
 use App\Actions\CreateGuildReport;
+use App\Actions\CreateScheduledCommit;
 use App\Actions\DeleteUser;
+use App\Actions\UpdateGuild;
+use App\Actions\UpdateScheduledCommitSubmittedAt;
 use App\Contracts\Services\ModerationProvider;
 use App\Enums\CommitStatus;
 use App\Enums\Feature;
@@ -30,23 +34,56 @@ beforeEach(function (): void {
     config(['app.admins' => ['admin', 'other-admin']]);
 });
 
-it('adds the bulletin board hashtag after validating the full writing budget', function (string $body, string $saved): void {
+it('keeps bulletin board text unchanged and preserves the guild when scheduling', function (string $body): void {
     $user = User::factory()->create(['handle' => 'admin']);
-    Guild::factory()->create(['handle' => 'rust']);
+    $guild = Guild::factory()->create(['handle' => 'rust']);
     $payload = ['body' => $body, 'guild_handle' => 'rust'];
 
     $preview = $this->actingAs($user)->postJson(route('commit-preview.store'), $payload)->assertOk();
-    $this->post(route('commit.store'), $payload)->assertSessionHasNoErrors();
-    expect($user->commits()->sole()->body)->toBe($saved);
+    $this->post(route('commit.store'), $payload)->assertSessionHasNoErrors()->assertInertiaFlash('committed.guild_handle', 'rust');
+    expect($user->commits()->sole())->body->toBe($body)->guild_id->toBe($guild->id);
+    expect($guild->commits()->sole()->guild->id)->toBe($guild->id);
     $preview->assertJsonPath('segments', $user->commits()->sole()->toArray()['body_segments']);
 
     $this->post(route('scheduled-commit.store'), [...$payload, 'scheduled_at' => now()->addHour()->toIso8601String()])->assertSessionHasNoErrors();
-    expect(ScheduledCommit::query()->sole()->body)->toBe($saved);
+    $scheduled = ScheduledCommit::query()->sole();
+    expect($scheduled)->body->toBe($body)->guild_id->toBe($guild->id);
+    resolve(UpdateScheduledCommitSubmittedAt::class)->handle($scheduled->id, early: true);
+    expect($scheduled->fresh()->commit)->body->toBe($body)->guild_id->toBe($guild->id);
 })->with([
-    'full budget' => [str_repeat('x', 4000), str_repeat('x', 4000)."\n\n#rust"],
-    'already present' => ['Learning #RUST!', 'Learning #RUST!'],
-    'only inside code or a link' => ['`#rust` https://example.com/#rust', "`#rust` https://example.com/#rust\n\n#rust"],
+    'full budget' => [str_repeat('x', 4000)],
+    'already present' => ['Learning #RUST!'],
+    'only inside code or a link' => ['`#rust` https://example.com/#rust'],
 ]);
+
+it('keeps board posts on their guild counts them but leaves them off profile and general logs', function (): void {
+    $author = User::factory()->create(['handle' => 'admin']);
+    $viewer = User::factory()->create(['handle' => 'other-admin']);
+    $guild = Guild::factory()->create(['handle' => 'rust']);
+    Guild::factory()->create(['handle' => 'jobs']);
+    $regular = Commit::factory()->for($author)->create(['body' => 'Learning #rust']);
+    $this->actingAs($author)->post(route('commit.store'), ['body' => 'A board post with #jobs', 'guild_handle' => 'rust'])->assertSessionHasNoErrors();
+    $board = $author->commits()->whereNotNull('guild_id')->sole();
+    $author->forceFill(['pinned_commit_id' => $board->id])->save();
+
+    $this->get(route('guild.show', 'rust'))->assertInertia(fn ($page) => $page->has('commits', 2)->where('commits.0.id', $board->id));
+    $this->get(route('guild.show', 'jobs'))->assertInertia(fn ($page) => $page->has('commits', 0));
+    $this->get(route('user.show', $author))->assertInertia(fn ($page) => $page
+        ->where('user.commits_count', 2)->where('pinnedCommit', null)->has('commits.data', 1)->where('commits.data.0.id', $regular->id));
+    $this->get(route('log.show', 'following'))->assertInertia(fn ($page) => $page->has('commits.data', 1));
+    $viewer->following()->attach($author);
+    $this->actingAs($viewer)->get(route('log.show', 'following'))->assertInertia(fn ($page) => $page->has('commits.data', 1));
+    $this->put(route('guild-membership.update', $guild), ['joined' => true])->assertRedirect();
+    $this->get(route('log.show', 'following'))->assertInertia(fn ($page) => $page
+        ->has('commits.data', 2)->where('commits.data.0.id', $board->id)->where('commits.data.0.joined_guild', 'rust'));
+    foreach (['latest', 'trending'] as $log) {
+        $this->get(route('log.show', $log))->assertInertia(fn ($page) => $page->has('commits.data', 1)->where('commits.data.0.id', $regular->id));
+    }
+
+    $this->put(route('guild-mute.update', $guild), ['muted' => true])->assertRedirect();
+    $this->get(route('log.show', 'following'))->assertInertia(fn ($page) => $page->has('commits.data', 0));
+    $this->get(route('commit.show', [$author, $board]))->assertOk();
+});
 
 it('does not let bulletin board context bypass validation', function (string $route, array $payload, bool $admin, string $field): void {
     Guild::factory()->create(['handle' => 'rust']);
@@ -213,6 +250,25 @@ it('reencodes uploaded icons serves them only to admins and replaces or removes 
     $this->get(route('guild-icon.show', 'jobs'))->assertNotFound();
 });
 
+it('preserves a guild when its moderator loses ownership after edit validation', function (bool $reclaimed): void {
+    Storage::fake();
+    $moderator = User::factory()->create(['handle' => 'admin']);
+    $replacement = $reclaimed ? User::factory()->create() : null;
+    $guild = Guild::factory()->create(['user_id' => $moderator->id, 'icon_path' => 'guild-icons/original.webp']);
+    Storage::put($guild->icon_path, 'original');
+    $this->app->beforeResolving(UpdateGuild::class, function () use ($guild, $replacement): void {
+        Guild::query()->whereKey($guild->id)->update(['user_id' => $replacement?->id]);
+    });
+
+    $this->actingAs($moderator)->put(route('guild.update', $guild->handle), [
+        'description' => 'A stale edit.', 'emoji' => '🌍', 'remove_icon' => true,
+    ])->assertSessionHasErrors(['description' => 'You no longer moderate this guild.']);
+
+    expect($guild->fresh())->description->toBe($guild->description)->emoji->toBe($guild->emoji)
+        ->icon_path->toBe('guild-icons/original.webp')->user_id->toBe($replacement?->id);
+    Storage::assertExists('guild-icons/original.webp');
+})->with([false, true]);
+
 it('shows exact prose hashtags including older commits but excludes prefixes code urls and hidden authors', function (): void {
     $admin = User::factory()->create(['handle' => 'admin']);
     $guild = Guild::factory()->create(['handle' => 'jobs']);
@@ -235,14 +291,49 @@ it('shows exact prose hashtags including older commits but excludes prefixes cod
         ->has('commits', 2)->where('commits.0.id', $new->id)->where('commits.1.id', $old->id)->where('hasMore', false));
 });
 
-it('paginates matching hashtags without gaps caused by nonmatching candidates', function (): void {
+it('merges board posts and exact hashtags newest first with thirty roots per page', function (): void {
     $admin = User::factory()->create(['handle' => 'admin']);
-    Guild::factory()->create(['handle' => 'café_dev']);
-    Commit::factory()->count(21)->create(['body' => '#CAFÉ_DEV']);
-    Commit::factory()->count(22)->create(['body' => '`#café_dev` #café_developers']);
-    $this->actingAs($admin)->get(route('guild.show', 'café_dev'))->assertOk()->assertInertia(fn ($page) => $page->has('commits', 20)->where('hasMore', true)->where('page', 1));
-    $this->get(route('guild.show', ['guild' => 'café_dev', 'page' => 2]))->assertOk()->assertInertia(fn ($page) => $page->has('commits', 1)->where('hasMore', false)->where('page', 2));
+    $guild = Guild::factory()->create(['handle' => 'café_dev']);
+    $old = Commit::factory()->create(['body' => 'An old regular commit', 'created_at' => now()->subYear()]);
+    $tagged = Commit::factory()->count(15)->create(['body' => '#CAFÉ_DEV', 'created_at' => now()->subDay()]);
+    $board = Commit::factory()->for($guild)->count(15)->create(['body' => 'Direct to the board']);
+    Commit::factory()->count(122)->create(['body' => '`#café_dev` #café_developers']);
+    Commit::factory()->for(Guild::factory())->create(['body' => 'Another board #café_dev']);
+    $reply = Commit::factory()->for($old, 'parent')->create(['body' => '#café_dev']);
+    Commit::factory()->for($reply, 'parent')->create(['body' => 'A nested #café_dev reply']);
+    $boardReply = Commit::factory()->for($board->last(), 'parent')->create(['body' => 'An ordinary reply']);
+    Commit::factory()->count(101)->for($board->last(), 'parent')->create(['body' => 'An older #café_dev match', 'created_at' => now()->subHour()]);
+    Commit::factory()->for($board->last(), 'parent')->create(['body' => 'Another #café_dev match']);
+    $this->actingAs($admin)->get(route('guild.show', 'café_dev'))->assertOk()->assertInertia(fn ($page) => $page
+        ->has('commits', 30)->where('hasMore', true)->where('page', 1)
+        ->where('commits.0.id', $board->last()->id)->where('commits.15.id', $tagged->last()->id)
+        ->has('commits.0.reply_preview.data', 3)->where('commits.0.reply_preview.data.1.id', $boardReply->id));
+    $this->get(route('guild.show', ['guild' => 'café_dev', 'page' => 2]))->assertOk()->assertInertia(fn ($page) => $page
+        ->has('commits', 1)->where('commits.0.id', $old->id)->where('hasMore', false)->where('page', 2)
+        ->where('commits.0.reply_preview.data.0.id', $reply->id));
     $this->getJson(route('guild.show', ['guild' => 'café_dev', 'page' => 0]))->assertUnprocessable()->assertJsonValidationErrors('page');
+});
+
+it('includes roots matched only by nested replies without exposing hidden roots or replies', function (): void {
+    $admin = User::factory()->create(['handle' => 'admin']);
+    Guild::factory()->create(['handle' => 'rust']);
+    $root = Commit::factory()->create(['body' => 'A regular thread']);
+    $parent = Commit::factory()->for($root, 'parent')->create(['body' => 'An untagged reply']);
+    $match = Commit::factory()->for($parent, 'parent')->create(['body' => 'A nested #rust reply']);
+    $pending = Commit::factory()->pending()->create();
+    Commit::factory()->for($pending, 'parent')->create(['body' => '#rust']);
+    $muted = User::factory()->create();
+    $admin->muting()->attach($muted);
+    $mutedRoot = Commit::factory()->for($muted)->create();
+    Commit::factory()->for($mutedRoot, 'parent')->create(['body' => '#rust']);
+    $unmatched = Commit::factory()->create();
+    Commit::factory()->for($unmatched, 'parent')->pending()->create(['body' => '#rust']);
+    Commit::factory()->for($muted)->for($unmatched, 'parent')->create(['body' => '#rust']);
+
+    $this->actingAs($admin)->get(route('guild.show', 'rust'))->assertOk()->assertInertia(fn ($page) => $page
+        ->has('commits', 1)->where('commits.0.id', $root->id)->where('hasMore', false)
+        ->where('commits.0.reply_preview.data.0.id', $parent->id));
+    $this->getJson(route('commit-reply.index', $parent))->assertOk()->assertJsonPath('data.0.id', $match->id);
 });
 
 it('matches decorated names to their hashtag while preserving their display spelling', function (string $handle, string $name): void {
@@ -280,7 +371,7 @@ it('keeps guild reports private encrypted and deduplicated until admins dismiss 
         ->and($report->fresh()->dismissed_at)->toBeNull();
 });
 
-it('removes the moderator and guild but not commits and forbids every removed moderator from reclaiming it', function (): void {
+it('pauses the guild without disconnecting its content and forbids removed moderators from reclaiming it', function (): void {
     Storage::fake();
     $owner = User::factory()->create(['handle' => 'admin']);
     $other = User::factory()->create(['handle' => 'other-admin']);
@@ -289,24 +380,30 @@ it('removes the moderator and guild but not commits and forbids every removed mo
     $guild->muters()->attach($other, ['muted_at' => now()]);
     Storage::put($guild->icon_path, 'image');
     $commit = Commit::factory()->create(['body' => '#jobs opportunity']);
+    $board = Commit::factory()->for($other)->for($guild)->create();
+    $scheduled = ScheduledCommit::factory()->for($other)->for($guild)->create(['scheduled_at' => now()]);
     resolve(CreateGuildReport::class)->handle($other, $guild, 'Unrelated description.');
-    $this->actingAs($other)->delete(route('guild.destroy', $guild))->assertRedirectToRoute('search.index', ['q' => '#jobs']);
-    $this->assertModelMissing($guild);
+    $this->actingAs($other)->delete(route('guild-moderator.destroy', $guild))->assertRedirectToRoute('guild.show', 'jobs');
+    expect($guild->fresh())->user_id->toBeNull()->description->toBe($guild->description)->icon_path->toBe($guild->icon_path);
     $this->assertModelExists($commit);
-    $this->assertDatabaseCount('guild_reports', 0);
-    $this->assertDatabaseCount('guild_preferences', 0);
-    Storage::assertMissing('guild-icons/removed.webp');
-    $this->get(route('guild.show', 'jobs'))->assertNotFound();
-    $this->get('/search?q=%23jobs', ['X-Inertia-Except-Once-Props' => 'guilds'])->assertInertia(fn ($page) => $page->has('guilds', 0));
+    expect($board->fresh()->guild_id)->toBe($guild->id);
+    expect(resolve(UpdateScheduledCommitSubmittedAt::class)->handle($scheduled->id))->toBeFalse();
+    expect($scheduled->fresh())->guild_id->toBe($guild->id)->submitted_at->toBeNull()->canceled_at->toBeNull();
+    $this->assertDatabaseCount('guild_reports', 1);
+    $this->assertDatabaseCount('guild_preferences', 2);
+    Storage::assertExists('guild-icons/removed.webp');
+    $this->get(route('guild.show', 'jobs'))->assertOk()->assertInertia(fn ($page) => $page->where('guilds.0.is_paused', true)->has('commits', 2));
+    $this->delete(route('guild-moderator.destroy', $guild))->assertRedirect();
     $payload = ['handle' => 'JOBS', 'name' => 'Jobs', 'description' => 'Real jobs.', 'emoji' => '💼'];
     $this->actingAs($owner)->postJson(route('guild.store'), $payload)->assertUnprocessable()->assertJsonValidationErrors('handle');
     $this->postJson(route('guild.store'), array_diff_key($payload, ['handle' => true]))->assertUnprocessable()->assertJsonValidationErrors('handle');
     expect(fn () => resolve(CreateGuild::class)->handle($owner, 'JOBS', 'Jobs', 'Real jobs.', '💼', null))->toThrow(GuildModeratorRemoved::class);
     $this->actingAs($other)->post(route('guild.store'), $payload)->assertRedirectToRoute('guild.show', 'jobs');
     $replacement = Guild::query()->sole();
-    expect($replacement->user_id)->toBe($other->id)->and($replacement->id)->not->toBe($guild->id);
-    $this->delete(route('guild.destroy', $guild))->assertNotFound();
-    $this->delete(route('guild.destroy', $replacement))->assertRedirect();
+    expect($replacement)->user_id->toBe($other->id)->id->toBe($guild->id)->description->toBe($guild->description)->icon_path->toBe($guild->icon_path);
+    expect(resolve(UpdateScheduledCommitSubmittedAt::class)->handle($scheduled->id))->toBeTrue();
+    expect($scheduled->fresh()->commit->guild_id)->toBe($guild->id);
+    $this->delete(route('guild-moderator.destroy', $replacement))->assertRedirect();
     $this->postJson(route('guild.store'), $payload)->assertUnprocessable()->assertJsonValidationErrors('handle');
     $this->actingAs($owner)->postJson(route('guild.store'), $payload)->assertUnprocessable()->assertJsonValidationErrors('handle');
 });
@@ -333,7 +430,7 @@ it('gates reporting removal and review behind the admin preview', function (bool
     $this->actingAs($user)->postJson(route('guild-report.store', $guild), ['details' => 'Report'])->assertNotFound();
     $this->get(route('guild-report.index'))->assertNotFound();
     $this->delete(route('guild-report.destroy', $report))->assertNotFound();
-    $this->delete(route('guild.destroy', $guild))->assertNotFound();
+    $this->delete(route('guild-moderator.destroy', $guild))->assertNotFound();
     $this->assertModelExists($guild);
     expect($report->fresh()->dismissed_at)->toBeNull();
 })->with([false, true]);
@@ -352,7 +449,7 @@ it('keeps guild filtering on one snapshot while commits change between the scan 
         $plain = Commit::factory()->for($user)->create(['body' => 'An unrelated commit']);
         $changed = false;
         DB::listen(function (QueryExecuted $query) use (&$changed, $commits, $user): void {
-            if (! $changed && $query->connectionName === 'guild_reader' && str_starts_with($query->sql, 'select "id", "body"')) {
+            if (! $changed && $query->connectionName === 'guild_reader' && str_starts_with($query->sql, 'select "id", "body", "guild_id"')) {
                 $changed = true;
                 DB::connection('guild_writer')->table('commits')->where('id', $commits->last()->id)->delete();
                 Commit::factory()->connection('guild_writer')->for($user)->create(['body' => 'A concurrent #rust commit']);
@@ -364,6 +461,7 @@ it('keeps guild filtering on one snapshot while commits change between the scan 
         expect($changed)->toBeTrue()->and($page->getCollection()->modelKeys())->toBe([$plain->id]);
         expect(DB::transactionLevel())->toBe(0);
     } finally {
+        Guild::query()->where('user_id', $user->id)->delete();
         resolve(DeleteUser::class)->handle($user);
         DB::table('deleted_github_accounts')->where('github_id', $user->github_id)->delete();
         DB::setDefaultConnection($default);
@@ -392,7 +490,8 @@ it('hides muted guild replies in logs while keeping direct threads readable', fu
     ])->assertOk()->assertJsonCount(1, 'props.refreshedCommits')
         ->assertJsonPath('props.refreshedCommits.0.id', $parent->id)
         ->assertJsonCount(0, 'props.refreshedCommits.0.reply_preview.data');
-    $this->get(route('guild.show', 'rust'))->assertInertia(fn ($page) => $page->where('commits.0.id', $reply->id));
+    $this->get(route('guild.show', 'rust'))->assertInertia(fn ($page) => $page
+        ->has('commits', 1)->where('commits.0.id', $parent->id)->where('commits.0.reply_preview.data.0.id', $reply->id));
     $this->getJson(route('commit-reply.index', [$parent, 'in_log' => true]))->assertOk()->assertJsonCount(0, 'data');
     $this->getJson(route('commit-reply.index', [$parent, 'in_log' => true, 'ids' => [$reply->id]]))->assertOk()->assertJsonCount(0, 'data');
     $this->getJson(route('commit-reply.index', $parent))->assertOk()->assertJsonPath('data.0.id', $reply->id);
@@ -429,6 +528,92 @@ it('lists guilds by members rather than commits and clears a mute when joining',
     $this->put(route('guild-membership.update', $jobs), ['joined' => false])->assertRedirect();
     $this->assertDatabaseMissing('guild_preferences', ['guild_id' => $jobs->id, 'user_id' => $admin->id]);
 });
+
+it('paginates matching guilds biggest first with handle ordering for ties', function (): void {
+    $admin = User::factory()->create(['handle' => 'admin']);
+    $guilds = Guild::factory()->count(25)->state(['user_id' => $admin->id])->sequence(fn ($sequence): array => [
+        'handle' => 'group'.mb_str_pad((string) $sequence->index, 2, '0', STR_PAD_LEFT),
+        'name' => 'Builders',
+    ])->create();
+    $popular = $guilds->last();
+    $popular->members()->attach($admin, ['joined_at' => now()]);
+    Guild::factory()->create(['user_id' => $admin->id, 'name' => 'Unrelated', 'handle' => 'unrelated', 'description' => 'Other discussions.']);
+
+    $this->actingAs($admin)->get(route('guild.index', ['q' => 'Builders']))->assertOk()->assertInertia(fn ($page) => $page
+        ->where('query', 'Builders')->where('guildPage.total', 25)->where('guildPage.last_page', 2)
+        ->where('guildPage.current_page', 1)->where('guildPage.data', [$popular->id, ...$guilds->take(23)->modelKeys()]));
+    $this->get(route('guild.index', ['q' => 'Builders', 'page' => 2]))->assertOk()->assertInertia(fn ($page) => $page
+        ->where('query', 'Builders')->where('guildPage.current_page', 2)->where('guildPage.total', 25)
+        ->where('guildPage.data', [$guilds[23]->id]));
+    $this->get(route('guild.index', ['q' => 'Builders', 'page' => 3]))->assertOk()->assertInertia(fn ($page) => $page
+        ->where('guildPage.data', [])->where('guildPage.total', 25));
+});
+
+it('searches guild names handles and descriptions literally without case sensitivity', function (string $term, string $normalized, bool $matches): void {
+    $admin = User::factory()->create(['handle' => 'admin']);
+    $guild = Guild::factory()->create(['user_id' => $admin->id, 'handle' => 'rustaceans', 'name' => 'Systems Builders', 'description' => '100% safe_code!']);
+    Guild::factory()->create(['user_id' => $admin->id, 'handle' => 'other', 'name' => 'Different people', 'description' => '100 percent safeXcode.']);
+
+    $this->actingAs($admin)->get(route('guild.index', ['q' => $term]))->assertOk()->assertInertia(fn ($page) => $page
+        ->where('query', $normalized)->where('guildPage.data', $matches ? [$guild->id] : []));
+})->with([
+    'name' => ['bUiLdErS', 'bUiLdErS', true],
+    'handle' => ['  #RuStAcEaNs  ', 'RuStAcEaNs', true],
+    'description' => ['SAFE_CODE', 'SAFE_CODE', true],
+    'literal percent' => ['%', '%', true],
+    'literal underscore' => ['_', '_', true],
+    'literal escape' => ['!', '!', true],
+    'no matches' => ['missing', 'missing', false],
+]);
+
+it('matches Unicode search terms consistently even with C-collated guild columns', function (string $field, string $text, string $term): void {
+    DB::statement(sprintf('ALTER TABLE guilds ALTER COLUMN %s TYPE text COLLATE "C"', $field));
+    $admin = User::factory()->create(['handle' => 'admin']);
+    $guild = Guild::factory()->create(['user_id' => $admin->id, $field => $text]);
+    Guild::factory()->create(['user_id' => $admin->id, 'handle' => 'unrelated', 'name' => 'Other', 'description' => 'No match.']);
+
+    $this->actingAs($admin)->get(route('guild.index', ['q' => $term]))->assertOk()->assertInertia(fn ($page) => $page
+        ->where('guildPage.data', [$guild->id]));
+})->with(['handle', 'name', 'description'])->with([
+    'Greek prefix ending in sigma' => ['ΟΣΑ', 'ΟΣ'],
+    'lowercase final sigma' => ['κοσμος', 'ΚΟΣΜΟΣ'],
+    'uppercase final sigma' => ['ΚΟΣΜΟΣ', 'κοσμος'],
+    'accented capital' => ['ÉCOLE', 'école'],
+]);
+
+it('keeps directory results out of membership-only refreshes', function (): void {
+    $admin = User::factory()->create(['handle' => 'admin']);
+    $guild = Guild::factory()->create(['user_id' => $admin->id]);
+    $this->actingAs($admin)->put(route('guild-membership.update', $guild), ['joined' => true])->assertRedirect();
+
+    $this->get(route('guild.index'), [
+        'X-Inertia-Version' => (string) resolve(HandleInertiaRequests::class)->version(request()),
+        'X-Inertia' => 'true', 'X-Inertia-Partial-Component' => 'guild/index', 'X-Inertia-Partial-Data' => 'guilds',
+    ])->assertOk()->assertJsonPath('props.guilds.0.is_joined', true)->assertJsonMissingPath('props.guildPage');
+});
+
+it('includes newly created guild cards when refreshing directory search results', function (): void {
+    $admin = User::factory()->create(['handle' => 'admin']);
+    $this->actingAs($admin)->get(route('guild.index'))->assertOk()->assertInertia(fn ($page) => $page->where('guildPage.data', []));
+    $guild = Guild::factory()->create(['user_id' => $admin->id, 'handle' => 'rust', 'name' => 'Rust']);
+
+    $this->get(route('guild.index', ['q' => 'rust']), [
+        'X-Inertia-Version' => (string) resolve(HandleInertiaRequests::class)->version(request()),
+        'X-Inertia' => 'true', 'X-Inertia-Partial-Component' => 'guild/index', 'X-Inertia-Partial-Data' => 'guildPage,query,guilds',
+    ])->assertOk()->assertJsonPath('props.guildPage.data', [$guild->id])->assertJsonPath('props.guilds.0.id', $guild->id)
+        ->assertJsonPath('props.guilds.0.name', 'Rust');
+});
+
+it('validates guild directory search and page inputs', function (array $input, string $field): void {
+    $this->actingAs(User::factory()->create(['handle' => 'admin']))
+        ->getJson(route('guild.index', $input))->assertUnprocessable()->assertJsonValidationErrors($field);
+})->with([
+    'array query' => [['q' => ['rust']], 'q'],
+    'long query' => [['q' => str_repeat('a', 101)], 'q'],
+    'zero page' => [['page' => 0], 'page'],
+    'fractional page' => [['page' => 1.5], 'page'],
+    'large page' => [['page' => 10001], 'page'],
+]);
 
 it('guards guild discovery and preferences with the preview flag and validates boolean inputs', function (): void {
     $guild = Guild::factory()->create();
@@ -629,7 +814,7 @@ it('refuses an icon that passes the image rules but cannot be decoded', function
     $this->assertDatabaseCount('guilds', 0);
 });
 
-it('announces the removal of a guild only to its members and to the admins', function (): void {
+it('announces a paused guild only to its members and to the admins', function (): void {
     $admin = User::factory()->create(['handle' => 'admin']);
     $member = User::factory()->create();
     $stranger = User::factory()->create();
@@ -637,9 +822,50 @@ it('announces the removal of a guild only to its members and to the admins', fun
     $guild->members()->attach($member, ['joined_at' => now()]);
     Event::fake([UsersUpdated::class]);
 
-    $this->actingAs($admin)->delete(route('guild.destroy', $guild))->assertRedirect();
+    $this->actingAs($admin)->delete(route('guild-moderator.destroy', $guild))->assertRedirect();
 
     Event::assertDispatched(UsersUpdated::class, fn (UsersUpdated $event): bool => $event->update === UserUpdate::Guilds && $event->userIds === [$member->id]);
     Event::assertDispatched(UsersUpdated::class, fn (UsersUpdated $event): bool => $event->update === UserUpdate::Relationships && $event->userIds === [$member->id]);
     Event::assertNotDispatched(UsersUpdated::class, fn (UsersUpdated $event): bool => in_array($stranger->id, $event->userIds, true));
+});
+
+it('refuses new board submissions to a paused guild but still shows regular hashtag commits', function (string $route): void {
+    $user = User::factory()->create(['handle' => 'admin']);
+    Guild::factory()->create(['handle' => 'rust', 'user_id' => null]);
+
+    $this->actingAs($user)->postJson(route($route), ['body' => 'Board post', 'guild_handle' => 'rust', 'scheduled_at' => now()->addHour()->toIso8601String()])
+        ->assertUnprocessable()->assertJsonValidationErrors('guild_handle');
+    $this->assertDatabaseCount('commits', 0);
+    $this->assertDatabaseCount('scheduled_commits', 0);
+    $this->post(route('commit.store'), ['body' => 'A regular #rust commit'])->assertSessionHasNoErrors();
+    $this->get(route('guild.show', 'rust'))->assertOk()->assertInertia(fn ($page) => $page->has('commits', 1)->where('guilds.0.is_paused', true));
+})->with(['commit.store', 'commit-preview.store', 'scheduled-commit.store']);
+
+it('refuses a board submission if the guild is paused after validation', function (string $route, string $action): void {
+    $user = User::factory()->create(['handle' => 'admin']);
+    $guild = Guild::factory()->create(['handle' => 'rust']);
+    $this->app->beforeResolving($action, function () use ($guild): void {
+        $guild->update(['user_id' => null]);
+    });
+
+    $this->actingAs($user)->post(route($route), ['body' => 'Board post', 'guild_handle' => 'rust', 'scheduled_at' => now()->addHour()->toIso8601String()])
+        ->assertSessionHasErrors(['guild_handle' => 'This guild is paused until it has a moderator.']);
+    $this->assertDatabaseCount('commits', 0);
+    $this->assertDatabaseCount('scheduled_commits', 0);
+})->with([
+    ['commit.store', CreateCommit::class],
+    ['scheduled-commit.store', CreateScheduledCommit::class],
+]);
+
+it('cascades an actual guild deletion without turning board posts into ordinary posts', function (): void {
+    $guild = Guild::factory()->create();
+    $board = Commit::factory()->for($guild)->create();
+    $scheduled = ScheduledCommit::factory()->for($guild)->create();
+    $regular = Commit::factory()->create(['body' => 'A regular #'.$guild->handle.' commit']);
+
+    $guild->delete();
+
+    $this->assertModelMissing($board);
+    $this->assertModelMissing($scheduled);
+    $this->assertModelExists($regular);
 });

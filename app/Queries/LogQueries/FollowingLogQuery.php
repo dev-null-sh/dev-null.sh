@@ -22,9 +22,11 @@ final readonly class FollowingLogQuery implements LogQuery
 
         return Commit::query()
             ->where(fn (CommitBuilder $query): CommitBuilder => $query
-                ->whereIn('author_id', $following->newPivotQuery()->select($following->getRelatedPivotKeyName()))
-                ->orWhereIn('author_id', $organizations->newPivotQuery()->select($organizations->getRelatedPivotKeyName()))
-                ->orWhere('author_id', $user->id)
+                ->where(fn (CommitBuilder $query): CommitBuilder => $query->whereNull('guild_id')
+                    ->where(fn (CommitBuilder $query): CommitBuilder => $query
+                        ->whereIn('author_id', $following->newPivotQuery()->select($following->getRelatedPivotKeyName()))
+                        ->orWhereIn('author_id', $organizations->newPivotQuery()->select($organizations->getRelatedPivotKeyName()))
+                        ->orWhere('author_id', $user->id)))
                 ->orWhere(fn (CommitBuilder $query): CommitBuilder => $query->fromJoinedGuilds($user)))
             ->visibleTo($user)
             ->withoutMutedAuthorsFor($user)

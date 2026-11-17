@@ -9,6 +9,7 @@ use App\Http\Requests\CreateCommitReplyRequest;
 use App\Jobs\ModerateCommit;
 use App\Models\Commit;
 use App\Models\CommitImage;
+use App\Models\Guild;
 use App\Models\LinkPreview;
 use App\Models\Organization;
 use App\Models\Poll;
@@ -65,6 +66,7 @@ it('shows an approved commit to anyone', function (): void {
             'id' => '019a2b3c-4d5e-7f60-8a9b-0c1d2e3f4a5b',
             'short_hash' => 'e3f4a5b',
             'body' => 'Shipped the public API',
+            'guild_handle' => null,
             'parent_id' => null,
             'html_url' => route('commit.show', [$user, $commit]),
             'created_at' => now()->toIso8601ZuluString(),
@@ -90,6 +92,27 @@ it('shows an approved commit to anyone', function (): void {
                 'live' => null,
             ],
         ]]);
+});
+
+it('includes the guild handle in a public commit preview', function (): void {
+    $guild = Guild::factory()->create();
+    $commit = Commit::factory()->for($guild)->create();
+
+    $this->getJson(route('api-commit.show', $commit))
+        ->assertOk()
+        ->assertJsonPath('data.guild_handle', $guild->handle);
+});
+
+it('includes the guild handle of a quoted commit for a signed request', function (): void {
+    $guild = Guild::factory()->create();
+    $quoted = Commit::factory()->for($guild)->create();
+    $quote = Commit::factory()->for($quoted, 'quotedCommit')->create();
+    $viewer = User::factory()->create();
+
+    signedApiRequest(apiKeyPairFor($viewer), 'GET', route('api-commit.show', $quote))
+        ->assertOk()
+        ->assertJsonPath('data.quoted_commit.id', $quoted->id)
+        ->assertJsonPath('data.quoted_commit.guild_handle', $guild->handle);
 });
 
 it('shows the organization a commit is from as its author', function (): void {
@@ -278,7 +301,7 @@ it('includes a null gif for a plain commit', function (): void {
 it('shows a signed request the commit as its page shows it to its user', function (): void {
     $user = User::factory()->create(['handle' => 'octocat']);
     $keyPair = apiKeyPairFor($user);
-    $root = Commit::factory()->create(['body' => 'Who broke prod?', 'created_at' => now()->subMinute()]);
+    $root = Commit::factory()->for(Guild::factory()->state(['handle' => 'rust']))->create(['body' => 'Who broke prod?', 'created_at' => now()->subMinute()]);
     $commit = Commit::factory()->for($user)->for($root, 'parent')->create([
         'id' => '019a2b3c-4d5e-7f60-8a9b-0c1d2e3f4a5b',
         'body' => 'Ask @nunomaduro about `@Override`',
@@ -315,6 +338,7 @@ it('shows a signed request the commit as its page shows it to its user', functio
                 'id' => '019a2b3c-4d5e-7f60-8a9b-0c1d2e3f4a5b',
                 'short_hash' => 'e3f4a5b',
                 'body' => 'Ask @nunomaduro about `@Override`',
+                'guild_handle' => null,
                 'parent_id' => $root->id,
                 'html_url' => route('commit.show', [$user, $commit]),
                 'created_at' => now()->toIso8601ZuluString(),
@@ -345,6 +369,7 @@ it('shows a signed request the commit as its page shows it to its user', functio
                 'id' => $root->id,
                 'short_hash' => mb_substr(str_replace('-', '', $root->id), -7),
                 'body' => 'Who broke prod?',
+                'guild_handle' => 'rust',
                 'parent_id' => null,
                 'html_url' => route('commit.show', [$root->user, $root]),
                 'created_at' => now()->subMinute()->toIso8601ZuluString(),

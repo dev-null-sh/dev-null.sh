@@ -11,6 +11,7 @@ use App\Enums\GifProvider;
 use App\Enums\PollDuration;
 use App\Http\Concerns\HasGifInput;
 use App\Models\Commit;
+use App\Models\Guild;
 use App\Models\Organization;
 use App\Models\User;
 use App\Rules\CommitBodyLength;
@@ -19,7 +20,6 @@ use App\Rules\OrganizationToPostAs;
 use App\Rules\VisibleCommit;
 use App\Services\CommitBodies;
 use App\Services\Features;
-use App\Services\Hashtags;
 use App\Services\Urls;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -59,23 +59,9 @@ final class CreateCommitRequest extends FormRequest
     {
         return [
             'guild_handle' => ['sometimes', 'required', 'string', 'max:60', resolve(Features::class)->available(Feature::Guilds, $request->user())
-                ? 'exists:guilds,handle'
+                ? 'exists:guilds,handle,user_id,NOT_NULL'
                 : Rule::in([])],
         ];
-    }
-
-    public static function appendGuildHashtag(FormRequest $request): void
-    {
-        if (! $request->filled('guild_handle')) {
-            return;
-        }
-
-        $handle = $request->string('guild_handle')->value();
-        $body = $request->string('body')->value();
-
-        if (! in_array($handle, resolve(Hashtags::class)->handles($body), true)) {
-            $request->merge(['body' => mb_rtrim($body)."\n\n#".$handle]);
-        }
     }
 
     /**
@@ -244,8 +230,8 @@ final class CreateCommitRequest extends FormRequest
         return OrganizationToPostAs::of($user, $this->input('author'));
     }
 
-    public function passedValidation(): void
+    public function guild(): ?Guild
     {
-        self::appendGuildHashtag($this);
+        return Guild::query()->where('handle', $this->string('guild_handle')->value())->first();
     }
 }

@@ -19,6 +19,7 @@ final readonly class CreateUserFeed
     public function handle(User $user): string
     {
         $commits = $user->commits()
+            ->whereNull('guild_id')
             ->approved()
             ->topLevel()
             ->with(['images', 'gif'])

@@ -67,6 +67,8 @@ final class ShownStreams
             return $shown;
         }
 
+        $shown['guild_handle'] = $commit->relationLoaded('guild') ? $commit->guild?->handle : null;
+
         if (is_array($shown['author'] ?? null) && $commit->relationLoaded('author') && $commit->author instanceof Profile) {
             $shown['author'] = self::authored($shown['author'], $commit->author);
         }

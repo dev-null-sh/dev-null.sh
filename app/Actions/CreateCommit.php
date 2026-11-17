@@ -13,6 +13,7 @@ use App\Enums\UserUpdate;
 use App\Events\CommitsUpdated;
 use App\Events\ProfilesUpdated;
 use App\Events\UsersUpdated;
+use App\Exceptions\GuildPaused;
 use App\Jobs\CheckUserLevel;
 use App\Jobs\EmbedCommit;
 use App\Jobs\LinkCommitTopics;
@@ -21,6 +22,7 @@ use App\Jobs\ProcessCommitHeadlines;
 use App\Jobs\ReplyAsTom;
 use App\Jobs\UnfurlLink;
 use App\Models\Commit;
+use App\Models\Guild;
 use App\Models\LinkPreview;
 use App\Models\Organization;
 use App\Models\User;
@@ -63,7 +65,7 @@ final readonly class CreateCommit
      * @param  array<int, string|null>  $imageDescriptions
      * @param  array<string, string>  $replyRecipients
      */
-    public function handle(User $user, string $body, ?Commit $parent = null, ?Commit $quotedCommit = null, array $images = [], array $imageDescriptions = [], bool|string $linkPreview = true, ?NewPoll $poll = null, array $replyRecipients = [], ?Organization $organization = null, ?Gif $gif = null): Commit
+    public function handle(User $user, string $body, ?Commit $parent = null, ?Commit $quotedCommit = null, array $images = [], array $imageDescriptions = [], bool|string $linkPreview = true, ?NewPoll $poll = null, array $replyRecipients = [], ?Organization $organization = null, ?Guild $guild = null, ?Gif $gif = null): Commit
     {
         $url = match ($linkPreview) {
             true => $this->urls->first($body),
@@ -71,7 +73,11 @@ final readonly class CreateCommit
             default => $linkPreview,
         };
 
-        return DB::transaction(function () use ($user, $body, $parent, $quotedCommit, $images, $imageDescriptions, $url, $poll, $replyRecipients, $organization, $gif): Commit {
+        return DB::transaction(function () use ($user, $body, $parent, $quotedCommit, $images, $imageDescriptions, $url, $poll, $replyRecipients, $organization, $guild, $gif): Commit {
+            if ($guild instanceof Guild && Guild::query()->whereKey($guild->id)->sharedLock()->firstOrFail()->user_id === null) {
+                throw new GuildPaused;
+            }
+
             $linkPreview = $this->linkPreviewFor($url);
             $createdAt = now();
             $hasGoodReputation = $user->hasGoodReputation();
@@ -80,6 +86,7 @@ final readonly class CreateCommit
             $commit = Commit::query()->create([
                 'user_id' => $user->id,
                 'author_id' => $organization->id ?? $user->id,
+                'guild_id' => $guild?->id,
                 'body' => $this->emojiShortcodes->replace($body),
                 'mentions' => [...$replyRecipients, ...$mentions],
                 'parent_id' => $parent?->id,
