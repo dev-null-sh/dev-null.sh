@@ -99,6 +99,27 @@ it('erases the previews of links to the commits it erases, which hold their bodi
     expect($linking->fresh()->link_preview_id)->toBeNull();
 });
 
+it('erases the previews of links to its commits that escape part of the link, which still open them', function (string $plain, string $escaped): void {
+    $user = User::factory()->create();
+    $commit = Commit::factory()->for($user)->create(['id' => '01a16ffc-740e-7105-82dc-e3a7ed20aaaa']);
+    $other = Commit::factory()->create(['id' => '01a16ffc-740e-7105-82dc-e3a7ed20bbbb']);
+    $preview = LinkPreview::factory()->create(['url' => str_replace($plain, $escaped, route('commit.show', [$user, $commit]))]);
+    $kept = LinkPreview::factory()->create(['url' => str_replace($plain, $escaped, route('commit.show', [$other->user, $other]))]);
+
+    expect($preview->url)->not->toBe(route('commit.show', [$user, $commit]));
+
+    resolve(DeleteUser::class)->handle($user);
+
+    $this->assertModelMissing($preview);
+    $this->assertModelExists($kept);
+})->with([
+    'a dash' => ['-7105-', '%2D7105%2d'],
+    'a digit' => ['01a16ffc', '%301a16ffc'],
+    'a letter' => ['16ffc', '16%66fc'],
+    'an uppercase letter' => ['e3a7', 'e3%41%37'],
+    'the path' => ['/commits/', '%2F%63%6F%6d%6d%69%74%73%2f'],
+]);
+
 it('erases the previews of links to replies to its commits in other threads, whose titles name it', function (): void {
     $user = User::factory()->create();
     $thread = Commit::factory()->create();

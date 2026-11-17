@@ -30,6 +30,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 final readonly class DeleteUser
 {
@@ -86,10 +87,14 @@ final readonly class DeleteUser
                 ->whereIn('commit_id', $this->touchedCommits($user)->select('id')))
                 ->update(['summary' => null, 'summary_created_at' => null]);
             DB::table('commit_headline')->whereIn('commit_id', $this->touchedCommits($user)->select('id'))->delete();
+            $linked = $this->touchedCommits($user)->orWhereIn('parent_id', $user->commits()->withTrashed()->select('id'));
+            $linkedIds = $linked->clone()->pluck('id')->flip();
             LinkPreview::query()
-                ->whereIn(DB::raw("substring(lower(url) from '/commits/([0-9a-f-]{36})')"), $this->touchedCommits($user)
-                    ->orWhereIn('parent_id', $user->commits()->withTrashed()->select('id'))
-                    ->selectRaw('id::text'))
+                ->whereIn(DB::raw("substring(lower(url) from '/commits/([0-9a-f-]{36})')"), $linked->selectRaw('id::text'))
+                // A link that escapes part of itself still opens the commit, as the router decodes it first, so it is read decoded too.
+                ->orWhereIn('id', LinkPreview::query()->where('url', 'like', '%\%%')->lazyById()
+                    ->filter(fn (LinkPreview $preview): bool => $linkedIds->has(Str::match('#/commits/([0-9a-f-]{36})#', mb_strtolower(rawurldecode($preview->url)))))
+                    ->pluck('id')->all())
                 ->delete();
             $user->commits()->withTrashed()->topLevel()->forceDelete();
             CommitImage::query()->whereIn('commit_id', $this->replies($user)->select('id'))->delete();
