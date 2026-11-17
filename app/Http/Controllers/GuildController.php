@@ -15,6 +15,7 @@ use App\Http\Resources\ShownStreams;
 use App\Models\Guild;
 use App\Models\User;
 use App\Queries\GuildCommitsQuery;
+use App\Queries\GuildsQuery;
 use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\UploadedFile;
@@ -23,9 +24,13 @@ use Inertia\Response;
 
 final readonly class GuildController
 {
-    public function index(ListGuildsRequest $request): Response
+    public function index(ListGuildsRequest $request, GuildsQuery $query): Response
     {
-        return Inertia::render('guild/index')->withViewData(['robots' => 'noindex, follow']);
+        return Inertia::render('guild/index', [
+            'query' => $request->term(),
+            'guildPage' => fn () => $query->paginate($request->term(), $request->integer('page', 1))
+                ->through(fn (Guild $guild): string => $guild->id),
+        ])->withViewData(['robots' => 'noindex, follow']);
     }
 
     public function store(CreateGuildRequest $request, #[CurrentUser] User $user, CreateGuild $action): RedirectResponse
