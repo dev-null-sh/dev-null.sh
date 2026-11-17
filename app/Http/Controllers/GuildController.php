@@ -5,11 +5,9 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Actions\CreateGuild;
-use App\Actions\DeleteGuild;
 use App\Actions\UpdateGuild;
 use App\Exceptions\GuildModeratorRemoved;
 use App\Http\Requests\CreateGuildRequest;
-use App\Http\Requests\DeleteGuildRequest;
 use App\Http\Requests\ListGuildsRequest;
 use App\Http\Requests\ShowGuildRequest;
 use App\Http\Requests\UpdateGuildRequest;
@@ -51,25 +49,25 @@ final readonly class GuildController
         return Inertia::render('guild/show', [
             'handle' => $guild->handle,
             'canModerate' => $guild->user_id === $user->id,
-            'commits' => ShownStreams::commits($commits),
+            'commits' => $commits->currentPage() > 1
+                ? Inertia::merge(ShownStreams::commits($commits))->matchOn('id')
+                : ShownStreams::commits($commits),
             'page' => $commits->currentPage(),
             'hasMore' => $commits->hasMorePages(),
         ])->withViewData(['robots' => 'noindex, follow']);
     }
 
-    public function update(UpdateGuildRequest $request, Guild $guild, UpdateGuild $action): RedirectResponse
+    public function update(UpdateGuildRequest $request, Guild $guild, #[CurrentUser] User $user, UpdateGuild $action): RedirectResponse
     {
         $icon = $request->file('images.0');
         assert($icon instanceof UploadedFile || $icon === null);
-        $action->handle($guild, $request->string('description')->value(), $request->string('emoji')->value(), $icon, $request->boolean('remove_icon'));
+
+        try {
+            $action->handle($guild, $user, $request->string('description')->value(), $request->string('emoji')->value(), $icon, $request->boolean('remove_icon'));
+        } catch (GuildModeratorRemoved) {
+            return back()->withErrors(['description' => 'You no longer moderate this guild.']);
+        }
 
         return to_route('guild.show', $guild->handle);
-    }
-
-    public function destroy(DeleteGuildRequest $request, Guild $guild, DeleteGuild $action): RedirectResponse
-    {
-        $action->handle($guild);
-
-        return to_route('search.index', ['q' => '#'.$guild->handle]);
     }
 }

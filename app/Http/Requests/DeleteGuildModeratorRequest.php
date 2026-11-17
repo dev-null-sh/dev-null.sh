@@ -9,7 +9,7 @@ use App\Services\Features;
 use Illuminate\Auth\Access\Response;
 use Illuminate\Foundation\Http\FormRequest;
 
-final class DeleteGuildRequest extends FormRequest
+final class DeleteGuildModeratorRequest extends FormRequest
 {
     public function authorize(Features $features): Response
     {

@@ -118,6 +118,7 @@ final readonly class TheAlgorithm
 
         return Commit::query()
             ->topLevel()
+            ->whereNull('guild_id')
             ->where('commits.created_at', '>=', now()->subDays(self::CANDIDATE_MAX_AGE_DAYS))
             ->visibleTo($viewer)
             ->withoutMutedAuthorsFor($viewer)

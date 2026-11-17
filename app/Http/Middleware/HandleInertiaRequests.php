@@ -174,6 +174,7 @@ final class HandleInertiaRequests extends Middleware
                     'member_count' => $guild->members_count,
                     'is_joined' => $guild->is_joined,
                     'is_muted' => $guild->is_muted,
+                    'is_paused' => $guild->user_id === null,
                     'icon_url' => $guild->icon_path === null ? null : route('guild-icon.show', ['guild' => $guild->handle, 'v' => $guild->updated_at->getTimestampMs()]),
                 ])->all() : null)->until(60)->fresh($request->routeIs('guild.*', 'search.index'))->live(UserUpdate::Guilds->value, new PrivateChannel($user))
                 : null,
