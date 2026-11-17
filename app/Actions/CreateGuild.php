@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Exceptions\GuildModeratorLimitReached;
 use App\Exceptions\GuildModeratorRemoved;
+use App\Http\Requests\CreateGuildRequest;
 use App\Models\Guild;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
@@ -21,6 +23,11 @@ final readonly class CreateGuild
     {
         return DB::transaction(function () use ($user, $handle, $name, $description, $emoji, $icon): Guild {
             User::query()->whereKey($user->id)->lockForUpdate()->firstOrFail();
+
+            // Counted again under the lock, since a handover may have given the user another guild after validation.
+            if (Guild::query()->where('user_id', $user->id)->count() >= CreateGuildRequest::MAX_PER_USER) {
+                throw new GuildModeratorLimitReached;
+            }
 
             if (DB::table('guild_moderator_removals')->where('github_id', $user->github_id)->where('handle', mb_strtolower($handle))->exists()) {
                 throw new GuildModeratorRemoved;

@@ -6,6 +6,8 @@ namespace App\Http\Controllers;
 
 use App\Actions\CreateGuild;
 use App\Actions\UpdateGuild;
+use App\Exceptions\GuildModeratorLimitReached;
+use App\Exceptions\GuildModeratorNotMember;
 use App\Exceptions\GuildModeratorRemoved;
 use App\Http\Requests\CreateGuildRequest;
 use App\Http\Requests\ListGuildsRequest;
@@ -42,6 +44,8 @@ final readonly class GuildController
             $guild = $action->handle($user, $request->string('handle')->value(), $request->string('name')->value(), $request->string('description')->value(), $request->string('emoji')->value(), $icon);
         } catch (GuildModeratorRemoved) {
             return back()->withErrors(['handle' => 'You cannot reclaim a guild you were removed from.']);
+        } catch (GuildModeratorLimitReached) {
+            return back()->withErrors(['handle' => 'You can create up to '.CreateGuildRequest::MAX_PER_USER.' guilds.']);
         }
 
         return to_route('guild.show', $guild->handle);
@@ -68,9 +72,13 @@ final readonly class GuildController
         assert($icon instanceof UploadedFile || $icon === null);
 
         try {
-            $action->handle($guild, $user, $request->string('description')->value(), $request->string('emoji')->value(), $icon, $request->boolean('remove_icon'));
+            $action->handle($guild, $user, $request->string('description')->value(), $request->string('emoji')->value(), $icon, $request->boolean('remove_icon'), $request->moderator());
         } catch (GuildModeratorRemoved) {
             return back()->withErrors(['description' => 'You no longer moderate this guild.']);
+        } catch (GuildModeratorNotMember) {
+            return back()->withErrors(['moderator_id' => 'Pick a member of this guild.']);
+        } catch (GuildModeratorLimitReached) {
+            return back()->withErrors(['moderator_id' => UpdateGuildRequest::moderatorLimitMessage()]);
         }
 
         return to_route('guild.show', $guild->handle);

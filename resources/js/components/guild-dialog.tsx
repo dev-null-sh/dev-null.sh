@@ -5,6 +5,7 @@ import { type ReactNode, useRef, useState } from 'react';
 import { store, update } from '@/actions/App/Http/Controllers/GuildController';
 import { EmojiPickerButton } from '@/components/emoji-picker';
 import { GuildIcon } from '@/components/guild-icon';
+import { GuildModeratorPicker } from '@/components/guild-moderator-picker';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import {
@@ -57,7 +58,7 @@ export function GuildDialog({
                     </DialogTitle>
                     <DialogDescription>
                         {guild
-                            ? 'As the moderator, you can change the icon and description.'
+                            ? 'As the moderator, you can change the icon and description, or hand moderation to another member.'
                             : handle
                               ? `Give #${handle} a home. Its commits stay public and keep appearing in the log.`
                               : 'Create a public group. Its name determines the hashtag that brings commits into the guild.'}
@@ -230,6 +231,18 @@ export function GuildDialog({
                                         />
                                     </div>
                                 </div>
+                                {guild && (
+                                    <GuildModeratorPicker
+                                        handle={guild.handle}
+                                        fieldClass={fieldClass}
+                                        error={errors.moderator_id}
+                                        onChange={() =>
+                                            form.current?.clearErrors(
+                                                'moderator_id',
+                                            )
+                                        }
+                                    />
+                                )}
                             </div>
                             <DialogFooter className="shrink-0 border-t bg-background p-4 sm:px-6">
                                 <DialogClose asChild>
