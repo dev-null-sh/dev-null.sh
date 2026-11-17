@@ -439,6 +439,17 @@ export function CommitCard({
                                         />
                                     </p>
                                 )}
+                            {commit.guild_handle && isFocused && (
+                                <p
+                                    className="mt-0.5 text-xs leading-relaxed text-muted-foreground"
+                                    data-test="committed-in-guild"
+                                >
+                                    committed in{' '}
+                                    <Hashtag
+                                        hashtag={`#${commit.guild_handle}`}
+                                    />
+                                </p>
+                            )}
                             {commit.parent && isDeleted(commit.parent) && (
                                 <p className="mt-0.5 flex w-fit items-center gap-1 font-mono text-xs text-muted-foreground">
                                     <CornerDownRight className="size-3" />

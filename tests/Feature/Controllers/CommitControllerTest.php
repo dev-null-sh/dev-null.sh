@@ -11,6 +11,7 @@ use App\Jobs\DetectCommitLanguage;
 use App\Jobs\UnfurlLink;
 use App\Models\Commit;
 use App\Models\CommitImage;
+use App\Models\Guild;
 use App\Models\LinkPreview;
 use App\Models\Notification;
 use App\Models\Organization;
@@ -506,6 +507,21 @@ it('shows the quoted commits of a commit and its ancestors with their authors', 
             ->where('commit.quoted_commit.author.handle', 'octocat')
             ->missing('commit.quoted_commit.author.email'));
 })->with(['guest' => false, 'signed in' => true]);
+
+it('names the guild a commit was committed in on its page', function (): void {
+    $commit = Commit::factory()->for(Guild::factory()->state(['handle' => 'devnull']))->create();
+    $outside = Commit::factory()->create();
+
+    $this->actingAs(User::factory()->create());
+
+    $this->get(route('commit.show', [$commit->user, $commit]))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page->where('commit.guild_handle', 'devnull'));
+
+    $this->get(route('commit.show', [$outside->user, $outside]))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page->where('commit.guild_handle', null));
+});
 
 it('shows a deleted quoted commit as a tombstone', function (bool $signedIn): void {
     $quoted = Commit::factory()->create(['body' => 'Deleted words']);
