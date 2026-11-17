@@ -529,6 +529,92 @@ it('lists guilds by members rather than commits and clears a mute when joining',
     $this->assertDatabaseMissing('guild_preferences', ['guild_id' => $jobs->id, 'user_id' => $admin->id]);
 });
 
+it('paginates matching guilds biggest first with handle ordering for ties', function (): void {
+    $admin = User::factory()->create(['handle' => 'admin']);
+    $guilds = Guild::factory()->count(25)->state(['user_id' => $admin->id])->sequence(fn ($sequence): array => [
+        'handle' => 'group'.mb_str_pad((string) $sequence->index, 2, '0', STR_PAD_LEFT),
+        'name' => 'Builders',
+    ])->create();
+    $popular = $guilds->last();
+    $popular->members()->attach($admin, ['joined_at' => now()]);
+    Guild::factory()->create(['user_id' => $admin->id, 'name' => 'Unrelated', 'handle' => 'unrelated', 'description' => 'Other discussions.']);
+
+    $this->actingAs($admin)->get(route('guild.index', ['q' => 'Builders']))->assertOk()->assertInertia(fn ($page) => $page
+        ->where('query', 'Builders')->where('guildPage.total', 25)->where('guildPage.last_page', 2)
+        ->where('guildPage.current_page', 1)->where('guildPage.data', [$popular->id, ...$guilds->take(23)->modelKeys()]));
+    $this->get(route('guild.index', ['q' => 'Builders', 'page' => 2]))->assertOk()->assertInertia(fn ($page) => $page
+        ->where('query', 'Builders')->where('guildPage.current_page', 2)->where('guildPage.total', 25)
+        ->where('guildPage.data', [$guilds[23]->id]));
+    $this->get(route('guild.index', ['q' => 'Builders', 'page' => 3]))->assertOk()->assertInertia(fn ($page) => $page
+        ->where('guildPage.data', [])->where('guildPage.total', 25));
+});
+
+it('searches guild names handles and descriptions literally without case sensitivity', function (string $term, string $normalized, bool $matches): void {
+    $admin = User::factory()->create(['handle' => 'admin']);
+    $guild = Guild::factory()->create(['user_id' => $admin->id, 'handle' => 'rustaceans', 'name' => 'Systems Builders', 'description' => '100% safe_code!']);
+    Guild::factory()->create(['user_id' => $admin->id, 'handle' => 'other', 'name' => 'Different people', 'description' => '100 percent safeXcode.']);
+
+    $this->actingAs($admin)->get(route('guild.index', ['q' => $term]))->assertOk()->assertInertia(fn ($page) => $page
+        ->where('query', $normalized)->where('guildPage.data', $matches ? [$guild->id] : []));
+})->with([
+    'name' => ['bUiLdErS', 'bUiLdErS', true],
+    'handle' => ['  #RuStAcEaNs  ', 'RuStAcEaNs', true],
+    'description' => ['SAFE_CODE', 'SAFE_CODE', true],
+    'literal percent' => ['%', '%', true],
+    'literal underscore' => ['_', '_', true],
+    'literal escape' => ['!', '!', true],
+    'no matches' => ['missing', 'missing', false],
+]);
+
+it('matches Unicode search terms consistently even with C-collated guild columns', function (string $field, string $text, string $term): void {
+    DB::statement(sprintf('ALTER TABLE guilds ALTER COLUMN %s TYPE text COLLATE "C"', $field));
+    $admin = User::factory()->create(['handle' => 'admin']);
+    $guild = Guild::factory()->create(['user_id' => $admin->id, $field => $text]);
+    Guild::factory()->create(['user_id' => $admin->id, 'handle' => 'unrelated', 'name' => 'Other', 'description' => 'No match.']);
+
+    $this->actingAs($admin)->get(route('guild.index', ['q' => $term]))->assertOk()->assertInertia(fn ($page) => $page
+        ->where('guildPage.data', [$guild->id]));
+})->with(['handle', 'name', 'description'])->with([
+    'Greek prefix ending in sigma' => ['ΟΣΑ', 'ΟΣ'],
+    'lowercase final sigma' => ['κοσμος', 'ΚΟΣΜΟΣ'],
+    'uppercase final sigma' => ['ΚΟΣΜΟΣ', 'κοσμος'],
+    'accented capital' => ['ÉCOLE', 'école'],
+]);
+
+it('keeps directory results out of membership-only refreshes', function (): void {
+    $admin = User::factory()->create(['handle' => 'admin']);
+    $guild = Guild::factory()->create(['user_id' => $admin->id]);
+    $this->actingAs($admin)->put(route('guild-membership.update', $guild), ['joined' => true])->assertRedirect();
+
+    $this->get(route('guild.index'), [
+        'X-Inertia-Version' => (string) resolve(HandleInertiaRequests::class)->version(request()),
+        'X-Inertia' => 'true', 'X-Inertia-Partial-Component' => 'guild/index', 'X-Inertia-Partial-Data' => 'guilds',
+    ])->assertOk()->assertJsonPath('props.guilds.0.is_joined', true)->assertJsonMissingPath('props.guildPage');
+});
+
+it('includes newly created guild cards when refreshing directory search results', function (): void {
+    $admin = User::factory()->create(['handle' => 'admin']);
+    $this->actingAs($admin)->get(route('guild.index'))->assertOk()->assertInertia(fn ($page) => $page->where('guildPage.data', []));
+    $guild = Guild::factory()->create(['user_id' => $admin->id, 'handle' => 'rust', 'name' => 'Rust']);
+
+    $this->get(route('guild.index', ['q' => 'rust']), [
+        'X-Inertia-Version' => (string) resolve(HandleInertiaRequests::class)->version(request()),
+        'X-Inertia' => 'true', 'X-Inertia-Partial-Component' => 'guild/index', 'X-Inertia-Partial-Data' => 'guildPage,query,guilds',
+    ])->assertOk()->assertJsonPath('props.guildPage.data', [$guild->id])->assertJsonPath('props.guilds.0.id', $guild->id)
+        ->assertJsonPath('props.guilds.0.name', 'Rust');
+});
+
+it('validates guild directory search and page inputs', function (array $input, string $field): void {
+    $this->actingAs(User::factory()->create(['handle' => 'admin']))
+        ->getJson(route('guild.index', $input))->assertUnprocessable()->assertJsonValidationErrors($field);
+})->with([
+    'array query' => [['q' => ['rust']], 'q'],
+    'long query' => [['q' => str_repeat('a', 101)], 'q'],
+    'zero page' => [['page' => 0], 'page'],
+    'fractional page' => [['page' => 1.5], 'page'],
+    'large page' => [['page' => 10001], 'page'],
+]);
+
 it('guards guild discovery and preferences with the preview flag and validates boolean inputs', function (): void {
     $guild = Guild::factory()->create();
     $this->get(route('guild.index'))->assertRedirectToRoute('home');

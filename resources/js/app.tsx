@@ -12,7 +12,7 @@ import { trackAnalyticsEvents } from '@/lib/analytics';
 import { setServerTime } from '@/lib/commit-changes';
 import { trackCommitPhotoPage } from '@/lib/commit-photo';
 import { initializeCommitState } from '@/lib/commit-state';
-import { trackCurrentPage } from '@/lib/current-page';
+import { currentPageComponent, trackCurrentPage } from '@/lib/current-page';
 import { createEcho } from '@/lib/echo';
 import { trackFollowRequests } from '@/lib/follow-requests';
 import { startLiteMobileApp } from '@/lib/lite-mobile-app';
@@ -47,6 +47,9 @@ router.on('start', (event) => {
 router.on('navigate', (event) => {
     if (event.detail.type === 'history' || event.detail.cached === true) {
         catchUpAfterRestore();
+        if (event.detail.page.component === 'guild/index') {
+            router.reload({ only: ['guildPage', 'guilds'] });
+        }
     } else if (visitStartedAt !== null) {
         pageReadAt(visitStartedAt);
     }
@@ -56,6 +59,9 @@ router.on('navigate', (event) => {
 window.addEventListener('pageshow', (event) => {
     if (event.persisted) {
         catchUpAfterRestore();
+        if (currentPageComponent() === 'guild/index') {
+            router.reload({ only: ['guildPage', 'guilds'] });
+        }
     }
 });
 

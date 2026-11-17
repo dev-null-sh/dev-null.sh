@@ -16,9 +16,17 @@ final class ListGuildsRequest extends FormRequest
         return $features->available(Feature::Guilds, $this->user()) ? Response::allow() : Response::denyAsNotFound();
     }
 
-    /** @return array{} */
+    /** @return array<string, list<string>> */
     public function rules(): array
     {
-        return [];
+        return [
+            'q' => ['nullable', 'string', 'max:100'],
+            'page' => ['sometimes', 'integer', 'min:1', 'max:10000'],
+        ];
+    }
+
+    public function term(): string
+    {
+        return $this->string('q')->trim()->ltrim('#')->trim()->value();
     }
 }
