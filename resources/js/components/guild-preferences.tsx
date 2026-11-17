@@ -1,7 +1,10 @@
-import { router } from '@inertiajs/react';
+import { Link, router } from '@inertiajs/react';
 import { UserPlus, Volume2, VolumeX } from 'lucide-react';
 import { useState } from 'react';
-import { update as membership } from '@/actions/App/Http/Controllers/GuildMembershipController';
+import {
+    index as members,
+    update as membership,
+} from '@/actions/App/Http/Controllers/GuildMembershipController';
 import { update as mute } from '@/actions/App/Http/Controllers/GuildMuteController';
 import { useFollowHover } from '@/components/follow-button';
 import { Button } from '@/components/ui/button';
@@ -10,8 +13,10 @@ import type { Guild } from '@/types/guild';
 
 export function GuildMemberCount({ guild }: { guild: Guild }) {
     return (
-        <span
-            className="inline-block w-[15ch] shrink-0 text-sm text-muted-foreground"
+        <Link
+            href={members(guild.handle)}
+            prefetch
+            className="inline-block w-[15ch] shrink-0 text-sm text-muted-foreground hover:text-foreground hover:underline focus-visible:underline"
             title={`${formatExactCount(guild.member_count)} members`}
         >
             <span className="mr-1 font-mono tabular-nums" aria-hidden="true">
@@ -21,7 +26,7 @@ export function GuildMemberCount({ guild }: { guild: Guild }) {
                 {formatExactCount(guild.member_count)}{' '}
             </span>
             {guild.member_count === 1 ? 'member' : 'members'}
-        </span>
+        </Link>
     );
 }
 
