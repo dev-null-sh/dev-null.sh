@@ -98,6 +98,7 @@ export type OrganizationAuthor = Extract<
 
 export type Commit = {
     id: string;
+    joined_guild?: string | null;
     parent_id: string | null;
     hot_score: number;
     body: string;

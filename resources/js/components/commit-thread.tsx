@@ -21,7 +21,7 @@ import CommitLinkPreviewController from '@/actions/App/Http/Controllers/CommitLi
 import CommitReplyController from '@/actions/App/Http/Controllers/CommitReplyController';
 import { ActionTooltip } from '@/components/action-tooltip';
 import { AuthorAvatar } from '@/components/author-avatar';
-import { AuthorSwitcher } from '@/components/author-switcher';
+import { AuthorSwitcher, useAuthor } from '@/components/author-switcher';
 import { BodyCounter } from '@/components/body-counter';
 import { FoldedCommitBody } from '@/components/commit-body';
 import { CommitGif, GifAttachmentPreview } from '@/components/commit-gif';
@@ -124,7 +124,6 @@ import type {
     CursorPaginated,
     DeletedFlash,
     FlashToast,
-    OrganizationAuthor,
     ThreadCommit,
 } from '@/types';
 
@@ -207,7 +206,7 @@ type Thread = {
 };
 
 async function fetchReplies(
-    commit: Pick<ThreadCommit, 'id'>,
+    commit: Pick<ThreadCommit, 'id'> & { inLog?: boolean },
     cursor: string | null,
     newest: boolean,
     limit: number,
@@ -219,6 +218,7 @@ async function fetchReplies(
             query: {
                 cursor,
                 newest: newest ? 1 : 0,
+                in_log: commit.inLog ? 1 : 0,
                 limit,
                 ...(except ? { except } : {}),
             },
@@ -240,7 +240,7 @@ async function fetchReplies(
 }
 
 async function fetchRepliesAfter(
-    commit: Pick<ThreadCommit, 'id'>,
+    commit: Pick<ThreadCommit, 'id'> & { inLog?: boolean },
     replies: ThreadCommit[],
     cursor: string | null,
     minimum: number,
@@ -268,7 +268,7 @@ async function fetchRepliesAfter(
 }
 
 async function fetchRepliesUntil(
-    commit: Pick<ThreadCommit, 'id'>,
+    commit: Pick<ThreadCommit, 'id'> & { inLog?: boolean },
     minimum: number,
     perPage: number,
     newest: boolean,
@@ -300,7 +300,7 @@ async function fetchRepliesUntil(
  * so recovering what changed keeps the loaded range without loading everything that arrived after it.
  */
 async function fetchRepliesThrough(
-    commit: Pick<ThreadCommit, 'id'>,
+    commit: Pick<ThreadCommit, 'id'> & { inLog?: boolean },
     lastId: string | undefined,
     depth: number,
     perPage: number,
@@ -356,6 +356,7 @@ export function useThread(
     const isPreview = preview !== undefined;
     const initial = preview ?? initialReplies;
     const { repliesPerPage, continuation, now: serverNow } = usePage().props;
+    const inLog = usePage().component === 'log/show';
     const historyKey = `thread:${commit.id}:${except ?? ''}`;
     const remembered = router.restore<{
         replies: ThreadCommit[] | null;
@@ -453,7 +454,7 @@ export function useThread(
         setIsLoading(true);
 
         return fetchRepliesThrough(
-            commit,
+            { id: commit.id, inLog },
             replies.at(-1)?.id,
             Math.max(replies.length, repliesPerPage),
             repliesPerPage,
@@ -492,7 +493,7 @@ export function useThread(
         setIsLoading(true);
 
         return fetchRepliesUntil(
-            commit,
+            { id: commit.id, inLog },
             minimum,
             repliesPerPage,
             isPreview,
@@ -522,7 +523,7 @@ export function useThread(
         setIsLoading(true);
 
         fetchRepliesAfter(
-            commit,
+            { id: commit.id, inLog },
             replies,
             nextCursor,
             minimum,
@@ -557,7 +558,7 @@ export function useThread(
         setIsLoading(true);
 
         fetchRepliesUntil(
-            { id: commitId },
+            { id: commitId, inLog },
             initialReplyLimit,
             repliesPerPage,
             isPreview,
@@ -583,6 +584,7 @@ export function useThread(
         commitId,
         shouldLoadReplies,
         isPreview,
+        inLog,
         except,
         repliesPerPage,
         initialReplyLimit,
@@ -658,6 +660,7 @@ export function useThread(
                     query: {
                         ids,
                         newest: isPreview ? 1 : 0,
+                        in_log: inLog ? 1 : 0,
                         ...(except ? { except } : {}),
                     },
                 }).url,
@@ -728,9 +731,12 @@ export function useThread(
         return change.replies;
     });
     // Called when a read's turn comes, so it reads the range loaded by then, not the one loaded when it was asked for.
-    const recoverLoaded = useEffectEvent((signal: AbortSignal) =>
-        recover(signal),
-    );
+    const recoverLoaded = useEffectEvent((signal: AbortSignal) => {
+        // The log refreshes compact previews together; only an expanded thread needs its own deeper read.
+        if (inLog && isPreview && (replies?.length ?? 0) <= repliesPerPage)
+            return;
+        return recover(signal);
+    });
     const isLoaded = replies !== null;
     const viewerId = usePage().props.auth.user?.id ?? null;
 
@@ -822,7 +828,7 @@ export function useThread(
                 : listen(
                       userChannel(viewerId),
                       { relationships: recoverWhenFree },
-                      isPreview ? undefined : recoverWhenFree,
+                      isPreview && !inLog ? undefined : recoverWhenFree,
                   );
 
         return () => {
@@ -831,7 +837,7 @@ export function useThread(
             stopRelationships();
             refresh.cancel();
         };
-    }, [commitId, isLoaded, viewerId, isPreview]);
+    }, [commitId, isLoaded, viewerId, isPreview, inLog]);
 
     useEffect(
         () =>
@@ -1735,9 +1741,9 @@ function ReplyComposer({
     onReplied: (parent: RepliedParent) => void;
 }) {
     const { user } = useUser();
+    const { author, picked, setAuthor } = useAuthor();
     const gifKey = useGifProviderKey(user.id);
     const [gifOpen, setGifOpen] = useState(false);
-    const [author, setAuthor] = useState<OrganizationAuthor | null>(null);
     const commitNotFound = useCommitNotFound();
     const participants = Array.from(
         new Map(
@@ -1794,6 +1800,7 @@ function ReplyComposer({
             gif_width?: number;
             gif_height?: number;
             human_verification_token?: string;
+            author?: string;
         },
         CreatedReply
     >({
@@ -1903,6 +1910,12 @@ function ReplyComposer({
                     updateCommitsCount(1);
                     onReplied(reply.parent);
                 },
+                onError: (errors) => {
+                    // Removed from the organization in the meantime: ask again who they can post as, so it's no longer offered.
+                    if (errors.author) {
+                        router.reload({ only: ['auth'] });
+                    }
+                },
                 onHttpException: (response) => {
                     const timeout = timeoutFrom(response.status, response.data);
 
@@ -1995,7 +2008,8 @@ function ReplyComposer({
                     Object.entries(errors).find(([key]) =>
                         key.startsWith('reply_recipients.'),
                     )?.[1] ??
-                    errors.link_preview_url
+                    errors.link_preview_url ??
+                    errors.author
                 }
                 className="px-1"
             />
@@ -2024,7 +2038,12 @@ function ReplyComposer({
                         user={user}
                         author={author}
                         onChange={setAuthor}
-                        fallback={null}
+                        fallback={
+                            // Once they picked an organization they can no longer post as, show who posts now.
+                            picked !== null && (
+                                <UserAvatar user={user} className="size-6" />
+                            )
+                        }
                     >
                         {author === null ? (
                             <UserAvatar user={user} className="size-6" />

@@ -465,12 +465,14 @@ export default function Show({
         checked = [],
         checksWindow = false,
         checksArrivals = true,
+        refreshCards = false,
         signal,
     }: {
         heard?: string[];
         checked?: string[];
         checksWindow?: boolean;
         checksArrivals?: boolean;
+        refreshCards?: boolean;
         signal?: AbortSignal;
     }) => {
         const arrived = isRanked || !checksArrivals ? [] : heard;
@@ -480,6 +482,7 @@ export default function Show({
             only: [
                 ...(checksArrivals ? ['newCommitsCount'] : []),
                 'removedCommitIds',
+                ...(refreshCards ? ['refreshedCommits'] : []),
                 ...(arrived.length > 0 ? ['arrivedCommitIds'] : []),
                 ...(checksWindow && !isRanked ? ['windowDigest'] : []),
             ],
@@ -502,7 +505,13 @@ export default function Show({
                 const removed = new Set(
                     page.props.removedCommitIds as string[],
                 );
-                if (removed.size > 0) {
+                const refreshed = new Map(
+                    (refreshCards
+                        ? ((page.props.refreshedCommits as Commit[]) ?? [])
+                        : []
+                    ).map((commit) => [commit.id, commit]),
+                );
+                if (removed.size > 0 || refreshed.size > 0) {
                     setNotice((current) => {
                         if (!current || current.leaving) return current;
                         const remaining = current.commits.filter(
@@ -517,9 +526,16 @@ export default function Show({
                         (value: unknown, props: PageProps) => {
                             if (props.log !== log) return value;
                             const current = value as CursorPaginated<Commit>;
-                            const retained = current.data.filter(
-                                (commit) => !removed.has(commit.id),
-                            );
+                            const retained = current.data
+                                .filter((commit) => !removed.has(commit.id))
+                                .map((commit) =>
+                                    refreshed.has(commit.id)
+                                        ? {
+                                              ...commit,
+                                              ...refreshed.get(commit.id),
+                                          }
+                                        : commit,
+                                );
                             preserveReadingPosition(
                                 new Set(retained.map((commit) => commit.id)),
                             );
@@ -618,6 +634,7 @@ export default function Show({
             isCatchingUp: boolean,
             signal: AbortSignal,
             checksArrivals: boolean,
+            refreshCards = false,
         ): Promise<number | null> => {
             const { checked, arrived } = splitVisibility(ids);
             const pending =
@@ -640,6 +657,7 @@ export default function Show({
                     checksWindow:
                         offset === 0 && (isCatchingUp || arrived.length > 100),
                     checksArrivals: checksArrivals && offset === 0,
+                    refreshCards,
                     signal,
                 });
                 await reloadInBackground(options, signal);
@@ -651,11 +669,18 @@ export default function Show({
         },
     );
 
+    const refreshRelationships = useEffectEvent((signal: AbortSignal) =>
+        isRanked
+            ? probe([], true, signal, true, true)
+            : loadNewest(commits.data.length + 1, signal),
+    );
+
     useEffect(() => {
         const heard = new Set<string>();
         const controller = new AbortController();
         const read = atMostAtOnce(1);
         let isCatchingUp = false;
+        let relationshipsChanged = false;
         const arrivals = batchLogArrivals((pending) =>
             read(async () => {
                 if (
@@ -681,16 +706,23 @@ export default function Show({
                     const ids = [...heard];
                     heard.clear();
                     isCatchingUp = false;
-                    const result = await probe(
-                        ids,
-                        catchingUp,
-                        controller.signal,
-                        catchingUp,
+                    const changed = relationshipsChanged;
+                    relationshipsChanged = false;
+                    const result = await (
+                        changed
+                            ? refreshRelationships(controller.signal)
+                            : probe(
+                                  ids,
+                                  catchingUp,
+                                  controller.signal,
+                                  catchingUp,
+                              )
                     ).catch(() => null);
                     if (controller.signal.aborted) return;
                     if (result === null) {
                         ids.forEach((id) => heard.add(id));
                         isCatchingUp ||= catchingUp;
+                        relationshipsChanged ||= changed;
                         refresh.request();
                     } else {
                         caughtUp?.();
@@ -714,6 +746,10 @@ export default function Show({
         const recover = () => {
             isCatchingUp = true;
             refresh.request();
+        };
+        const recoverRelationships = () => {
+            relationshipsChanged = true;
+            recover();
         };
         const onVisible = () => {
             if (document.visibilityState === 'hidden') {
@@ -744,8 +780,8 @@ export default function Show({
                 ? () => {}
                 : listen(
                       userChannel(viewerId),
-                      { relationships: recover },
-                      recover,
+                      { relationships: recoverRelationships },
+                      recoverRelationships,
                   );
 
         return () => {

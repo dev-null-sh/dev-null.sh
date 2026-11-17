@@ -7,6 +7,7 @@ namespace App\Queries;
 use App\Enums\Log;
 use App\Models\Commit;
 use App\Models\User;
+use Illuminate\Support\Collection;
 
 /**
  * A ranked log does not put new commits on top, so it does not offer them either: they belong to the Latest log. The
@@ -23,13 +24,13 @@ final readonly class LatestLogCommitsQuery
             return 0;
         }
 
-        return $log->query()->builder($user)
+        return resolve(GuildCommitsQuery::class)->snapshot($user, fn (): int => $log->query()->builder($user)
             ->when($since, fn (CommitBuilder $query, Commit $since): CommitBuilder => $query->newerThan($since))
             // The user's own commits aren't news to them, nor are their organizations', as the log's page tells them apart.
             ->when($user, fn (CommitBuilder $query, User $user): CommitBuilder => $query
                 ->where($query->qualifyColumn('author_id'), '!=', $user->id)
                 ->whereNotIn($query->qualifyColumn('author_id'), $user->organizations()->select('organizations.id')))
-            ->count();
+            ->count());
     }
 
     /**
@@ -45,13 +46,13 @@ final readonly class LatestLogCommitsQuery
         }
 
         /** @var list<string> $ids */
-        $ids = $log->query()->builder($user)
+        $ids = resolve(GuildCommitsQuery::class)->snapshot($user, fn (): array => $log->query()->builder($user)
             ->where(fn (CommitBuilder $query): CommitBuilder => $query->newerThan($oldest)->orWhere('commits.id', $oldest->id))
             ->whereNot(fn (CommitBuilder $query): CommitBuilder => $query->newerThan($newest))
             ->toBase()
             ->reorder()
             ->pluck('commits.id')
-            ->all();
+            ->all());
         sort($ids, SORT_STRING);
 
         return hash('sha256', implode(',', $ids));
@@ -69,8 +70,8 @@ final readonly class LatestLogCommitsQuery
 
         // A ranked log is drawn once: what drops in rank stays until it is refreshed, and only what the viewer can no
         // longer see leaves it.
-        $visible = ($log->isRanked() ? Commit::query()->visibleTo($user) : $log->query()->builder($user))
-            ->whereKey($pending)->toBase()->select('commits.id')->reorder()->pluck('commits.id');
+        $visible = resolve(GuildCommitsQuery::class)->snapshot($user, fn (): Collection => ($log->isRanked() ? Commit::query()->visibleTo($user)->withoutMutedGuildsFor($user) : $log->query()->builder($user))
+            ->whereKey($pending)->toBase()->select('commits.id')->reorder()->pluck('commits.id'));
 
         return array_values(collect($pending)->reject(fn (string $id): bool => $visible->contains($id))->all());
     }
@@ -88,10 +89,10 @@ final readonly class LatestLogCommitsQuery
             return [];
         }
 
-        $arrived = $log->query()->builder($user)
+        $arrived = resolve(GuildCommitsQuery::class)->snapshot($user, fn (): Collection => $log->query()->builder($user)
             ->whereKey($ids)
             ->where('commits.created_at', '>=', $through->created_at)
-            ->toBase()->select('commits.id')->reorder()->pluck('commits.id');
+            ->toBase()->select('commits.id')->reorder()->pluck('commits.id'));
 
         return array_values(array_filter($ids, fn (string $id): bool => $arrived->contains($id)));
     }

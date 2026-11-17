@@ -23,8 +23,8 @@ beforeEach(function (): void {
 it('renders pending commits oldest first', function (): void {
     $admin = User::factory()->create(['handle' => 'admin']);
 
-    Commit::factory()->pending()->create(['body' => 'Newer']);
-    Commit::factory()->pending()->create(['body' => 'Older', 'created_at' => now()->subMinute()]);
+    Commit::factory()->pending()->checkedByAi()->create(['body' => 'Newer']);
+    Commit::factory()->pending()->checkedByAi()->create(['body' => 'Older', 'created_at' => now()->subMinute()]);
     Commit::factory()->create();
     Commit::factory()->rejected()->create();
 
@@ -60,13 +60,28 @@ it('shows the ai decision on commits', function (): void {
             ->where('commits.data.0.ai_categories', ['harassment']));
 });
 
+it('hides pending commits from the queue while the ai checks them, and shows those it gave up on', function (): void {
+    $admin = User::factory()->create(['handle' => 'admin']);
+
+    Commit::factory()->pending()->create(['body' => 'Being checked', 'created_at' => now()->subMinutes(Commit::CHECKING_MINUTES - 1)]);
+    Commit::factory()->pending()->create(['body' => 'Given up on', 'created_at' => now()->subMinutes(Commit::CHECKING_MINUTES)]);
+    Commit::factory()->pending()->checkedByAi()->create(['body' => 'Checked']);
+
+    $this->actingAs($admin)->get(route('moderation.show'))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->has('commits.data', 2)
+            ->where('commits.data.0.body', 'Given up on')
+            ->where('commits.data.1.body', 'Checked'));
+});
+
 it('lets moderators detect and translate pending commits without approving them', function (): void {
     Queue::fake([DetectCommitLanguage::class]);
     $translations = $this->mock(TranslationProvider::class);
     $translations->shouldReceive('translate')->once()->with('Guten morgen', null)->andReturn(['source_language' => 'de', 'body' => '']);
     $translations->shouldReceive('translate')->once()->with('Guten morgen', 'en')->andReturn(['source_language' => 'de', 'body' => 'Good morning']);
     $admin = User::factory()->create(['handle' => 'admin']);
-    $commit = Commit::factory()->pending()->create(['body' => 'Guten morgen']);
+    $commit = Commit::factory()->pending()->checkedByAi()->create(['body' => 'Guten morgen']);
 
     $this->actingAs($admin)->withHeader('Accept-Language', 'en')->get(route('moderation.show'))
         ->assertOk()->assertInertia(fn ($page) => $page
@@ -141,7 +156,7 @@ it('keeps ai suggestions private and notifies the quoted author only after moder
 it('drops deleted pending commits from the queue', function (): void {
     $admin = User::factory()->create(['handle' => 'admin']);
 
-    Commit::factory()->pending()->create(['body' => 'Kept']);
+    Commit::factory()->pending()->checkedByAi()->create(['body' => 'Kept']);
     Commit::factory()->pending()->create()->delete();
 
     $response = $this->actingAs($admin)
@@ -169,7 +184,7 @@ it('requires authentication', function (): void {
 it('shows who a pending reply is replying to', function (): void {
     $admin = User::factory()->create(['handle' => 'admin']);
     $parent = Commit::factory()->for(User::factory()->create(['handle' => 'octocat']))->create();
-    Commit::factory()->pending()->for($parent, 'parent')->create();
+    Commit::factory()->pending()->checkedByAi()->for($parent, 'parent')->create();
 
     $response = $this->actingAs($admin)
         ->get(route('moderation.show'));
@@ -181,8 +196,8 @@ it('shows who a pending reply is replying to', function (): void {
 
 it('shows what a pending quote is quoting', function (): void {
     $admin = User::factory()->create(['handle' => 'admin']);
-    $quoted = Commit::factory()->for(User::factory()->create(['handle' => 'octocat']))->pending()->create(['body' => 'Quoted while pending']);
-    Commit::factory()->pending()->for($quoted, 'quotedCommit')->create(['created_at' => now()->addMinute()]);
+    $quoted = Commit::factory()->for(User::factory()->create(['handle' => 'octocat']))->pending()->checkedByAi()->create(['body' => 'Quoted while pending']);
+    Commit::factory()->pending()->checkedByAi()->for($quoted, 'quotedCommit')->create(['created_at' => now()->addMinute()]);
 
     $response = $this->actingAs($admin)
         ->get(route('moderation.show'));
@@ -198,7 +213,7 @@ it('includes the link previews of pending commits', function (): void {
 
     $linkPreview = LinkPreview::factory()->fetched()->create(['title' => 'Pending link']);
 
-    Commit::factory()->pending()->for($linkPreview)->create();
+    Commit::factory()->pending()->checkedByAi()->for($linkPreview)->create();
 
     $response = $this->actingAs($admin)
         ->get(route('moderation.show'));
@@ -280,9 +295,9 @@ it("shows moderators who posted an organization's commit, and no poster for a pe
     $organization = Organization::factory()->create();
     $poster = User::factory()->create(['handle' => 'taylor']);
 
-    Commit::factory()->pending()->for($poster)->create(['author_id' => $organization->id, 'created_at' => now()->subMinutes(2)]);
-    Commit::factory()->pending()->create(['author_id' => $organization->id, 'user_id' => null, 'created_at' => now()->subMinute()]);
-    Commit::factory()->pending()->create();
+    Commit::factory()->pending()->checkedByAi()->for($poster)->create(['author_id' => $organization->id, 'created_at' => now()->subMinutes(2)]);
+    Commit::factory()->pending()->checkedByAi()->create(['author_id' => $organization->id, 'user_id' => null, 'created_at' => now()->subMinute()]);
+    Commit::factory()->pending()->checkedByAi()->create();
 
     $this->actingAs($admin)->get(route('moderation.show'))->assertOk()
         ->assertInertia(fn ($page) => $page
@@ -296,8 +311,9 @@ it("shows moderators who posted an organization's commit, and no poster for a pe
 it('lists the commits submitted since a queue last read, so a queue that started listening late can catch up', function (): void {
     $admin = User::factory()->create(['handle' => 'admin']);
     $read = now()->subSeconds(30);
-    Commit::factory()->pending()->create(['updated_at' => now()->subMinute()]);
-    $submitted = Commit::factory()->pending()->create();
+    Commit::factory()->pending()->checkedByAi()->create(['updated_at' => now()->subMinute()]);
+    $submitted = Commit::factory()->pending()->checkedByAi()->create();
+    Commit::factory()->pending()->create();
     Commit::factory()->create();
 
     $this->actingAs($admin)->get(route('moderation.show', ['since' => $read->getTimestampMs()]), [

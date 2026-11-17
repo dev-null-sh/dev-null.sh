@@ -4,6 +4,7 @@ import type { KeyboardEvent } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import { ActionTooltip } from '@/components/action-tooltip';
+import { AuthorSwitcher, useAuthor } from '@/components/author-switcher';
 import { BodyCounter } from '@/components/body-counter';
 import { CommitGif, GifAttachmentPreview } from '@/components/commit-gif';
 import {
@@ -22,6 +23,7 @@ import { EmojiPickerButton } from '@/components/emoji-picker';
 import InputError from '@/components/input-error';
 import { LinkCardPicker } from '@/components/link-card-picker';
 import { MentionTextarea } from '@/components/mention-textarea';
+import { OrganizationAvatar } from '@/components/organization-avatar';
 import { QuotedCommit } from '@/components/quoted-commit';
 import { StableLabel } from '@/components/stable-label';
 import { StashLabel } from '@/components/stash-label';
@@ -126,6 +128,7 @@ function QuoteComposer({
     onClose: () => void;
 }) {
     const { user } = useUser();
+    const { author, picked, setAuthor } = useAuthor();
     const gifKey = useGifProviderKey(user.id);
     const [gifOpen, setGifOpen] = useState(false);
     const markCommitDeleted = useMarkCommitDeleted();
@@ -240,6 +243,7 @@ function QuoteComposer({
                     commit_rules_accepted: commitRules.hasAccepted(),
                     human_verification_token:
                         commitRules.humanVerificationToken(),
+                    ...(author !== null && { author: author.handle }),
                     ...(gif !== null
                         ? gifFormFields(gif)
                         : images.length > 0
@@ -267,10 +271,34 @@ function QuoteComposer({
             >
                 {({ processing, errors }) => (
                     <>
-                        <UserAvatar
+                        <AuthorSwitcher
                             user={user}
-                            className="hidden size-10 sm:flex"
-                        />
+                            author={author}
+                            onChange={setAuthor}
+                            fallback={
+                                // Once they picked an organization they can no longer post as, show who posts now.
+                                <UserAvatar
+                                    user={user}
+                                    className={cn(
+                                        'size-8 shrink-0 sm:flex sm:size-10',
+                                        { hidden: picked === null },
+                                    )}
+                                />
+                            }
+                            className="shrink-0 self-start"
+                        >
+                            {author === null ? (
+                                <UserAvatar
+                                    user={user}
+                                    className="size-8 sm:size-10"
+                                />
+                            ) : (
+                                <OrganizationAvatar
+                                    organization={author}
+                                    className="size-8 sm:size-10"
+                                />
+                            )}
+                        </AuthorSwitcher>
 
                         <div className="min-w-0 flex-1">
                             <input
@@ -340,7 +368,8 @@ function QuoteComposer({
                                 message={
                                     errors.body ??
                                     errors.link_preview_url ??
-                                    errors.quoted_commit_id
+                                    errors.quoted_commit_id ??
+                                    errors.author
                                 }
                             />
 
