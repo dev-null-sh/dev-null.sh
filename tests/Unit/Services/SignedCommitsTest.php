@@ -70,7 +70,7 @@ it('rejects images that do not match the signed payload', function (): void {
 });
 
 it('rejects malformed image hashes without hashing the images', function (string $hashes): void {
-    $payload = now()->getTimestamp()."\n".bin2hex(random_bytes(16))."\n\n{$hashes}\nShipped!";
+    $payload = SignedCommits::server()."\n".now()->getTimestamp()."\n".bin2hex(random_bytes(16))."\n\n{$hashes}\nShipped!";
 
     expect(fn (): array => resolve(SignedCommits::class)->verify(
         $payload,
@@ -142,9 +142,9 @@ it('rejects malformed payloads', function (string $payload): void {
     expect(fn (): array => resolve(SignedCommits::class)->verify($payload, $this->keyPair->sign($payload)))
         ->toThrow(InvalidArgumentException::class, 'Malformed payload.');
 })->with([
-    'missing body' => fn (): string => now()->getTimestamp()."\n".bin2hex(random_bytes(16))."\n",
-    'invalid nonce' => fn (): string => now()->getTimestamp()."\nnonce\n\nIt was DNS.",
-    'invalid utf-8' => fn (): string => now()->getTimestamp()."\n".bin2hex(random_bytes(16))."\n\nIt was \xff DNS.",
+    'missing body' => fn (): string => SignedCommits::server()."\n".now()->getTimestamp()."\n".bin2hex(random_bytes(16))."\n",
+    'invalid nonce' => fn (): string => SignedCommits::server()."\n".now()->getTimestamp()."\nnonce\n\nIt was DNS.",
+    'invalid utf-8' => fn (): string => SignedCommits::server()."\n".now()->getTimestamp()."\n".bin2hex(random_bytes(16))."\n\nIt was \xff DNS.",
 ]);
 
 it('rejects old or future timestamps', function (int $offset): void {
@@ -167,7 +167,7 @@ it('accepts small clock differences', function (int $offset): void {
 })->with([-300, 300]);
 
 it('rejects a non-numeric timestamp', function (): void {
-    $payload = "soon\n".bin2hex(random_bytes(16))."\n\nIt was DNS.";
+    $payload = SignedCommits::server()."\nsoon\n".bin2hex(random_bytes(16))."\n\nIt was DNS.";
 
     expect(fn (): array => resolve(SignedCommits::class)->verify($payload, $this->keyPair->sign($payload)))
         ->toThrow(InvalidArgumentException::class, 'Signature expired. Check that your clock is right.');
@@ -254,4 +254,44 @@ it('checks github at most every 5 minutes', function (): void {
 
     $signedCommits->verify(...signedCommit($this->keyPair, 'First'));
     $signedCommits->verify(...signedCommit($this->keyPair, 'Second'));
+});
+
+it('rejects a commit signed for another server', function (string $server): void {
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldNotReceive('login');
+
+    ['payload' => $payload, 'signature' => $signature] = signedCommit($this->keyPair, 'It was DNS.', server: $server);
+
+    $signedCommits = resolve(SignedCommits::class);
+
+    expect(fn (): array => $signedCommits->verify($payload, $signature))
+        ->toThrow(InvalidArgumentException::class, 'This commit was signed for another server.');
+})->with([
+    'staging' => 'https://staging.dev-null.sh',
+    'lookalike' => 'https://dev-nul1.sh',
+    'trailing slash' => fn (): string => SignedCommits::server().'/',
+    'no server' => '',
+]);
+
+it('rejects a commit with images signed for another server', function (): void {
+    $hashes = [hash('sha256', 'image')];
+
+    ['payload' => $payload, 'signature' => $signature] = signedCommit($this->keyPair, 'Shipped!', imageHashes: $hashes, server: 'https://staging.dev-null.sh');
+
+    expect(fn (): array => resolve(SignedCommits::class)->verify($payload, $signature, fn (): array => throw new RuntimeException('The images were hashed.')))
+        ->toThrow(InvalidArgumentException::class, 'This commit was signed for another server.');
+});
+
+it('does not spend the nonce of a commit signed for another server', function (): void {
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($this->user->github_id)->andReturn($this->user->handle);
+    $github->shouldReceive('sshKeys')->with($this->user->handle)->andReturn([$this->keyPair->publicKey->toOpenSsh()]);
+
+    $nonce = bin2hex(random_bytes(16));
+    $signedCommits = resolve(SignedCommits::class);
+
+    expect(fn (): array => $signedCommits->verify(...signedCommit($this->keyPair, 'It was DNS.', nonce: $nonce, server: 'https://staging.dev-null.sh')))
+        ->toThrow(InvalidArgumentException::class, 'This commit was signed for another server.');
+
+    expect($signedCommits->verify(...signedCommit($this->keyPair, 'It was DNS.', nonce: $nonce))['user']->is($this->user))->toBeTrue();
 });

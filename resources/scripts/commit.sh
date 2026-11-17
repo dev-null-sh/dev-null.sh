@@ -16,7 +16,8 @@
 # What this script does, and nothing else:
 #   1. Lists your public keys (`ssh-add -L` and ~/.ssh/*.pub) and asks /dev/null which one is
 #      on your GitHub account. Public keys are public: GitHub publishes them too.
-#   2. Signs your message (and the SHA-256 of each image) with that key, using `ssh-keygen -Y sign`
+#   2. Signs your message (and the SHA-256 of each image), along with the address of the /dev/null
+#      it is for, so no other server can replay it to this one, with that key, using `ssh-keygen -Y sign`
 #      with the "devnull-commit" namespace ("devnull-commit-images" when images are attached): the
 #      signature is only valid for /dev/null commits, it can't be used to sign git commits or to
 #      log in anywhere.
@@ -35,9 +36,11 @@ umask 077
 
 main() {
   DEVNULL_URL="${DEVNULL_URL:-__DEVNULL_URL__}"
+  DEVNULL_URL="${DEVNULL_URL%/}"
   NAMESPACE="devnull-commit"
 
   case "$DEVNULL_URL" in
+    *[[:space:][:cntrl:]]*) fail "Refusing to send your commit to an address with spaces or control characters." ;;
     https://*) PROTOCOLS="=https" ;;
     http://localhost | http://localhost:* | http://127.0.0.1 | http://127.0.0.1:*) PROTOCOLS="=http" ;;
     *) fail "Refusing to send your commit to $DEVNULL_URL: it is not an https:// URL." ;;
@@ -166,10 +169,11 @@ main() {
 
   local nonce
   nonce="$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')"
+  # The first line names the server the commit is for: /dev/null rejects a signature made for another one.
   if $has_images; then
-    printf '%s\n%s\n%s\n%s\n%s' "$(date +%s)" "$nonce" "$reply_to" "$hashes" "$message" > "$TMP_DIR/commit"
+    printf '%s\n%s\n%s\n%s\n%s\n%s' "$DEVNULL_URL" "$(date +%s)" "$nonce" "$reply_to" "$hashes" "$message" > "$TMP_DIR/commit"
   else
-    printf '%s\n%s\n%s\n%s' "$(date +%s)" "$nonce" "$reply_to" "$message" > "$TMP_DIR/commit"
+    printf '%s\n%s\n%s\n%s\n%s' "$DEVNULL_URL" "$(date +%s)" "$nonce" "$reply_to" "$message" > "$TMP_DIR/commit"
   fi
 
   # Passphrase prompts go to /dev/tty: keep ssh-keygen away from stdin, which is this script.

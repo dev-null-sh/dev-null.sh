@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Dto\SshPublicKey;
+use App\Services\SignedCommits;
 use Illuminate\Contracts\Process\ProcessResult;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Process;
@@ -103,7 +104,7 @@ it('commits with a key from ~/.ssh', function (): void {
         ->and($result->output())->toBe("Committed.\n")
         ->and(($this->calls)())->toContain("ssh-keygen -Y sign -n devnull-commit -f {$this->sandbox}/home/.ssh/id_ed25519 ")
         ->and(File::get("{$this->sandbox}/sent-candidates"))->toBe($this->publicKey->toOpenSsh()."\n")
-        ->and(File::get("{$this->sandbox}/sent-commit"))->toMatch('/^\d+\n[0-9a-f]{32}\n\nIt was DNS\.$/')
+        ->and(File::get("{$this->sandbox}/sent-commit"))->toMatch('#^'.preg_quote(SignedCommits::server(), '#').'\n\d+\n[0-9a-f]{32}\n\nIt was DNS\.$#')
         ->and(mb_substr_count(($this->calls)(), '--header Content-Type: text/plain; charset=utf-8'))->toBe(2)
         ->and(($this->calls)())->toContain('--header Content-Type: text/plain; charset=utf-8 --header X-SSH-Signature: ');
 });
@@ -112,7 +113,7 @@ it('replies to a commit', function (): void {
     $result = ($this->runScript)($this->script, ['--reply', '0be0130', 'Agreed!']);
 
     expect($result->exitCode())->toBe(0)
-        ->and(File::get("{$this->sandbox}/sent-commit"))->toMatch('/^\d+\n[0-9a-f]{32}\n0be0130\nAgreed!$/');
+        ->and(File::get("{$this->sandbox}/sent-commit"))->toMatch('#^'.preg_quote(SignedCommits::server(), '#').'\n\d+\n[0-9a-f]{32}\n0be0130\nAgreed!$#');
 });
 
 it('requires a commit to reply to', function (): void {
@@ -291,7 +292,24 @@ it('ignores ~/.curlrc and only talks https', function (): void {
         ->toMatch('# https://devnull\.example/api/cli/key-lookups$#m')
         ->toMatch('# https://devnull\.example/api/cli/commits$#m')
         ->not->toContain('--location')
-        ->not->toContain('--insecure');
+        ->not->toContain('--insecure')
+        ->and(File::get("{$this->sandbox}/sent-commit"))->toStartWith("https://devnull.example\n");
+});
+
+it('signs for the server without a trailing slash', function (): void {
+    $result = ($this->runScript)($this->script, env: ['DEVNULL_URL' => 'https://devnull.example/']);
+
+    expect($result->exitCode())->toBe(0)
+        ->and(($this->calls)())->toMatch('# https://devnull\.example/api/cli/commits$#m')
+        ->and(File::get("{$this->sandbox}/sent-commit"))->toStartWith("https://devnull.example\n");
+});
+
+it('refuses a server address with a line break', function (): void {
+    $result = ($this->runScript)($this->script, env: ['DEVNULL_URL' => "https://devnull.example\n1700000000"]);
+
+    expect($result->exitCode())->toBe(1)
+        ->and($result->errorOutput())->toBe("devnull: Refusing to send your commit to an address with spaces or control characters.\n")
+        ->and(($this->calls)())->toBe('');
 });
 
 it('only puts base64 in the signature header', function (): void {

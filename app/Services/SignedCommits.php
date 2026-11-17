@@ -12,8 +12,12 @@ use InvalidArgumentException;
 /**
  * Verifies a commit signed with `ssh-keygen -Y sign` by the `devnull commit` script.
  *
- * The signed payload is "<unix timestamp>\n<nonce>\n<commit to reply to, or empty>\n<body>". A commit
- * with images is signed under its own namespace, so the signature states which format it covers, and
+ * The signed payload is "<server>\n<unix timestamp>\n<nonce>\n<commit to reply to, or empty>\n<body>", where
+ * the server is the address in app.url, without a trailing slash. Each server keeps its own list
+ * of used nonces, so a signature made for another one (a staging instance, a fork, or a lookalike server the author
+ * was pointed to) would otherwise be valid here too, and whoever received it could replay it.
+ *
+ * A commit with images is signed under its own namespace, so the signature states which format it covers, and
  * carries one more line before the body: the comma-separated SHA-256 of each image, in the order
  * they are attached, so the signature covers the images as well as the text.
  */
@@ -29,6 +33,14 @@ final readonly class SignedCommits
     }
 
     /**
+     * The address a commit has to be signed for: the first line of the signed payload.
+     */
+    public static function server(): string
+    {
+        return mb_rtrim(config()->string('app.url'), '/');
+    }
+
+    /**
      * @param  (Closure(): list<string>)|null  $imageHashes
      * @return array{user: User, reply_to: string|null, body: string}
      */
@@ -38,17 +50,23 @@ final readonly class SignedCommits
 
         $publicKey = $this->sshSignatures->verify($payload, $signature, $withImages ? self::ImagesNamespace : self::Namespace);
 
-        $lines = $withImages ? 5 : 4;
+        $lines = $withImages ? 6 : 5;
         $parts = explode("\n", $payload, $lines);
 
         throw_if(count($parts) !== $lines || ! mb_check_encoding($payload, 'UTF-8'), InvalidArgumentException::class, 'Malformed payload.');
 
         if ($withImages) {
-            [$timestamp, $nonce, $replyTo, $signedHashes, $body] = $parts;
+            [$server, $timestamp, $nonce, $replyTo, $signedHashes, $body] = $parts;
         } else {
-            [$timestamp, $nonce, $replyTo, $body] = $parts;
+            [$server, $timestamp, $nonce, $replyTo, $body] = $parts;
             $signedHashes = '';
         }
+
+        throw_unless(
+            hash_equals(self::server(), $server),
+            InvalidArgumentException::class,
+            'This commit was signed for another server. Commit with the script from '.self::server().'/commit.',
+        );
 
         throw_if(
             $withImages && preg_match('/^[0-9a-f]{64}(,[0-9a-f]{64}){0,'.(CreateCommitImages::MAX_IMAGES - 1).'}$/', $signedHashes) !== 1,
