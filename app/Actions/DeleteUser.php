@@ -31,6 +31,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Uri\WhatWg\Url;
 
 final readonly class DeleteUser
 {
@@ -91,9 +92,10 @@ final readonly class DeleteUser
             $linkedIds = $linked->clone()->pluck('id')->flip();
             LinkPreview::query()
                 ->whereIn(DB::raw("substring(lower(url) from '/commits/([0-9a-f-]{36})')"), $linked->selectRaw('id::text'))
-                // A link that escapes part of itself still opens the commit, as the router decodes it first, so it is read decoded too.
-                ->orWhereIn('id', LinkPreview::query()->where('url', 'like', '%\%%')->lazyById()
-                    ->filter(fn (LinkPreview $preview): bool => $linkedIds->has(Str::match('#/commits/([0-9a-f-]{36})#', mb_strtolower(rawurldecode($preview->url)))))
+                // A link with escapes, dot segments or backslashes still opens the commit, since the preview fetcher resolves the
+                // path and the router decodes it, so those are read the same way.
+                ->orWhereIn('id', LinkPreview::query()->where('url', '~', '^[^?#]*([%\\\\]|/\.)')->select(['id', 'url'])->lazyById()
+                    ->filter(fn (LinkPreview $preview): bool => $linkedIds->has(Str::match('#/commits/([0-9a-f-]{36})#', mb_strtolower(rawurldecode((string) Url::parse($preview->url)?->getPath())))))
                     ->pluck('id')->all())
                 ->delete();
             $user->commits()->withTrashed()->topLevel()->forceDelete();

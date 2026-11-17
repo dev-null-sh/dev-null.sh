@@ -99,7 +99,7 @@ it('erases the previews of links to the commits it erases, which hold their bodi
     expect($linking->fresh()->link_preview_id)->toBeNull();
 });
 
-it('erases the previews of links to its commits that escape part of the link, which still open them', function (string $plain, string $escaped): void {
+it('erases the previews of links to its commits written another way that still opens them', function (string $plain, string $escaped): void {
     $user = User::factory()->create();
     $commit = Commit::factory()->for($user)->create(['id' => '01a16ffc-740e-7105-82dc-e3a7ed20aaaa']);
     $other = Commit::factory()->create(['id' => '01a16ffc-740e-7105-82dc-e3a7ed20bbbb']);
@@ -118,6 +118,9 @@ it('erases the previews of links to its commits that escape part of the link, wh
     'a letter' => ['16ffc', '16%66fc'],
     'an uppercase letter' => ['e3a7', 'e3%41%37'],
     'the path' => ['/commits/', '%2F%63%6F%6d%6d%69%74%73%2f'],
+    'an escaped dot segment' => ['/commits/', '/commits/%2e/'],
+    'a parent segment' => ['/commits/', '/commits/x/../'],
+    'backslashes' => ['/commits/', '\\commits\\'],
 ]);
 
 it('erases the previews of links to replies to its commits in other threads, whose titles name it', function (): void {
