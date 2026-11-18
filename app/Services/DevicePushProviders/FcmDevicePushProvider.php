@@ -20,6 +20,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Fluent;
 use RuntimeException;
 
 /**
@@ -49,9 +50,19 @@ final readonly class FcmDevicePushProvider implements DevicePushProvider
                 return $accessToken;
             }
 
-            return DB::transaction(function () use ($device, $push, $credentials, $accessToken): DevicePushResult {
+            $quotaKey = 'fcm-quota:'.hash('sha256', $credentials->projectId);
+
+            foreach ([$quotaKey, $quotaKey.':'.$device->push_token_hash] as $key) {
+                $seconds = Cache::integer($key, 0) - now()->getTimestamp();
+
+                if ($seconds > 0) {
+                    return DevicePushResult::defer($seconds);
+                }
+            }
+
+            return DB::transaction(function () use ($device, $push, $credentials, $accessToken, $quotaKey): DevicePushResult {
                 if (! DB::scalar('select pg_try_advisory_xact_lock(hashtextextended(?, 0))', ['device-push:'.$device->id])) {
-                    return DevicePushResult::retry();
+                    return DevicePushResult::defer(5);
                 }
 
                 // The unique token hash makes registration changes conflict, but last_used_at can still be written.
@@ -88,12 +99,27 @@ final readonly class FcmDevicePushProvider implements DevicePushProvider
 
                 if ($response->unauthorized()) {
                     $cacheKey = $this->accessTokenKey($credentials);
-                    Cache::lock($cacheKey.':lock', 30)->get(function () use ($cacheKey, $accessToken): void {
-                        $cached = Cache::get($cacheKey);
+                    Cache::lock($cacheKey.':lock', 30)->block(15, function () use ($cacheKey, $accessToken): void {
+                        $cached = $this->cachedAccessToken($cacheKey);
 
-                        if (is_string($cached) && Crypt::decryptString($cached) === $accessToken) {
+                        if ($cached === null || $cached === $accessToken) {
                             Cache::forget($cacheKey);
                         }
+                    });
+                }
+
+                if ($response->status() === 429) {
+                    $violations = $response->collect('error.details')->where('@type', 'type.googleapis.com/google.rpc.QuotaFailure')
+                        ->pluck('violations')->flatten(1);
+
+                    if ($violations->isNotEmpty() && $violations->every(fn (array $violation): bool => new Fluent($violation)->string('subject')->contains('/registrations/'))) {
+                        $quotaKey .= ':'.$currentDevice->push_token_hash;
+                    }
+
+                    $seconds = $this->retryAfterSeconds($response) ?? self::RATE_LIMIT_SECONDS;
+                    Cache::lock($quotaKey.':lock', 5)->block(2, function () use ($quotaKey, $seconds): void {
+                        $retryAt = max(Cache::integer($quotaKey, 0), now()->getTimestamp() + $seconds);
+                        Cache::put($quotaKey, $retryAt, $retryAt - now()->getTimestamp());
                     });
                 }
 
@@ -110,7 +136,7 @@ final readonly class FcmDevicePushProvider implements DevicePushProvider
         } catch (QueryException $exception) {
             throw_if($exception->getCode() !== '55P03', $exception);
 
-            return DevicePushResult::retry();
+            return DevicePushResult::defer(5);
         } catch (ConnectionException) {
             return DevicePushResult::retry();
         } catch (DecryptException) {
@@ -160,26 +186,23 @@ final readonly class FcmDevicePushProvider implements DevicePushProvider
     private function accessToken(FcmCredentials $credentials): string|DevicePushResult
     {
         $cacheKey = $this->accessTokenKey($credentials);
+        $cached = $this->cachedAccessToken($cacheKey);
+
+        if ($cached !== null) {
+            return $cached;
+        }
+
         $lock = Cache::lock($cacheKey.':lock', 30);
 
         if (! $lock->get()) {
-            return DevicePushResult::retry();
+            return DevicePushResult::defer(5);
         }
 
         try {
-            $cached = Cache::get($cacheKey);
+            $cached = $this->cachedAccessToken($cacheKey);
 
-            if (is_int($cached)) {
-                return DevicePushResult::retry(max(0, $cached - now()->getTimestamp()));
-            }
-
-            if (is_string($cached)) {
-                try {
-                    return Crypt::decryptString($cached);
-                } catch (DecryptException) {
-                    // Cached under an app key that has since been rotated.
-                    Cache::forget($cacheKey);
-                }
+            if ($cached !== null) {
+                return $cached;
             }
 
             try {
@@ -202,7 +225,7 @@ final readonly class FcmDevicePushProvider implements DevicePushProvider
                 'assertion' => $assertion,
             ]);
 
-            if ($response->status() === 429) {
+            if ($response->status() === 429 || ($response->serverError() && $this->retryAfterSeconds($response) > 0)) {
                 $seconds = $this->retryAfterSeconds($response) ?? self::RATE_LIMIT_SECONDS;
                 Cache::put($cacheKey, now()->getTimestamp() + $seconds, $seconds);
 
@@ -229,5 +252,24 @@ final readonly class FcmDevicePushProvider implements DevicePushProvider
         } finally {
             $lock->release();
         }
+    }
+
+    private function cachedAccessToken(string $cacheKey): string|DevicePushResult|null
+    {
+        $cached = Cache::get($cacheKey);
+
+        if (is_numeric($cached)) {
+            return DevicePushResult::defer(max(0, (int) $cached - now()->getTimestamp()));
+        }
+
+        if (is_string($cached)) {
+            try {
+                return Crypt::decryptString($cached);
+            } catch (DecryptException) {
+                return null;
+            }
+        }
+
+        return null;
     }
 }

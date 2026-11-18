@@ -72,6 +72,7 @@ final class SendNotificationPush implements ShouldQueue
     public function handle(DevicePushProvider $push): void
     {
         $notification = Notification::query()->whereKey($this->notificationId)->relevant()->unread()
+            ->where('created_at', '>', now()->subSeconds(self::PHONE_TTL))
             ->with(['recipient', 'actor', 'organization'])->first();
 
         if (! $notification instanceof Notification || PushPreference::forNotification($notification->type)?->isOnFor($notification->recipient) !== true) {
@@ -96,6 +97,7 @@ final class SendNotificationPush implements ShouldQueue
             self::PHONE_TTL,
         );
         $failed = [];
+        $deferred = [];
         $retryAfterSeconds = null;
 
         $devices = Device::query()->where('user_id', $notification->recipient_id)->whereNotNull('push_token_hash')
@@ -122,8 +124,19 @@ final class SendNotificationPush implements ShouldQueue
                 continue;
             }
 
+            if ($result->deferred) {
+                $deferred[$result->retryAfterSeconds ?? 0][] = $device->id;
+
+                continue;
+            }
+
             $failed[] = $device->id;
             $retryAfterSeconds = max($retryAfterSeconds ?? 0, $result->retryAfterSeconds ?? 0);
+        }
+
+        foreach ($deferred as $seconds => $deviceIds) {
+            dispatch(new self($this->notificationId, $deviceIds, $this->tries - $this->attempts() + 1))
+                ->onConnection($this->connection)->onQueue($this->queue)->delay(now()->addSeconds($seconds));
         }
 
         if ($failed === [] || $this->attempts() >= $this->tries) {

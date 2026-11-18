@@ -13,6 +13,7 @@ final readonly class DevicePushResult
     private function __construct(
         public bool $retry,
         public ?int $retryAfterSeconds,
+        public bool $deferred = false,
     ) {
         //
     }
@@ -28,5 +29,13 @@ final readonly class DevicePushResult
     public static function retry(?int $retryAfterSeconds = null): self
     {
         return new self(true, $retryAfterSeconds);
+    }
+
+    /**
+     * No delivery was attempted: contention or an existing cooldown must not consume the send budget.
+     */
+    public static function defer(int $retryAfterSeconds): self
+    {
+        return new self(true, $retryAfterSeconds, true);
     }
 }

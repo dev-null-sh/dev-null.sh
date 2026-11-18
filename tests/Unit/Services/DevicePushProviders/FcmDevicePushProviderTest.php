@@ -13,6 +13,7 @@ use App\Services\DevicePushProviders\FcmDevicePushProvider;
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
 use GuzzleHttp\Promise\PromiseInterface;
+use Illuminate\Contracts\Cache\Lock;
 use Illuminate\Database\Connection;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Client\ConnectionException;
@@ -22,6 +23,7 @@ use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Sleep;
 use Illuminate\Support\Str;
 
 beforeEach(function (): void {
@@ -236,7 +238,8 @@ it('retries busy registrations without waiting or sending', function (string $bu
             'registration changing' => $connection->table('devices')->where('id', $device->id)->lockForUpdate()->first(),
         };
 
-        expect(new FcmDevicePushProvider()->send($device, $this->push)->retry)->toBeTrue();
+        expect(new FcmDevicePushProvider()->send($device, $this->push))
+            ->retry->toBeTrue()->deferred->toBeTrue()->retryAfterSeconds->toBe(5);
     } finally {
         $connection->rollBack();
     }
@@ -388,10 +391,10 @@ it('retries competing refreshes instead of requesting another OAuth token', func
     Http::assertSentCount(3);
 });
 
-it('shares the OAuth rate limit cooldown until another exchange is allowed', function (string $header, int $seconds): void {
+it('shares the OAuth cooldown until another exchange is allowed', function (int $status, string $header, int $seconds): void {
     Http::fake([
         'https://oauth2.googleapis.com/token' => Http::sequence()
-            ->push([], 429, ['Retry-After' => $header])
+            ->push([], $status, ['Retry-After' => $header])
             ->push(['access_token' => 'access-1', 'expires_in' => 3599]),
         'https://fcm.googleapis.com/*' => Http::response(),
     ]);
@@ -399,7 +402,8 @@ it('shares the OAuth rate limit cooldown until another exchange is allowed', fun
 
     expect($provider->send($this->device, $this->push)->retryAfterSeconds)->toBe($seconds);
     $this->travel(7)->seconds();
-    expect($provider->send($this->device, $this->push)->retryAfterSeconds)->toBe($seconds - 7);
+    expect($provider->send($this->device, $this->push))
+        ->retryAfterSeconds->toBe($seconds - 7)->deferred->toBeTrue();
     Http::assertSentCount(1);
 
     $this->travel($seconds - 7)->seconds();
@@ -407,9 +411,150 @@ it('shares the OAuth rate limit cooldown until another exchange is allowed', fun
 
     Http::assertSentCount(3);
 })->with([
-    'default minimum' => ['', 60],
-    'explicit delay' => ['120', 120],
+    'default minimum' => [429, '', 60],
+    'explicit delay' => [429, '120', 120],
+    'service unavailable' => [503, '120', 120],
 ]);
+
+it('uses cached tokens without competing with a credential lock', function (): void {
+    fakeFcm();
+    Cache::put(fcmAccessTokenCacheKey(), Crypt::encryptString('access-1'), 3600);
+    $lock = Cache::lock(fcmAccessTokenCacheKey().':lock', 30);
+    $lock->get();
+
+    try {
+        expect(new FcmDevicePushProvider()->send($this->device, $this->push)->retry)->toBeFalse();
+    } finally {
+        $lock->release();
+    }
+
+    Http::assertSentCount(1);
+    Http::assertSent(fn (Request $request): bool => str_starts_with($request->url(), 'https://fcm.googleapis.com/'));
+});
+
+it('honors numeric string OAuth cooldowns without requesting a token', function (): void {
+    fakeFcm();
+    Cache::put(fcmAccessTokenCacheKey(), (string) (now()->getTimestamp() + 120), 120);
+    $this->travel(7)->seconds();
+
+    expect(new FcmDevicePushProvider()->send($this->device, $this->push))
+        ->retryAfterSeconds->toBe(113)->deferred->toBeTrue();
+
+    Http::assertNothingSent();
+});
+
+it('rechecks tokens and cooldowns installed by a competing refresh before exchanging', function (bool $cooldown): void {
+    fakeFcm();
+    $store = Cache::store();
+    Cache::shouldReceive('get')->andReturnUsing(fn (string $key, mixed $default = null): mixed => $store->get($key, $default));
+    Cache::shouldReceive('integer')->andReturnUsing(fn (string $key, int $default): int => $store->integer($key, $default));
+    Cache::shouldReceive('lock')->once()->andReturnUsing(function (string $key, int $seconds) use ($store, $cooldown): Lock {
+        $store->put(fcmAccessTokenCacheKey(), $cooldown ? now()->getTimestamp() + 60 : Crypt::encryptString('access-2'), 60);
+
+        return $store->lock($key, $seconds);
+    });
+
+    expect(new FcmDevicePushProvider()->send($this->device, $this->push)->deferred)->toBe($cooldown);
+
+    Http::assertSentCount($cooldown ? 0 : 1);
+    Http::assertNotSent(fn (Request $request): bool => $request->url() === 'https://oauth2.googleapis.com/token');
+})->with(['refreshed token' => false, 'new cooldown' => true]);
+
+it('waits for competing cache work before invalidating a rejected token', function (): void {
+    $lock = Cache::lock(fcmAccessTokenCacheKey().':lock', 30);
+    Http::fake([
+        'https://oauth2.googleapis.com/token' => Http::response(['access_token' => 'access-1', 'expires_in' => 3599]),
+        'https://fcm.googleapis.com/*' => function () use ($lock): PromiseInterface {
+            $lock->get();
+
+            return Http::response([], 401);
+        },
+    ]);
+    Sleep::whenFakingSleep(fn () => $lock->release());
+
+    try {
+        expect(new FcmDevicePushProvider()->send($this->device, $this->push)->retry)->toBeTrue();
+        expect(Cache::has(fcmAccessTokenCacheKey()))->toBeFalse();
+    } finally {
+        $lock->release();
+    }
+});
+
+it('keeps an unauthorized send retryable when its cached token changed to an unreadable value', function (bool $cooldown): void {
+    Exceptions::fake();
+    Http::fake([
+        'https://oauth2.googleapis.com/token' => Http::response(['access_token' => 'access-1', 'expires_in' => 3599]),
+        'https://fcm.googleapis.com/*' => function () use ($cooldown): PromiseInterface {
+            Cache::put(fcmAccessTokenCacheKey(), $cooldown ? (string) (now()->getTimestamp() + 60) : 'unreadable-ciphertext', 60);
+
+            return Http::response([], 401);
+        },
+    ]);
+
+    expect(new FcmDevicePushProvider()->send($this->device, $this->push)->retry)->toBeTrue();
+    expect(Cache::has(fcmAccessTokenCacheKey()))->toBe($cooldown);
+    Exceptions::assertNothingReported();
+})->with(['rotated app key' => false, 'Redis cooldown' => true]);
+
+it('shares FCM quota cooldowns only with the affected project or phone', function (array $details, bool $projectWide): void {
+    $otherDevice = Device::factory()->withPushToken('other-phone')->create();
+    Http::fake([
+        'https://oauth2.googleapis.com/token' => Http::response(['access_token' => 'access-1', 'expires_in' => 3599]),
+        'https://fcm.googleapis.com/*' => Http::sequence()
+            ->push(['error' => ['details' => $details]], 429, ['Retry-After' => '120'])
+            ->push()->push(),
+    ]);
+    $provider = new FcmDevicePushProvider();
+
+    expect($provider->send($this->device, $this->push))
+        ->retryAfterSeconds->toBe(120)->deferred->toBeFalse();
+    $this->travel(7)->seconds();
+    expect($provider->send($this->device, $this->push))
+        ->retryAfterSeconds->toBe(113)->deferred->toBeTrue();
+    expect($provider->send($otherDevice, $this->push)->deferred)->toBe($projectWide);
+    $this->travel(113)->seconds();
+    expect($provider->send($this->device, $this->push)->retry)->toBeFalse();
+
+    Http::assertSentCount($projectWide ? 3 : 4);
+})->with([
+    'unspecified quota' => [[], true],
+    'project quota' => [[['@type' => 'type.googleapis.com/google.rpc.QuotaFailure', 'violations' => [['subject' => 'projects/123/messages']]]], true],
+    'device quota' => [[['@type' => 'type.googleapis.com/google.rpc.QuotaFailure', 'violations' => [['subject' => 'projects/123/registrations/fcm-phone']]]], false],
+    'both quotas' => [[['@type' => 'type.googleapis.com/google.rpc.QuotaFailure', 'violations' => [['subject' => 'projects/123/registrations/fcm-phone'], ['subject' => 'projects/123/messages']]]], true],
+]);
+
+it('does not shorten a quota cooldown when an earlier request finishes late', function (): void {
+    $otherDevice = Device::factory()->withPushToken('other-phone')->create();
+    $provider = new FcmDevicePushProvider();
+    $sends = 0;
+    Http::fake([
+        'https://oauth2.googleapis.com/token' => Http::response(['access_token' => 'access-1', 'expires_in' => 3599]),
+        'https://fcm.googleapis.com/*' => function () use ($provider, $otherDevice, &$sends): PromiseInterface {
+            if (++$sends === 1) {
+                $provider->send($otherDevice, $this->push);
+
+                return Http::response([], 429, ['Retry-After' => '60']);
+            }
+
+            return Http::response([], 429, ['Retry-After' => '120']);
+        },
+    ]);
+    $provider->send($this->device, $this->push);
+
+    expect($provider->send($this->device, $this->push)->retryAfterSeconds)->toBe(120);
+    Http::assertSentCount(3);
+});
+
+it('does not apply one projects quota cooldown to a different project', function (): void {
+    fakeFcm(429);
+    $provider = new FcmDevicePushProvider();
+    $provider->send($this->device, $this->push);
+    config(['services.fcm.credentials.project_id' => 'other-project']);
+
+    expect($provider->send($this->device, $this->push)->deferred)->toBeFalse();
+
+    Http::assertSentCount(4);
+});
 
 it('asks to retry when Firebase cannot be reached', function (): void {
     Http::fake(fn (): never => throw new ConnectionException('timed out'));

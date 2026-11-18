@@ -174,6 +174,78 @@ it('waits as long as Google asks before retrying a phone', function (): void {
     Queue::assertPushed(SendNotificationPush::class, fn (SendNotificationPush $retry): bool => $retry->delay->equalTo(now()->addSeconds(120)));
 });
 
+it('separates deferred phones from failed sends without repeating successful phones', function (): void {
+    $failed = Device::factory()->for($this->recipient)->withPushToken()->create();
+    $deferred = Device::factory()->for($this->recipient)->withPushToken()->create();
+    $throttled = Device::factory()->for($this->recipient)->withPushToken()->create();
+    $notification = Notification::factory()->create(['recipient_id' => $this->recipient->id, 'actor_id' => $this->actor->id]);
+    $push = $this->mock(DevicePushProvider::class);
+    $push->shouldReceive('send')->withArgs(fn (Device $device): bool => $device->is($this->phone))->once()->andReturn(DevicePushResult::settled());
+    $push->shouldReceive('send')->withArgs(fn (Device $device): bool => $device->is($failed))->twice()->andReturn(DevicePushResult::retry(120), DevicePushResult::settled());
+    $push->shouldReceive('send')->withArgs(fn (Device $device): bool => $device->is($deferred))->twice()->andReturn(DevicePushResult::defer(5), DevicePushResult::settled());
+    $push->shouldReceive('send')->withArgs(fn (Device $device): bool => $device->is($throttled))->twice()->andReturn(DevicePushResult::defer(60), DevicePushResult::settled());
+    Queue::fake([SendNotificationPush::class]);
+
+    new SendNotificationPush($notification->id)->onConnection('database')->onQueue('phones')->handle($push);
+
+    Queue::assertPushed(SendNotificationPush::class, 3);
+    Queue::assertPushed(SendNotificationPush::class, fn (SendNotificationPush $job): bool => $job->deviceIds === [$failed->id] && $job->tries === 2 && $job->delay->equalTo(now()->addSeconds(120)));
+    Queue::assertPushed(SendNotificationPush::class, fn (SendNotificationPush $job): bool => $job->deviceIds === [$deferred->id] && $job->tries === 3 && $job->delay->equalTo(now()->addSeconds(5)));
+    Queue::assertPushed(SendNotificationPush::class, fn (SendNotificationPush $job): bool => $job->deviceIds === [$throttled->id] && $job->tries === 3 && $job->delay->equalTo(now()->addSeconds(60)));
+    foreach (Queue::pushed(SendNotificationPush::class) as $job) {
+        expect($job->connection)->toBe('database')->and($job->queue)->toBe('phones');
+        $job->handle($push);
+    }
+
+    Queue::assertPushed(SendNotificationPush::class, 3);
+});
+
+it('preserves the remaining send budget through repeated contention even on the last attempt', function (int $previousAttempts): void {
+    $notification = Notification::factory()->create(['recipient_id' => $this->recipient->id, 'actor_id' => $this->actor->id]);
+    $this->mock(DevicePushProvider::class)->shouldReceive('send')->times(7 - $previousAttempts)->andReturn(
+        DevicePushResult::defer(5), DevicePushResult::defer(5), DevicePushResult::defer(5), DevicePushResult::defer(5), DevicePushResult::retry(),
+    );
+    dispatch(new SendNotificationPush($notification->id)->onConnection('database')->onQueue('push-retries'));
+    DB::table('jobs')->where('queue', 'push-retries')->update(['attempts' => $previousAttempts]);
+
+    for ($round = 0; $round < 4; $round++) {
+        $this->artisan('queue:work', ['connection' => 'database', '--queue' => 'push-retries', '--once' => true])->assertSuccessful();
+        $queued = DB::table('jobs')->sole();
+        expect($queued->available_at)->toBe(now()->addSeconds(5)->getTimestamp());
+        $job = unserialize(json_decode($queued->payload, true, flags: JSON_THROW_ON_ERROR)['data']['command']);
+        expect($job->tries)->toBe(3 - $previousAttempts);
+        $this->travel(6)->seconds();
+    }
+
+    for ($attempt = $previousAttempts; $attempt < 3; $attempt++) {
+        $this->artisan('queue:work', ['connection' => 'database', '--queue' => 'push-retries', '--once' => true])->assertSuccessful();
+        $this->travel(61)->seconds();
+    }
+
+    $this->assertDatabaseCount('jobs', 0);
+    $this->assertDatabaseCount('failed_jobs', 0);
+})->with([0, 2]);
+
+it('rechecks expiry and eligibility after a deferral', function (string $change): void {
+    $notification = Notification::factory()->create(['recipient_id' => $this->recipient->id, 'actor_id' => $this->actor->id]);
+    $this->mock(DevicePushProvider::class)->shouldReceive('send')->once()->andReturn(DevicePushResult::defer(5));
+    dispatch(new SendNotificationPush($notification->id)->onConnection('database')->onQueue('push-retries'));
+    $this->artisan('queue:work', ['connection' => 'database', '--queue' => 'push-retries', '--once' => true])->assertSuccessful();
+
+    match ($change) {
+        'expired' => $this->travel(1)->days(),
+        'read' => $notification->update(['read_at' => now()]),
+        'disabled' => $this->recipient->update(['push_follows' => false]),
+        'revoked' => $this->phone->delete(),
+        'transferred' => $this->phone->update(['user_id' => User::factory()->create()->id]),
+    };
+    $this->travel(6)->seconds();
+    $this->artisan('queue:work', ['connection' => 'database', '--queue' => 'push-retries', '--once' => true])->assertSuccessful();
+
+    $this->assertDatabaseCount('jobs', 0);
+    $this->assertDatabaseCount('failed_jobs', 0);
+})->with(['expired', 'read', 'disabled', 'revoked', 'transferred']);
+
 it('preserves failed phones and continues delivery after an unexpected device failure', function (): void {
     Device::factory()->for($this->recipient)->withPushToken()->count(2)->create();
     $notification = Notification::factory()->create(['recipient_id' => $this->recipient->id, 'actor_id' => $this->actor->id]);
@@ -195,21 +267,21 @@ it('preserves failed phones and continues delivery after an unexpected device fa
     Queue::assertPushed(SendNotificationPush::class, 1);
 });
 
-it('stops all phone retries when credentials are permanently refused', function (): void {
+it('stops all phone retries when credentials are permanently refused', function (bool $deferred): void {
     Device::factory()->for($this->recipient)->withPushToken()->count(2)->create();
     $notification = Notification::factory()->create(['recipient_id' => $this->recipient->id, 'actor_id' => $this->actor->id]);
     Queue::fake();
     $calls = 0;
-    $this->mock(DevicePushProvider::class)->shouldReceive('send')->twice()->andReturnUsing(function () use (&$calls): DevicePushResult {
+    $this->mock(DevicePushProvider::class)->shouldReceive('send')->twice()->andReturnUsing(function () use (&$calls, $deferred): DevicePushResult {
         throw_if(++$calls === 2, DevicePushCredentialsRejected::class, 'FCM OAuth request failed (HTTP 400).');
 
-        return DevicePushResult::retry();
+        return $deferred ? DevicePushResult::defer(5) : DevicePushResult::retry();
     });
 
     new SendNotificationPush($notification->id)->handle(resolve(DevicePushProvider::class));
 
     Queue::assertNothingPushed();
-});
+})->with(['failed' => false, 'deferred' => true]);
 
 it('splits phone delivery into bounded jobs without consuming the retry budget', function (): void {
     Device::factory()->for($this->recipient)->withPushToken()->count(11)->create();

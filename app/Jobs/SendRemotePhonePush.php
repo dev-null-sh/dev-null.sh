@@ -74,6 +74,7 @@ final class SendRemotePhonePush implements ShouldQueue
 
         $phonePush = $this->phonePush($message);
         $failed = [];
+        $deferred = [];
         $retryAfterSeconds = null;
 
         $devices = Device::query()->where('user_id', $this->userId)->whereNotNull('push_token_hash')
@@ -100,8 +101,19 @@ final class SendRemotePhonePush implements ShouldQueue
                 continue;
             }
 
+            if ($result->deferred) {
+                $deferred[$result->retryAfterSeconds ?? 0][] = $device->id;
+
+                continue;
+            }
+
             $failed[] = $device->id;
             $retryAfterSeconds = max($retryAfterSeconds ?? 0, $result->retryAfterSeconds ?? 0);
+        }
+
+        foreach ($deferred as $seconds => $deviceIds) {
+            dispatch(new self($this->messageId, $this->userId, $deviceIds, $this->tries - $this->attempts() + 1))
+                ->onConnection($this->connection)->onQueue($this->queue)->delay(now()->addSeconds($seconds));
         }
 
         if ($failed === [] || $this->attempts() >= $this->tries) {
