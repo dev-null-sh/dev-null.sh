@@ -48,13 +48,17 @@ it('lists guilds by member count then handle, with whether the user joined or mu
 });
 
 it('finds guilds by handle, name or description, ignoring case and a leading hashtag', function (string $query): void {
-    Guild::factory()->create(['handle' => 'laravel', 'name' => 'Laravel', 'description' => 'Artisans of the web']);
+    Guild::factory()->create(['handle' => 'laravel', 'name' => 'Artisans', 'description' => 'Elegant web apps']);
     Guild::factory()->create(['handle' => 'symfony', 'name' => 'Symfony', 'description' => 'Components']);
 
     signedApiRequest($this->keyPair, 'GET', route('api-guild.index', ['q' => $query]))
         ->assertOk()
         ->assertJsonPath('data.*.handle', ['laravel']);
-})->with(['#LARAVEL', 'artisans']);
+})->with([
+    'handle' => '#LARAVEL',
+    'name' => 'artisans',
+    'description' => 'elegant',
+]);
 
 it('pages the directory 24 guilds at a time and keeps the search in its links', function (): void {
     Guild::factory()->count(25)->sequence(fn ($sequence): array => ['handle' => sprintf('guild%02d', $sequence->index), 'name' => 'Guild'])->create();
