@@ -310,6 +310,16 @@ export default function Index({
                                     Security and click Open Anyway.
                                 </p>
                             )}
+                            <p className="text-sm text-muted-foreground">
+                                Or install it with Homebrew:
+                            </p>
+                            <CopyableCode
+                                code={
+                                    'brew tap dev-null-sh/devnull https://github.com/dev-null-sh/mac-os-app\nbrew install --cask dev-null-sh/devnull/devnull'
+                                }
+                                label="Homebrew commands"
+                                language="sh"
+                            />
                         </div>
                     )}
                 </section>
