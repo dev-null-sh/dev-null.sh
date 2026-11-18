@@ -1,5 +1,6 @@
 import { usePage } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
+import { CommitLinkPreview } from '@/components/commit-link-preview';
 import { LinkEmbed } from '@/components/link-embed';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { RealtimeChannel } from '@/lib/realtime';
@@ -183,17 +184,32 @@ function LinkPreviewSkeleton() {
     );
 }
 
-export function LinkPreview({
-    refreshUrl,
-    preview: initialPreview,
-    isStatic = false,
-    source,
-}: {
+type LinkPreviewProps = {
     refreshUrl: string;
     preview: LinkPreviewData;
     isStatic?: boolean;
     source?: LinkPreviewSource;
-}) {
+    suppressLinkedPreview?: boolean;
+};
+
+export function LinkPreview(props: LinkPreviewProps) {
+    const url = props.preview.commit_preview_url;
+
+    if (url) {
+        return props.suppressLinkedPreview ? null : (
+            <CommitLinkPreview key={url} url={url} isStatic={props.isStatic} />
+        );
+    }
+
+    return <ExternalLinkPreview {...props} />;
+}
+
+function ExternalLinkPreview({
+    refreshUrl,
+    preview: initialPreview,
+    isStatic = false,
+    source,
+}: LinkPreviewProps) {
     const { preview, isWaiting } = useFetchedLinkPreview(
         refreshUrl,
         initialPreview,
