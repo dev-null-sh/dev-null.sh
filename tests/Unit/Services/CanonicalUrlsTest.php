@@ -11,7 +11,13 @@ it('canonicalizes urls, once and for all', function (string $url, string $canoni
         ->and($canonicalUrls->canonical($canonical))->toBe($canonical);
 })->with([
     'lowercase scheme and host, not path or query' => ['HTTPS://Example.COM/Docs/Page?Sort=Asc', 'https://example.com/Docs/Page?Sort=Asc'],
-    'fragment' => ['https://example.com/docs#section', 'https://example.com/docs'],
+    'fragment' => ['https://www.php.net/archive/2026.php#2026-11-18-1', 'https://php.net/archive/2026.php#2026-11-18-1'],
+    'code line' => ['https://github.com/laravel/framework/blob/13.x/src/Illuminate/Support/Str.php#L42-L50', 'https://github.com/laravel/framework/blob/13.x/src/Illuminate/Support/Str.php#L42-L50'],
+    'app state' => ['https://example.com/#/slides/1', 'https://example.com#/slides/1'],
+    'lowercase fragment escapes' => ['https://example.com/docs#caf%c3%a9', 'https://example.com/docs#caf%C3%A9'],
+    'text directive' => ['https://example.com/docs#:~:text=highlighted%20quote', 'https://example.com/docs'],
+    'fragment with a text directive' => ['https://example.com/docs#section:~:text=quote', 'https://example.com/docs#section'],
+    'empty fragment' => ['https://example.com/docs#', 'https://example.com/docs'],
     'default https port' => ['https://example.com:443/docs', 'https://example.com/docs'],
     'default http port' => ['http://example.com:80/docs', 'http://example.com/docs'],
     'other port' => ['https://example.com:8443/docs', 'https://example.com:8443/docs'],
@@ -26,7 +32,7 @@ it('canonicalizes urls, once and for all', function (string $url, string $canoni
     'uppercase site parameters' => ['https://youtu.be/dQw4w9WgXcQ?SI=abc', 'https://youtu.be/dQw4w9WgXcQ'],
     'only tracking parameters' => ['https://example.com/post?utm_source=newsletter', 'https://example.com/post'],
     'empty query' => ['https://example.com/?', 'https://example.com'],
-    'http' => ['HTTP://Example.com/?utm_medium=email#top', 'http://example.com'],
+    'http' => ['HTTP://Example.com/?utm_medium=email#top', 'http://example.com#top'],
     'youtube watch' => ['https://www.youtube.com/watch?v=dQw4w9WgXcQ', 'https://youtu.be/dQw4w9WgXcQ'],
     'youtube watch keeps time and playlist' => ['https://m.youtube.com/watch?list=PL123&v=dQw4w9WgXcQ&si=abc&t=43', 'https://youtu.be/dQw4w9WgXcQ?list=PL123&t=43'],
     'youtube watch with a malformed id' => ['https://www.youtube.com/watch?v=short', 'https://youtube.com/watch?v=short'],

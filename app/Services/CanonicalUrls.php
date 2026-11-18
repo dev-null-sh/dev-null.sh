@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use Illuminate\Support\Str;
 use Uri\WhatWg\Url;
 
 final readonly class CanonicalUrls
@@ -41,9 +42,10 @@ final readonly class CanonicalUrls
     private const string YOUTUBE_VIDEO_ID = '[A-Za-z0-9_-]{11}';
 
     /**
-     * The one URL that every way of writing a link to the same page shares: a lowercase host without its default port,
-     * no fragment, no tracking parameters, uppercase percent-escapes, no path when it is only "/", and the shortest
-     * URL of the sites in SITES. A URL that isn't http or https is returned as is.
+     * The one URL that every way of writing the same link shares: a lowercase host without its default port, no
+     * tracking parameters, uppercase percent-escapes, no path when it is only "/", and the shortest URL of the sites in
+     * SITES. The fragment stays, as it points to an entry, a line of code or an app's state, without the text directive
+     * a browser adds to highlight a quote ("#:~:text="). A URL that isn't http or https is returned as is.
      */
     public function canonical(string $url): string
     {
@@ -76,9 +78,10 @@ final readonly class CanonicalUrls
             $parameters = $parameters->reject(fn (string $parameter): bool => $this->name($parameter) === 'v');
         }
 
-        $canonical = $parsed->withHost($host)->withPath($path)->withQuery($parameters->isEmpty() ? null : $parameters->implode('&'))->withFragment(null)->toUnicodeString();
+        $fragment = $this->withUppercaseEscapes(Str::before($parsed->getFragment() ?? '', ':~:'));
+        $canonical = $parsed->withHost($host)->withPath($path)->withQuery($parameters->isEmpty() ? null : $parameters->implode('&'))->withFragment($fragment === '' ? null : $fragment)->toUnicodeString();
 
-        return $path === '/' ? (string) preg_replace('#/(?=\?|$)#', '', $canonical, 1) : $canonical;
+        return $path === '/' ? (string) preg_replace('#/(?=[?\#]|$)#', '', $canonical, 1) : $canonical;
     }
 
     /**
