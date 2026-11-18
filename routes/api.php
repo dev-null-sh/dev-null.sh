@@ -31,6 +31,7 @@ use App\Http\Controllers\Api\ConversationTypingController;
 use App\Http\Controllers\Api\CurrentUserController;
 use App\Http\Controllers\Api\DeviceController;
 use App\Http\Controllers\Api\DevicePushTokenController;
+use App\Http\Controllers\Api\GuildController;
 use App\Http\Controllers\Api\HeadlineController;
 use App\Http\Controllers\Api\IssueController;
 use App\Http\Controllers\Api\IssueSuggestionController;
@@ -238,6 +239,9 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         Route::get('headlines/{headline}', [HeadlineController::class, 'show'])
             ->whereUuid('headline')
             ->name('api-headline.show');
+
+        // Guilds: the directory the web's Guilds page lists...
+        Route::get('guilds', [GuildController::class, 'index'])->name('api-guild.index');
 
         // Composer suggestions: people to mention and /dev/null issues to reference, as the web's composer suggests them...
         Route::get('search/mentions', [MentionSuggestionController::class, 'index'])

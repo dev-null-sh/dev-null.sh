@@ -26,7 +26,7 @@ final readonly class GuildsQuery
     {
         $escaped = str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $term);
 
-        return Guild::query()->select('id')->withCount('members')
+        return Guild::query()->withCount('members')
             ->when($term !== '', fn (Builder $query): Builder => $query->where(fn (Builder $query): Builder => $query
                 ->whereRaw('TRANSLATE(LOWER(handle COLLATE "pg_c_utf8"), \'ς\', \'σ\') LIKE TRANSLATE(LOWER(? COLLATE "pg_c_utf8"), \'ς\', \'σ\') ESCAPE \'!\'', ["%{$escaped}%"])
                 ->orWhereRaw('TRANSLATE(LOWER(name COLLATE "pg_c_utf8"), \'ς\', \'σ\') LIKE TRANSLATE(LOWER(? COLLATE "pg_c_utf8"), \'ς\', \'σ\') ESCAPE \'!\'', ["%{$escaped}%"])
