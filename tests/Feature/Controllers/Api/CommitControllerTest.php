@@ -2,7 +2,9 @@
 
 declare(strict_types=1);
 
+use App\Actions\CreateCommit;
 use App\Enums\CommitStatus;
+use App\Enums\Feature;
 use App\Enums\PollDuration;
 use App\Http\Requests\CreateApiCommitRequest;
 use App\Http\Requests\CreateCommitReplyRequest;
@@ -16,6 +18,7 @@ use App\Models\Poll;
 use App\Models\PollOption;
 use App\Models\PollVote;
 use App\Models\User;
+use App\Services\Features;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Queue;
@@ -1057,4 +1060,65 @@ it('rejects commits and deletes that are not signed', function (): void {
 
     expect(Commit::query()->count())->toBe(1);
     $this->assertNotSoftDeleted($commit);
+});
+
+it('posts a commit or a quote to a guild board from a signed request', function (bool $quote): void {
+    Queue::fake();
+    resolve(Features::class)->update(Feature::Guilds, true, adminOnly: false);
+    $guild = Guild::factory()->create(['handle' => 'rust', 'name' => 'Rust', 'emoji' => '🦀']);
+    $quoted = Commit::factory()->create();
+
+    signedApiRequest(apiKeyPairFor(User::factory()->create()), 'POST', route('api-commit.store'), [
+        'body' => 'Borrow checker wins again',
+        'guild_handle' => 'rust',
+        ...$quote ? ['quoted_commit_id' => $quoted->id] : [],
+    ])
+        ->assertCreated()
+        ->assertJsonPath('data.body', 'Borrow checker wins again')
+        ->assertJsonPath('data.guild_handle', 'rust')
+        ->assertJsonPath('data.guild.name', 'Rust');
+
+    expect(Commit::query()->where('body', 'Borrow checker wins again')->sole())
+        ->guild_id->toBe($guild->id)
+        ->quoted_commit_id->toBe($quote ? $quoted->id : null);
+})->with(['commit' => false, 'quote' => true]);
+
+it('refuses a board post from a signed request that the web would refuse', function (Closure $payload): void {
+    Queue::fake();
+    resolve(Features::class)->update(Feature::Guilds, true, adminOnly: false);
+    Guild::factory()->create(['handle' => 'rust']);
+
+    signedApiRequest(apiKeyPairFor(User::factory()->create()), 'POST', route('api-commit.store'), ['body' => 'Board post', 'guild_handle' => 'rust', ...$payload()])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('guild_handle');
+
+    expect(Commit::query()->where('body', 'Board post')->exists())->toBeFalse();
+})->with([
+    'unknown guild' => [fn (): array => ['guild_handle' => 'go']],
+    'paused guild' => [function (): array {
+        Guild::query()->update(['user_id' => null]);
+
+        return [];
+    }],
+    'admin preview' => [function (): array {
+        resolve(Features::class)->update(Feature::Guilds, true, adminOnly: true);
+
+        return [];
+    }],
+    'reply' => [fn (): array => ['parent_id' => Commit::factory()->create()->id]],
+]);
+
+it('refuses a board post from a signed request when the guild is paused after validation', function (): void {
+    Queue::fake();
+    resolve(Features::class)->update(Feature::Guilds, true, adminOnly: false);
+    $guild = Guild::factory()->create(['handle' => 'rust']);
+    $this->app->beforeResolving(CreateCommit::class, function () use ($guild): void {
+        $guild->update(['user_id' => null]);
+    });
+
+    signedApiRequest(apiKeyPairFor(User::factory()->create()), 'POST', route('api-commit.store'), ['body' => 'Board post', 'guild_handle' => 'rust'])
+        ->assertUnprocessable()
+        ->assertExactJson(['message' => 'This guild is paused until it has a moderator.', 'code' => 'guild_paused']);
+
+    expect(Commit::query()->where('body', 'Board post')->exists())->toBeFalse();
 });
