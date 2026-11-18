@@ -69,6 +69,7 @@ it('lists the notifications of the user, newest first', function (): void {
                 'body_segments' => [['type' => 'text', 'text' => $reply->body]],
                 'preview_segments' => null,
                 'mentions' => [],
+                'translation' => ['language' => 'en', 'source_language' => null, 'source_name' => null, 'available' => true, 'translated' => null],
                 'status' => 'approved',
                 'is_pinned' => false,
                 'pasteis_count' => 0,
@@ -84,6 +85,7 @@ it('lists the notifications of the user, newest first', function (): void {
                     'body_segments' => [['type' => 'text', 'text' => $reply->parent->body]],
                     'preview_segments' => null,
                     'mentions' => [],
+                    'translation' => null,
                     'status' => 'approved',
                     'is_pinned' => false,
                     'pasteis_count' => 0,
@@ -202,8 +204,6 @@ it('marks every notification as read like the web, and says when, so the new one
 });
 
 it('does not query each notification', function (): void {
-    signedApiRequest($this->keyPair, 'GET', route('api-notification.index'))->assertOk();
-
     $queries = function (): int {
         DB::flushQueryLog();
         DB::enableQueryLog();
@@ -216,6 +216,7 @@ it('does not query each notification', function (): void {
     // Two followers make a group with stacked actors, which takes the same queries however many there are...
     Notification::factory()->for($this->user, 'recipient')->count(2)->create();
     Notification::factory()->for($this->user, 'recipient')->replied()->create();
+    signedApiRequest($this->keyPair, 'GET', route('api-notification.index'))->assertOk();
     $few = $queries();
 
     Notification::factory()->for($this->user, 'recipient')->count(3)->create();

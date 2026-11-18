@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api;
 use App\Actions\CreateCommitTranslation;
 use App\Exceptions\CommitProcessingFailed;
 use App\Http\Requests\CreateApiCommitTranslationRequest;
+use App\Http\Requests\ShowApiCommitTranslationRequest;
 use App\Models\Commit;
 use App\Services\CommitTranslations;
 use Illuminate\Http\JsonResponse;
@@ -14,6 +15,12 @@ use Throwable;
 
 final readonly class CommitTranslationController
 {
+    public function show(ShowApiCommitTranslationRequest $request, Commit $commit, CommitTranslations $translations): JsonResponse
+    {
+        return response()->json(['translation' => $translations->display($commit, $request->string('language')->value(), includePending: true, detectLanguage: false)])
+            ->header('Cache-Control', 'no-store, private');
+    }
+
     /**
      * The commit in the language asked for, as Translate on the web shows it. A failed translation is a 503 the app
      * can retry, with the same message the web shows.
