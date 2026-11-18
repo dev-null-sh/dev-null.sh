@@ -26,7 +26,7 @@ test('uses one media query and stable subscriptions across renders', async () =>
         byQuery.set(query, listeners);
 
         return {
-            matches: false,
+            matches: query === '(max-width: 600px)',
             addEventListener: (type: string, listener: () => void) => {
                 assert.equal(type, 'change');
                 listeners.add(listener);
@@ -48,7 +48,7 @@ test('uses one media query and stable subscriptions across renders', async () =>
     assert.equal(calls[0].subscribe, calls[1].subscribe);
     assert.equal(calls[0].snapshot, calls[1].snapshot);
 
-    assert.equal(useMediaQuery('(max-width: 600px)'), false);
+    assert.equal(useMediaQuery('(max-width: 600px)'), true);
     assert.equal(matchMedia.mock.calls.length, 2);
     assert.notEqual(calls[0].subscribe, calls[2].subscribe);
 
