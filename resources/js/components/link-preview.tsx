@@ -222,8 +222,10 @@ export function LinkPreview({
         return <LinkPreviewSkeleton />;
     }
 
+    const shell = 'mt-3 overflow-hidden rounded-lg border';
+
     if (!preview.title) {
-        return null;
+        return footer ? <div className={shell}>{footer}</div> : null;
     }
 
     const content = (
@@ -255,7 +257,6 @@ export function LinkPreview({
         </>
     );
 
-    const shell = 'mt-3 overflow-hidden rounded-lg border';
     const card = isStatic ? (
         <div
             className={cn('flex items-center', !footer && shell)}
