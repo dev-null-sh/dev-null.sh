@@ -593,6 +593,7 @@ A signed request sees what the web shows you, such as your own pending commits a
 - follow or unfollow people and organizations, mute or unmute, and block or unblock, and list who you muted and blocked;
 - read who to follow, also as it is suggested beside a profile or a commit, and mark a suggestion not interested;
 - read the hot topics, and each one's commits from the past week with its recap;
+- list guilds as the Guilds page does, 24 a page, searched by name, handle or description, with whether you joined or muted each one and whether it is paused, while guilds are available to you;
 - star or unstar, and list who starred your own commit, newest first, 20 a page;
 - create polls on commits that are neither replies nor quotes, and vote on polls;
 - change Remotes settings, read and send messages with images, link cards, and voice notes in conversations and orgs, mark them pulled, react to messages and list your reactions, pin and unpin org messages as a maintainer, find people, and start orgs;
