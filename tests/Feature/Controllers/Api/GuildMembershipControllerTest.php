@@ -119,3 +119,81 @@ it('limits how often the user joins or leaves guilds', function (): void {
 
     signedApiRequest($this->keyPair, 'POST', route('api-guild-membership.store', 'rust'))->assertTooManyRequests();
 });
+
+it('lists the moderator first then newest joins in pages of fifty, with follows and the moderator id', function (): void {
+    $moderator = User::factory()->create();
+    $rust = Guild::factory()->create(['handle' => 'rust', 'user_id' => $moderator->id]);
+    $older = User::factory()->create();
+    $members = User::factory()->count(50)->create();
+    $rust->members()->attach($moderator, ['joined_at' => now()->subDays(2)]);
+    $rust->members()->attach($older, ['joined_at' => now()->subDay()]);
+    $rust->members()->attach($members->modelKeys(), ['joined_at' => now()]);
+    $rust->muters()->attach(User::factory()->create(), ['muted_at' => now()]);
+    Guild::factory()->create()->members()->attach(User::factory()->create(), ['joined_at' => now()]);
+    $this->user->following()->attach($moderator);
+    $this->user->followers()->attach($moderator);
+    $this->user->followers()->attach($members->sortByDesc('id')->first());
+
+    signedApiRequest($this->keyPair, 'GET', route('api-guild-membership.index', 'rust'))
+        ->assertOk()
+        ->assertJsonCount(50, 'data')
+        ->assertJsonPath('data.*.id', [$moderator->id, ...$members->sortByDesc('id')->take(49)->values()->modelKeys()])
+        ->assertJsonPath('moderator_id', $moderator->id)
+        ->assertJsonPath('data.0.is_followed', true)
+        ->assertJsonPath('data.0.follows_you', true)
+        ->assertJsonPath('data.1.is_followed', false)
+        ->assertJsonPath('data.1.follows_you', true)
+        ->assertJsonPath('data.2.follows_you', false)
+        ->assertJsonPath('meta.per_page', 50)
+        ->assertJsonPath('links.next', route('api-guild-membership.index', ['guild' => 'rust', 'page' => 2]))
+        ->assertJsonMissingPath('data.0.email')
+        ->assertJsonMissingPath('data.0.pivot');
+
+    signedApiRequest($this->keyPair, 'GET', route('api-guild-membership.index', ['guild' => 'rust', 'page' => 2]))
+        ->assertOk()
+        ->assertJsonPath('data.*.id', [$members->sortBy('id')->first()->id, $older->id])
+        ->assertJsonPath('links.next', null);
+});
+
+it('lists the members of a paused guild without a moderator, and an empty guild', function (): void {
+    $go = Guild::factory()->create(['handle' => 'go', 'user_id' => null]);
+
+    signedApiRequest($this->keyPair, 'GET', route('api-guild-membership.index', 'go'))
+        ->assertOk()->assertJsonCount(0, 'data')->assertJsonPath('moderator_id', null);
+
+    $go->members()->attach($this->user, ['joined_at' => now()]);
+
+    signedApiRequest($this->keyPair, 'GET', route('api-guild-membership.index', 'go'))
+        ->assertOk()->assertJsonPath('data.*.id', [$this->user->id])->assertJsonPath('moderator_id', null);
+});
+
+it('lets admins list members during the admin preview', function (): void {
+    config(['app.admins' => [$this->user->handle]]);
+    resolve(Features::class)->update(Feature::Guilds, true, adminOnly: true);
+    Guild::factory()->create(['handle' => 'rust']);
+
+    signedApiRequest($this->keyPair, 'GET', route('api-guild-membership.index', 'rust'))->assertOk();
+});
+
+it('does not find the members while the guild is unknown or guilds are not available to the user', function (bool $adminOnly, string $handle): void {
+    Guild::factory()->create(['handle' => 'rust']);
+    resolve(Features::class)->update(Feature::Guilds, true, $adminOnly);
+
+    signedApiRequest($this->keyPair, 'GET', route('api-guild-membership.index', $handle))->assertNotFound();
+})->with([
+    'unknown guild' => [false, 'go'],
+    'admin preview' => [true, 'rust'],
+]);
+
+it('requires a signed request to list members', function (): void {
+    Guild::factory()->create(['handle' => 'rust']);
+
+    $this->getJson(route('api-guild-membership.index', 'rust'))->assertUnauthorized();
+});
+
+it('rejects an invalid members page', function (mixed $page): void {
+    Guild::factory()->create(['handle' => 'rust']);
+
+    signedApiRequest($this->keyPair, 'GET', route('api-guild-membership.index', ['guild' => 'rust', 'page' => $page]))
+        ->assertUnprocessable()->assertJsonValidationErrors('page');
+})->with([0, 'two', PHP_INT_MAX]);
