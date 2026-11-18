@@ -33,7 +33,7 @@ it('lists guilds by member count then handle, with whether the user joined or mu
             'name' => 'Rust',
             'description' => 'Fearless concurrency',
             'emoji' => '🦀',
-            'icon_url' => route('guild-icon.show', ['guild' => 'rust', 'v' => $rust->updated_at->getTimestampMs()]),
+            'icon_url' => $rust->apiIconUrl($this->user),
             'member_count' => 2,
             'is_joined' => true,
             'is_muted' => false,
