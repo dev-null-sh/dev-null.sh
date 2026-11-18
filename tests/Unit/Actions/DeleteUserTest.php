@@ -494,6 +494,8 @@ it('pauses moderated guilds and preserves other peoples posts memberships and sc
     $other = Guild::factory()->create();
     $commit = Commit::factory()->create(['body' => 'Hiring #jobs']);
     $board = Commit::factory()->for($user)->for($guild)->create(['body' => 'A board post']);
+    $guild->update(['pinned_commit_id' => $board->id]);
+    $other->update(['pinned_commit_id' => $board->id]);
     $member = User::factory()->create();
     $otherBoard = Commit::factory()->for($member)->for($guild)->create();
     $scheduled = ScheduledCommit::factory()->for($member)->for($guild)->create();
@@ -513,7 +515,8 @@ it('pauses moderated guilds and preserves other peoples posts memberships and sc
     $this->assertModelExists($otherSubmission);
     Storage::disk()->assertExists($otherSubmission->icon_path);
     Storage::disk()->assertMissing('guild-icons/pending.webp');
-    expect($guild->fresh()->user_id)->toBeNull();
+    expect($guild->fresh())->user_id->toBeNull()->pinned_commit_id->toBeNull();
+    expect($other->fresh()->pinned_commit_id)->toBeNull();
     $this->assertModelMissing($board);
     expect($otherBoard->fresh()->guild_id)->toBe($guild->id);
     expect($scheduled->fresh())->guild_id->toBe($guild->id)->canceled_at->toBeNull();
