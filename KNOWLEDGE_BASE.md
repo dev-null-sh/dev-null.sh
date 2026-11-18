@@ -579,7 +579,9 @@ The read-only JSON API at `/api/v1` requires no authentication or token, except 
 
 Subscribe in a feed reader to `/@{handle}/feed.atom` for a profile's latest **50 approved top-level commits**, including image enclosures. Feeds are public and can be cached for five minutes.
 
-Sources: [API routes](routes/api.php), [API controllers](app/Http/Controllers/Api), [feed generation](app/Actions/CreateUserFeed.php), [rate limits](app/Providers/AppServiceProvider.php).
+The **API docs** at `/docs/api`, linked as **API** from the aside and the user menu, are readable by everyone. Their Introduction says what the API is for, its base URL and format, with a first request anyone can send.
+
+Sources: [API routes](routes/api.php), [API controllers](app/Http/Controllers/Api), [feed generation](app/Actions/CreateUserFeed.php), [rate limits](app/Providers/AppServiceProvider.php), [docs page](app/Http/Controllers/ApiDocsController.php), [guides](resources/js/pages/api-docs/guides).
 
 ### Signed API and devices
 
