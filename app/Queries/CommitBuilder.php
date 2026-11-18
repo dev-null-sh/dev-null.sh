@@ -346,7 +346,7 @@ final class CommitBuilder extends Builder
                     'commits as topic_people_count' => fn (self $commits): self => $commits->visibleTo($viewer)->select(new QueryExpression('count(distinct commits.author_id)')),
                 ])
                 ->with(['commits' => function (HasMany $commits) use ($viewer): void {
-                    $commits->getQuery()->visibleTo($viewer)->withoutMutedAuthorsFor($viewer)->with('author')->latest()->orderByDesc('id')->limit(self::TOPIC_AUTHORS_READ);
+                    $commits->getQuery()->visibleTo($viewer)->withoutMutedAuthorsFor($viewer)->withoutMutedGuildsFor($viewer)->with('author')->latest()->orderByDesc('id')->limit(self::TOPIC_AUTHORS_READ);
                 }]);
         };
     }

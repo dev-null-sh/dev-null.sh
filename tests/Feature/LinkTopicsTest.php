@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Enums\OrganizationRole;
 use App\Models\Commit;
+use App\Models\Guild;
 use App\Models\LinkPreview;
 use App\Models\Organization;
 use App\Models\User;
@@ -70,6 +71,21 @@ it('leaves muted people out of who else talks about a link', function (): void {
     Commit::factory()->for($muted)->create(['link_preview_id' => $link->id]);
 
     $this->actingAs($viewer)->get(route('commit.show', [$commit->author, $commit]))->assertInertia(fn ($page) => $page
+        ->where('commit.link_topic.authors', fn ($authors): bool => collect($authors)->pluck('id')->all() === [$other->author_id])
+        ->loadDeferredProps(fn ($reload) => $reload->where('linkTopic.commits', fn ($commits): bool => collect($commits)->pluck('id')->all() === [$other->id])));
+});
+
+it('leaves the commits of muted guilds out of who else talks about a link', function (): void {
+    config(['app.admins' => ['admin']]);
+    $viewer = User::factory()->create(['handle' => 'admin']);
+    $guild = Guild::factory()->create();
+    $link = LinkPreview::factory()->fetched()->create(['url' => 'https://dev-null.sh']);
+    $commit = Commit::factory()->create(['link_preview_id' => $link->id]);
+    $other = Commit::factory()->create(['link_preview_id' => $link->id, 'created_at' => now()->subDay()]);
+    Commit::factory()->for($guild)->create(['link_preview_id' => $link->id]);
+    $this->actingAs($viewer)->put(route('guild-mute.update', $guild), ['muted' => true])->assertRedirect();
+
+    $this->get(route('commit.show', [$commit->author, $commit]))->assertInertia(fn ($page) => $page
         ->where('commit.link_topic.authors', fn ($authors): bool => collect($authors)->pluck('id')->all() === [$other->author_id])
         ->loadDeferredProps(fn ($reload) => $reload->where('linkTopic.commits', fn ($commits): bool => collect($commits)->pluck('id')->all() === [$other->id])));
 });
