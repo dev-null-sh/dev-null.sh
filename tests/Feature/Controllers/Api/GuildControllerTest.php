@@ -41,6 +41,7 @@ it('lists guilds by member count then handle, with whether the user joined or mu
             'is_paused' => false,
             'html_url' => route('guild.show', 'rust'),
         ])
+        ->assertJsonStructure(['data' => ['*' => ['icon_url']]])
         ->assertJsonPath('data.1.icon_url', null)
         ->assertJsonPath('data.1.is_joined', false)
         ->assertJsonPath('data.1.is_muted', true)
@@ -122,6 +123,7 @@ it('shows a guild with its board, newest first, with reply previews', function (
         ->assertJsonPath('guild.member_count', 1)
         ->assertJsonPath('guild.is_joined', true)
         ->assertJsonPath('guild.is_muted', false)
+        ->assertJsonStructure(['pinned_commit'])
         ->assertJsonPath('pinned_commit', null)
         ->assertJsonPath('can_moderate', false);
 });
@@ -141,6 +143,7 @@ it('pages the board 30 roots at a time', function (): void {
         ->assertOk()
         ->assertJsonPath('data.*.id', [$oldest->id])
         ->assertJsonPath('meta.current_page', 2)
+        ->assertJsonStructure(['links' => ['next']])
         ->assertJsonPath('links.next', null);
 
     signedApiRequest($this->keyPair, 'GET', route('api-guild.show', ['guild' => 'rust', 'page' => 0]))
@@ -203,6 +206,7 @@ it('leaves out a pin the user cannot see', function (): void {
     signedApiRequest($this->keyPair, 'GET', route('api-guild.show', 'rust'))
         ->assertOk()
         ->assertJsonPath('data', [])
+        ->assertJsonStructure(['pinned_commit'])
         ->assertJsonPath('pinned_commit', null);
 });
 
