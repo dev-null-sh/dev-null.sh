@@ -8,12 +8,14 @@ use App\Actions\CreateScheduledCommit;
 use App\Actions\DeleteScheduledCommit;
 use App\Enums\UserUpdate;
 use App\Exceptions\GuildPaused;
+use App\Exceptions\ScheduledCommitLimitReached;
 use App\Http\Requests\CreateScheduledCommitRequest;
 use App\Http\Requests\DeleteScheduledCommitRequest;
 use App\Http\Resources\ScheduledCommitResource;
 use App\Models\ScheduledCommit;
 use App\Models\User;
 use App\Queries\ScheduledCommitsQuery;
+use App\Rules\ScheduledCommitLimit;
 use Carbon\CarbonImmutable;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Container\Attributes\CurrentUser;
@@ -39,6 +41,8 @@ final readonly class ScheduledCommitController
             $action->handle($user, $request->string('body')->value(), CarbonImmutable::parse($request->string('scheduled_at')->value())->utc(), $request->images(), $request->imageDescriptions(), $request->poll(), $request->linkPreview(), $request->organization(), guild: $request->guild());
         } catch (GuildPaused) {
             return back()->withErrors(['guild_handle' => 'This guild is paused until it has a moderator.']);
+        } catch (ScheduledCommitLimitReached) {
+            return back()->withErrors(['scheduled_at' => ScheduledCommitLimit::MESSAGE]);
         }
 
         Inertia::flash('scheduled', true);

@@ -26,6 +26,7 @@ enum ApiErrorCode: string
     case GitHubIssueRefused = 'github_issue_refused';
     case GitHubIssueUnanswered = 'github_issue_unanswered';
     case GuildPaused = 'guild_paused';
+    case ScheduledCommitLimitReached = 'scheduled_commit_limit_reached';
 
     public function status(): int
     {
@@ -34,7 +35,7 @@ enum ApiErrorCode: string
             self::InvalidSignature, self::DeviceNotApproved => 401,
             self::UserBlocked, self::UserUnavailable, self::OwnCommit, self::TimedOut, self::Banned, self::CommitRulesRequired => 403,
             self::CommitUnavailable => 404,
-            self::PasteisExhausted, self::GuildPaused => 422,
+            self::PasteisExhausted, self::GuildPaused, self::ScheduledCommitLimitReached => 422,
             self::RateLimited => 429,
             self::GitHubIssueRefused, self::GitHubIssueUnanswered => 502,
             self::GitHubSyncFailed => 503,

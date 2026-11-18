@@ -218,6 +218,25 @@ it('limits outstanding submissions per author and frees a slot on cancellation',
     expect(ScheduledCommit::query()->whereNull('canceled_at')->count())->toBe(10);
 });
 
+it('keeps the cap when commits scheduled at the same moment all passed the check, storing none of their images', function (): void {
+    Storage::fake();
+    $user = User::factory()->create();
+    ScheduledCommit::factory()->for($user)->count(9)->create();
+    // Another request schedules the tenth after this one's check saw nine...
+    $this->app->beforeResolving(CreateScheduledCommit::class, function () use ($user): void {
+        ScheduledCommit::factory()->for($user)->create();
+    });
+
+    $this->actingAs($user)->post(route('scheduled-commit.store'), [
+        'body' => 'One too many.',
+        'scheduled_at' => now()->addDay()->toIso8601String(),
+        'images' => [UploadedFile::fake()->image('deploy.png', 40, 30)],
+    ])->assertSessionHasErrors(['scheduled_at' => 'You can have up to 10 scheduled commits. Cancel one before scheduling another.']);
+
+    expect(ScheduledCommit::query()->where('user_id', $user->id)->count())->toBe(10)
+        ->and(Storage::disk()->allFiles())->toBe([]);
+});
+
 it('shares the existing commit rate limit', function (): void {
     $user = User::factory()->create();
     $scheduled = ScheduledCommit::factory()->for($user)->create();
