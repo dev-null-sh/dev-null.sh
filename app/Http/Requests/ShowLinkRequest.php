@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Http\Requests;
 
 use App\Services\CanonicalUrls;
-use App\Services\Urls;
 use Illuminate\Foundation\Http\FormRequest;
 
 final class ShowLinkRequest extends FormRequest
@@ -21,7 +20,7 @@ final class ShowLinkRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'url' => ['required', 'string', 'max:'.(Urls::MAX_LENGTH - 8)],
+            'url' => ['required', 'string'],
             'sort' => ['nullable', 'string', 'in:top,latest'],
         ];
     }

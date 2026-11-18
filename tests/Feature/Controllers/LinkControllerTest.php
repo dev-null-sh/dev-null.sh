@@ -6,7 +6,9 @@ use App\Models\Commit;
 use App\Models\LinkPreview;
 use App\Models\Message;
 use App\Models\User;
+use App\Services\CanonicalUrls;
 use App\Services\LinkPages;
+use App\Services\Urls;
 
 function linkPage(string $url): string
 {
@@ -79,6 +81,15 @@ it('reads a link whose query, fragment and ending slash its page escapes', funct
     $page = url('link/example.com/docs%2F');
 
     $this->get($page)->assertOk()->assertInertia(fn ($page) => $page->where('url', 'https://example.com/docs/'));
+});
+
+it('reads a link whose canonical url grew longer than the links commits may have', function (): void {
+    $link = LinkPreview::factory()->create(['url' => resolve(CanonicalUrls::class)->canonical('https://example.com/'.str_repeat('é', 1000))]);
+    Commit::factory()->create(['link_preview_id' => $link->id]);
+
+    expect(mb_strlen($link->url))->toBeGreaterThan(Urls::MAX_LENGTH);
+
+    $this->get(linkPage($link->url))->assertOk()->assertInertia(fn ($page) => $page->where('url', $link->url)->has('commits.data', 1));
 });
 
 it('sends a link written another way to the page of the link as commits store it', function (): void {
