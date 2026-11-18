@@ -12,6 +12,9 @@ const bodyId = 'commit-dialog-body';
 
 const closedCountKey = 'commit-dialog:closed_count';
 
+/** Whether the commit dialog is open, which anything on the page may open, like the button to add a take on a link. */
+export const commitDialogOpenKey = 'commit-dialog:open';
+
 /**
  * Focuses the composer at the top of the log when it is on screen, rather than opening the dialog over it.
  */

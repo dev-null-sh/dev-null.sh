@@ -1,10 +1,12 @@
 import { usePage } from '@inertiajs/react';
+import type { ReactNode } from 'react';
 import { useEffect, useState } from 'react';
 import { LinkEmbed } from '@/components/link-embed';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { RealtimeChannel } from '@/lib/realtime';
 import { coalesce, commitChannel, listen, userChannel } from '@/lib/realtime';
 import { hostname } from '@/lib/urls';
+import { cn } from '@/lib/utils';
 import type { LinkPreview as LinkPreviewData } from '@/types';
 
 const POLL_DELAYS = [1000, 2000, 3000, 5000, 8000, 13000];
@@ -188,11 +190,14 @@ export function LinkPreview({
     preview: initialPreview,
     isStatic = false,
     source,
+    footer,
 }: {
     refreshUrl: string;
     preview: LinkPreviewData;
     isStatic?: boolean;
     source?: LinkPreviewSource;
+    /** Shown inside the card, under the page it links to. */
+    footer?: ReactNode;
 }) {
     const { preview, isWaiting } = useFetchedLinkPreview(
         refreshUrl,
@@ -208,6 +213,7 @@ export function LinkPreview({
                 preview={preview}
                 embed={preview.embed}
                 isStatic={isStatic}
+                footer={footer}
             />
         );
     }
@@ -249,27 +255,36 @@ export function LinkPreview({
         </>
     );
 
-    if (isStatic) {
-        return (
-            <div
-                className="mt-3 flex items-center overflow-hidden rounded-lg border"
-                data-test="link-preview"
-            >
-                {content}
-            </div>
-        );
-    }
-
-    return (
+    const shell = 'mt-3 overflow-hidden rounded-lg border';
+    const card = isStatic ? (
+        <div
+            className={cn('flex items-center', !footer && shell)}
+            data-test="link-preview"
+        >
+            {content}
+        </div>
+    ) : (
         <a
             href={preview.url}
             target="_blank"
             rel="noopener noreferrer nofollow ugc"
             onClick={(event) => event.stopPropagation()}
-            className="mt-3 flex items-center overflow-hidden rounded-lg border transition-colors hover:bg-accent focus-visible:bg-accent"
+            className={cn(
+                'flex items-center transition-colors hover:bg-accent focus-visible:bg-accent',
+                !footer && shell,
+            )}
             data-test="link-preview"
         >
             {content}
         </a>
+    );
+
+    return footer ? (
+        <div className={shell}>
+            {card}
+            {footer}
+        </div>
+    ) : (
+        card
     );
 }

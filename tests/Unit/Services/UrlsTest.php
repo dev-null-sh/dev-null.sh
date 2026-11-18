@@ -249,6 +249,14 @@ it('counts each prose link as at most 23 characters', function (string $body, in
     'oversized link' => ['https://example.com/'.str_repeat('x', 2029), 2049],
 ]);
 
+it('shows the non-ascii characters of a url as themselves', function (string $url, string $readable): void {
+    expect(resolve(Urls::class)->readable($url))->toBe($readable);
+})->with([
+    'accented path' => ['https://fr.wikipedia.org/wiki/%C3%89t%C3%A9', 'https://fr.wikipedia.org/wiki/Été'],
+    'ascii escapes' => ['https://example.com/a%20b%2Fc?q=100%25', 'https://example.com/a%20b%2Fc?q=100%25'],
+    'invalid utf-8' => ['https://example.com/%C3%28%FF', 'https://example.com/%C3%28%FF'],
+]);
+
 it('shortens urls for display', function (string $url, string $shortened): void {
     $urls = resolve(Urls::class);
 

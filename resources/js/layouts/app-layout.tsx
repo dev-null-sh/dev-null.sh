@@ -11,6 +11,7 @@ import { CallBar, CallLeaveWarning } from '@/components/chat/call';
 import { ChatDock } from '@/components/chat/chat-dock';
 import {
     CommitComposerDialog,
+    commitDialogOpenKey,
     focusVisibleComposer,
 } from '@/components/commit-composer-dialog';
 import { CommitImageViewer } from '@/components/commit-image-viewer';
@@ -39,6 +40,7 @@ import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
 import { useLiveStream } from '@/hooks/use-live-stream';
 import { useNavOpen } from '@/hooks/use-nav-open';
 import { useIsListening } from '@/hooks/use-realtime';
+import { useSharedState } from '@/hooks/use-shared-state';
 import { useTabSlide } from '@/hooks/use-tab-slide';
 import { signIn } from '@/lib/auth';
 import { backgroundPollOptions } from '@/lib/background-poll';
@@ -57,7 +59,10 @@ export default function AppLayout({ children }: AppLayoutProps) {
     const { isLayoutOpen } = useNavOpen();
     const [isShowingShortcuts, setIsShowingShortcuts] = useState(false);
     const [isSearching, setIsSearching] = useState(false);
-    const [isComposing, setIsComposing] = useState(false);
+    const [isComposing, setIsComposing] = useSharedState<boolean>(
+        commitDialogOpenKey,
+        false,
+    );
     const [composingIssue, setComposingIssue] = useState<IssueKind | null>(
         null,
     );
@@ -80,7 +85,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
             setComposingIssue(null);
             setIsComposing(true);
         }
-    }, [isGuest]);
+    }, [isGuest, setIsComposing]);
 
     const runSearchAction = (action: SearchAction) => {
         if (action === 'go-live') {

@@ -25,6 +25,13 @@ export type LinkPreview = {
     embed?: Embed | null;
 };
 
+/** Who else talks about a commit's link, once enough people do: its card then leads to the link's page. */
+export type LinkTopic = {
+    url: string;
+    others: number;
+    authors: CommitAuthor[];
+};
+
 export type PollOption = {
     id: string;
     label: string;
@@ -117,6 +124,7 @@ export type Commit = {
         | DeletedCommit
         | null;
     link_preview?: LinkPreview | null;
+    link_topic?: LinkTopic | null;
     poll?: Poll | null;
     quoted_commit_id: string | null;
     quoted_commit?: QuotedCommit | DeletedCommit | null;
@@ -141,6 +149,7 @@ export type QuotedCommit = Pick<
     | 'replies_count'
     | 'poll'
     | 'link_preview'
+    | 'link_topic'
     | 'images'
 >;
 

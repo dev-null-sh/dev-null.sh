@@ -15,10 +15,12 @@ use Illuminate\Support\Facades\DB;
 /**
  * Profiles are listed by the month they signed up, organizations by the month their page was made, and commits by the
  * day they were written, in UTC, so a URL never moves to another sitemap and the older sitemaps rarely change. A
- * sitemap may list 50,000 URLs, far more than a month of sign-ups or a day of commits.
+ * sitemap may list 50,000 URLs, far more than a month of sign-ups or a day of commits. Links talked about all fit in one.
  */
 final readonly class SitemapQuery
 {
+    private const int MAX_URLS = 50_000;
+
     /**
      * The months, as "2026-10", in which the profiles with approved commits signed up, oldest first, with when the
      * last of them changed, so search engines only read again the sitemaps that changed.
@@ -179,6 +181,34 @@ final readonly class SitemapQuery
         }
 
         return array_values($commits);
+    }
+
+    /**
+     * The https links that approved commits of enough people use as their card, as rows, with when the last of those
+     * commits was written. There are far fewer than a sitemap may list, the newest first.
+     *
+     * @return list<array{url: string, updated_at: CarbonImmutable}>
+     */
+    public function links(): array
+    {
+        /** @var list<object{url: string, updated_at: string}> $links */
+        $links = $this->commits()
+            ->join('link_previews', 'link_previews.id', '=', 'commits.link_preview_id')
+            ->where('link_previews.url', 'like', 'https://%')
+            ->toBase()
+            ->select('link_previews.url')
+            ->selectRaw('max(commits.created_at) as updated_at')
+            ->groupBy('link_previews.url')
+            ->havingRaw('count(distinct commits.author_id) >= ?', [LinkCommitsQuery::MIN_PEOPLE])
+            ->orderByDesc('updated_at')
+            ->limit(self::MAX_URLS)
+            ->get()
+            ->all();
+
+        return array_map(fn (object $link): array => [
+            'url' => $link->url,
+            'updated_at' => CarbonImmutable::parse($link->updated_at),
+        ], $links);
     }
 
     /**

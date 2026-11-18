@@ -163,6 +163,18 @@ export function moveCaretToEnd(event: FocusEvent<HTMLTextAreaElement>): void {
 }
 
 /**
+ * Adds the link to the commit draft, unless it is already there, so the next composer to open starts from it.
+ */
+export function addLinkToCommitStash(userId: string, url: string): void {
+    const key = keyFor(userId, 'commit');
+    const body = read(key);
+
+    if (!body.includes(url)) {
+        schedule(key, body.trim() === '' ? url : `${body.trimEnd()}\n\n${url}`);
+    }
+}
+
+/**
  * Drafts of series kept their later parts there. Only the first part survives, as the commit being written.
  */
 export function discardSeriesStash(userId: string): void {

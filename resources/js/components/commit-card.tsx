@@ -35,6 +35,7 @@ import {
 } from '@/components/graph-rail';
 import { HiddenLinkPreviewContext } from '@/components/hidden-link-preview-context';
 import { LinkPreview } from '@/components/link-preview';
+import { LinkTopicFooter } from '@/components/link-topic-footer';
 import { Hashtag } from '@/components/linkified-text';
 import { LiveStreamTrigger } from '@/components/live-stream-card';
 import { QuotedCommit } from '@/components/quoted-commit';
@@ -525,6 +526,13 @@ export function CommitCard({
                                         )}
                                         preview={commit.link_preview}
                                         source={{ commitId: commit.id }}
+                                        footer={
+                                            commit.link_topic && (
+                                                <LinkTopicFooter
+                                                    topic={commit.link_topic}
+                                                />
+                                            )
+                                        }
                                     />
                                 )}
                             {isFocused && (

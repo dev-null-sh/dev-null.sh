@@ -127,6 +127,20 @@ final readonly class Urls
     }
 
     /**
+     * A URL with its percent-encoded non-ASCII characters shown as themselves, as browsers show them: "/%C3%89t%C3%A9"
+     * reads "/Été". Escapes of ASCII characters stay, since they may change what the URL means. Keep the rule in sync
+     * with resources/js/lib/urls.ts.
+     */
+    public function readable(string $url): string
+    {
+        return (string) preg_replace_callback('/(?:%[89A-F][0-9A-F])+/i', function (array $matches): string {
+            $decoded = rawurldecode($matches[0]);
+
+            return mb_check_encoding($decoded, 'UTF-8') ? $decoded : $matches[0];
+        }, $url);
+    }
+
+    /**
      * Shortens a URL for display, like X does: without its scheme, "www." or a slash that is its whole path, with the
      * whole host, and with at most 20 characters after it, the last of which is an ellipsis when it's cut. A cut never
      * splits a percent-encoded character. Keep the rule in sync with resources/js/lib/urls.ts.
