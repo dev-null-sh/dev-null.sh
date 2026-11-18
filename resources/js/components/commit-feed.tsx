@@ -172,9 +172,9 @@ export function CommitFeed({
                                       ? 'starred'
                                       : isRanked
                                         ? 'ranked'
-                                        : profileUserId !== null
-                                          ? 'created'
-                                          : 'latest',
+                                        : page.component === 'log/show'
+                                          ? 'latest'
+                                          : 'created',
                               )
                             : updateQuotedCommits(rows, restored),
                     );

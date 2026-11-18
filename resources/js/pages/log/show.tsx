@@ -77,24 +77,15 @@ export default function Show({
 
     const commitDialogClosedCount = useCommitDialogClosedCount();
     const viewerId = user?.id ?? 'guest';
-    const observedAt = useRef(new Map<string, string>());
-    useEffect(() => {
-        for (const commit of commits.data) {
-            if (!observedAt.current.has(commit.id)) {
-                observedAt.current.set(commit.id, commit.approved_at ?? commit.created_at);
-            }
-        }
-    }, [commits.data]);
-
-    const newestId = isRanked ? undefined : commits.data[0]?.id;
-    const newestAt = newestId === undefined
+    // Displayed commits retain their observed position while paginating.
+    // A reset replaces them with fresh approval times, including the boundaries.
+    const newestAt = isRanked
         ? undefined
-        : (observedAt.current.get(newestId) ?? commits.data[0]?.approved_at ?? commits.data[0]?.created_at);
-    // Keep the exact boundary and its original timestamp when approvals reorder the feed.
+        : (commits.data[0]?.approved_at ?? commits.data[0]?.created_at);
     const throughRows = commits.data.slice(-20).reverse();
     const throughIds = throughRows.map((commit) => commit.id).join(',');
     const throughTimes = throughRows
-        .map((commit) => observedAt.current.get(commit.id) ?? commit.approved_at ?? commit.created_at)
+        .map((commit) => commit.approved_at ?? commit.created_at)
         .join(',');
     const tabsRef = useRef<HTMLDivElement>(null);
     const [tabsHeight, setTabsHeight] = useState(0);
