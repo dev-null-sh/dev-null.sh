@@ -8,7 +8,7 @@ import type { LinkTopic } from '@/types';
 /**
  * The strip at the bottom of a link card, once others talk about the link: who, and how many commits, leading to the
  * link's page. In a quoted commit, which is a link itself, it only says so. A shortened count reads exactly to screen
- * readers and on hover.
+ * readers, and the whole label shows on hover, as it truncates on narrow screens.
  */
 export function LinkTopicFooter({
     topic,
@@ -33,10 +33,7 @@ export function LinkTopicFooter({
                     ))}
                 </span>
             )}
-            <span
-                className="min-w-0 truncate tabular-nums"
-                title={label === exactLabel ? undefined : exactLabel}
-            >
+            <span className="min-w-0 truncate tabular-nums" title={exactLabel}>
                 <span aria-hidden>{label}</span>
                 <span className="sr-only">{exactLabel}</span>
             </span>

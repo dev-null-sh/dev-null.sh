@@ -225,7 +225,9 @@ export function LinkPreview({
     const shell = 'mt-3 overflow-hidden rounded-lg border';
 
     if (!preview.title) {
-        return footer ? <div className={shell}>{footer}</div> : null;
+        return footer ? (
+            <div className={cn(shell, '*:border-t-0')}>{footer}</div>
+        ) : null;
     }
 
     const content = (
