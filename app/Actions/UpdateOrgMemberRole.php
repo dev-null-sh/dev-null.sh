@@ -21,6 +21,8 @@ final readonly class UpdateOrgMemberRole
     public function handle(User $actor, Conversation $org, User $member, OrgRole $role): void
     {
         DB::transaction(function () use ($actor, $org, $member, $role): void {
+            Conversation::query()->whereKey($org->id)->lockForUpdate()->firstOrFail();
+
             $updated = ConversationParticipant::query()
                 ->where('conversation_id', $org->id)
                 ->where('user_id', $member->id)

@@ -9,6 +9,7 @@ use App\Models\Conversation;
 use App\Models\ConversationParticipant;
 use App\Models\Message;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 final readonly class CreateConversationEvent
@@ -19,22 +20,26 @@ final readonly class CreateConversationEvent
      */
     public function handle(User $actor, Conversation $org, OrgEvent $event, ?User $subject = null, string $body = ''): Message
     {
-        $message = Message::query()->create([
-            'conversation_id' => $org->id,
-            'user_id' => $actor->id,
-            'client_id' => Str::uuid()->toString(),
-            'body' => $body,
-            'event' => $event,
-            'subject_id' => $subject?->id,
-        ]);
+        return DB::transaction(function () use ($actor, $org, $event, $subject, $body): Message {
+            Conversation::query()->whereKey($org->id)->lockForUpdate()->firstOrFail();
 
-        CreateMessage::advance($org, $message, unstash: false);
+            $message = Message::query()->create([
+                'conversation_id' => $org->id,
+                'user_id' => $actor->id,
+                'client_id' => Str::uuid()->toString(),
+                'body' => $body,
+                'event' => $event,
+                'subject_id' => $subject?->id,
+            ]);
 
-        ConversationParticipant::query()
-            ->where('conversation_id', $org->id)
-            ->where('user_id', $actor->id)
-            ->update(['read_through_id' => $message->id]);
+            CreateMessage::advance($org, $message, unstash: false);
 
-        return $message;
+            ConversationParticipant::query()
+                ->where('conversation_id', $org->id)
+                ->where('user_id', $actor->id)
+                ->update(['read_through_id' => $message->id]);
+
+            return $message;
+        });
     }
 }

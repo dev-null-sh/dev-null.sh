@@ -27,6 +27,9 @@ final readonly class CreateOrgMembers
     public function handle(User $actor, Conversation $org, Collection $members, bool $sharesHistory): void
     {
         DB::transaction(function () use ($actor, $org, $members, $sharesHistory): void {
+            // Match message writers' lock order before touching participants.
+            Conversation::query()->whereKey($org->id)->lockForUpdate()->firstOrFail();
+
             $latest = $org->fresh()->last_message_id ?? 0;
 
             foreach ($members as $member) {
