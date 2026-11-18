@@ -36,6 +36,8 @@ final class UserResource extends JsonResource
             'bio' => $this->bio,
             'company' => $this->company,
             'location' => $this->location,
+            'timezone' => $this->show_local_time ? $this->timezone : null,
+            'show_local_time' => $this->show_local_time,
             'website' => $this->website,
             'github_url' => "https://github.com/{$this->handle}",
             'html_url' => route('user.show', $this->resource),

@@ -30,7 +30,9 @@ final class ConversationResource extends JsonResource
 
         return [
             ...$conversation,
-            'partner' => $conversation['partner'] instanceof User ? UserResource::make($conversation['partner']) : null,
+            'partner' => $conversation['partner'] instanceof User ? [
+                ...UserResource::make($conversation['partner'])->toArray($request),
+            ] : null,
             'members' => $conversation['members']?->map(fn (array $member): array => [
                 'user' => UserResource::make($member['user']),
                 'role' => $member['role'],

@@ -74,6 +74,47 @@ it('opens an empty conversation with someone new', function (): void {
             ->where('thread.messages', []));
 });
 
+it('shares a direct partner timezone only when they opt in', function (): void {
+    $mark = User::factory()->withRemotes()->create();
+    $sharing = User::factory()->withRemotes()->create([
+        'timezone' => 'America/Los_Angeles',
+        'show_local_time' => true,
+    ]);
+    $private = User::factory()->withRemotes()->create([
+        'timezone' => 'Asia/Tokyo',
+        'show_local_time' => false,
+    ]);
+    sendChatMessage($sharing, $mark, 'local time is visible');
+    sendChatMessage($private, $mark, 'local time is private');
+
+    $this->actingAs($mark)->get(route('conversation.show', $sharing))
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
+            ->where('partner.timezone', 'America/Los_Angeles')
+            ->where('partner.show_local_time', true));
+
+    $this->get(route('conversation.show', $private))
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
+            ->where('partner.timezone', null)
+            ->where('partner.show_local_time', false)
+            ->where('inbox.conversations.0.partner.handle', $private->handle)
+            ->where('inbox.conversations.0.partner.timezone', null));
+
+    $private->update(['show_local_time' => true]);
+    $inbox = collect($this->getJson(route('inbox.index'))->assertOk()->json('conversations'))
+        ->keyBy('partner.handle');
+
+    expect($inbox[$sharing->handle]['partner']['timezone'])->toBe('America/Los_Angeles')
+        ->and($inbox[$private->handle]['partner']['timezone'])->toBe('Asia/Tokyo')
+        ->and($inbox[$private->handle]['partner']['show_local_time'])->toBeTrue();
+
+    $private->update(['show_local_time' => false]);
+    $inbox = collect($this->getJson(route('inbox.index'))->assertOk()->json('conversations'))
+        ->keyBy('partner.handle');
+
+    expect($inbox[$private->handle]['partner']['timezone'])->toBeNull()
+        ->and($inbox[$private->handle]['partner']['show_local_time'])->toBeFalse();
+});
+
 it('hides conversations you cannot have', function (): void {
     $mark = User::factory()->withRemotes()->create();
     $nuno = User::factory()->withRemotes()->create();
