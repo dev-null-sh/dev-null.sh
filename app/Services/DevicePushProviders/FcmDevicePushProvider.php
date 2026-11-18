@@ -13,6 +13,7 @@ use App\Models\Device;
 use DomainException;
 use Firebase\JWT\JWT;
 use Illuminate\Contracts\Encryption\DecryptException;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Cache;
@@ -49,9 +50,14 @@ final readonly class FcmDevicePushProvider implements DevicePushProvider
             }
 
             return DB::transaction(function () use ($device, $push, $credentials, $accessToken): DevicePushResult {
+                if (! DB::scalar('select pg_try_advisory_xact_lock(hashtextextended(?, 0))', ['device-push:'.$device->id])) {
+                    return DevicePushResult::retry();
+                }
+
+                // The unique token hash makes registration changes conflict, but last_used_at can still be written.
                 $currentDevice = Device::query()->whereKey($device->id)
                     ->where('user_id', $device->user_id)->where('push_token_hash', $device->push_token_hash)
-                    ->lockForUpdate()->first();
+                    ->lock('for key share nowait')->first();
 
                 if (! $currentDevice instanceof Device || $currentDevice->push_token === null) {
                     return DevicePushResult::settled();
@@ -74,8 +80,21 @@ final readonly class FcmDevicePushProvider implements DevicePushProvider
                     return DevicePushResult::settled();
                 }
 
+                if (in_array('THIRD_PARTY_AUTH_ERROR', $response->collect('error.details')->pluck('errorCode')->all(), true)) {
+                    $this->reportFailure(new RuntimeException('FCM APNs credentials were rejected (THIRD_PARTY_AUTH_ERROR).'));
+
+                    return DevicePushResult::settled();
+                }
+
                 if ($response->unauthorized()) {
-                    Cache::forget($this->accessTokenKey($credentials));
+                    $cacheKey = $this->accessTokenKey($credentials);
+                    Cache::lock($cacheKey.':lock', 30)->get(function () use ($cacheKey, $accessToken): void {
+                        $cached = Cache::get($cacheKey);
+
+                        if (is_string($cached) && Crypt::decryptString($cached) === $accessToken) {
+                            Cache::forget($cacheKey);
+                        }
+                    });
                 }
 
                 if (! $response->serverError() && ! $response->unauthorized() && $response->status() !== 429) {
@@ -88,6 +107,10 @@ final readonly class FcmDevicePushProvider implements DevicePushProvider
 
                 return DevicePushResult::retry($this->retryAfterSeconds($response));
             });
+        } catch (QueryException $exception) {
+            throw_if($exception->getCode() !== '55P03', $exception);
+
+            return DevicePushResult::retry();
         } catch (ConnectionException) {
             return DevicePushResult::retry();
         } catch (DecryptException) {
@@ -137,53 +160,74 @@ final readonly class FcmDevicePushProvider implements DevicePushProvider
     private function accessToken(FcmCredentials $credentials): string|DevicePushResult
     {
         $cacheKey = $this->accessTokenKey($credentials);
-        $cached = Cache::get($cacheKey);
+        $lock = Cache::lock($cacheKey.':lock', 30);
 
-        if (is_string($cached)) {
-            try {
-                return Crypt::decryptString($cached);
-            } catch (DecryptException) {
-                // Cached under an app key that has since been rotated.
-                Cache::forget($cacheKey);
-            }
+        if (! $lock->get()) {
+            return DevicePushResult::retry();
         }
 
         try {
-            $assertion = JWT::encode([
-                'iss' => $credentials->clientEmail,
-                'scope' => 'https://www.googleapis.com/auth/firebase.messaging',
-                'aud' => $credentials->tokenUri,
-                'iat' => now()->getTimestamp(),
-                'exp' => now()->addHour()->getTimestamp(),
-            ], $credentials->privateKey, 'RS256');
-        } catch (DomainException) {
-            $exception = new DevicePushCredentialsRejected('FCM OAuth credentials could not sign a request.');
-            $this->reportFailure($exception);
+            $cached = Cache::get($cacheKey);
 
-            throw $exception;
+            if (is_int($cached)) {
+                return DevicePushResult::retry(max(0, $cached - now()->getTimestamp()));
+            }
+
+            if (is_string($cached)) {
+                try {
+                    return Crypt::decryptString($cached);
+                } catch (DecryptException) {
+                    // Cached under an app key that has since been rotated.
+                    Cache::forget($cacheKey);
+                }
+            }
+
+            try {
+                $assertion = JWT::encode([
+                    'iss' => $credentials->clientEmail,
+                    'scope' => 'https://www.googleapis.com/auth/firebase.messaging',
+                    'aud' => $credentials->tokenUri,
+                    'iat' => now()->getTimestamp(),
+                    'exp' => now()->addHour()->getTimestamp(),
+                ], $credentials->privateKey, 'RS256');
+            } catch (DomainException) {
+                $exception = new DevicePushCredentialsRejected('FCM OAuth credentials could not sign a request.');
+                $this->reportFailure($exception);
+
+                throw $exception;
+            }
+
+            $response = Http::asForm()->timeout(10)->post($credentials->tokenUri, [
+                'grant_type' => 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+                'assertion' => $assertion,
+            ]);
+
+            if ($response->status() === 429) {
+                $seconds = $this->retryAfterSeconds($response) ?? self::RATE_LIMIT_SECONDS;
+                Cache::put($cacheKey, now()->getTimestamp() + $seconds, $seconds);
+
+                return DevicePushResult::retry($seconds);
+            }
+
+            if ($response->serverError()) {
+                return DevicePushResult::retry($this->retryAfterSeconds($response));
+            }
+
+            if (! $response->successful()) {
+                $exception = new DevicePushCredentialsRejected("FCM OAuth request failed (HTTP {$response->status()}).");
+                $this->reportFailure($exception);
+
+                throw $exception;
+            }
+
+            $token = $response->json('access_token');
+            assert(is_string($token));
+
+            Cache::put($cacheKey, Crypt::encryptString($token), now()->addSeconds($response->fluent()->integer('expires_in', 3600) - 60));
+
+            return $token;
+        } finally {
+            $lock->release();
         }
-
-        $response = Http::asForm()->timeout(10)->post($credentials->tokenUri, [
-            'grant_type' => 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-            'assertion' => $assertion,
-        ]);
-
-        if ($response->serverError() || $response->status() === 429) {
-            return DevicePushResult::retry($this->retryAfterSeconds($response));
-        }
-
-        if (! $response->successful()) {
-            $exception = new DevicePushCredentialsRejected("FCM OAuth request failed (HTTP {$response->status()}).");
-            $this->reportFailure($exception);
-
-            throw $exception;
-        }
-
-        $token = $response->json('access_token');
-        assert(is_string($token));
-
-        Cache::put($cacheKey, Crypt::encryptString($token), now()->addSeconds($response->fluent()->integer('expires_in', 3600) - 60));
-
-        return $token;
     }
 }
