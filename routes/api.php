@@ -250,6 +250,9 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             ->middleware([PreventPostingInTimeout::class, 'throttle:10,1,guilds:'])
             ->name('api-guild.store');
         Route::get('guilds/{guild:handle}', [GuildController::class, 'show'])->name('api-guild.show');
+        Route::put('guilds/{guild:handle}', [GuildController::class, 'update'])
+            ->middleware([PreventPostingInTimeout::class, 'throttle:10,1,guilds:'])
+            ->name('api-guild.update');
         Route::get('guilds/{guild:handle}/members', [GuildMembershipController::class, 'index'])->name('api-guild-membership.index');
 
         // Composer suggestions: people to mention and /dev/null issues to reference, as the web's composer suggests them...
