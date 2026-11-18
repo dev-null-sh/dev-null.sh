@@ -53,4 +53,9 @@ final class Guild extends Model
     {
         return $this->belongsToMany(User::class, 'guild_preferences')->wherePivotNotNull('muted_at');
     }
+
+    public function iconUrl(): ?string
+    {
+        return $this->icon_path === null ? null : route('guild-icon.show', ['guild' => $this->handle, 'v' => $this->updated_at->getTimestampMs()]);
+    }
 }

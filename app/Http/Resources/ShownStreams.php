@@ -72,7 +72,7 @@ final class ShownStreams
             'handle' => $commit->guild->handle,
             'name' => $commit->guild->name,
             'emoji' => $commit->guild->emoji,
-            'icon_url' => $commit->guild->icon_path === null ? null : route('guild-icon.show', ['guild' => $commit->guild->handle, 'v' => $commit->guild->updated_at->getTimestampMs()]),
+            'icon_url' => $commit->guild->iconUrl(),
         ] : null;
 
         if (is_array($shown['author'] ?? null) && $commit->relationLoaded('author') && $commit->author instanceof Profile) {
