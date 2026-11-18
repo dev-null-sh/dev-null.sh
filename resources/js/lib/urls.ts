@@ -97,6 +97,21 @@ export function shortenUrl(url: string): ShortenedUrl {
     };
 }
 
+// A link to a commit on dev/null itself, nothing after its id, so it can show as the author and the commit's hash.
+const commitLinkPattern =
+    /^https?:\/\/(?:www\.)?dev-null\.sh\/@([A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38})\/commits\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
+
+/**
+ * The author's handle and the commit's id, lowercased, when a link points at a commit on dev/null itself.
+ */
+export function commitLinkTo(
+    url: string,
+): { handle: string; commit: string } | null {
+    const match = commitLinkPattern.exec(url);
+
+    return match ? { handle: match[1], commit: match[2].toLowerCase() } : null;
+}
+
 export function hostname(url: string): string {
     try {
         return new URL(url).hostname.replace(/^www\./, '');
