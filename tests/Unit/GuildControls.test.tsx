@@ -270,7 +270,9 @@ test('creates from a name without submitting an empty handle and rejects unusabl
     for (const [value, allowed] of [
         ['Laravel 4ever', true],
         ['!!!', false],
-        ['123 Guild', false],
+        ['3D Printing', true],
+        ['2024', false],
+        ['2FA', false],
     ] as const) {
         (name.props.onChange as (event: unknown) => void)({
             target: { value },

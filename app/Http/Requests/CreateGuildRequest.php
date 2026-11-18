@@ -88,7 +88,7 @@ final class CreateGuildRequest extends FormRequest
     {
         return [
             'handle.unique' => 'A guild already uses this hashtag. Choose a different display name.',
-            'handle.regex' => 'Use a display name whose hashtag starts with a letter and contains only letters, numbers and underscores.',
+            'handle.regex' => 'Use a display name whose hashtag starts with letters or numbers followed by a letter, contains only letters, numbers and underscores, and is not a hex color that starts with a number.',
         ];
     }
 

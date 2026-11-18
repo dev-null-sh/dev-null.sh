@@ -87,7 +87,7 @@ export function GuildDialog({
                         if (!isHashtagHandle(nameHandle)) {
                             form.current?.setError(
                                 'name',
-                                'Use a name whose hashtag starts with a letter.',
+                                'Use a name whose hashtag has a letter after any leading numbers and is not a color like 2FA.',
                             );
                             return false;
                         }

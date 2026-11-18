@@ -12,7 +12,8 @@ const typingExplicitColorPattern = new RegExp(
 );
 const hexColorPattern = new RegExp(`^#(?:${hexColor})$`, 'i');
 
-// A bare ASCII "#" followed by a letter marks a hashtag. The lookahead on short hex keeps "#123" an issue reference.
+// A bare ASCII "#" followed by a letter, or by numbers then a letter outside these colors, marks a hashtag. The
+// lookahead on short hex keeps "#123" an issue reference.
 // Bare colors start at whitespace or a quote boundary and may end in punctuation before the next space.
 const bareColorPattern = String.raw`(?:(?<!\S)|(?<=\n>))(?:#(?=[0-9])|\uFF03)(${longHex}|(?=[0-9]*[a-f]|0)${shortHex})(?=\p{P}*(?:[\s\u00AD\u2060\u200A-\u200D\u20E2]|$))`;
 const colorPattern = new RegExp(

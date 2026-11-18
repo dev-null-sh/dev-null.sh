@@ -6,7 +6,11 @@ namespace App\Services;
 
 final readonly class Hashtags
 {
-    public const string HANDLE = '\p{L}[\p{L}\p{M}\p{N}_]*';
+    /**
+     * A handle may start with numbers, as in "3dprinting", but then needs a letter so "#123" stays an issue reference,
+     * and must not be hex so "#3d3d3d" stays a color.
+     */
+    public const string HANDLE = '(?![0-9](?:[0-9a-fA-F]{7}|[0-9a-fA-F]{5}|[0-9a-fA-F]{2,3})_*(?![\p{L}\p{M}\p{N}_]))\p{N}*\p{L}[\p{L}\p{M}\p{N}_]*';
 
     public function __construct(private CodeSpans $codeSpans, private Urls $urls)
     {
