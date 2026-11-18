@@ -176,7 +176,7 @@ it('commits with images', function (): void {
 
     $result = ($this->runScript)($this->script, ['--reply', '0be0130', '--image', "{$this->sandbox}/home/first.png", '--image', "{$this->sandbox}/home/a b,c;d\"e.png", 'Shipped!']);
 
-    [, , $replyTo, $hashes, $message] = explode("\n", File::get("{$this->sandbox}/signed"), 5);
+    [, , , $replyTo, $hashes, $message] = explode("\n", File::get("{$this->sandbox}/signed"), 6);
 
     expect($result->exitCode())->toBe(0)
         ->and($result->output())->toBe("Committed.\n")
