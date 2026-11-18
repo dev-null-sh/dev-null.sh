@@ -23,7 +23,8 @@ final readonly class UpdateScheduledCommitSubmittedAt
 
     /**
      * The author can commit it now, before its scheduled time. One scheduled as an organization its user is no longer
-     * a member of is canceled instead, as a ban cancels it.
+     * a member of is canceled instead, as a ban cancels it. A board post to a paused guild stays queued, and committing
+     * it now throws GuildPaused so the author is told why.
      */
     public function handle(string $id, bool $early = false): bool
     {
@@ -68,7 +69,11 @@ final readonly class UpdateScheduledCommitSubmittedAt
 
                 return true;
             }, attempts: 5);
-        } catch (GuildPaused) {
+        } catch (GuildPaused $guildPaused) {
+            if ($early) {
+                throw $guildPaused;
+            }
+
             return false;
         }
     }
