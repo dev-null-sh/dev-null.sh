@@ -571,3 +571,15 @@ it('does not commit now while the author is in timeout', function (): void {
     expect(Commit::query()->count())->toBe(0)
         ->and(resolve(UpdateScheduledCommitSubmittedAt::class)->handle($scheduled->id, early: true))->toBeFalse();
 });
+
+it('says the guild is paused when committing now a board post to a paused guild, and keeps it queued', function (): void {
+    $guild = Guild::factory()->create(['user_id' => null]);
+    $scheduled = ScheduledCommit::factory()->for($guild)->create(['scheduled_at' => now()->addDay()]);
+
+    $this->actingAs($scheduled->user)->post(route('scheduled-commit-submission.store', $scheduled))->assertRedirect()
+        ->assertInertiaFlash('toast', ['type' => 'error', 'message' => 'This guild is paused until it has a moderator.'])
+        ->assertInertiaFlashMissing('submitted');
+
+    expect(Commit::query()->count())->toBe(0)
+        ->and($scheduled->fresh())->submitted_at->toBeNull()->canceled_at->toBeNull();
+});
