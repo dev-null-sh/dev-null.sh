@@ -33,11 +33,12 @@ it('mutes a guild once and keeps the membership, as the web does', function (): 
 it('unmutes a guild, also one the user never muted', function (): void {
     $rust = Guild::factory()->create(['handle' => 'rust']);
     signedApiRequest($this->keyPair, 'POST', route('api-guild-mute.store', 'rust'))->assertNoContent();
+    expect($rust->muters()->whereKey($this->user->id)->exists())->toBeTrue();
 
     signedApiRequest($this->keyPair, 'DELETE', route('api-guild-mute.destroy', 'rust'))->assertNoContent();
-    signedApiRequest($this->keyPair, 'DELETE', route('api-guild-mute.destroy', 'rust'))->assertNoContent();
+    $this->assertDatabaseMissing('guild_preferences', ['user_id' => $this->user->id, 'guild_id' => $rust->id]);
 
-    expect($rust->muters()->whereKey($this->user->id)->exists())->toBeFalse();
+    signedApiRequest($this->keyPair, 'DELETE', route('api-guild-mute.destroy', 'rust'))->assertNoContent();
     $this->assertDatabaseMissing('guild_preferences', ['user_id' => $this->user->id, 'guild_id' => $rust->id]);
 });
 
@@ -45,6 +46,7 @@ it('keeps the membership when unmuting', function (): void {
     $rust = Guild::factory()->create(['handle' => 'rust']);
     resolve(UpdateGuildMembership::class)->handle($this->user, $rust, true);
     signedApiRequest($this->keyPair, 'POST', route('api-guild-mute.store', 'rust'))->assertNoContent();
+    expect($rust->muters()->whereKey($this->user->id)->exists())->toBeTrue();
 
     signedApiRequest($this->keyPair, 'DELETE', route('api-guild-mute.destroy', 'rust'))->assertNoContent();
 
