@@ -25,7 +25,6 @@ it('may choose a timezone, and answers like me', function (): void {
         ->show_local_time->toBeFalse();
 });
 
-
 it('normalizes legacy timezones in signed API requests', function (string $legacy, string $canonical): void {
     signedApiRequest($this->keyPair, 'PUT', route('api-user-timezone.update'), ['timezone' => $legacy])
         ->assertOk();
