@@ -19,9 +19,9 @@ final readonly class UpdateGuild
         //
     }
 
-    public function handle(Guild $guild, User $user, string $description, string $emoji, ?UploadedFile $icon, bool $removeIcon): void
+    public function handle(Guild $guild, User $user, string $name, string $description, string $emoji, ?UploadedFile $icon, bool $removeIcon): void
     {
-        DB::transaction(function () use ($guild, $user, $description, $emoji, $icon, $removeIcon): void {
+        DB::transaction(function () use ($guild, $user, $name, $description, $emoji, $icon, $removeIcon): void {
             $guild = Guild::query()->whereKey($guild->id)->lockForUpdate()->firstOrFail();
 
             if ($guild->user_id !== $user->id) {
@@ -35,7 +35,7 @@ final readonly class UpdateGuild
                 $path = $icon instanceof UploadedFile ? $this->images->handle([$icon], directory: 'guild-icons')[0]['path'] : null;
             }
 
-            $guild->update(['description' => $description, 'emoji' => $emoji, 'icon_path' => $path]);
+            $guild->update(['name' => $name, 'description' => $description, 'emoji' => $emoji, 'icon_path' => $path]);
             event(new UsersUpdated(DB::table('guild_preferences')->where('guild_id', $guild->id)->pluck('user_id')->push($guild->user_id), UserUpdate::Guilds));
         });
     }

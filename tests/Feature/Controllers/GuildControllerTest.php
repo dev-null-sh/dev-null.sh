@@ -217,17 +217,19 @@ it('never transfers a claimed handle even when two creations pass validation', f
     $this->assertDatabaseCount('guilds', 1);
 });
 
-it('lets only the creator edit the icon and description and never the name handle or owner', function (): void {
+it('lets only the creator edit the display name icon and description and never the handle or owner', function (): void {
     $admin = User::factory()->create(['handle' => 'admin']);
     $other = User::factory()->create(['handle' => 'other-admin']);
-    $guild = Guild::factory()->create(['user_id' => $admin->id, 'name' => 'Job Board', 'handle' => 'jobs']);
-    $payload = ['description' => 'Remote jobs.', 'emoji' => '🌍', 'remove_icon' => false, 'name' => 'Changed', 'handle' => 'changed', 'user_id' => $other->id];
+    $guild = Guild::factory()->create(['user_id' => $admin->id, 'name' => 'jobs', 'handle' => 'jobs']);
+    $payload = ['description' => 'Remote jobs.', 'emoji' => '🌍', 'remove_icon' => false, 'name' => 'J.O.B.S', 'handle' => 'changed', 'user_id' => $other->id];
 
     $this->actingAs($other)->put(route('guild.update', 'jobs'), $payload)->assertNotFound();
     expect($guild->fresh()->description)->toBe($guild->description);
     $this->actingAs($admin)->put(route('guild.update', 'jobs'), $payload)->assertRedirectToRoute('guild.show', 'jobs');
-    expect($guild->fresh())->description->toBe('Remote jobs.')->emoji->toBe('🌍')->name->toBe('Job Board')->handle->toBe('jobs')->user_id->toBe($admin->id);
-    $this->putJson(route('guild.update', 'jobs'), ['description' => '', 'emoji' => 'invalid'])->assertUnprocessable()->assertJsonValidationErrors(['description', 'emoji', 'remove_icon']);
+    expect($guild->fresh())->description->toBe('Remote jobs.')->emoji->toBe('🌍')->name->toBe('J.O.B.S')->handle->toBe('jobs')->user_id->toBe($admin->id);
+    $this->putJson(route('guild.update', 'jobs'), [...$payload, 'name' => 'Job Board'])->assertUnprocessable()->assertJsonValidationErrors(['name' => "Guild display name doesn't match hashtag"]);
+    expect($guild->fresh()->name)->toBe('J.O.B.S');
+    $this->putJson(route('guild.update', 'jobs'), ['description' => '', 'emoji' => 'invalid'])->assertUnprocessable()->assertJsonValidationErrors(['name', 'description', 'emoji', 'remove_icon']);
 });
 
 it('reencodes uploaded icons serves them only to admins and replaces or removes them', function (): void {
@@ -243,9 +245,9 @@ it('reencodes uploaded icons serves them only to admins and replaces or removes 
     $this->get(route('guild-icon.show', 'jobs'))->assertOk()->assertHeader('Content-Type', 'image/webp');
     $this->get(route('guild.show', 'jobs'))->assertInertia(fn ($page) => $page->where('guilds.0.icon_url', route('guild-icon.show', ['guild' => 'jobs', 'v' => $guild->updated_at->getTimestampMs()])));
 
-    $this->put(route('guild.update', 'jobs'), ['description' => 'Hiring again.', 'emoji' => '💼', 'remove_icon' => false, 'images' => [UploadedFile::fake()->image('next.jpg')]])->assertRedirect();
+    $this->put(route('guild.update', 'jobs'), ['name' => 'Jobs', 'description' => 'Hiring again.', 'emoji' => '💼', 'remove_icon' => false, 'images' => [UploadedFile::fake()->image('next.jpg')]])->assertRedirect();
     expect($guild->fresh()->icon_path)->not->toBe($original);
-    $this->put(route('guild.update', 'jobs'), ['description' => 'Hiring again.', 'emoji' => '💻', 'remove_icon' => true])->assertRedirect();
+    $this->put(route('guild.update', 'jobs'), ['name' => 'Jobs', 'description' => 'Hiring again.', 'emoji' => '💻', 'remove_icon' => true])->assertRedirect();
     expect($guild->fresh()->icon_path)->toBeNull();
     $this->get(route('guild-icon.show', 'jobs'))->assertNotFound();
 });
@@ -261,7 +263,7 @@ it('preserves a guild when its moderator loses ownership after edit validation',
     });
 
     $this->actingAs($moderator)->put(route('guild.update', $guild->handle), [
-        'description' => 'A stale edit.', 'emoji' => '🌍', 'remove_icon' => true,
+        'name' => $guild->handle, 'description' => 'A stale edit.', 'emoji' => '🌍', 'remove_icon' => true,
     ])->assertSessionHasErrors(['description' => 'You no longer moderate this guild.']);
 
     expect($guild->fresh())->description->toBe($guild->description)->emoji->toBe($guild->emoji)
@@ -744,7 +746,7 @@ it('announces an edit of a guild only to its members and to its creator', functi
     $guild->members()->attach($member, ['joined_at' => now()]);
     Event::fake([UsersUpdated::class]);
 
-    $this->actingAs($admin)->put(route('guild.update', $guild->handle), ['description' => 'Remote jobs.', 'emoji' => '💼', 'remove_icon' => false])->assertRedirect();
+    $this->actingAs($admin)->put(route('guild.update', $guild->handle), ['name' => $guild->handle, 'description' => 'Remote jobs.', 'emoji' => '💼', 'remove_icon' => false])->assertRedirect();
 
     Event::assertDispatchedTimes(UsersUpdated::class, 1);
     Event::assertDispatched(UsersUpdated::class, fn (UsersUpdated $event): bool => $event->update === UserUpdate::Guilds && $event->userIds === [$member->id, $admin->id]);
@@ -785,9 +787,9 @@ it('refuses an edit of a guild that the moderation flags and keeps the guild as 
     $admin = User::factory()->create(['handle' => 'admin']);
     $guild = Guild::factory()->create(['user_id' => $admin->id, 'handle' => 'jobs', 'name' => 'Jobs', 'description' => 'Hiring.']);
     $moderation = $this->mock(ModerationProvider::class);
-    $moderation->shouldReceive('moderate')->once()->with("Jobs\n\nFlagged words.", [])->andReturn(['harassment' => 0.7]);
+    $moderation->shouldReceive('moderate')->once()->with("JOBS\n\nFlagged words.", [])->andReturn(['harassment' => 0.7]);
 
-    $this->actingAs($admin)->putJson(route('guild.update', 'jobs'), ['description' => 'Flagged words.', 'emoji' => '💼', 'remove_icon' => false])
+    $this->actingAs($admin)->putJson(route('guild.update', 'jobs'), ['name' => 'JOBS', 'description' => 'Flagged words.', 'emoji' => '💼', 'remove_icon' => false])
         ->assertUnprocessable()->assertJsonValidationErrors('description');
 
     expect($guild->fresh()->description)->toBe('Hiring.');
