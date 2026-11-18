@@ -336,7 +336,13 @@ it('refuses the claim when a removal wins the race after validation', function (
     $this->assertDatabaseCount('guilds', 0);
 });
 
-it('refuses the claim when another creation of the hashtag wins the race after validation', function (): void {
+it('refuses the claim when another creation of the hashtag wins the race after validation', function (bool $flagged): void {
+    if ($flagged) {
+        $moderation = $this->mock(ModerationProvider::class);
+        $moderation->shouldReceive('moderate')->andReturn(['harassment' => 0.7]);
+        $moderation->shouldReceive('isHarmful')->andReturn(false);
+    }
+
     $other = User::factory()->create();
     $this->app->beforeResolving(CreateGuild::class, function () use ($other): void {
         Guild::factory()->create(['handle' => 'jobs', 'user_id' => $other->id]);
@@ -347,7 +353,8 @@ it('refuses the claim when another creation of the hashtag wins the race after v
         ->assertJsonPath('errors.handle', ['A guild already uses this hashtag. Choose a different display name.']);
 
     expect(Guild::query()->sole()->user_id)->toBe($other->id);
-});
+    $this->assertDatabaseCount('guild_submissions', 0);
+})->with(['published' => false, 'flagged' => true]);
 
 it('does not create guilds while they are not available to the user', function (): void {
     resolve(Features::class)->update(Feature::Guilds, true, adminOnly: true);
