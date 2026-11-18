@@ -31,6 +31,7 @@ const listeners = new Set<() => void>();
 const pending = new Map<string, string>();
 const images = new Map<string, StoredImages>();
 const pendingImageWrites = new Map<string, StoredImages>();
+const clearedImagePrefixes = new Set<string>();
 const restoredImageKeys = new Set<string>();
 const noImages: StoredImages = { images: [], descriptions: [] };
 let timeout: ReturnType<typeof setTimeout> | undefined;
@@ -85,6 +86,10 @@ const loadImages = (): void => {
 
         imageStorageRestored = true;
         stored.forEach((draft, key) => {
+            if ([...clearedImagePrefixes].some((prefix) => key.startsWith(prefix))) {
+                return;
+            }
+
             const restored = draft.images
                 .map((file, index) => ({
                     file,
@@ -93,7 +98,26 @@ const loadImages = (): void => {
                 .filter(({ file }) => pickImages([], [file]).images.length > 0)
                 .slice(0, maxImages);
 
-            if (!images.has(key) && restored.length > 0) {
+            const pending = pendingImageWrites.get(key);
+
+            if (pending && pending.images.length > 0) {
+                // Edits made before the read completed are additions to the unseen draft.
+                const combined = [
+                    ...restored,
+                    ...pending.images.map((file, index) => ({
+                        file,
+                        description: pending.descriptions[index] ?? '',
+                    })),
+                ].slice(0, maxImages);
+                const merged = {
+                    images: combined.map((entry) => entry.file),
+                    descriptions: combined.map((entry) => entry.description),
+                };
+
+                images.set(key, merged);
+                pendingImageWrites.set(key, merged);
+                restoredImageKeys.add(key);
+            } else if (!images.has(key) && restored.length > 0) {
                 images.set(key, {
                     images: restored.map((entry) => entry.file),
                     descriptions: restored.map((entry) => entry.description),
@@ -196,6 +220,10 @@ export function discardSeriesStash(userId: string): void {
 
 export function clearStashes(userId: string): void {
     const prefix = prefixFor(userId);
+    clearedImagePrefixes.add(prefix);
+    [...pendingImageWrites.keys()]
+        .filter((key) => key.startsWith(prefix))
+        .forEach((key) => pendingImageWrites.delete(key));
     cancelImageReads(prefix);
 
     [...pending.keys(), ...storedKeys()]

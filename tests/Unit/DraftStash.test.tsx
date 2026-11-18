@@ -72,8 +72,17 @@ vi.doMock('../../resources/js/lib/storage', () => ({
     storedKeys: () => [...bodies.keys()],
 }));
 
+let failedImageReads = 0;
+
 vi.doMock('../../resources/js/lib/image-storage', () => ({
-    readStoredImages: async () => new Map(storedImages),
+    readStoredImages: async () => {
+        if (failedImageReads > 0) {
+            failedImageReads--;
+            return null;
+        }
+
+        return new Map(storedImages);
+    },
     writeStoredImages: (
         key: string,
         images: File[],
@@ -398,6 +407,59 @@ test('reply recipient exclusions survive closing and reloading a draft and clear
     } finally {
         hooks.clearStashes('recipient-author');
         vi.useRealTimers();
+        vi.unstubAllGlobals();
+    }
+});
+
+test('preserves stored attachments when a failed read is retried after adding an image', async () => {
+    vi.resetModules();
+    vi.doMock('react', mockReactHooks);
+    const hooks = await import('../../resources/js/hooks/use-stash');
+    const name = 'recovery';
+    const key = `stash:recover:${name}`;
+    const saved = new File(['saved'], 'saved.png', { type: 'image/png' });
+    const added = new File(['added'], 'added.png', { type: 'image/png' });
+
+    storedImages.set(key, {
+        images: [saved],
+        descriptions: ['Saved screenshot'],
+    });
+    failedImageReads = 1;
+    state = [];
+    vi.stubGlobal('window', { addEventListener() {} });
+    const render = () => {
+        cursor = 0;
+        return hooks.useStash('recover', name);
+    };
+
+    try {
+        const draft = render();
+        await Promise.resolve();
+
+        draft.updateImages([added], ['New screenshot']);
+        await Promise.resolve();
+        await Promise.resolve();
+
+        const restored = render();
+        assert.deepEqual(restored.images.map((file) => file.name), [
+            'saved.png',
+            'added.png',
+        ]);
+        assert.deepEqual(restored.descriptions, [
+            'Saved screenshot',
+            'New screenshot',
+        ]);
+        assert.deepEqual(
+            storedImages.get(key)?.images.map((file) => file.name),
+            ['saved.png', 'added.png'],
+        );
+        assert.deepEqual(storedImages.get(key)?.descriptions, [
+            'Saved screenshot',
+            'New screenshot',
+        ]);
+    } finally {
+        failedImageReads = 0;
+        hooks.clearStashes('recover');
         vi.unstubAllGlobals();
     }
 });
