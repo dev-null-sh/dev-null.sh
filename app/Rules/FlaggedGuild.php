@@ -10,7 +10,7 @@ use Illuminate\Image\ImageException;
 use Illuminate\Support\Facades\Image;
 use Illuminate\Validation\Validator;
 
-final readonly class UnflaggedGuild
+final readonly class FlaggedGuild
 {
     private const int MODERATED_ICON_DIMENSION = 512;
 
@@ -21,19 +21,21 @@ final readonly class UnflaggedGuild
         //
     }
 
-    public function validate(Validator $validator, string $text, ?UploadedFile $icon): void
+    /**
+     * Whether the moderation flags the guild's text or icon, which sends it to the admins for review instead of
+     * publishing it. An icon that cannot be decoded fails validation instead.
+     */
+    public function validate(Validator $validator, string $text, ?UploadedFile $icon): bool
     {
         try {
             $icons = $icon instanceof UploadedFile ? [$this->dataUrl($icon)] : [];
         } catch (ImageException) {
             $validator->errors()->add('images', 'The icon must be a JPEG, PNG, or WebP image.');
 
-            return;
+            return false;
         }
 
-        if ($this->moderation->moderate($text, $icons) !== [] || $this->moderation->isHarmful($text)) {
-            $validator->errors()->add('description', 'This guild cannot be published. Change its name, its description or its icon.');
-        }
+        return $this->moderation->moderate($text, $icons) !== [] || $this->moderation->isHarmful($text);
     }
 
     private function dataUrl(UploadedFile $icon): string
