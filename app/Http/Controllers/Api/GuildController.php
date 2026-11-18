@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api;
 
 use App\Actions\CreateGuild;
+use App\Actions\UpdateGuild;
 use App\Exceptions\GuildModeratorRemoved;
 use App\Http\Requests\CreateApiGuildRequest;
 use App\Http\Requests\CreateGuildRequest;
 use App\Http\Requests\ListApiGuildsRequest;
 use App\Http\Requests\ShowApiGuildRequest;
+use App\Http\Requests\UpdateApiGuildRequest;
 use App\Http\Resources\CommitResource;
 use App\Http\Resources\GuildResource;
 use App\Models\Commit;
@@ -23,6 +25,7 @@ use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\UploadedFile;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 final readonly class GuildController
 {
@@ -80,6 +83,28 @@ final readonly class GuildController
             'pinned_commit' => $pinnedCommit instanceof Commit ? CommitResource::make($pinnedCommit) : null,
             'can_moderate' => $guild->user_id === $user->id,
         ]);
+    }
+
+    /**
+     * Edits the guild's display name, description, emoji and icon, as the web does. An edit the moderation flags waits
+     * for an admin instead, so it answers 202 with the web's message, and the guild stays as it was.
+     */
+    public function update(UpdateApiGuildRequest $request, Guild $guild, #[CurrentUser] User $user, UpdateGuild $action, GuildsQuery $guilds): JsonResponse
+    {
+        $icon = $request->file('images.0');
+        assert($icon instanceof UploadedFile || $icon === null);
+
+        try {
+            $action->handle($guild, $user, $request->string('name')->value(), $request->string('description')->value(), $request->string('emoji')->value(), $icon, $request->boolean('remove_icon'), $request->isFlagged());
+        } catch (GuildModeratorRemoved) {
+            throw new NotFoundHttpException;
+        }
+
+        if ($request->isFlagged()) {
+            return response()->json(['message' => 'Your changes are waiting for review. They go live once an admin approves them.'], 202);
+        }
+
+        return GuildResource::make($guilds->find($guild, $user))->response();
     }
 
     /**
