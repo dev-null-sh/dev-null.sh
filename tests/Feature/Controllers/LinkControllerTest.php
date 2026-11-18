@@ -65,11 +65,12 @@ it('hides the commits the viewer may not see', function (): void {
         ->where('commits.data', fn ($commits): bool => collect($commits)->pluck('id')->sort()->values()->all() === collect([$visible->id, $alsoVisible->id, $own->id])->sort()->values()->all()));
 });
 
-it('reads a link whose query and ending slash its page escapes', function (): void {
+it('reads a link whose query, fragment and ending slash its page escapes', function (): void {
     $link = LinkPreview::factory()->create(['url' => 'https://example.com/docs/?page=2&q=100%25']);
     Commit::factory()->create(['link_preview_id' => $link->id]);
 
     expect(linkPage($link->url))->toBe(url('link/example.com/docs/%3Fpage=2&q=100%2525'));
+    expect(linkPage('https://php.net/archive/2026.php#2026-11-18-1'))->toBe(url('link/php.net/archive/2026.php%232026-11-18-1'));
 
     $this->get(linkPage($link->url))->assertOk()->assertInertia(fn ($page) => $page
         ->where('url', 'https://example.com/docs/?page=2&q=100%25')
