@@ -8,6 +8,7 @@ use App\Enums\ApiErrorCode;
 use App\Exceptions\ApiException;
 use App\Models\User;
 use Closure;
+use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\RateLimiter;
@@ -22,7 +23,8 @@ final readonly class ThrottleCommits
      * One budget of commits a minute, however they are posted. The commit is counted first and refused when that count
      * is over the budget: commits sent at the same moment would all read room left before any of them was counted. The
      * counting itself goes one commit at a time, as the database cache can lose a count when the first commits of a
-     * minute arrive together.
+     * minute arrive together. A commit that can't get its turn to be counted is told to slow down as well, rather than
+     * going through uncounted.
      *
      * @param  Closure(Request): (Response)  $next
      */
@@ -32,7 +34,12 @@ final readonly class ThrottleCommits
         assert($user instanceof User);
 
         $key = "commits:{$user->id}";
-        $count = Cache::lock("{$key}:counting", 10)->block(5, fn (): int => RateLimiter::increment($key, 60));
+
+        try {
+            $count = Cache::lock("{$key}:counting", 10)->block(5, fn (): int => RateLimiter::increment($key, 60));
+        } catch (LockTimeoutException) {
+            return $this->slowDown($request, max(1, RateLimiter::availableIn($key)));
+        }
 
         if ($count > self::PER_MINUTE) {
             return $this->slowDown($request, RateLimiter::availableIn($key));
