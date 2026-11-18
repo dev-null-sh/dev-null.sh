@@ -1,7 +1,8 @@
-import { Head, router, usePage } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import { Pencil } from 'lucide-react';
 import { useState } from 'react';
 import { show } from '@/actions/App/Http/Controllers/GuildController';
+import { show as showProfile } from '@/actions/App/Http/Controllers/UserController';
 import { CommitCard } from '@/components/commit-card';
 import { CommitComposer } from '@/components/commit-composer';
 import { EmptyFeed } from '@/components/commit-feed';
@@ -18,18 +19,25 @@ import {
 } from '@/components/guild-preferences';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
+import { UserAvatar } from '@/components/user-avatar';
 import AppLayout from '@/layouts/app-layout';
 import type { Commit } from '@/types';
 
 export default function Show({
     handle,
     canModerate,
+    moderator,
     commits,
     page,
     hasMore,
 }: {
     handle: string;
     canModerate: boolean;
+    moderator: {
+        handle: string;
+        name: string;
+        avatar_url: string | null;
+    } | null;
     commits: Commit[];
     page: number;
     hasMore: boolean;
@@ -96,6 +104,23 @@ export default function Show({
                 <p className="mt-4 text-[15px] leading-relaxed wrap-anywhere whitespace-pre-wrap">
                     {guild.description}
                 </p>
+                {moderator && (
+                    <div className="mt-4 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                        <span>Moderators</span>
+                        <Link
+                            href={showProfile(moderator.handle)}
+                            prefetch
+                            className="flex items-center gap-1.5 text-foreground hover:underline"
+                        >
+                            <UserAvatar
+                                user={moderator}
+                                className="size-5"
+                                pixels={40}
+                            />
+                            @{moderator.handle}
+                        </Link>
+                    </div>
+                )}
                 <div className="mt-4 flex flex-wrap items-center gap-3">
                     {!canModerate && <GuildReportButton guild={guild} />}
                     {auth.isAdmin && !guild.is_paused && (

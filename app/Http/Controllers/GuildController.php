@@ -6,6 +6,7 @@ namespace App\Http\Controllers;
 
 use App\Actions\CreateGuild;
 use App\Actions\UpdateGuild;
+use App\Enums\UserUpdate;
 use App\Exceptions\GuildModeratorRemoved;
 use App\Http\Requests\CreateGuildRequest;
 use App\Http\Requests\ListGuildsRequest;
@@ -17,6 +18,7 @@ use App\Models\GuildSubmission;
 use App\Models\User;
 use App\Queries\GuildCommitsQuery;
 use App\Queries\GuildsQuery;
+use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\UploadedFile;
@@ -61,6 +63,15 @@ final readonly class GuildController
         return Inertia::render('guild/show', [
             'handle' => $guild->handle,
             'canModerate' => $guild->user_id === $user->id,
+            'moderator' => Inertia::live(
+                fn (): ?array => ($owner = $guild->owner) === null ? null : [
+                    'handle' => $owner->handle,
+                    'name' => $owner->name,
+                    'avatar_url' => $owner->avatar_url,
+                ],
+                on: [UserUpdate::Guilds->value],
+                channel: new PrivateChannel($user),
+            ),
             'commits' => $commits->currentPage() > 1
                 ? Inertia::merge(ShownStreams::commits($commits))->matchOn('id')
                 : ShownStreams::commits($commits),
