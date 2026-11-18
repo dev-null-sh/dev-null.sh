@@ -194,6 +194,18 @@ it('takes the moderator away together with the pause when the guild is paused du
         ->assertJsonPath('can_moderate', false);
 });
 
+it('shows the pin the guild has when the snapshot starts', function (): void {
+    $rust = Guild::factory()->create(['handle' => 'rust', 'user_id' => User::factory()->create()->id]);
+    $old = Commit::factory()->for($rust)->create(['created_at' => now()->subDay()]);
+    $new = Commit::factory()->for($rust)->create();
+    $rust->update(['pinned_commit_id' => $old->id]);
+    $this->app->beforeResolving(GuildsQuery::class, fn () => $rust->update(['pinned_commit_id' => $new->id]));
+
+    signedApiRequest($this->keyPair, 'GET', route('api-guild.show', 'rust'))
+        ->assertOk()
+        ->assertJsonPath('pinned_commit.id', $new->id);
+});
+
 it('still shows a paused guild and its board', function (): void {
     $go = Guild::factory()->create(['handle' => 'go', 'user_id' => null]);
     $post = Commit::factory()->for($go)->create();

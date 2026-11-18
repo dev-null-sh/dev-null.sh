@@ -32,12 +32,13 @@ final readonly class GuildController
     public function show(ShowApiGuildRequest $request, Guild $guild, #[CurrentUser] User $user, GuildsQuery $guilds, GuildCommitsQuery $commits, ReplyPreviewsQuery $replyPreviews): AnonymousResourceCollection
     {
         [$board, $pinnedCommit, $guild] = $commits->snapshot($user, function () use ($commits, $guilds, $guild, $user, $request, $replyPreviews): array {
+            $guild = $guilds->find($guild, $user);
             $board = $commits->get($guild, $user, $request->integer('page', 1))->withQueryString();
             $pinnedCommit = $commits->pinned($guild, $user);
 
             $replyPreviews->load([...$board->items(), ...array_filter([$pinnedCommit])], $user);
 
-            return [$board, $pinnedCommit, $guilds->find($guild, $user)];
+            return [$board, $pinnedCommit, $guild];
         });
 
         return CommitResource::collection($board)->additional([
