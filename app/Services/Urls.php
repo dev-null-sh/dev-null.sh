@@ -128,15 +128,16 @@ final readonly class Urls
 
     /**
      * A URL with its percent-encoded non-ASCII characters shown as themselves, as browsers show them: "/%C3%89t%C3%A9"
-     * reads "/Été". Escapes of ASCII characters stay, since they may change what the URL means. Keep the rule in sync
-     * with resources/js/lib/urls.ts.
+     * reads "/Été". Escapes of ASCII characters stay, since they may change what the URL means, and so do those of
+     * invisible, control and spacing characters, which could disguise it. Keep the rule in sync with
+     * resources/js/lib/urls.ts.
      */
     public function readable(string $url): string
     {
         return (string) preg_replace_callback('/(?:%[89A-F][0-9A-F])+/i', function (array $matches): string {
             $decoded = rawurldecode($matches[0]);
 
-            return mb_check_encoding($decoded, 'UTF-8') ? $decoded : $matches[0];
+            return mb_check_encoding($decoded, 'UTF-8') && preg_match('/[\p{C}\p{Z}]/u', $decoded) === 0 ? $decoded : $matches[0];
         }, $url);
     }
 

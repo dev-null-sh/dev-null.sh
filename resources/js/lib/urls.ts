@@ -58,13 +58,15 @@ export function hrefFor(linkText: string): string | null {
 
 /**
  * A URL with its percent-encoded non-ASCII characters shown as themselves, as browsers show them: "/%C3%89t%C3%A9"
- * reads "/Été". Escapes of ASCII characters stay, since they may change what the URL means. Keep in sync with
- * app/Services/Urls.php.
+ * reads "/Été". Escapes of ASCII characters stay, since they may change what the URL means, and so do those of
+ * invisible, control and spacing characters, which could disguise it. Keep in sync with app/Services/Urls.php.
  */
 export function readableUrl(url: string): string {
     return url.replace(/(?:%[89A-F][0-9A-F])+/giu, (escapes) => {
         try {
-            return decodeURIComponent(escapes);
+            const decoded = decodeURIComponent(escapes);
+
+            return /[\p{C}\p{Z}]/u.test(decoded) ? escapes : decoded;
         } catch {
             return escapes;
         }
