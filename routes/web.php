@@ -291,6 +291,7 @@ Route::middleware([RememberIntendedUrl::class, RedirectToHandleCase::class])->gr
 // Every commit about a link, at the link without its scheme...
 Route::get('link/{url}', [LinkController::class, 'show'])
     ->where('url', '.+')
+    ->middleware(RememberIntendedUrl::class)
     ->name('link.show');
 
 // Sitemaps, the same for everyone, so they skip the web group's session and cookies, which would keep a cache from sharing them...

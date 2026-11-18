@@ -135,6 +135,12 @@ it('names a link by its readable characters', function (): void {
         ->assertSee('<meta property="og:title" content="fr.wikipedia.org/wiki/Été on /dev/null">', false);
 });
 
+it('returns guests to the link page they were reading once they sign in', function (): void {
+    $this->get(url('link/dev-null.sh').'?sort=new')->assertOk();
+
+    expect(session('url.intended'))->toBe(url('link/dev-null.sh').'?sort=new');
+});
+
 it('rejects a sort it does not know', function (): void {
     $this->get(url('link/dev-null.sh').'?sort=hot')->assertSessionHasErrors('sort');
 });
