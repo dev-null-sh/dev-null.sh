@@ -9,6 +9,7 @@ use App\Exceptions\ApiException;
 use App\Models\User;
 use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\RateLimiter;
 use Inertia\Inertia;
 use Symfony\Component\HttpFoundation\Response;
@@ -18,7 +19,10 @@ final readonly class ThrottleCommits
     private const int PER_MINUTE = 10;
 
     /**
-     * One budget of commits a minute, however they are posted.
+     * One budget of commits a minute, however they are posted. The commit is counted first and refused when that count
+     * is over the budget: commits sent at the same moment would all read room left before any of them was counted. The
+     * counting itself goes one commit at a time, as the database cache can lose a count when the first commits of a
+     * minute arrive together.
      *
      * @param  Closure(Request): (Response)  $next
      */
@@ -28,12 +32,11 @@ final readonly class ThrottleCommits
         assert($user instanceof User);
 
         $key = "commits:{$user->id}";
+        $count = Cache::lock("{$key}:counting", 10)->block(5, fn (): int => RateLimiter::increment($key, 60));
 
-        if (RateLimiter::tooManyAttempts($key, self::PER_MINUTE)) {
+        if ($count > self::PER_MINUTE) {
             return $this->slowDown($request, RateLimiter::availableIn($key));
         }
-
-        RateLimiter::increment($key, 60);
 
         return $next($request);
     }

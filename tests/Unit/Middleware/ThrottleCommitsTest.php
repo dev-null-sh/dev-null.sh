@@ -40,6 +40,17 @@ it('lets each user commit 10 times a minute', function (): void {
         ->and(throttledCommit(User::factory()->create())->getContent())->toBe('Committed');
 });
 
+it('refuses a commit the count puts over the limit, even when the budget looked open a moment before', function (): void {
+    $user = User::factory()->create();
+
+    // Commits sent at the same moment each read room left, then the others are counted before this one is...
+    RateLimiter::shouldReceive('tooManyAttempts')->andReturnFalse();
+    RateLimiter::shouldReceive('increment')->once()->andReturn(11);
+    RateLimiter::shouldReceive('availableIn')->andReturn(60);
+
+    expect(throttledCommit($user))->toBeInstanceOf(RedirectResponse::class);
+});
+
 it('tells the commit script to slow down in plain text', function (): void {
     $user = User::factory()->create();
 
