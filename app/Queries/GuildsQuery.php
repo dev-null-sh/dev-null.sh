@@ -18,6 +18,11 @@ final readonly class GuildsQuery
         return $this->withPreferencesOf($user)->orderByDesc('members_count')->orderBy('handle')->get();
     }
 
+    public function find(Guild $guild, User $user): Guild
+    {
+        return $this->withPreferencesOf($user)->whereKey($guild->id)->sole();
+    }
+
     /** @return LengthAwarePaginator<int, Guild> */
     public function paginate(string $term, int $page, User $user): LengthAwarePaginator
     {
