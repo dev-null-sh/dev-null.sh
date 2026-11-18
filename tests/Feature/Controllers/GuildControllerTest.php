@@ -794,6 +794,14 @@ it('explains when a guild hashtag is already taken', function (): void {
         ->assertUnprocessable()->assertJsonValidationErrors(['handle' => 'A guild already uses this hashtag. Choose a different display name.']);
 });
 
+it('includes public guild pill details on board permalinks even for guests', function (): void {
+    $guild = Guild::factory()->create(['handle' => 'adhd', 'name' => 'ADHD', 'emoji' => '🧠']);
+    $commit = Commit::factory()->create(['guild_id' => $guild->id]);
+
+    $this->get(route('commit.show', [$commit->author, $commit]))->assertOk()->assertInertia(fn ($page) => $page
+        ->where('commit.guild', ['handle' => 'adhd', 'name' => 'ADHD', 'emoji' => '🧠', 'icon_url' => null]));
+});
+
 it('classifies queued guild edits by both handle and owner without per-submission queries', function (): void {
     $admin = User::factory()->create(['handle' => 'admin']);
     Guild::factory()->create(['user_id' => $admin->id, 'handle' => 'owned']);
