@@ -14,6 +14,7 @@ use App\Models\ConversationParticipant;
 use App\Models\Device;
 use App\Models\Guild;
 use App\Models\GuildReport;
+use App\Models\GuildSubmission;
 use App\Models\Message;
 use App\Models\Poll;
 use App\Models\PollOption;
@@ -56,6 +57,7 @@ use Traversable;
  *     organizations: array<int, array{handle: string, role: string, joined_at: string}>,
  *     followed_organizations: array<int, array{handle: string, followed_at: string}>,
  *     guilds: array<int, array<string, mixed>>,
+ *     guild_submissions: array<int, array<string, mixed>>,
  *     guild_preferences: array<int, stdClass>,
  *     guild_reports: array<int, array{handle: string, details: string, created_at: string}>,
  *     guild_moderator_removals: array<int, stdClass>,
@@ -143,6 +145,14 @@ final readonly class CreateExport
                 'icon' => $guild->icon_path === null ? null : route('guild-icon.show', $guild->handle),
                 'created_at' => $guild->created_at->toIso8601String(),
                 'updated_at' => $guild->updated_at->toIso8601String(),
+            ])->all(),
+            'guild_submissions' => GuildSubmission::query()->where('user_id', $user->id)->orderBy('handle')->get()->map(fn (GuildSubmission $submission): array => [
+                'handle' => $submission->handle,
+                'name' => $submission->name,
+                'description' => $submission->description,
+                'emoji' => $submission->emoji,
+                'has_icon' => $submission->icon_path !== null,
+                'created_at' => $submission->created_at->toIso8601String(),
             ])->all(),
             'guild_preferences' => DB::table('guild_preferences')->join('guilds', 'guilds.id', '=', 'guild_preferences.guild_id')
                 ->where('guild_preferences.user_id', $user->id)->orderBy('handle')->get(['handle', 'joined_at', 'muted_at'])->all(),
