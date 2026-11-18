@@ -30,11 +30,13 @@ export type UseStashReturn = {
 const listeners = new Set<() => void>();
 const pending = new Map<string, string>();
 const images = new Map<string, StoredImages>();
+const pendingImageWrites = new Map<string, StoredImages>();
 const restoredImageKeys = new Set<string>();
 const noImages: StoredImages = { images: [], descriptions: [] };
 let timeout: ReturnType<typeof setTimeout> | undefined;
 let isListeningForPageHide = false;
 let isLoadingImages = false;
+let imageStorageRestored = false;
 
 const prefixFor = (userId: string): string => `stash:${userId}:`;
 
@@ -75,6 +77,13 @@ const loadImages = (): void => {
     isLoadingImages = true;
 
     void readStoredImages().then((stored) => {
+        if (stored === null) {
+            isLoadingImages = false;
+
+            return;
+        }
+
+        imageStorageRestored = true;
         stored.forEach((draft, key) => {
             const restored = draft.images
                 .map((file, index) => ({
@@ -93,7 +102,15 @@ const loadImages = (): void => {
             }
         });
 
+        pendingImageWrites.forEach((draft, key) => {
+            writeStoredImages(key, draft.images, draft.descriptions);
+        });
+        pendingImageWrites.clear();
+        isLoadingImages = false;
+
         notify();
+    }).catch(() => {
+        isLoadingImages = false;
     });
 };
 
@@ -147,7 +164,15 @@ const storeImages = (
 
     const nextDescriptions = next.map((_, index) => descriptions[index] ?? '');
     images.set(key, { images: next, descriptions: nextDescriptions });
-    writeStoredImages(key, next, nextDescriptions);
+    if (imageStorageRestored) {
+        writeStoredImages(key, next, nextDescriptions);
+    } else {
+        pendingImageWrites.set(key, {
+            images: next,
+            descriptions: nextDescriptions,
+        });
+        loadImages();
+    }
     notify();
 };
 

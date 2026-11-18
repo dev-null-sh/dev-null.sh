@@ -69,10 +69,10 @@ const transact = async (
     });
 };
 
-export async function readStoredImages(): Promise<Map<string, StoredImages>> {
+export async function readStoredImages(): Promise<Map<string, StoredImages> | null> {
     const stored = new Map<string, StoredImages>();
 
-    await transact('readonly', (store) => {
+    const succeeded = await transact('readonly', (store) => {
         const request = store.openCursor();
 
         request.onsuccess = () => {
@@ -119,7 +119,7 @@ export async function readStoredImages(): Promise<Map<string, StoredImages>> {
         };
     });
 
-    return stored;
+    return succeeded ? stored : null;
 }
 
 export function writeStoredImages(
