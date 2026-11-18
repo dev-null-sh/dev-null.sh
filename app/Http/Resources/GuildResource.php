@@ -12,6 +12,9 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * A guild as the web's Guilds page shows it, with whether the user joined or muted it. A guild without a moderator is
  * paused.
  *
+ * On API routes, icon_url is signed for the user, as the app has no web session, and stays the same all day so the app
+ * can cache it.
+ *
  * @mixin Guild
  */
 final class GuildResource extends JsonResource
@@ -26,7 +29,7 @@ final class GuildResource extends JsonResource
             'name' => $this->name,
             'description' => $this->description,
             'emoji' => $this->emoji,
-            'icon_url' => $this->iconUrl(),
+            'icon_url' => $request->routeIs('api-*') ? $this->apiIconUrl($request->user()) : $this->iconUrl(),
             'member_count' => $this->members_count,
             'is_joined' => $this->is_joined,
             'is_muted' => $this->is_muted,

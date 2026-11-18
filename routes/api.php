@@ -32,6 +32,7 @@ use App\Http\Controllers\Api\CurrentUserController;
 use App\Http\Controllers\Api\DeviceController;
 use App\Http\Controllers\Api\DevicePushTokenController;
 use App\Http\Controllers\Api\GuildController;
+use App\Http\Controllers\Api\GuildIconController;
 use App\Http\Controllers\Api\HeadlineController;
 use App\Http\Controllers\Api\IssueController;
 use App\Http\Controllers\Api\IssueSuggestionController;
@@ -145,7 +146,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         ->middleware('throttle:devices')
         ->name('api-device.store');
 
-    // Remote images and voice notes: the app's image views and audio players can't sign requests, so a thread hands out URLs signed for the user...
+    // Remote images, voice notes and guild icons: the app's image views and audio players can't sign requests, so the API hands out URLs signed for the user...
     Route::get('remotes/images/{messageImage}', [MessageImageController::class, 'show'])
         ->whereUuid('messageImage')
         ->withoutMiddleware('throttle:api')
@@ -156,6 +157,10 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         ->withoutMiddleware('throttle:api')
         ->middleware('signed:relative')
         ->name('api-message-voice.show');
+    Route::get('guilds/{guild:handle}/icon', [GuildIconController::class, 'show'])
+        ->withoutMiddleware('throttle:api')
+        ->middleware('signed:relative')
+        ->name('api-guild-icon.show');
 
     // Signed by the mobile app with an SSH key that the user approved as a device...
     Route::middleware(AuthenticateSignedRequest::class)->group(function (): void {
