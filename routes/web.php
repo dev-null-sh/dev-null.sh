@@ -77,6 +77,7 @@ use App\Http\Controllers\IssueController;
 use App\Http\Controllers\IssueSuggestionController;
 use App\Http\Controllers\JoinLinkController;
 use App\Http\Controllers\LinkController;
+use App\Http\Controllers\LinkSitemapController;
 use App\Http\Controllers\LiveStreamController;
 use App\Http\Controllers\LocalSessionController;
 use App\Http\Controllers\LogController;
@@ -287,6 +288,12 @@ Route::middleware([RememberIntendedUrl::class, RedirectToHandleCase::class])->gr
         ->name('commit-photo.show');
 });
 
+// Every commit about a link, at the link without its scheme...
+Route::get('link/{url}', [LinkController::class, 'show'])
+    ->where('url', '.+')
+    ->middleware(RememberIntendedUrl::class)
+    ->name('link.show');
+
 // Sitemaps, the same for everyone, so they skip the web group's session and cookies, which would keep a cache from sharing them...
 Route::withoutMiddleware('web')->middleware('cache.headers:public;max_age=3600;etag')->group(function (): void {
     Route::get('sitemap.xml', [SitemapController::class, 'index'])->name('sitemap.index');
@@ -299,6 +306,8 @@ Route::withoutMiddleware('web')->middleware('cache.headers:public;max_age=3600;e
     Route::get('sitemaps/commits-{day}.xml', [CommitSitemapController::class, 'show'])
         ->where('day', '[0-9]{4}-[0-9]{2}-[0-9]{2}')
         ->name('commit-sitemap.show');
+    Route::get('sitemaps/links.xml', [LinkSitemapController::class, 'index'])
+        ->name('link-sitemap.index');
 });
 
 // User...
@@ -462,9 +471,6 @@ Route::middleware('auth')->group(function (): void {
 
     // Private starred commits...
     Route::get('starred', [StarredCommitController::class, 'index'])->name('starred.index');
-
-    // Every commit about a link, a prototype only reachable by its URL...
-    Route::get('links', [LinkController::class, 'index'])->name('link.index');
 
     // Commit...
     Route::get('scheduled-commits', [ScheduledCommitController::class, 'index'])->name('scheduled-commit.index');

@@ -60,6 +60,7 @@ import { HiddenLinkPreviewContext } from '@/components/hidden-link-preview-conte
 import InputError from '@/components/input-error';
 import { LinkCardPicker } from '@/components/link-card-picker';
 import { LinkPreview } from '@/components/link-preview';
+import { LinkTopicFooter } from '@/components/link-topic-footer';
 import { MentionTextarea } from '@/components/mention-textarea';
 import { OrganizationAvatar } from '@/components/organization-avatar';
 import { ReplyRecipientPicker } from '@/components/reply-recipient-picker';
@@ -1675,6 +1676,13 @@ function CommitReply({
                                 )}
                                 preview={reply.link_preview}
                                 source={{ commitId: reply.id }}
+                                footer={
+                                    reply.link_topic && (
+                                        <LinkTopicFooter
+                                            topic={reply.link_topic}
+                                        />
+                                    )
+                                }
                             />
                         )}
                     <ShowThreadLink thread={thread} />
