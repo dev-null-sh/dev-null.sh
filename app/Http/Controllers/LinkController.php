@@ -47,6 +47,7 @@ final readonly class LinkController
             'url' => $url,
             'pageUrl' => $pageUrl,
             'link' => $link,
+            'iconUrl' => $link?->icon_url,
             'sort' => $isNewestFirst ? 'latest' : 'top',
             'stats' => $stats,
             'commits' => $link instanceof LinkPreview

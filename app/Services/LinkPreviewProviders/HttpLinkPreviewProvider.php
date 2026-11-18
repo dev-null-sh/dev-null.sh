@@ -58,8 +58,11 @@ final readonly class HttpLinkPreviewProvider implements LinkPreviewProvider
         'title' => null,
         'description' => null,
         'image_url' => null,
+        'icon_url' => null,
         'site_name' => null,
     ];
+
+    private const int MAX_ICON_SIZE = 128;
 
     /**
      * @param  Closure(string, int): (array<array-key, mixed>|false)  $lookup
@@ -232,6 +235,7 @@ final readonly class HttpLinkPreviewProvider implements LinkPreviewProvider
             'title' => $this->text([$meta['og:title'] ?? '', $meta['twitter:title'] ?? '', $document->title], 300),
             'description' => $this->text([$meta['og:description'] ?? '', $meta['twitter:description'] ?? '', $meta['description'] ?? ''], 500),
             'image_url' => $this->imageUrl([$meta['og:image:secure_url'] ?? '', $meta['og:image'] ?? '', $meta['twitter:image'] ?? ''], $page),
+            'icon_url' => $this->imageUrl($this->icons($document), $page),
             'site_name' => $this->text([$meta['og:site_name'] ?? ''], 100),
         ];
     }
@@ -253,6 +257,57 @@ final readonly class HttpLinkPreviewProvider implements LinkPreviewProvider
         }
 
         return null;
+    }
+
+    /**
+     * The icons a page declares, the best first, as favicon.show ranks them: touch icons, then icons, then SVG mask
+     * icons; among those, the largest up to 128 pixels, then the smallest above; then those for any colour scheme, a
+     * light one, and a dark one last, as icons are drawn on white. Icons for other media are left out.
+     *
+     * @return list<string>
+     */
+    private function icons(HTMLDocument $document): array
+    {
+        $icons = [];
+
+        foreach ($document->querySelectorAll('link[rel][href]') as $link) {
+            $rel = explode(' ', Str::squish(mb_strtolower((string) $link->getAttribute('rel'))));
+            $href = (string) $link->getAttribute('href');
+            $type = match (true) {
+                array_intersect(['apple-touch-icon', 'apple-touch-icon-precomposed'], $rel) !== [] => 0,
+                in_array('icon', $rel, true) => 1,
+                in_array('mask-icon', $rel, true) && ($link->getAttribute('type') === 'image/svg+xml' || str_ends_with(Str::before($href, '?'), '.svg')) => 2,
+                default => null,
+            };
+
+            if ($type === null) {
+                continue;
+            }
+
+            $sizes = mb_strtolower(mb_trim((string) $link->getAttribute('sizes')));
+            preg_match_all('/\d+/', $sizes, $numbers);
+            $size = $sizes === 'any' ? PHP_INT_MAX : max([0, ...array_map(intval(...), $numbers[0])]);
+            $media = mb_strtolower((string) $link->getAttribute('media'));
+
+            if ($media !== '' && ! str_contains($media, 'light') && ! str_contains($media, 'dark')) {
+                continue;
+            }
+
+            $icons[] = [[
+                $type,
+                $size <= self::MAX_ICON_SIZE ? 0 : 1,
+                $size <= self::MAX_ICON_SIZE ? -$size : $size,
+                match (true) {
+                    $media === '' => 0,
+                    str_contains($media, 'light') => 1,
+                    default => 2,
+                },
+            ], $href];
+        }
+
+        usort($icons, fn (array $a, array $b): int => $a[0] <=> $b[0]);
+
+        return array_column($icons, 1);
     }
 
     /**

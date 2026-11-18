@@ -70,6 +70,7 @@ final readonly class CommitController
                     'url' => $around['link']->url,
                     'page_url' => $linkPages->url($around['link']->url),
                     'title' => $around['link']->title,
+                    'icon_url' => $around['link']->icon_url,
                     'count' => $around['count'],
                     'commits' => ShownStreams::commits($around['commits']),
                 ];

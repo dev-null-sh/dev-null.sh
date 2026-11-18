@@ -12,6 +12,7 @@ it('stores the metadata of the page and marks the link as fetched', function ():
         'title' => 'Shipping link previews',
         'description' => 'How devnull unfurls links.',
         'image_url' => 'https://example.com/og.png',
+        'icon_url' => 'https://example.com/icon.png',
         'site_name' => 'Example Blog',
     ]);
     $linkPreview = LinkPreview::factory()->create(['url' => 'https://example.com/post']);
@@ -23,6 +24,7 @@ it('stores the metadata of the page and marks the link as fetched', function ():
         ->title->toBe('Shipping link previews')
         ->description->toBe('How devnull unfurls links.')
         ->image_url->toBe('https://example.com/og.png')
+        ->icon_url->toBe('https://example.com/icon.png')
         ->site_name->toBe('Example Blog')
         ->fetched_at->not->toBeNull();
 });

@@ -110,7 +110,7 @@ it('tells a quoted commit card who else talks about its link', function (): void
 });
 
 it('shows the most starred commits about the link from outside the thread on a commit page', function (): void {
-    $link = LinkPreview::factory()->fetched()->create(['url' => 'https://dev-null.sh', 'title' => 'dev/null']);
+    $link = LinkPreview::factory()->fetched()->create(['url' => 'https://dev-null.sh', 'title' => 'dev/null', 'icon_url' => 'https://dev-null.sh/icon.png']);
     $author = User::factory()->create();
     $root = Commit::factory()->for($author)->create(['link_preview_id' => $link->id]);
     $reply = Commit::factory()->for($author)->create(['link_preview_id' => $link->id, 'parent_id' => $root->id, 'root_id' => $root->id]);
@@ -124,6 +124,7 @@ it('shows the most starred commits about the link from outside the thread on a c
             ->where('linkTopic.url', 'https://dev-null.sh')
             ->where('linkTopic.page_url', url('link/dev-null.sh'))
             ->where('linkTopic.title', 'dev/null')
+            ->where('linkTopic.icon_url', 'https://dev-null.sh/icon.png')
             ->where('linkTopic.count', 6)
             ->where('linkTopic.commits', fn ($commits): bool => collect($commits)->pluck('id')->all() === [$favourite->id, $others[0]->id, $others[1]->id])));
 });

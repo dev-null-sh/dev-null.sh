@@ -17,7 +17,7 @@ function runNextQueuedJob(): void
 
 it('fetches the link preview', function (): void {
     $this->mock(LinkPreviewProvider::class)->shouldReceive('metadata')->once()
-        ->andReturn(['title' => 'Example', 'description' => null, 'image_url' => null, 'site_name' => null]);
+        ->andReturn(['title' => 'Example', 'description' => null, 'image_url' => null, 'icon_url' => null, 'site_name' => null]);
 
     $linkPreview = LinkPreview::factory()->create(['url' => 'https://93.184.216.34/']);
 
@@ -43,7 +43,7 @@ it('retries a page that may be reachable later', function (): void {
 
     $linkPreviews = $this->mock(LinkPreviewProvider::class);
     $linkPreviews->shouldReceive('metadata')->once()->andThrow(new ConnectionException('unreachable'));
-    $linkPreviews->shouldReceive('metadata')->once()->andReturn(['title' => 'Back online', 'description' => null, 'image_url' => null, 'site_name' => null]);
+    $linkPreviews->shouldReceive('metadata')->once()->andReturn(['title' => 'Back online', 'description' => null, 'image_url' => null, 'icon_url' => null, 'site_name' => null]);
 
     $linkPreview = LinkPreview::factory()->create(['url' => 'https://93.184.216.34/']);
 

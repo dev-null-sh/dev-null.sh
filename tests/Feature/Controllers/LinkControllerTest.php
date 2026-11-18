@@ -19,7 +19,7 @@ function linkPage(string $url): string
 }
 
 it('shows guests the approved commits about a link', function (): void {
-    $link = LinkPreview::factory()->fetched()->create(['url' => 'https://wiki.php.net/rfc/pipe-operator']);
+    $link = LinkPreview::factory()->fetched()->create(['url' => 'https://wiki.php.net/rfc/pipe-operator', 'icon_url' => 'https://wiki.php.net/favicon.png']);
     $approved = Commit::factory()->create(['link_preview_id' => $link->id]);
     Commit::factory()->pending()->create(['link_preview_id' => $link->id]);
 
@@ -28,6 +28,7 @@ it('shows guests the approved commits about a link', function (): void {
         ->where('url', 'https://wiki.php.net/rfc/pipe-operator')
         ->where('pageUrl', url('link/wiki.php.net/rfc/pipe-operator'))
         ->where('link.url', 'https://wiki.php.net/rfc/pipe-operator')
+        ->where('iconUrl', 'https://wiki.php.net/favicon.png')
         ->where('stats', ['commits' => 1, 'people' => 1])
         ->has('commits.data', 1)
         ->where('commits.data.0.id', $approved->id));
@@ -113,13 +114,14 @@ it('shows no commits for a link nobody used as their card', function (): void {
 });
 
 it('shows nothing of a card the viewer may see no commit use', function (): void {
-    $link = LinkPreview::factory()->fetched()->create(['url' => 'https://example.com/private', 'title' => 'A private plan']);
+    $link = LinkPreview::factory()->fetched()->create(['url' => 'https://example.com/private', 'title' => 'A private plan', 'icon_url' => 'https://example.com/private.png']);
     Message::factory()->create(['link_preview_id' => $link->id]);
     Commit::factory()->pending()->create(['link_preview_id' => $link->id]);
 
     $this->get(url('link/example.com/private'))
         ->assertDontSee('A private plan')
-        ->assertInertia(fn ($page) => $page->where('link', null)->where('commits', null));
+        ->assertDontSee('private.png')
+        ->assertInertia(fn ($page) => $page->where('link', null)->where('iconUrl', null)->where('commits', null));
 });
 
 it('lets search engines index the page only once two people talk about the link', function (): void {

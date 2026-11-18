@@ -12,7 +12,7 @@ use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 
 /**
- * @return array{title: string|null, description: string|null, image_url: string|null, site_name: string|null}
+ * @return array{title: string|null, description: string|null, image_url: string|null, icon_url: string|null, site_name: string|null}
  */
 function unfurl(string $url): array
 {
@@ -36,11 +36,11 @@ function htmlResponse(string $html, int $status = 200): PromiseInterface
 }
 
 /**
- * @param  array{title: string|null, description: string|null, image_url: string|null, site_name: string|null}  $metadata
+ * @param  array{title: string|null, description: string|null, image_url: string|null, icon_url: string|null, site_name: string|null}  $metadata
  */
 function expectNoMetadata(array $metadata): void
 {
-    expect($metadata)->toBe(['title' => null, 'description' => null, 'image_url' => null, 'site_name' => null]);
+    expect($metadata)->toBe(['title' => null, 'description' => null, 'image_url' => null, 'icon_url' => null, 'site_name' => null]);
 }
 
 it('reads the open graph metadata of a page', function (): void {
@@ -64,9 +64,32 @@ it('reads the open graph metadata of a page', function (): void {
         'title' => 'Shipping link previews',
         'description' => 'How devnull unfurls links.',
         'image_url' => 'https://example.com/og.png',
+        'icon_url' => null,
         'site_name' => 'Example Blog',
     ]);
 });
+
+it('picks the icon a page declares as favicon.show does', function (string $links, ?string $icon): void {
+    Http::fake(['https://example.com/blog/post' => htmlResponse("<html><head>{$links}</head></html>")]);
+
+    expect(unfurl('https://example.com/blog/post')['icon_url'])->toBe($icon);
+})->with([
+    'none' => ['', null],
+    'icon resolved against the page' => ['<link rel="icon" href="../favicon.png">', 'https://example.com/favicon.png'],
+    'shortcut icon' => ['<link rel="SHORTCUT  Icon" href="/favicon.ico">', 'https://example.com/favicon.ico'],
+    'touch icon first' => ['<link rel="icon" href="/icon.png"><link rel="apple-touch-icon" href="/touch.png">', 'https://example.com/touch.png'],
+    'largest up to 128 pixels' => ['<link rel="icon" sizes="16x16" href="/16.png"><link rel="icon" sizes="192x192" href="/192.png"><link rel="icon" sizes="32x32 64x64" href="/64.png">', 'https://example.com/64.png'],
+    'smallest above 128 pixels' => ['<link rel="icon" sizes="512x512" href="/512.png"><link rel="icon" sizes="192x192" href="/192.png">', 'https://example.com/192.png'],
+    'scalable last' => ['<link rel="icon" sizes="any" href="/icon.svg"><link rel="icon" sizes="512x512" href="/512.png">', 'https://example.com/512.png'],
+    'dark scheme last' => ['<link rel="icon" media="(prefers-color-scheme: dark)" href="/dark.png"><link rel="icon" media="(prefers-color-scheme: light)" href="/light.png">', 'https://example.com/light.png'],
+    'colour scheme only breaks ties' => ['<link rel="icon" href="/icon.png"><link rel="apple-touch-icon" media="(prefers-color-scheme: dark)" href="/dark-touch.png">', 'https://example.com/dark-touch.png'],
+    'other media' => ['<link rel="apple-touch-icon" media="(min-resolution: 2dppx)" href="/retina.png"><link rel="icon" href="/icon.png">', 'https://example.com/icon.png'],
+    'svg mask icon after icons' => ['<link rel="mask-icon" href="/mask.svg"><link rel="icon" href="/icon.png">', 'https://example.com/icon.png'],
+    'svg mask icon' => ['<link rel="mask-icon" href="/mask.svg?v=2">', 'https://example.com/mask.svg?v=2'],
+    'other mask icon' => ['<link rel="mask-icon" href="/mask.png">', null],
+    'other links' => ['<link rel="stylesheet" href="/app.css"><link rel="manifest" href="/site.webmanifest">', null],
+    'https only' => ['<link rel="apple-touch-icon" href="http://example.com/touch.png"><link rel="icon" href="/icon.png">', 'https://example.com/icon.png'],
+]);
 
 it('sends a pinned and bounded request that identifies itself and asks for english', function (): void {
     config(['app.url' => 'https://dev-null.sh']);

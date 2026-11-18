@@ -13,6 +13,6 @@ final readonly class NullLinkPreviewProvider implements LinkPreviewProvider
 {
     public function metadata(string $url): array
     {
-        return ['title' => null, 'description' => null, 'image_url' => null, 'site_name' => null];
+        return ['title' => null, 'description' => null, 'image_url' => null, 'icon_url' => null, 'site_name' => null];
     }
 }
