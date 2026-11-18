@@ -62,7 +62,11 @@ final readonly class GuildController
 
         return Inertia::render('guild/show', [
             'handle' => $guild->handle,
-            'canModerate' => $guild->user_id === $user->id,
+            'canModerate' => Inertia::live(
+                fn (): bool => $guild->user_id === $user->id,
+                on: [UserUpdate::Guilds->value],
+                channel: new PrivateChannel($user),
+            ),
             'moderator' => Inertia::live(
                 fn (): ?array => ($owner = $guild->owner) === null ? null : [
                     'handle' => $owner->handle,
