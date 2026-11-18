@@ -4,6 +4,9 @@ import {
     destroy,
     index,
 } from '@/actions/App/Http/Controllers/GuildReportController';
+import { store as approve } from '@/actions/App/Http/Controllers/GuildSubmissionApprovalController';
+import { destroy as reject } from '@/actions/App/Http/Controllers/GuildSubmissionController';
+import { GuildIcon } from '@/components/guild-icon';
 import { GuildRemovalButton } from '@/components/guild-moderation';
 import { ModerationTabs } from '@/components/moderation-tabs';
 import { Button } from '@/components/ui/button';
@@ -11,25 +14,101 @@ import AppLayout from '@/layouts/app-layout';
 import type { Guild } from '@/types/guild';
 
 type Report = { id: string; details: string; guild: Guild };
+type Submission = Pick<
+    Guild,
+    'id' | 'handle' | 'name' | 'description' | 'emoji' | 'icon_url'
+> & { author: string; is_edit: boolean; remove_icon: boolean };
 type Reports = {
     data: Report[];
     current_page: number;
     next_page_url: string | null;
 };
 
-export default function Guilds({ reports }: { reports: Reports }) {
+export default function Guilds({
+    submissions,
+    reports,
+}: {
+    submissions: Submission[];
+    reports: Reports;
+}) {
+    const review = (
+        submission: Submission,
+        route: { url: string; method: 'post' | 'delete' },
+    ) =>
+        router
+            .optimistic((props: { submissions: Submission[] }) => ({
+                submissions: props.submissions.filter(
+                    ({ id }) => id !== submission.id,
+                ),
+            }))
+            .visit(route, { preserveScroll: true });
+
     return (
         <>
-            <Head title="Reported guilds" />
+            <Head title="Guild moderation" />
             <div className="sticky top-0 z-10 bg-card">
                 <div className="flex h-14 items-center border-b px-4">
                     <h1 className="font-semibold">Moderation</h1>
                 </div>
                 <ModerationTabs active="guilds" />
             </div>
-            {reports.data.length === 0 && (
+            {submissions.map((submission) => (
+                <article
+                    key={submission.id}
+                    className="space-y-4 border-b p-4 sm:p-6"
+                >
+                    <div className="flex min-w-0 items-center gap-2">
+                        <GuildIcon
+                            guild={submission}
+                            className="size-8 text-xl"
+                        />
+                        <p
+                            className="min-w-0 truncate font-semibold"
+                            title={`${submission.name} · #${submission.handle}`}
+                        >
+                            {submission.name} · #{submission.handle}
+                        </p>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                        {submission.is_edit ? 'Edit' : 'New guild'} by @
+                        {submission.author}, flagged by the automated
+                        moderation. Nothing is public until you approve it.
+                        {submission.is_edit && (
+                            <>
+                                {' '}
+                                {submission.icon_url
+                                    ? 'Replaces the guild icon.'
+                                    : submission.remove_icon
+                                      ? 'Removes the guild image and uses the emoji.'
+                                      : 'Keeps the current guild icon.'}
+                            </>
+                        )}
+                    </p>
+                    <p className="wrap-anywhere whitespace-pre-wrap">
+                        {submission.description}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                        <Button
+                            onClick={() =>
+                                review(submission, approve(submission.id))
+                            }
+                        >
+                            Approve
+                        </Button>
+                        <Button
+                            variant="outline"
+                            onClick={() =>
+                                review(submission, reject(submission.id))
+                            }
+                        >
+                            Reject
+                        </Button>
+                    </div>
+                </article>
+            ))}
+            {submissions.length === 0 && reports.data.length === 0 && (
                 <p className="p-6 text-muted-foreground">
-                    No guild reports waiting for review.
+                    No guilds or guild reports waiting for review.
                 </p>
             )}
             {reports.data.map((report) => (

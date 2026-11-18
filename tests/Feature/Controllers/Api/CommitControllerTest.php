@@ -67,6 +67,7 @@ it('shows an approved commit to anyone', function (): void {
             'short_hash' => 'e3f4a5b',
             'body' => 'Shipped the public API',
             'guild_handle' => null,
+            'guild' => null,
             'parent_id' => null,
             'html_url' => route('commit.show', [$user, $commit]),
             'created_at' => now()->toIso8601ZuluString(),
@@ -93,14 +94,18 @@ it('shows an approved commit to anyone', function (): void {
         ]]);
 });
 
-it('includes the guild handle in a public commit preview', function (): void {
-    $guild = Guild::factory()->create();
+it('includes the guild pill in a public commit preview', function (bool $image): void {
+    $guild = Guild::factory()->create(['handle' => 'adhd', 'name' => 'ADHD', 'emoji' => '🧠', 'icon_path' => $image ? 'guild-icons/example.webp' : null]);
     $commit = Commit::factory()->for($guild)->create();
 
     $this->getJson(route('api-commit.show', $commit))
         ->assertOk()
-        ->assertJsonPath('data.guild_handle', $guild->handle);
-});
+        ->assertJsonPath('data.guild_handle', 'adhd')
+        ->assertJsonPath('data.guild', [
+            'handle' => 'adhd', 'name' => 'ADHD', 'emoji' => '🧠',
+            'icon_url' => $image ? route('guild-icon.show', ['guild' => 'adhd', 'v' => $guild->updated_at->getTimestampMs()]) : null,
+        ]);
+})->with([false, true]);
 
 it('includes the guild handle of a quoted commit for a signed request', function (): void {
     $guild = Guild::factory()->create();
@@ -319,6 +324,7 @@ it('shows a signed request the commit as its page shows it to its user', functio
                 'short_hash' => 'e3f4a5b',
                 'body' => 'Ask @nunomaduro about `@Override`',
                 'guild_handle' => null,
+                'guild' => null,
                 'parent_id' => $root->id,
                 'html_url' => route('commit.show', [$user, $commit]),
                 'created_at' => now()->toIso8601ZuluString(),
@@ -349,6 +355,7 @@ it('shows a signed request the commit as its page shows it to its user', functio
                 'short_hash' => mb_substr(str_replace('-', '', $root->id), -7),
                 'body' => 'Who broke prod?',
                 'guild_handle' => 'rust',
+                'guild' => ['handle' => 'rust', 'name' => $root->guild->name, 'emoji' => $root->guild->emoji, 'icon_url' => null],
                 'parent_id' => null,
                 'html_url' => route('commit.show', [$root->user, $root]),
                 'created_at' => now()->subMinute()->toIso8601ZuluString(),

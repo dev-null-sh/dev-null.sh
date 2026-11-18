@@ -28,6 +28,7 @@ import { cn, shortHash } from '@/lib/utils';
 import { show } from '@/routes/mention';
 import { show as showOrganizationMention } from '@/routes/organization-mention';
 import type { BodySegment, Commit } from '@/types';
+import type { Guild } from '@/types/guild';
 
 // A link to a commit on dev/null itself, nothing after its id, so it can show as the author and the commit's hash.
 const commitLinkPattern =
@@ -626,34 +627,68 @@ function withWordmarks(
         );
 }
 
-export function Hashtag({ hashtag }: { hashtag: string }) {
+export function Hashtag({
+    hashtag,
+    guild: postedGuild,
+}: {
+    hashtag: string;
+    guild?: Pick<Guild, 'handle' | 'name' | 'emoji' | 'icon_url'> | null;
+}) {
     const { auth, guilds } = usePage().props;
-
-    if (!auth.user) {
-        return hashtag;
-    }
-
-    const guild = guilds?.find(
-        (guild) => guild.handle === hashtag.slice(1).toLowerCase(),
-    );
+    const guild =
+        postedGuild ??
+        guilds?.find(
+            (guild) => guild.handle === hashtag.slice(1).toLowerCase(),
+        );
 
     if (guild) {
+        const canOpenGuild = !!auth.user && !!guilds;
+        const className =
+            'inline-flex max-w-full items-baseline gap-[0.3em] rounded-sm bg-muted px-1 py-0.5 align-baseline font-mono text-[0.875em] leading-none font-normal text-foreground';
+        const content = (
+            <>
+                <GuildIcon
+                    guild={{
+                        emoji: guild.emoji,
+                        icon_url: canOpenGuild ? guild.icon_url : null,
+                    }}
+                    className="size-[1em] self-center rounded-[2px] bg-transparent"
+                />
+                <span className="min-w-0 truncate">{guild.name}</span>
+            </>
+        );
+
+        if (!canOpenGuild) {
+            return (
+                <span
+                    title={`${guild.name} · ${hashtag}`}
+                    className={className}
+                    data-test="guild-mention"
+                >
+                    {content}
+                </span>
+            );
+        }
+
         return (
             <Link
                 prefetch
                 href={showGuild(guild.handle)}
                 title={`${guild.name} · ${hashtag}`}
                 aria-label={`${guild.name}, ${hashtag} guild`}
-                className="inline-flex max-w-full items-baseline gap-[0.3em] rounded-sm bg-muted px-1 py-0.5 align-baseline font-mono text-[0.875em] leading-none font-normal text-foreground transition-colors hover:bg-primary-soft hover:text-primary-hover focus-visible:outline-2 focus-visible:outline-offset-0 focus-visible:outline-ring"
+                className={cn(
+                    className,
+                    'transition-colors hover:bg-primary-soft hover:text-primary-hover focus-visible:outline-2 focus-visible:outline-offset-0 focus-visible:outline-ring',
+                )}
                 data-test="guild-mention"
             >
-                <GuildIcon
-                    guild={guild}
-                    className="size-[1em] self-center rounded-[2px] bg-transparent"
-                />
-                <span className="min-w-0 truncate">{guild.name}</span>
+                {content}
             </Link>
         );
+    }
+
+    if (!auth.user) {
+        return hashtag;
     }
 
     return (

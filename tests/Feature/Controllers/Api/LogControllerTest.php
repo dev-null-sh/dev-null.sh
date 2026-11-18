@@ -52,6 +52,7 @@ it('lists the latest commits of everyone, newest first', function (): void {
         'short_hash' => mb_substr(str_replace('-', '', $older->id), -7),
         'body' => 'It was DNS.',
         'guild_handle' => null,
+        'guild' => null,
         'parent_id' => null,
         'html_url' => route('commit.show', [$author, $older]),
         'created_at' => now()->subMinute()->toIso8601ZuluString(),

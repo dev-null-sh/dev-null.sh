@@ -24,6 +24,7 @@ use App\Models\ConversationParticipant;
 use App\Models\Device;
 use App\Models\Guild;
 use App\Models\GuildReport;
+use App\Models\GuildSubmission;
 use App\Models\LinkPreview;
 use App\Models\Message;
 use App\Models\MessageImage;
@@ -486,6 +487,7 @@ it('erases browser push subscriptions with the account', function (): void {
 
 it('pauses moderated guilds and preserves other peoples posts memberships and scheduled posts', function (): void {
     Storage::fake();
+    config(['app.admins' => ['admin']]);
     $user = User::factory()->create();
     $guild = Guild::factory()->create(['user_id' => $user->id, 'handle' => 'jobs', 'icon_path' => 'guild-icons/example.webp']);
     Storage::disk()->put($guild->icon_path, 'image');
@@ -497,9 +499,20 @@ it('pauses moderated guilds and preserves other peoples posts memberships and sc
     $scheduled = ScheduledCommit::factory()->for($member)->for($guild)->create();
     $other->members()->attach($user, ['joined_at' => now(), 'muted_at' => now()]);
     $guild->members()->attach($member, ['joined_at' => now(), 'muted_at' => now()]);
+    $submission = GuildSubmission::factory()->for($user)->create(['icon_path' => 'guild-icons/pending.webp']);
+    Storage::disk()->put('guild-icons/pending.webp', 'image');
+    $otherSubmission = GuildSubmission::factory()->for($member)->create(['icon_path' => 'guild-icons/other.webp']);
+    Storage::disk()->put($otherSubmission->icon_path, 'other image');
+    $admin = User::factory()->create(['handle' => 'admin']);
+    Event::fake([UsersUpdated::class]);
 
     resolve(DeleteUser::class)->handle($user);
 
+    Event::assertDispatched(UsersUpdated::class, fn (UsersUpdated $event): bool => $event->update === UserUpdate::Moderation && $event->userIds === [$admin->id]);
+    $this->assertModelMissing($submission);
+    $this->assertModelExists($otherSubmission);
+    Storage::disk()->assertExists($otherSubmission->icon_path);
+    Storage::disk()->assertMissing('guild-icons/pending.webp');
     expect($guild->fresh()->user_id)->toBeNull();
     $this->assertModelMissing($board);
     expect($otherBoard->fresh()->guild_id)->toBe($guild->id);

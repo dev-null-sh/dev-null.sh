@@ -439,6 +439,22 @@ export function CommitCard({
                                         />
                                     </p>
                                 )}
+                            {commit.guild_handle &&
+                                !(
+                                    commit.joined_guild &&
+                                    component === 'log/show'
+                                ) &&
+                                component !== 'guild/show' &&
+                                component !== 'search/index' && (
+                                    <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+                                        posted in{' '}
+                                        <Hashtag
+                                            hashtag={`#${commit.guild_handle}`}
+                                            guild={commit.guild}
+                                        />{' '}
+                                        · not shown in general logs
+                                    </p>
+                                )}
                             {commit.parent && isDeleted(commit.parent) && (
                                 <p className="mt-0.5 flex w-fit items-center gap-1 font-mono text-xs text-muted-foreground">
                                     <CornerDownRight className="size-3" />

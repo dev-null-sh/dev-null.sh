@@ -13,6 +13,7 @@ use App\Http\Requests\ShowGuildRequest;
 use App\Http\Requests\UpdateGuildRequest;
 use App\Http\Resources\ShownStreams;
 use App\Models\Guild;
+use App\Models\GuildSubmission;
 use App\Models\User;
 use App\Queries\GuildCommitsQuery;
 use App\Queries\GuildsQuery;
@@ -39,9 +40,15 @@ final readonly class GuildController
         assert($icon instanceof UploadedFile || $icon === null);
 
         try {
-            $guild = $action->handle($user, $request->string('handle')->value(), $request->string('name')->value(), $request->string('description')->value(), $request->string('emoji')->value(), $icon);
+            $guild = $action->handle($user, $request->string('handle')->value(), $request->string('name')->value(), $request->string('description')->value(), $request->string('emoji')->value(), $icon, $request->isFlagged());
         } catch (GuildModeratorRemoved) {
             return back()->withErrors(['handle' => 'You cannot reclaim a guild you were removed from.']);
+        }
+
+        if ($guild instanceof GuildSubmission) {
+            Inertia::flash('toast', ['type' => 'success', 'message' => 'Your guild is waiting for review. It goes live once an admin approves it.']);
+
+            return back();
         }
 
         return to_route('guild.show', $guild->handle);
@@ -74,9 +81,13 @@ final readonly class GuildController
         assert($icon instanceof UploadedFile || $icon === null);
 
         try {
-            $action->handle($guild, $user, $request->string('description')->value(), $request->string('emoji')->value(), $icon, $request->boolean('remove_icon'));
+            $action->handle($guild, $user, $request->string('name')->value(), $request->string('description')->value(), $request->string('emoji')->value(), $icon, $request->boolean('remove_icon'), $request->isFlagged());
         } catch (GuildModeratorRemoved) {
             return back()->withErrors(['description' => 'You no longer moderate this guild.']);
+        }
+
+        if ($request->isFlagged()) {
+            Inertia::flash('toast', ['type' => 'success', 'message' => 'Your changes are waiting for review. They go live once an admin approves them.']);
         }
 
         return to_route('guild.show', $guild->handle);
