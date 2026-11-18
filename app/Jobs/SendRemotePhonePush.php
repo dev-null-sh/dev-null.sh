@@ -11,15 +11,18 @@ use App\Enums\ConversationKind;
 use App\Enums\OrgEvent;
 use App\Enums\PushPreference;
 use App\Exceptions\DevicePushCredentialsRejected;
+use App\Models\Conversation;
 use App\Models\ConversationParticipant;
 use App\Models\Device;
 use App\Models\Message;
+use App\Models\User;
 use App\Queries\RemotesPushRecipientQuery;
 use App\Support\PushRetryDelay;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Queue\Attributes\Timeout;
+use Illuminate\Support\Str;
 use Throwable;
 
 /**
@@ -41,6 +44,8 @@ final class SendRemotePhonePush implements ShouldQueue
     private const int DEFAULT_TRIES = 3;
 
     private const int DEVICES_PER_JOB = 5;
+
+    private const int ORG_TITLE_NAMES = 3;
 
     /**
      * @param  list<string>|null  $deviceIds
@@ -128,25 +133,56 @@ final class SendRemotePhonePush implements ShouldQueue
     private function phonePush(Message $message): DevicePush
     {
         $conversation = $message->conversation;
-        $sender = $message->user->profile;
-        $name = $sender->name !== '' ? $sender->name : '@'.$sender->handle;
+        $name = $this->nameOf($message->user);
         $pinged = $message->event === OrgEvent::Ping;
 
         return new DevicePush(
-            $conversation->kind === ConversationKind::Org ? ($conversation->name ?? 'Org') : $name,
+            $conversation->kind === ConversationKind::Org ? $this->orgTitle($conversation, $name) : $name,
             match (true) {
-                $conversation->kind === ConversationKind::Org => $name.($pinged ? ' pinged everyone' : ' sent a message'),
-                default => $pinged ? 'Pinged you' : 'Sent you a message',
+                $conversation->kind === ConversationKind::Org => $name.($pinged ? ' pinged everyone' : ' sent a remote'),
+                default => $pinged ? 'Pinged you' : 'Sent you a remote',
             },
             [
                 'type' => $pinged ? 'ping' : 'message',
                 'conversation_id' => $conversation->id,
                 'kind' => $conversation->kind->value,
-                ...$conversation->kind === ConversationKind::Direct ? ['handle' => $sender->handle] : [],
+                ...$conversation->kind === ConversationKind::Direct ? ['handle' => $message->user->handle] : [],
             ],
             self::PHONE_TTL,
             $conversation->id,
         );
+    }
+
+    /**
+     * What the recipient's inbox calls the org: its name, or else the first names of the others in it, as the web and
+     * the app title an org nobody named. Past three it counts the rest, so a big org still fits in a push.
+     */
+    private function orgTitle(Conversation $org, string $sender): string
+    {
+        $name = $org->name ?? '';
+
+        if ($name !== '') {
+            return $name;
+        }
+
+        $others = $org->participants()->where('user_id', '!=', $this->userId)->count();
+        $names = $org->members()->where('conversation_participants.user_id', '!=', $this->userId)
+            ->with('user')->limit(self::ORG_TITLE_NAMES)->get()
+            ->map(fn (ConversationParticipant $member): string => Str::before($this->nameOf($member->user), ' '));
+
+        if ($names->isEmpty()) {
+            return $sender;
+        }
+
+        return $names->implode(', ').($others > $names->count() ? ' +'.($others - $names->count()) : '');
+    }
+
+    /**
+     * Someone's name, or their handle when they have none.
+     */
+    private function nameOf(User $user): string
+    {
+        return $user->name !== '' ? $user->name : '@'.$user->handle;
     }
 
     /**

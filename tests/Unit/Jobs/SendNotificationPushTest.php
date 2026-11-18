@@ -9,6 +9,7 @@ use App\Contracts\Services\DevicePushProvider;
 use App\Dto\DevicePush;
 use App\Dto\DevicePushResult;
 use App\Enums\CommitStatus;
+use App\Enums\OrganizationRole;
 use App\Exceptions\DevicePushCredentialsRejected;
 use App\Jobs\SendNotificationPush;
 use App\Models\Commit;
@@ -112,8 +113,37 @@ it('says what happened for each kind', function (string $kind, bool $forOrganiza
 })->with([
     'a reply' => ['replied', false, 'Replied to your commit'],
     "a reply to an organization's commit" => ['replied', true, "Replied to Laravel's commit"],
-    'a mention' => ['mentioned', false, 'Mentioned you'],
-    'a mention of an organization' => ['mentioned', true, 'Mentioned Laravel'],
+    'a mention' => ['mentioned', false, 'Mentioned you in a commit'],
+    'a mention of an organization' => ['mentioned', true, 'Mentioned Laravel in a commit'],
+]);
+
+it('names the organization and never the member who posted when an organization replies or mentions', function (string $kind, string $body): void {
+    Queue::fake();
+    $acme = Organization::factory()->create(['handle' => 'acme', 'name' => 'Acme']);
+    $acme->members()->attach($this->actor->id, ['role' => OrganizationRole::Member]);
+    $laravel = Organization::factory()->create(['handle' => 'laravel', 'name' => 'Laravel']);
+    $laravel->members()->attach($this->recipient->id, ['role' => OrganizationRole::Member]);
+    $commit = match ($kind) {
+        'reply' => Commit::factory()->for($this->actor)->for(Commit::factory()->for($this->recipient), 'parent')->create(['author_id' => $acme->id]),
+        'org reply' => Commit::factory()->for($this->actor)->for(Commit::factory()->create(['author_id' => $laravel->id]), 'parent')->create(['author_id' => $acme->id]),
+        default => Commit::factory()->for($this->actor)->create([
+            'author_id' => $acme->id,
+            'body' => 'Hi @'.$this->recipient->handle,
+            'mentions' => [mb_strtolower($this->recipient->handle) => $this->recipient->id],
+        ]),
+    };
+
+    resolve($kind === 'mention' ? CreateMentionNotifications::class : CreateReplyNotifications::class)->handle($commit);
+    $sent = capturePhonePushes();
+    new SendNotificationPush($this->recipient->notifications()->sole()->id)->handle(resolve(DevicePushProvider::class));
+
+    expect($sent[0][1])->title->toBe('Acme')->body->toBe($body)
+        ->and($sent[0][1]->data['handle'])->toBe('acme')
+        ->and(json_encode($sent[0][1]))->not->toContain('Alice')->not->toContain('alice')->not->toContain($this->actor->id);
+})->with([
+    'a reply' => ['reply', 'Replied to your commit'],
+    "a reply to an organization's commit" => ['org reply', "Replied to Laravel's commit"],
+    'a mention' => ['mention', 'Mentioned you in a commit'],
 ]);
 
 it('names the actor by handle when they have no name', function (): void {
