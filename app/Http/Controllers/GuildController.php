@@ -25,11 +25,11 @@ use Inertia\Response;
 
 final readonly class GuildController
 {
-    public function index(ListGuildsRequest $request, GuildsQuery $query): Response
+    public function index(ListGuildsRequest $request, #[CurrentUser] User $user, GuildsQuery $query): Response
     {
         return Inertia::render('guild/index', [
             'query' => $request->term(),
-            'guildPage' => fn () => $query->paginate($request->term(), $request->integer('page', 1))
+            'guildPage' => fn () => $query->paginate($request->term(), $request->integer('page', 1), $user)
                 ->through(fn (Guild $guild): string => $guild->id),
         ])->withViewData(['robots' => 'noindex, follow']);
     }
