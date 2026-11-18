@@ -23,7 +23,8 @@ final class ShowApiGuildIconRequest extends FormRequest
         $guild = $this->route('guild');
         assert($guild instanceof Guild);
 
-        $user = $this->filled('user') ? User::query()->find($this->string('user')->value()) : null;
+        $viewer = $this->query('user');
+        $user = is_string($viewer) && $viewer !== '' ? User::query()->find($viewer) : null;
 
         return $features->available(Feature::Guilds, $user) && $guild->icon_path !== null && Storage::disk()->exists($guild->icon_path)
             ? Response::allow() : Response::denyAsNotFound();

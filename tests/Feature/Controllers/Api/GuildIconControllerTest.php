@@ -84,6 +84,7 @@ it('does not find an icon the guild lacks, or one its viewer may not see', funct
     config(['app.admins' => [$this->user->handle]]);
 
     $this->get($signedFor('rust', $this->user))->assertOk();
+    $this->json('GET', $signedFor('rust', null), ['user' => $this->user->id])->assertNotFound();
 });
 
 it('keeps the web icon URL for the web', function (): void {
