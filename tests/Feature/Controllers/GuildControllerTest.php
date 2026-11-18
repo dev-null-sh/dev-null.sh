@@ -116,6 +116,7 @@ it('creates a public guild and gives only its creator moderation controls', func
 
     $this->get(route('guild.show', 'jobs'))->assertOk()->assertInertia(fn ($page) => $page
         ->component('guild/show')->where('canModerate', true)->where('guilds.0.name', 'Jo bs')
+        ->where('moderator.handle', 'admin')
         ->where('guilds.0.icon_url', null)->missing('guilds.0.user_id')->missing('guilds.0.icon_path'));
     $this->actingAs(User::factory()->create(['handle' => 'other-admin']))
         ->get(route('guild.show', 'jobs'))->assertOk()->assertInertia(fn ($page) => $page->where('canModerate', false));

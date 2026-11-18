@@ -50,10 +50,16 @@ final readonly class GuildController
     public function show(ShowGuildRequest $request, Guild $guild, #[CurrentUser] User $user, GuildCommitsQuery $query): Response
     {
         $commits = $query->get($guild, $user, $request->integer('page', 1));
+        $owner = $guild->owner;
 
         return Inertia::render('guild/show', [
             'handle' => $guild->handle,
             'canModerate' => $guild->user_id === $user->id,
+            'moderator' => $owner === null ? null : [
+                'handle' => $owner->handle,
+                'name' => $owner->name,
+                'avatar_url' => $owner->avatar_url,
+            ],
             'commits' => $commits->currentPage() > 1
                 ? Inertia::merge(ShownStreams::commits($commits))->matchOn('id')
                 : ShownStreams::commits($commits),
