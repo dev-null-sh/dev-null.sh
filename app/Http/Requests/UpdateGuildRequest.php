@@ -32,6 +32,7 @@ final class UpdateGuildRequest extends FormRequest
     public function rules(EmojiShortcodes $emoji): array
     {
         return [
+            'name' => ['required', 'string', 'max:60'],
             'description' => ['required', 'string', 'max:500'],
             'emoji' => ['required', 'string', Rule::in($emoji->emoji())],
             'images' => ['nullable', 'list', 'max:1'],
@@ -50,8 +51,15 @@ final class UpdateGuildRequest extends FormRequest
 
             $guild = $this->route('guild');
             assert($guild instanceof Guild);
+
+            if ($this->string('name')->replaceMatches('/[^\p{L}\p{M}\p{N}_]+/u', '')->lower()->value() !== $guild->handle) {
+                $validator->errors()->add('name', "Guild display name doesn't match hashtag");
+
+                return;
+            }
+
             $icon = $this->file('images.0');
-            $unflagged->validate($validator, $guild->name."\n\n".$this->string('description')->value(), $icon instanceof UploadedFile ? $icon : null);
+            $unflagged->validate($validator, $this->string('name')->value()."\n\n".$this->string('description')->value(), $icon instanceof UploadedFile ? $icon : null);
         }];
     }
 }

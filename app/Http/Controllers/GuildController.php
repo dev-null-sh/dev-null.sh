@@ -68,7 +68,7 @@ final readonly class GuildController
         assert($icon instanceof UploadedFile || $icon === null);
 
         try {
-            $action->handle($guild, $user, $request->string('description')->value(), $request->string('emoji')->value(), $icon, $request->boolean('remove_icon'));
+            $action->handle($guild, $user, $request->string('name')->value(), $request->string('description')->value(), $request->string('emoji')->value(), $icon, $request->boolean('remove_icon'));
         } catch (GuildModeratorRemoved) {
             return back()->withErrors(['description' => 'You no longer moderate this guild.']);
         }
