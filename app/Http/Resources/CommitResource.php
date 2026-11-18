@@ -62,7 +62,7 @@ final class CommitResource extends JsonResource
                 'handle' => $guild->handle,
                 'name' => $guild->name,
                 'emoji' => $guild->emoji,
-                'icon_url' => $guild->icon_path === null ? null : route('guild-icon.show', ['guild' => $guild->handle, 'v' => $guild->updated_at->getTimestampMs()]),
+                'icon_url' => $guild->iconUrl(),
             ]),
             'parent_id' => $isSigned ? $this->parent_id : $this->parent?->id,
             'html_url' => route('commit.show', [$this->author, $this->resource]),
