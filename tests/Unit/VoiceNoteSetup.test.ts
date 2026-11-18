@@ -23,6 +23,7 @@ for (const failure of failures) {
                 'AudioContext',
             ),
         };
+        let lastRecorder: Recorder | null = null;
         let stoppedTracks = 0;
         let stoppedRecorder = 0;
         let closedContexts = 0;
@@ -54,6 +55,8 @@ for (const failure of failures) {
                 if (failure === 'recorder construction') {
                     throw new Error('recorder unavailable');
                 }
+
+                lastRecorder = this;
             }
 
             start() {
@@ -125,6 +128,9 @@ for (const failure of failures) {
 
             await assert.rejects(startVoiceRecording());
             assert.equal(stoppedTracks, 2);
+            // Synchronous setup failures must not leave a queued recorder error
+            // able to reject the unobserved startup promise.
+            assert.equal(lastRecorder?.onerror ?? null, null);
             assert.equal(
                 stoppedRecorder,
                 failure === 'recorder construction' ? 0 : 1,
