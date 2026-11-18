@@ -84,6 +84,8 @@ vi.doMock('../../resources/js/hooks/use-stash', () => ({
     discardSeriesStash: vi.fn(),
 }));
 
+const { ColorSwatchHint } =
+    await import('../../resources/js/components/color-swatch-hint');
 const { CommitComposer } =
     await import('../../resources/js/components/commit-composer');
 const { IssueCommandBadge, IssueCommandHint, IssueCommandSuggestions } =
@@ -107,7 +109,10 @@ function elements(node: ReactNode): Element[] {
         return [];
     }
     const element = node as Element;
-    if (typeof element.type === 'function' && element.props.stash === draft) {
+    if (
+        (typeof element.type === 'function' && element.props.stash === draft) ||
+        element.type === ColorSwatchHint
+    ) {
         const renderPart = element.type as (
             props: typeof element.props,
         ) => ReactNode;
@@ -275,7 +280,9 @@ test('keeps identical restored text when another posting context was submitted',
         ['rust', 'go'],
     ]) {
         effects = [];
-        flash = { committed: { body: draft.body, guild_handle: committedGuild } };
+        flash = {
+            committed: { body: draft.body, guild_handle: committedGuild },
+        };
         render(guild ?? undefined);
         effects.forEach((effect) => effect());
         assert.equal(draft.drop.mock.calls.length, 0);

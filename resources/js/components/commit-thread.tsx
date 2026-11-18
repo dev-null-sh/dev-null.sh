@@ -23,6 +23,10 @@ import { ActionTooltip } from '@/components/action-tooltip';
 import { AuthorAvatar } from '@/components/author-avatar';
 import { AuthorSwitcher, useAuthor } from '@/components/author-switcher';
 import { BodyCounter } from '@/components/body-counter';
+import {
+    ColorSwatchHint,
+    useColorSwatchHint,
+} from '@/components/color-swatch-hint';
 import { FoldedCommitBody } from '@/components/commit-body';
 import {
     ImageDropOverlay,
@@ -1804,6 +1808,12 @@ function ReplyComposer({
         isSubmittable: isReplyable,
     });
 
+    const colorHint = useColorSwatchHint({
+        body,
+        textareaRef,
+        updateBody,
+        hidden: preview.isPreviewing,
+    });
     const insertEmoji = useEmojiInsertion({
         body,
         updateBody,
@@ -1942,6 +1952,7 @@ function ReplyComposer({
                     autoFocus
                     value={body}
                     onValueChange={updateBody}
+                    aria-describedby={colorHint?.id}
                     onKeyDown={onKeyDown}
                     onPaste={attachments.onPaste}
                     onFocus={isRestored ? moveCaretToEnd : undefined}
@@ -1975,6 +1986,11 @@ function ReplyComposer({
                     />
                 )}
             </div>
+            <ColorSwatchHint
+                hint={colorHint}
+                disabled={processing}
+                className="px-1"
+            />
             <InputError
                 message={
                     errors.body ??
