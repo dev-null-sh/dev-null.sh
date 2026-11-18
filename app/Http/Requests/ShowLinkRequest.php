@@ -22,7 +22,7 @@ final class ShowLinkRequest extends FormRequest
     {
         return [
             'url' => ['required', 'string', 'max:'.(Urls::MAX_LENGTH - 8)],
-            'sort' => ['nullable', 'string', 'in:top,new'],
+            'sort' => ['nullable', 'string', 'in:top,latest'],
         ];
     }
 
@@ -55,6 +55,6 @@ final class ShowLinkRequest extends FormRequest
 
     public function isNewestFirst(): bool
     {
-        return $this->query('sort') === 'new';
+        return $this->query('sort') === 'latest';
     }
 }

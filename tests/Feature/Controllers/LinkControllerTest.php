@@ -43,8 +43,8 @@ it('lists the most starred commits first, then the newest, or the newest first',
         ->where('sort', 'top')
         ->where('commits.data', fn ($commits): bool => collect($commits)->pluck('id')->all() === [$favourite->id, $newest->id, $older->id]));
 
-    $this->get(linkPage($link->url).'?sort=new')->assertInertia(fn ($page) => $page
-        ->where('sort', 'new')
+    $this->get(linkPage($link->url).'?sort=latest')->assertInertia(fn ($page) => $page
+        ->where('sort', 'latest')
         ->where('commits.data', fn ($commits): bool => collect($commits)->pluck('id')->all() === [$newest->id, $older->id, $favourite->id]));
 });
 
@@ -82,8 +82,8 @@ it('reads a link whose query, fragment and ending slash its page escapes', funct
 });
 
 it('sends a link written another way to the page of the link as commits store it', function (): void {
-    $this->get(url('link/WIKI.php.net/rfc/pipe-operator').'?sort=new')
-        ->assertRedirect(url('link/wiki.php.net/rfc/pipe-operator').'?sort=new')
+    $this->get(url('link/WIKI.php.net/rfc/pipe-operator').'?sort=latest')
+        ->assertRedirect(url('link/wiki.php.net/rfc/pipe-operator').'?sort=latest')
         ->assertStatus(301);
 });
 
@@ -137,9 +137,9 @@ it('names a link by its readable characters', function (): void {
 });
 
 it('returns guests to the link page they were reading once they sign in', function (): void {
-    $this->get(url('link/dev-null.sh').'?sort=new')->assertOk();
+    $this->get(url('link/dev-null.sh').'?sort=latest')->assertOk();
 
-    expect(session('url.intended'))->toBe(url('link/dev-null.sh').'?sort=new');
+    expect(session('url.intended'))->toBe(url('link/dev-null.sh').'?sort=latest');
 });
 
 it('rejects a sort it does not know', function (): void {

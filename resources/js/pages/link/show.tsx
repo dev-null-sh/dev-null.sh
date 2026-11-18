@@ -78,7 +78,7 @@ export default function Show({
     url: string;
     pageUrl: string;
     link: LinkPreviewData | null;
-    sort: 'top' | 'new';
+    sort: 'top' | 'latest';
     stats: LinkStats;
     commits: CursorPaginated<Commit> | null;
 }) {
@@ -206,9 +206,9 @@ export default function Show({
                         isActive: sort === 'top',
                     },
                     {
-                        title: 'New',
-                        href: `${pageUrl}?sort=new`,
-                        isActive: sort === 'new',
+                        title: 'Latest',
+                        href: `${pageUrl}?sort=latest`,
+                        isActive: sort === 'latest',
                     },
                 ]}
             />

@@ -47,7 +47,7 @@ final readonly class LinkController
             'url' => $url,
             'pageUrl' => $pageUrl,
             'link' => $link,
-            'sort' => $isNewestFirst ? 'new' : 'top',
+            'sort' => $isNewestFirst ? 'latest' : 'top',
             'stats' => $stats,
             'commits' => $link instanceof LinkPreview
                 ? Inertia::scroll(fn (): CursorPaginator => ShownStreams::page($commits->builder($link, $user, $isNewestFirst)->cursorPaginate(20)))

@@ -206,7 +206,7 @@ export function LinkTopicSection({ topic }: { topic: LinkTopicAround }) {
         >
             <div className="flex h-11 items-center border-b px-4 sm:px-6">
                 <h2 id="link-topic" className="min-w-0 truncate font-semibold">
-                    More on {hostname(topic.url)}
+                    More about {hostname(topic.url)}
                 </h2>
             </div>
 
