@@ -1,9 +1,10 @@
 import { Head, router, usePage } from '@inertiajs/react';
 import { Pencil, Pin } from 'lucide-react';
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { update as updatePin } from '@/actions/App/Http/Controllers/GuildCommitPinController';
 import { show } from '@/actions/App/Http/Controllers/GuildController';
+import { update as updateRead } from '@/actions/App/Http/Controllers/GuildReadController';
 import { CommitCard } from '@/components/commit-card';
 import { CommitComposer } from '@/components/commit-composer';
 import { EmptyFeed } from '@/components/commit-feed';
@@ -22,10 +23,13 @@ import {
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import AppLayout from '@/layouts/app-layout';
+import { firstReadCommit } from '@/lib/guild-read-marker';
 import type { Commit } from '@/types';
+import type { JoinedGuild } from '@/types/guild';
 
 export default function Show({
     handle,
+    readFrom,
     canModerate,
     pinnedCommit,
     commits,
@@ -33,6 +37,7 @@ export default function Show({
     hasMore,
 }: {
     handle: string;
+    readFrom: string | null;
     canModerate: boolean;
     pinnedCommit: Commit | null;
     commits: Commit[];
@@ -56,6 +61,39 @@ export default function Show({
         overflowAnchor: string;
     } | null>(null);
     const guild = guilds?.find((guild) => guild.handle === handle);
+    const guildId = guild?.id;
+    const isJoined = guild?.is_joined === true;
+    const firstReadCommitId = firstReadCommit(
+        commits.filter((commit) => commit.id !== pinnedCommitId),
+        readFrom,
+        auth.user?.handle,
+    )?.id;
+
+    useEffect(() => {
+        if (guildId === undefined || !isJoined) {
+            return;
+        }
+
+        router
+            .optimistic<{ joinedGuilds: JoinedGuild[] }>((props) => ({
+                joinedGuilds: props.joinedGuilds.map((joinedGuild) =>
+                    joinedGuild.handle === handle
+                        ? { ...joinedGuild, missed_commits: 0 }
+                        : joinedGuild,
+                ),
+            }))
+            .put(
+                updateRead.url(guildId),
+                {},
+                {
+                    async: true,
+                    only: ['joinedGuilds'],
+                    preserveScroll: true,
+                    preserveState: true,
+                    preserveUrl: true,
+                },
+            );
+    }, [guildId, handle, isJoined]);
 
     useLayoutEffect(() => {
         const anchor = readingPosition.current;
@@ -246,6 +284,17 @@ export default function Show({
                                         isPinned ? 'Pinned commit' : undefined
                                     }
                                 >
+                                    {commit.id === firstReadCommitId && (
+                                        <div
+                                            className="flex"
+                                            data-test="guild-read-marker"
+                                        >
+                                            <RailSegment />
+                                            <p className="pt-3 pb-1 font-mono text-xs text-primary">
+                                                ↑ new since your last visit
+                                            </p>
+                                        </div>
+                                    )}
                                     {isPinned && (
                                         <div className="flex">
                                             <RailSegment />

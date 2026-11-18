@@ -782,6 +782,6 @@ it('exports only the users guild reports and moderator removals', function (): v
     $data = json_decode($this->actingAs($user)->get(route('export'))->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
 
     expect($data['guild_reports'])->toBe([['handle' => 'jobs', 'details' => 'My private report.', 'created_at' => now()->toIso8601String()]])
-        ->and($data['guild_preferences'])->toBe([['handle' => 'jobs', 'joined_at' => now()->toDateTimeString(), 'muted_at' => now()->toDateTimeString()]])
+        ->and($data['guild_preferences'])->toBe([['handle' => 'jobs', 'joined_at' => now()->toDateTimeString(), 'muted_at' => now()->toDateTimeString(), 'read_at' => null]])
         ->and(array_column($data['guild_moderator_removals'], 'handle'))->toBe(['rust']);
 });

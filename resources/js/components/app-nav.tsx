@@ -28,6 +28,7 @@ import AppLogo from '@/components/app-logo';
 import AppLogoIcon from '@/components/app-logo-icon';
 import { ChangelogDialog } from '@/components/changelog-dialog';
 import { GitHubIcon } from '@/components/github-icon';
+import { JoinedGuildsNav } from '@/components/joined-guilds-nav';
 import { LogoMenu } from '@/components/logo-menu';
 import { MobileMenuIcon } from '@/components/mobile-menu-icon';
 import { Button } from '@/components/ui/button';
@@ -72,7 +73,8 @@ const navLabelClassName =
  * Guests see the same items, each taking them to sign in.
  */
 function useNavItems(): (NavItem & { isActive: boolean })[] {
-    const { auth, hasUnmoderatedCommits, guilds } = usePage().props;
+    const { auth, hasUnmoderatedCommits, guilds, joinedGuilds } =
+        usePage().props;
     const { isCurrentUrl, isCurrentOrParentUrl } = useCurrentUrl();
     const { user, log } = auth;
     const unreadMessages = useUnreadMessages();
@@ -116,7 +118,17 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
             icon: Star,
         },
         ...(guilds !== null && guilds !== undefined
-            ? [{ title: 'Guilds', href: guildIndex(), icon: UsersRound }]
+            ? [
+                  {
+                      title: 'Guilds',
+                      href: guildIndex(),
+                      icon: UsersRound,
+                      badge: joinedGuilds.reduce(
+                          (total, guild) => total + guild.missed_commits,
+                          0,
+                      ),
+                  },
+              ]
             : []),
         ...(auth.isAdmin
             ? [
@@ -432,6 +444,7 @@ export function AppNav({
                         </span>
                     </button>
                 </NavTooltip>
+                <JoinedGuildsNav iconsOnly={iconsOnly} />
             </nav>
 
             {auth.user === null ? (
@@ -703,6 +716,17 @@ export function MobileNav({ children }: { children?: ReactNode }) {
                                 >
                                     {item.icon && <item.icon />}
                                     {item.title}
+                                    {(item.badge ?? 0) > 0 && (
+                                        <span className="ml-auto min-w-5 rounded-sm bg-primary px-1 text-center font-mono text-[11px] leading-5 font-medium text-primary-foreground tabular-nums">
+                                            {(item.badge ?? 0) > 99
+                                                ? '99+'
+                                                : item.badge}
+                                            <span className="sr-only">
+                                                {' '}
+                                                missed commits
+                                            </span>
+                                        </span>
+                                    )}
                                 </Link>
                             )}
                         </DropdownMenuItem>

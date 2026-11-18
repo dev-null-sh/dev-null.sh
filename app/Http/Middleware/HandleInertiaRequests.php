@@ -23,6 +23,7 @@ use App\Queries\ConversationsQuery;
 use App\Queries\DevelopersCountQuery;
 use App\Queries\GuildsQuery;
 use App\Queries\HotTopicsQuery;
+use App\Queries\JoinedGuildsQuery;
 use App\Queries\LiveFollowingQuery;
 use App\Queries\NotificationGroupsQuery;
 use App\Queries\SuggestedUsersQuery;
@@ -174,6 +175,9 @@ final class HandleInertiaRequests extends Middleware
                     ...GuildResource::make($guild)->resolve($request),
                 ])->all() : null)->until(60)->fresh($request->routeIs('guild.*', 'search.index'))->live(UserUpdate::Guilds->value, new PrivateChannel($user))
                 : null,
+            'joinedGuilds' => $user instanceof User
+                ? Inertia::once(fn (): array => resolve(JoinedGuildsQuery::class)->get($user))->until(60)->live(UserUpdate::Guilds->value, new PrivateChannel($user))
+                : [],
             ...$user instanceof User && $liveFollowing !== null ? [
                 // Drawn again when someone followed goes live or stops, never on its own, so it doesn't reshuffle.
                 'liveFollowing' => $liveFollowing,

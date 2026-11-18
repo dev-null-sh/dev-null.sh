@@ -156,7 +156,7 @@ final readonly class CreateExport
                 'created_at' => $submission->created_at->toIso8601String(),
             ])->all(),
             'guild_preferences' => DB::table('guild_preferences')->join('guilds', 'guilds.id', '=', 'guild_preferences.guild_id')
-                ->where('guild_preferences.user_id', $user->id)->orderBy('handle')->get(['handle', 'joined_at', 'muted_at'])->all(),
+                ->where('guild_preferences.user_id', $user->id)->orderBy('handle')->get(['handle', 'joined_at', 'muted_at', 'read_at'])->all(),
             'pending_follows' => $this->pendingFollows($user),
             'guild_reports' => GuildReport::query()->where('reporter_id', $user->id)->with('guild')->oldest('id')->get()->map(fn (GuildReport $report): array => [
                 'handle' => $report->guild->handle, 'details' => $report->details, 'created_at' => $report->created_at->toIso8601String(),

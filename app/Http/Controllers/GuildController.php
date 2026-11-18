@@ -17,6 +17,7 @@ use App\Models\GuildSubmission;
 use App\Models\User;
 use App\Queries\GuildCommitsQuery;
 use App\Queries\GuildsQuery;
+use App\Queries\JoinedGuildsQuery;
 use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\UploadedFile;
@@ -54,12 +55,13 @@ final readonly class GuildController
         return to_route('guild.show', $guild->handle);
     }
 
-    public function show(ShowGuildRequest $request, Guild $guild, #[CurrentUser] User $user, GuildCommitsQuery $query): Response
+    public function show(ShowGuildRequest $request, Guild $guild, #[CurrentUser] User $user, GuildCommitsQuery $query, JoinedGuildsQuery $joinedGuilds): Response
     {
         $commits = $query->get($guild, $user, $request->integer('page', 1));
 
         return Inertia::render('guild/show', [
             'handle' => $guild->handle,
+            'readFrom' => $joinedGuilds->readFrom($guild, $user),
             'canModerate' => $guild->user_id === $user->id,
             'pinnedCommit' => ShownStreams::commit($query->pinned($guild, $user)),
             'commits' => $commits->currentPage() > 1

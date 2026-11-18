@@ -8,12 +8,15 @@ import type { Guild } from '../../resources/js/types/guild';
 
 let state: unknown[];
 let cursor = 0;
+let effects: (() => void)[] = [];
 const errors = { setError: vi.fn(), clearErrors: vi.fn() };
 vi.doMock('@inertiajs/react', async () => ({
     ...(await vi.importActual('@inertiajs/react')),
     usePage: () => ({
         props: {
-            guilds: [{ handle: 'rust', name: 'Rust' }],
+            guilds: [
+                { id: 'guild-id', handle: 'rust', name: 'Rust', is_joined: true },
+            ],
             auth: { isAdmin: false },
         },
     }),
@@ -23,6 +26,9 @@ vi.doMock('../../resources/js/layouts/app-layout', () => ({
 }));
 vi.doMock('react', () => ({
     ...React,
+    useEffect: (effect: () => void) => {
+        effects.push(effect);
+    },
     useLayoutEffect: () => {},
     useRef: () => ({ current: errors }),
     useState: (initial: unknown) => {
@@ -82,6 +88,7 @@ function dialog(handle?: string) {
 beforeEach(() => {
     state = [];
     cursor = 0;
+    effects = [];
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
     vi.clearAllMocks();
@@ -98,6 +105,7 @@ test('promotes a separate pin without changing loaded chronological rows and res
         return elements(
             GuildBoard({
                 handle: 'rust',
+                readFrom: null,
                 canModerate: true,
                 commits,
                 pinnedCommit,
@@ -126,6 +134,44 @@ test('promotes a separate pin without changing loaded chronological rows and res
     assert.equal(commits.length, 60);
 });
 
+test('clears the missed commits of a joined guild when its board opens', () => {
+    const put = vi.fn();
+    const optimistic = vi
+        .spyOn(router, 'optimistic')
+        .mockReturnValue({ put } as unknown as typeof router);
+
+    GuildBoard({
+        handle: 'rust',
+        readFrom: null,
+        canModerate: false,
+        commits: [],
+        pinnedCommit: null,
+        page: 1,
+        hasMore: false,
+    });
+    effects.forEach((effect) => effect());
+
+    const clear = optimistic.mock.calls[0][0] as (props: {
+        joinedGuilds: { handle: string; missed_commits: number }[];
+    }) => unknown;
+    assert.deepEqual(
+        clear({
+            joinedGuilds: [
+                { handle: 'rust', missed_commits: 4 },
+                { handle: 'php', missed_commits: 2 },
+            ],
+        }),
+        {
+            joinedGuilds: [
+                { handle: 'rust', missed_commits: 0 },
+                { handle: 'php', missed_commits: 2 },
+            ],
+        },
+    );
+    assert.equal(put.mock.calls[0][0], '/guild-reads/guild-id');
+    assert.deepEqual(put.mock.calls[0][2].only, ['joinedGuilds']);
+});
+
 test('changes only the pin optimistically and prevents pin and load-more requests from overlapping', () => {
     const commit = { id: 'target' } as Commit;
     const view = () => {
@@ -133,6 +179,7 @@ test('changes only the pin optimistically and prevents pin and load-more request
         return elements(
             GuildBoard({
                 handle: 'rust',
+                readFrom: null,
                 canModerate: true,
                 commits: [commit],
                 pinnedCommit: null,

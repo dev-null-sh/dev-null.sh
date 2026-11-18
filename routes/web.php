@@ -66,6 +66,7 @@ use App\Http\Controllers\GuildIconController;
 use App\Http\Controllers\GuildMembershipController;
 use App\Http\Controllers\GuildModeratorController;
 use App\Http\Controllers\GuildMuteController;
+use App\Http\Controllers\GuildReadController;
 use App\Http\Controllers\GuildReportController;
 use App\Http\Controllers\GuildSubmissionApprovalController;
 use App\Http\Controllers\GuildSubmissionController;
@@ -383,6 +384,7 @@ Route::middleware('auth')->group(function (): void {
         ->whereUuid('commit')->withTrashed()->middleware('throttle:pins')->name('guild-commit-pin.update');
     Route::put('guild-memberships/{guild}', [GuildMembershipController::class, 'update'])->whereUuid('guild')->middleware('throttle:follows')->name('guild-membership.update');
     Route::put('guild-mutes/{guild}', [GuildMuteController::class, 'update'])->whereUuid('guild')->middleware('throttle:follows')->name('guild-mute.update');
+    Route::put('guild-reads/{guild}', [GuildReadController::class, 'update'])->whereUuid('guild')->middleware('throttle:120,1')->name('guild-read.update');
     Route::post('guild-reports/{guild}', [GuildReportController::class, 'store'])->whereUuid('guild')->middleware('throttle:10,1')->name('guild-report.store');
 });
 
