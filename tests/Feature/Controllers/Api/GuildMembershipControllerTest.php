@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Actions\UpdateGuildMembership;
 use App\Actions\UpdateGuildMute;
 use App\Enums\Feature;
 use App\Models\Guild;
@@ -74,16 +75,20 @@ it('lets admins join during the admin preview', function (): void {
     expect($rust->members()->whereKey($this->user->id)->exists())->toBeTrue();
 });
 
-it('does not find the guild while it is unknown or guilds are not available to the user', function (string $method, string $route, bool $adminOnly, string $handle): void {
-    resolve(Features::class)->update(Feature::Guilds, true, $adminOnly);
+it('does not find the guild while it is unknown or guilds are not available to the user', function (string $method, string $route, bool $joined, bool $adminOnly, string $handle): void {
     $rust = Guild::factory()->create(['handle' => 'rust']);
+    if ($joined) {
+        resolve(UpdateGuildMembership::class)->handle($this->user, $rust, true);
+    }
+
+    resolve(Features::class)->update(Feature::Guilds, true, $adminOnly);
 
     signedApiRequest($this->keyPair, $method, route($route, $handle))->assertNotFound();
 
-    expect($rust->members()->exists())->toBeFalse();
+    expect($rust->members()->whereKey($this->user->id)->exists())->toBe($joined);
 })->with([
-    'join' => ['POST', 'api-guild-membership.store'],
-    'leave' => ['DELETE', 'api-guild-membership.destroy'],
+    'join' => ['POST', 'api-guild-membership.store', false],
+    'leave' => ['DELETE', 'api-guild-membership.destroy', true],
 ])->with([
     'unknown guild' => [false, 'go'],
     'admin preview' => [true, 'rust'],
