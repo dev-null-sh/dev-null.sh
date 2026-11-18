@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Actions\CreateGuild;
+use App\Actions\UpdateGuild;
 use App\Actions\UpdateGuildMembership;
 use App\Actions\UpdateGuildMute;
 use App\Contracts\Services\ModerationProvider;
@@ -383,4 +384,105 @@ it('limits how often the user creates guilds', function (): void {
     }
 
     signedApiRequest($this->keyPair, 'POST', route('api-guild.store'), ['name' => 'Jobs', 'description' => 'Hiring.', 'emoji' => '💼'])->assertTooManyRequests();
+});
+
+it('edits the display name, description, emoji and icon of a guild the user moderates', function (): void {
+    Storage::fake();
+    $guild = Guild::factory()->create(['user_id' => $this->user->id, 'handle' => 'jobs', 'name' => 'Jobs', 'icon_path' => null]);
+
+    signedApiRequestWithImages($this->keyPair, 'PUT', route('api-guild.update', 'jobs'), [
+        'name' => 'J.O.B.S', 'description' => 'Remote jobs.', 'emoji' => '🌍', 'remove_icon' => false, 'handle' => 'changed',
+    ], [UploadedFile::fake()->image('icon.png', 80, 60)])
+        ->assertOk()
+        ->assertJsonPath('data.handle', 'jobs')
+        ->assertJsonPath('data.name', 'J.O.B.S')
+        ->assertJsonPath('data.description', 'Remote jobs.')
+        ->assertJsonPath('data.emoji', '🌍');
+
+    $icon = $guild->fresh()->icon_path;
+    expect($icon)->toEndWith('.webp')->and($guild->fresh()->user_id)->toBe($this->user->id);
+    Storage::assertExists($icon);
+
+    signedApiRequest($this->keyPair, 'PUT', route('api-guild.update', 'jobs'), ['name' => 'Jobs', 'description' => 'Remote jobs.', 'emoji' => '🌍', 'remove_icon' => true])
+        ->assertOk()->assertJsonPath('data.icon_url', null);
+
+    expect($guild->fresh()->icon_path)->toBeNull();
+    Storage::assertMissing($icon);
+});
+
+it('holds a flagged edit for review and keeps the guild as it was', function (): void {
+    $guild = Guild::factory()->create(['user_id' => $this->user->id, 'handle' => 'jobs', 'name' => 'Jobs', 'description' => 'Hiring.']);
+    $moderation = $this->mock(ModerationProvider::class);
+    $moderation->shouldReceive('moderate')->andReturn(['harassment' => 0.7]);
+    $moderation->shouldReceive('isHarmful')->andReturn(false);
+
+    signedApiRequest($this->keyPair, 'PUT', route('api-guild.update', 'jobs'), ['name' => 'JOBS', 'description' => 'Flagged words.', 'emoji' => '💼', 'remove_icon' => false])
+        ->assertAccepted()
+        ->assertExactJson(['message' => 'Your changes are waiting for review. They go live once an admin approves them.']);
+
+    expect($guild->fresh())->name->toBe('Jobs')->description->toBe('Hiring.')
+        ->and(GuildSubmission::query()->sole())->name->toBe('JOBS')->user_id->toBe($this->user->id);
+});
+
+it('rejects invalid guild edits without changing the guild', function (array $payload, string $field): void {
+    $guild = Guild::factory()->create(['user_id' => $this->user->id, 'handle' => 'jobs', 'name' => 'Jobs', 'description' => 'Hiring.']);
+
+    signedApiRequest($this->keyPair, 'PUT', route('api-guild.update', 'jobs'), ['name' => 'Jobs', 'description' => 'Remote jobs.', 'emoji' => '💼', 'remove_icon' => false, ...$payload])
+        ->assertUnprocessable()->assertJsonValidationErrors($field);
+
+    expect($guild->fresh()->description)->toBe('Hiring.');
+})->with([
+    'name for another hashtag' => [['name' => 'Job Board'], 'name'],
+    'missing description' => [['description' => ''], 'description'],
+    'unknown emoji' => [['emoji' => 'invalid'], 'emoji'],
+    'missing remove_icon' => [['remove_icon' => null], 'remove_icon'],
+]);
+
+it('does not edit a guild the user does not moderate or while guilds are not available to the user', function (bool $moderates, bool $adminOnly): void {
+    $guild = Guild::factory()->create(['user_id' => $moderates ? $this->user->id : User::factory(), 'handle' => 'jobs', 'name' => 'Jobs', 'description' => 'Hiring.']);
+    resolve(Features::class)->update(Feature::Guilds, true, adminOnly: $adminOnly);
+
+    signedApiRequest($this->keyPair, 'PUT', route('api-guild.update', 'jobs'), ['name' => 'Jobs', 'description' => 'Remote jobs.', 'emoji' => '💼', 'remove_icon' => false])->assertNotFound();
+
+    expect($guild->fresh()->description)->toBe('Hiring.');
+})->with([
+    'another moderator' => [false, false],
+    'admin-only guilds' => [true, true],
+]);
+
+it('does not edit a guild when its moderator is removed after validation', function (): void {
+    $guild = Guild::factory()->create(['user_id' => $this->user->id, 'handle' => 'jobs', 'name' => 'Jobs', 'description' => 'Hiring.']);
+    $this->app->beforeResolving(UpdateGuild::class, function () use ($guild): void {
+        Guild::query()->whereKey($guild->id)->update(['user_id' => null]);
+    });
+
+    signedApiRequest($this->keyPair, 'PUT', route('api-guild.update', 'jobs'), ['name' => 'Jobs', 'description' => 'Remote jobs.', 'emoji' => '💼', 'remove_icon' => false])->assertNotFound();
+
+    expect($guild->fresh())->description->toBe('Hiring.')->user_id->toBeNull();
+});
+
+it('requires a signed request to edit a guild', function (): void {
+    Guild::factory()->create(['user_id' => $this->user->id, 'handle' => 'jobs']);
+
+    $this->putJson(route('api-guild.update', 'jobs'), ['name' => 'Jobs', 'description' => 'Hiring.', 'emoji' => '💼', 'remove_icon' => false])->assertUnauthorized();
+});
+
+it('refuses to edit a guild while the user is in timeout', function (): void {
+    $guild = Guild::factory()->create(['user_id' => $this->user->id, 'handle' => 'jobs', 'name' => 'Jobs', 'description' => 'Hiring.']);
+    UserTimeout::factory()->for($this->user)->create();
+
+    signedApiRequest($this->keyPair, 'PUT', route('api-guild.update', 'jobs'), ['name' => 'Jobs', 'description' => 'Remote jobs.', 'emoji' => '💼', 'remove_icon' => false])
+        ->assertForbidden()->assertJsonPath('code', 'timed_out');
+
+    expect($guild->fresh()->description)->toBe('Hiring.');
+});
+
+it('counts guild edits and creations against the same limit', function (): void {
+    Guild::factory()->create(['user_id' => $this->user->id, 'handle' => 'jobs', 'name' => 'Jobs']);
+
+    foreach (range(1, 10) as $attempt) {
+        signedApiRequest($this->keyPair, 'POST', route('api-guild.store'), ['name' => 'Go', 'description' => '', 'emoji' => '💼'])->assertUnprocessable();
+    }
+
+    signedApiRequest($this->keyPair, 'PUT', route('api-guild.update', 'jobs'), ['name' => 'Jobs', 'description' => 'Remote jobs.', 'emoji' => '💼', 'remove_icon' => false])->assertTooManyRequests();
 });
