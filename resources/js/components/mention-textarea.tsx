@@ -9,6 +9,7 @@ import { OrganizationAvatar } from '@/components/organization-avatar';
 import { Spinner } from '@/components/ui/spinner';
 import { UserAvatar } from '@/components/user-avatar';
 import { typedProse } from '@/lib/code';
+import { isTypingExplicitColor } from '@/lib/colors';
 import type { EmojiSuggestion } from '@/lib/emoji';
 import { emojifyInput, searchEmoji } from '@/lib/emoji';
 import { issueReferenceBeforeCaret } from '@/lib/issue-reference';
@@ -114,6 +115,10 @@ function triggerAt(
             start: caret - emoji[1].length,
             query: emoji[2],
         };
+    }
+
+    if (isTypingExplicitColor(before)) {
+        return null;
     }
 
     const issue = suggestsIssues
