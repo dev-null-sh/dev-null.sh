@@ -20,6 +20,7 @@ afterEach(() => {
     unsubscribe?.();
     vi.useRealTimers();
     vi.unstubAllGlobals();
+    notify.mockClear();
 });
 
 test('stops the shared clock in background tabs and refreshes on return', async () => {
@@ -53,6 +54,35 @@ test('stops the shared clock in background tabs and refreshes on return', async 
 
     vi.advanceTimersByTime(30_000);
     assert.equal(notify.mock.calls.length, 3);
+
+    unsubscribe();
+    assert.equal(events.has('visibilitychange'), false);
+});
+
+
+test('does not start a timer when subscribed in a hidden tab', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-25T13:00:00Z'));
+    const events = new Map<string, () => void>();
+    const document = {
+        visibilityState: 'hidden',
+        addEventListener: (event: string, handler: () => void) => events.set(event, handler),
+        removeEventListener: (event: string) => events.delete(event),
+    };
+    vi.stubGlobal('document', document);
+
+    const { useNow } = await import('../../resources/js/hooks/use-now');
+    useNow();
+    assert.equal(events.has('visibilitychange'), true);
+
+    vi.advanceTimersByTime(60_000);
+    assert.equal(notify.mock.calls.length, 0);
+
+    document.visibilityState = 'visible';
+    events.get('visibilitychange')?.();
+    assert.equal(notify.mock.calls.length, 1);
+    vi.advanceTimersByTime(30_000);
+    assert.equal(notify.mock.calls.length, 2);
 
     unsubscribe();
     assert.equal(events.has('visibilitychange'), false);
