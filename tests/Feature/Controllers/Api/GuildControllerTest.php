@@ -148,6 +148,23 @@ it('pages the board 30 roots at a time', function (): void {
         ->assertJsonValidationErrors('page');
 });
 
+it('keeps the number of reply previews when following the next page', function (): void {
+    $rust = Guild::factory()->create(['handle' => 'rust']);
+    $oldest = Commit::factory()->for($rust)->create(['created_at' => now()->subYear()]);
+    Commit::factory()->for($oldest, 'parent')->count(3)->create();
+    Commit::factory()->for($rust)->count(30)->create();
+
+    $next = signedApiRequest($this->keyPair, 'GET', route('api-guild.show', ['guild' => 'rust', 'replies_per_page' => 3]))
+        ->assertOk()
+        ->json('links.next');
+
+    expect($next)->toBe(route('api-guild.show', ['guild' => 'rust', 'replies_per_page' => 3, 'page' => 2]));
+    signedApiRequest($this->keyPair, 'GET', $next)
+        ->assertOk()
+        ->assertJsonPath('data.*.id', [$oldest->id])
+        ->assertJsonCount(3, 'data.0.reply_preview.data');
+});
+
 it('gives the moderator the board pin, which stays in its place on the board', function (): void {
     $rust = Guild::factory()->create(['handle' => 'rust', 'user_id' => $this->user->id]);
     $pinned = Commit::factory()->for($rust)->create(['created_at' => now()->subDay()]);
