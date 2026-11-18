@@ -15,7 +15,12 @@ vi.doMock('@inertiajs/react', async () => ({
     usePage: () => ({
         props: {
             guilds: [
-                { id: 'guild-id', handle: 'rust', name: 'Rust', is_joined: true },
+                {
+                    id: 'guild-id',
+                    handle: 'rust',
+                    name: 'Rust',
+                    is_joined: true,
+                },
             ],
             auth: { isAdmin: false },
         },

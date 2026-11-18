@@ -1,4 +1,5 @@
 import { Link, usePage } from '@inertiajs/react';
+import { useState } from 'react';
 import { show } from '@/actions/App/Http/Controllers/GuildController';
 import { GuildIcon } from '@/components/guild-icon';
 import {
@@ -7,6 +8,7 @@ import {
     TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { useCurrentUrl } from '@/hooks/use-current-url';
+import { inOpeningOrder } from '@/lib/joined-guilds-order';
 import { cn } from '@/lib/utils';
 import type { JoinedGuild } from '@/types/guild';
 
@@ -67,7 +69,7 @@ function JoinedGuildLink({
                         <span
                             aria-hidden
                             title={missedCommitsLabel(missed)}
-                            className="hidden min-w-6 shrink-0 rounded-sm bg-primary px-1 text-center font-mono text-[11px] leading-5 font-medium text-primary-foreground tabular-nums nav-wide:block"
+                            className="hidden shrink-0 font-mono text-[11px] leading-4 text-primary tabular-nums nav-wide:block"
                         >
                             {missed > 99 ? '99+' : missed}
                         </span>
@@ -81,6 +83,9 @@ function JoinedGuildLink({
 
 export function JoinedGuildsNav({ iconsOnly }: { iconsOnly: boolean }) {
     const { joinedGuilds } = usePage().props;
+    const [openingOrder] = useState(() =>
+        joinedGuilds.map((guild) => guild.handle),
+    );
 
     if (joinedGuilds.length === 0) {
         return null;
@@ -97,7 +102,7 @@ export function JoinedGuildsNav({ iconsOnly }: { iconsOnly: boolean }) {
             >
                 Your guilds
             </h2>
-            {joinedGuilds.map((guild) => (
+            {inOpeningOrder(joinedGuilds, openingOrder).map((guild) => (
                 <JoinedGuildLink
                     key={guild.handle}
                     guild={guild}
