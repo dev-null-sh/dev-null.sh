@@ -264,6 +264,11 @@ export async function startVoiceRecording(): Promise<VoiceRecording> {
         };
         sampling = window.setInterval(() => levels.push(level()), 50);
     } catch (error) {
+        // An error event queued by start() must not reject an orphaned promise.
+        if (recorder !== null) {
+            recorder.onerror = null;
+        }
+
         release();
 
         throw error;
