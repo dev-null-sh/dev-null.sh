@@ -16,6 +16,7 @@ import { UserPreview } from '@/components/user-preview';
 import { typedProse, withoutCode } from '@/lib/code';
 import type { Color } from '@/lib/colors';
 import { colorsIn } from '@/lib/colors';
+import { hashtagPattern } from '@/lib/hashtags';
 import { mentionPattern } from '@/lib/mentions';
 import { pasteisParts } from '@/lib/pasteis';
 import {
@@ -33,8 +34,6 @@ import type { Guild } from '@/types/guild';
 // A link to a commit on dev/null itself, nothing after its id, so it can show as the author and the commit's hash.
 const commitLinkPattern =
     /^https?:\/\/(?:www\.)?dev-null\.sh\/@([A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38})\/commits\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
-const hashtagPattern =
-    /(?<![\p{L}\p{M}\p{N}_&/#>-])#\p{L}[\p{L}\p{M}\p{N}_]*/gu;
 const gitHubHostPattern = /^(?:www\.)?github\.com$/i;
 const gitHubOwnerPattern =
     /^[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}$/;
@@ -775,7 +774,7 @@ function withColors(
                     className="mr-0.5 inline-block size-[0.75em] rounded-sm border border-border align-[-0.05em]"
                     style={{ backgroundColor: `#${color.value}` }}
                 />
-                {text.slice(index, index + color.length)}
+                {color.label}
             </span>,
         );
 

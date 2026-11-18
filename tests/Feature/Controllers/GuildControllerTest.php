@@ -297,6 +297,16 @@ it('shows exact prose hashtags including older commits but excludes prefixes cod
         ->has('commits', 2)->where('commits.0.id', $new->id)->where('commits.1.id', $old->id)->where('hasMore', false));
 });
 
+it('includes hex-shaped hashtags on their guild board and excludes explicit swatches', function (): void {
+    $admin = User::factory()->create(['handle' => 'admin']);
+    $guild = Guild::factory()->create(['handle' => 'dead']);
+    $tagged = Commit::factory()->create(['body' => 'Join color(#dead)#DEAD']);
+    Commit::factory()->create(['body' => 'Try (COLOR(#dead)).']);
+
+    $this->actingAs($admin)->get(route('guild.show', $guild->handle))->assertOk()->assertInertia(fn ($page) => $page
+        ->has('commits', 1)->where('commits.0.id', $tagged->id));
+});
+
 it('merges board posts and exact hashtags newest first with thirty roots per page', function (): void {
     $admin = User::factory()->create(['handle' => 'admin']);
     $guild = Guild::factory()->create(['handle' => 'café_dev']);
