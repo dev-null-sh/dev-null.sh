@@ -6,6 +6,7 @@ namespace App\Http\Controllers;
 
 use App\Actions\CreateCommitPollVote;
 use App\Http\Requests\CreateCommitPollVoteRequest;
+use App\Http\Resources\ShownGuildMentions;
 use App\Models\Commit;
 use App\Models\User;
 use Illuminate\Container\Attributes\CurrentUser;
@@ -17,8 +18,8 @@ final readonly class CommitPollVoteController
     {
         $action->handle($user, $request->option());
 
-        return response()->json([
+        return response()->json(ShownGuildMentions::of([
             'poll' => Commit::query()->withPollFor($user)->findOrFail($commit->id)->poll,
-        ]);
+        ], $user));
     }
 }

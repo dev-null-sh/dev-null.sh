@@ -25,6 +25,7 @@ it('previews a draft the way the commit it becomes is shown', function (string $
             'body_segments' => $commit['body_segments'],
             'preview_segments' => $commit['preview_segments'],
             'mentions' => $commit['mentions'],
+            'guild_mentions' => [],
         ]]);
 })->with([
     'code, mentions and emoji' => "  shipped :rocket: with @nunomaduro\n```php\n\$name = 'devnull';\n```\nrun `composer test` :fire:  ",

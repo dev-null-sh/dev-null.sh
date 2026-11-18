@@ -10,7 +10,9 @@ use App\Enums\PushAccess;
 use App\Enums\UserUpdate;
 use App\Http\Requests\DeleteUserRequest;
 use App\Http\Requests\ShowUserRequest;
+use App\Http\Resources\GuildResource;
 use App\Http\Resources\ShownStreams;
+use App\Models\Guild;
 use App\Models\User;
 use App\Queries\BioProfilesQuery;
 use App\Queries\FollowersYouKnowQuery;
@@ -70,7 +72,10 @@ final readonly class UserController
 
         return Inertia::render('user/show', [
             'user' => Inertia::live(fn (): ?array => ShownStreams::user($getCountedUser()), 'profile', $profile),
-            'profileGuilds' => Inertia::live(fn (): ?array => $currentUser instanceof User && $features->available(Feature::Guilds, $currentUser) ? $guilds->joinedHandles($user) : null, 'profile', $profile),
+            'profileGuilds' => $currentUser instanceof User
+                ? Inertia::live(fn (): ?array => $features->available(Feature::Guilds, $currentUser) ? $guilds->joined($user, $currentUser)->map(fn (Guild $guild): array => ['id' => $guild->id, ...GuildResource::make($guild)->resolve($request)])->all() : null, 'profile', $profile)
+                    ->live(UserUpdate::Guilds->value, new PrivateChannel($currentUser))
+                : null,
             'bioProfiles' => fn (): array => $bioProfiles->get($user),
             'pasteisReceived' => Inertia::live(fn (): ?int => $currentUser?->pasteis_mode ? $user->pasteis_received : null, 'profile', $profile),
             'isFollowing' => $relationship(fn (): bool => $currentUser?->isFollowing($user) ?? false),

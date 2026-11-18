@@ -187,6 +187,9 @@ export function useCommitTranslation(commit: Commit) {
         previewSegments: translated
             ? translated.preview_segments
             : commit.preview_segments,
+        guildMentions: translated
+            ? translated.guild_mentions
+            : commit.guild_mentions,
         notice: translation?.available ? (
             <div className="flex min-h-5 min-w-0 items-center gap-1 text-xs text-muted-foreground">
                 {translated && (

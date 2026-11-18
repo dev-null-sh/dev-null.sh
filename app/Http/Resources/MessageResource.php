@@ -29,12 +29,19 @@ use Illuminate\Support\Str;
  */
 final class MessageResource extends JsonResource
 {
+    public bool $withGuildMentions = true;
+
+    public static function newCollection(mixed $resource): GuildMentionCollection
+    {
+        return new GuildMentionCollection($resource, self::class);
+    }
+
     /**
      * @return array<string, mixed>
      */
     public function toArray(Request $request): array
     {
-        return [
+        $shown = [
             'id' => $this->id,
             'user_id' => $this->user_id,
             'client_id' => $this->client_id,
@@ -79,5 +86,7 @@ final class MessageResource extends JsonResource
             'pinned_at' => $this->pinned_at?->toIso8601ZuluString(),
             'created_at' => $this->created_at->toIso8601ZuluString(),
         ];
+
+        return $this->withGuildMentions ? ShownGuildMentions::of($shown, $request->user()) : $shown;
     }
 }

@@ -11,7 +11,7 @@ export function ModerationTabs({
 }: {
     active: 'pending' | 'reports' | 'people' | 'bulk' | 'guilds';
 }) {
-    const hasGuilds = usePage().props.guilds != null;
+    const hasGuilds = usePage().props.guildsEnabled;
     return (
         <PageTabs
             label="Moderation queues"

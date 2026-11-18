@@ -12,11 +12,13 @@ import { typedProse } from '@/lib/code';
 import { isTypingExplicitColor } from '@/lib/colors';
 import type { EmojiSuggestion } from '@/lib/emoji';
 import { emojifyInput, searchEmoji } from '@/lib/emoji';
+import { fetchGuilds } from '@/lib/guilds';
 import { issueReferenceBeforeCaret } from '@/lib/issue-reference';
 import { suggestionPosition } from '@/lib/suggestion-position';
 import { toastWhenThrottled } from '@/lib/throttle';
 import { characterCount, cn, laneColor, limitCharacters } from '@/lib/utils';
 import type { Organization, OrgMember, User } from '@/types';
+import type { GuildBadge } from '@/types/guild';
 
 type Trigger = {
     kind: 'mention' | 'emoji' | 'issue' | 'guild';
@@ -292,7 +294,7 @@ export function MentionTextarea({
     reply?: string;
     quote?: string;
 }) {
-    const { repository, guilds } = usePage().props;
+    const { repository, guildsEnabled } = usePage().props;
     const id = useId();
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const listRef = useRef<HTMLUListElement>(null);
@@ -304,6 +306,14 @@ export function MentionTextarea({
     const [issueResult, setIssueResult] = useState<IssueSuggestion | null>(
         null,
     );
+    const [guildResult, setGuildResult] = useState<{
+        query: string;
+        guilds: GuildBadge[];
+    } | null>(null);
+    const guildQuery =
+        trigger?.kind === 'guild' && guildsEnabled
+            ? trigger.query.toLowerCase()
+            : null;
     const issueQuery = trigger?.kind === 'issue' ? trigger.query : null;
     const issue =
         issueQuery === String(issueResult?.number) ? issueResult : null;
@@ -335,7 +345,7 @@ export function MentionTextarea({
             textarea,
             suggestsMentions,
             suggestsIssues,
-            suggestsIssues && !!guilds?.length,
+            suggestsIssues && guildsEnabled,
         );
 
         if (
@@ -426,6 +436,28 @@ export function MentionTextarea({
     }, [issueQuery]);
 
     useEffect(() => {
+        if (guildQuery === null) {
+            return;
+        }
+
+        const controller = new AbortController();
+        const timeout = setTimeout(() => {
+            void fetchGuilds({ q: guildQuery }, controller.signal)
+                .then((guilds) => {
+                    if (!controller.signal.aborted) {
+                        setGuildResult({ query: guildQuery, guilds });
+                    }
+                })
+                .catch(() => undefined);
+        }, debounce);
+
+        return () => {
+            clearTimeout(timeout);
+            controller.abort();
+        };
+    }, [guildQuery]);
+
+    useEffect(() => {
         if (!trigger) {
             return;
         }
@@ -508,22 +540,9 @@ export function MentionTextarea({
     const emojiQuery =
         trigger?.kind === 'emoji' ? trigger.query.toLowerCase() : '';
     const emojis = emojiQuery === '' ? [] : searchEmoji(emojiQuery);
-    const guildQuery =
-        trigger?.kind === 'guild' ? trigger.query.toLowerCase() : '';
     const matchingGuilds =
-        trigger?.kind === 'guild'
-            ? (guilds ?? [])
-                  .filter(
-                      (guild) =>
-                          guild.handle.includes(guildQuery) ||
-                          guild.name.toLowerCase().includes(guildQuery),
-                  )
-                  .toSorted(
-                      (a, b) =>
-                          Number(b.handle.startsWith(guildQuery)) -
-                          Number(a.handle.startsWith(guildQuery)),
-                  )
-                  .slice(0, 6)
+        guildQuery !== null && guildResult?.query === guildQuery
+            ? guildResult.guilds
             : [];
     const optionCount =
         trigger?.kind === 'guild'
@@ -664,7 +683,7 @@ export function MentionTextarea({
     const activeId = !isOpen
         ? undefined
         : trigger?.kind === 'guild'
-          ? `${id}-guild-${matchingGuilds[selectedIndex].id}`
+          ? `${id}-guild-${matchingGuilds[selectedIndex].handle}`
           : trigger?.kind === 'issue'
             ? `${id}-issue-${issue?.number}`
             : trigger?.kind === 'emoji'
@@ -756,8 +775,8 @@ export function MentionTextarea({
                             >
                                 {matchingGuilds.map((guild, index) => (
                                     <li
-                                        key={guild.id}
-                                        id={`${id}-guild-${guild.id}`}
+                                        key={guild.handle}
+                                        id={`${id}-guild-${guild.handle}`}
                                         role="option"
                                         aria-selected={index === selectedIndex}
                                         onMouseMove={() =>
@@ -785,7 +804,7 @@ export function MentionTextarea({
                                             >
                                                 <Highlighted
                                                     text={guild.name}
-                                                    query={guildQuery}
+                                                    query={guildQuery ?? ''}
                                                 />
                                             </span>
                                             <span
@@ -795,7 +814,7 @@ export function MentionTextarea({
                                                 #
                                                 <Highlighted
                                                     text={guild.handle}
-                                                    query={guildQuery}
+                                                    query={guildQuery ?? ''}
                                                 />
                                             </span>
                                         </span>

@@ -38,7 +38,7 @@ function pollWith(results: boolean): Poll {
     };
 }
 
-function renderPage(content: ReactElement): string {
+function renderPage(content: ReactElement, props: Record<string, unknown> = {}): string {
     return renderToStaticMarkup(
         <App
             initialComponent={() => (
@@ -49,7 +49,7 @@ function renderPage(content: ReactElement): string {
                     component: 'Commit',
                     url: '/',
                     version: null,
-                    props: { errors: {}, auth: { user: null, pasteis: null } },
+                    props: { errors: {}, auth: { user: null, pasteis: null }, ...props },
                     clearHistory: false,
                     encryptHistory: false,
                 } as unknown as ComponentProps<typeof App>['initialPage']
@@ -59,6 +59,38 @@ function renderPage(content: ReactElement): string {
 }
 
 for (const results of [false, true]) {
+    for (const isStatic of [false, true]) {
+        test(`uses each option's loaded guild badges in the ${isStatic ? 'static ' : ''}${results ? 'results' : 'vote'} view`, () => {
+            const poll = pollWith(results);
+            poll.options = [
+                {
+                    ...poll.options[0],
+                    label: '#RuSt #unknown `#rust`',
+                    guild_mentions: { rust: { handle: 'rust', name: 'Rustaceans', emoji: '🦀', icon_url: null } },
+                },
+                { ...poll.options[1], label: '#rust' },
+            ];
+
+            const markup = renderPage(<CommitPoll commit={commit} poll={poll} isStatic={isStatic} />, {
+                guildsEnabled: true,
+                auth: { user: { id: 'viewer' }, organizations: [], pasteis: null },
+            });
+
+            assert.match(markup, /<code[^>]*>#rust<\/code>/);
+            if (isStatic) {
+                assert.doesNotMatch(markup, /data-test="guild-mention"/);
+                assert.doesNotMatch(markup, /<a/);
+                assert.match(markup, /#RuSt #unknown/);
+            } else {
+                assert.equal((markup.match(/data-test="guild-mention"/g) ?? []).length, 1);
+                assert.match(markup, /aria-label="Rustaceans, #RuSt guild"/);
+                assert.match(markup, /href="\/guilds\/rust"/);
+                assert.match(markup, /href="\/search\?q=%23unknown"/);
+                assert.match(markup, /href="\/search\?q=%23rust"/);
+            }
+        });
+    }
+
     test(`renders poll options like a commit body in the ${results ? 'results' : 'vote'} view`, () => {
         const markup = renderPage(
             <CommitPoll commit={commit} poll={pollWith(results)} />,

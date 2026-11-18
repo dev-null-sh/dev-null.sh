@@ -22,12 +22,19 @@ use Illuminate\Http\Resources\Json\JsonResource;
  */
 final class NotificationResource extends JsonResource
 {
+    public bool $withGuildMentions = true;
+
+    public static function newCollection(mixed $resource): GuildMentionCollection
+    {
+        return new GuildMentionCollection($resource, self::class);
+    }
+
     /**
      * @return array<string, mixed>
      */
     public function toArray(Request $request): array
     {
-        return [
+        $shown = [
             'id' => $this->id,
             'type' => $this->type,
             'subject_id' => $this->subject_id,
@@ -48,5 +55,7 @@ final class NotificationResource extends JsonResource
                 'ends_at' => $this->timeout->ends_at->toIso8601ZuluString(),
             ]] : [],
         ];
+
+        return $this->withGuildMentions ? ShownGuildMentions::of($shown, $request->user()) : $shown;
     }
 }

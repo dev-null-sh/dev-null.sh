@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api;
 
 use App\Http\Requests\CreateApiCommitPreviewRequest;
+use App\Http\Resources\ShownGuildMentions;
 use App\Queries\MentionedOrganizationsQuery;
 use App\Queries\MentionedUsersQuery;
 use App\Services\CommitBodies;
@@ -27,6 +28,7 @@ final readonly class CommitPreviewController
             'body' => $body,
             ...$commitBodies->segments($body),
             'mentions' => $mentions->positions($body, $mentionedOrganizations->get($body, $mentionedUsers->get($body))),
+            'guild_mentions' => ShownGuildMentions::get([$body], $request->user()),
         ]]);
     }
 }

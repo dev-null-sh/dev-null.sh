@@ -1,5 +1,6 @@
 /// <reference types="node" />
 import assert from 'node:assert/strict';
+import * as Inertia from '@inertiajs/react';
 import { App } from '@inertiajs/react';
 import type { ComponentProps, KeyboardEvent, ReactElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -19,10 +20,17 @@ import { TooltipProvider } from '../../resources/js/components/ui/tooltip';
 import { bodySegments } from '../../resources/js/lib/code';
 import { minBodyLength } from '../../resources/js/lib/commit';
 
+vi.mock('@inertiajs/react', async () => {
+    const actual = await vi.importActual<typeof Inertia>('@inertiajs/react');
+
+    return { ...actual, useHttp: vi.fn(actual.useHttp) };
+});
+
 function renderPage(
     content: ReactElement,
     pasteisMode = false,
     isAdmin = false,
+    guildsEnabled = false,
 ): string {
     return renderToStaticMarkup(
         <App
@@ -36,6 +44,7 @@ function renderPage(
                     version: null,
                     props: {
                         errors: {},
+                        guildsEnabled,
                         auth: { organizations: [],
                             user: null,
                             pasteis: pasteisMode
@@ -55,7 +64,7 @@ function renderPage(
 function previewFor(options: {
     body?: string;
     isSubmittable: boolean;
-}): ComposerPreview {
+}, guildsEnabled = false): ComposerPreview {
     const previews: ComposerPreview[] = [];
 
     function Composer() {
@@ -70,12 +79,76 @@ function previewFor(options: {
         return null;
     }
 
-    renderToStaticMarkup(<Composer />);
+    renderPage(<Composer />, false, false, guildsEnabled);
     const preview = previews[0];
     assert.ok(preview);
 
     return preview;
 }
+
+test('pasted hashtag preview waits for metadata and close discards a stale response', async () => {
+    let finish!: (response: unknown) => void;
+    const submit = vi.fn(() => new Promise((resolve) => { finish = resolve; }));
+    const cancel = vi.fn();
+    const http = vi.spyOn(Inertia, 'useHttp').mockReturnValue({ submit, cancel, transform: vi.fn() } as unknown as ReturnType<typeof Inertia.useHttp>);
+    const focus = vi.fn();
+    vi.stubGlobal('requestAnimationFrame', (callback: () => void) => callback());
+
+    try {
+        const preview = previewFor({ body: '#JoBs', isSubmittable: true }, true);
+        vi.stubGlobal('document', { getElementById: () => ({ focus }) });
+        const opening = preview.toggle(true);
+
+        assert.equal(focus.mock.calls.length, 0);
+        assert.equal(submit.mock.calls.length, 1);
+        preview.close();
+        assert.equal(cancel.mock.calls.length, 2);
+        finish({ segments: bodySegments('#jobs'), mentions: {}, organization_mentions: {}, guild_mentions: { jobs: { handle: 'jobs', name: 'Jobs', emoji: '💼', icon_url: null } } });
+        await opening;
+        assert.equal(focus.mock.calls.length, 0);
+    } finally {
+        http.mockRestore();
+        vi.unstubAllGlobals();
+    }
+});
+
+test('pasted hashtag preview moves focus only after successful metadata lookup', async () => {
+    let finish!: (response: unknown) => void;
+    const http = vi.spyOn(Inertia, 'useHttp').mockReturnValue({ submit: () => new Promise((resolve) => { finish = resolve; }), cancel: vi.fn(), transform: vi.fn() } as unknown as ReturnType<typeof Inertia.useHttp>);
+    const focus = vi.fn();
+    vi.stubGlobal('requestAnimationFrame', (callback: () => void) => callback());
+
+    try {
+        const preview = previewFor({ body: '#jobs', isSubmittable: true }, true);
+        vi.stubGlobal('document', { getElementById: () => ({ focus }) });
+        const opening = preview.toggle(true);
+
+        assert.equal(focus.mock.calls.length, 0);
+        finish({ segments: bodySegments('#jobs'), mentions: {}, organization_mentions: {}, guild_mentions: {} });
+        await opening;
+        assert.equal(focus.mock.calls.length, 1);
+    } finally {
+        http.mockRestore();
+        vi.unstubAllGlobals();
+    }
+});
+
+test('failed metadata lookup keeps the editor instead of revealing unresolved badges', async () => {
+    const focus = vi.fn();
+    const http = vi.spyOn(Inertia, 'useHttp').mockReturnValue({ submit: () => Promise.reject(new Error('Unavailable')), cancel: vi.fn(), transform: vi.fn() } as unknown as ReturnType<typeof Inertia.useHttp>);
+    vi.stubGlobal('requestAnimationFrame', (callback: () => void) => callback());
+
+    try {
+        const preview = previewFor({ body: '#jobs', isSubmittable: true }, true);
+        vi.stubGlobal('document', { getElementById: () => ({ focus }) });
+        await preview.toggle(true);
+
+        assert.equal(focus.mock.calls.length, 0);
+    } finally {
+        http.mockRestore();
+        vi.unstubAllGlobals();
+    }
+});
 
 for (const modifier of ['ctrlKey', 'metaKey'] as const) {
     for (const shiftKey of [false, true]) {

@@ -16,6 +16,7 @@ import { exactCountTitle, formatCount, formatExactCount } from '@/lib/numbers';
 import { coalesce, commitChannel, listen } from '@/lib/realtime';
 import { cn } from '@/lib/utils';
 import type { Commit, Poll } from '@/types';
+import type { GuildMentions } from '@/types/guild';
 
 function timeLeft(closesAt: string, now: Date): string {
     const minutes = Math.ceil(
@@ -47,16 +48,19 @@ function percentage(votes: number, total: number): number {
 function OptionLabel({
     label,
     mentions,
+    guildMentions,
     isStatic,
 }: {
     label: string;
     mentions: Commit['mentions'];
+    guildMentions?: GuildMentions;
     isStatic: boolean;
 }) {
     return (
         <BodySegments
             segments={bodySegments(label)}
             mentions={mentions}
+            guildMentions={guildMentions}
             isStatic={isStatic}
         />
     );
@@ -213,6 +217,7 @@ export function CommitPoll({
                                 <OptionLabel
                                     label={option.label}
                                     mentions={commit.mentions ?? null}
+                                    guildMentions={option.guild_mentions}
                                     isStatic
                                 />
                             </li>
@@ -245,6 +250,7 @@ export function CommitPoll({
                                     <OptionLabel
                                         label={option.label}
                                         mentions={commit.mentions ?? null}
+                                        guildMentions={option.guild_mentions}
                                         isStatic={false}
                                     />
                                 </span>
@@ -305,6 +311,9 @@ export function CommitPoll({
                                                 label={option.label}
                                                 mentions={
                                                     commit.mentions ?? null
+                                                }
+                                                guildMentions={
+                                                    option.guild_mentions
                                                 }
                                                 isStatic={isStatic}
                                             />

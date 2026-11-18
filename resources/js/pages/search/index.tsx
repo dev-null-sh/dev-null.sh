@@ -14,6 +14,8 @@ import { rememberSearch, useRecentSearches } from '@/hooks/use-recent-searches';
 import AppLayout from '@/layouts/app-layout';
 import { searchCommits } from '@/lib/commit-search';
 import { CommitSearchResults } from '@/lib/commit-search-results';
+import { fetchGuilds } from '@/lib/guilds';
+import type { GuildBadge } from '@/types/guild';
 
 const skeletonDelay = 300;
 
@@ -22,7 +24,15 @@ type Results = {
     latest: CommitSearchResults;
 };
 
-export default function Index({ query }: { query: string }) {
+type GuildLookup = { handle: string | null; guild: GuildBadge | null };
+
+export default function Index({
+    query,
+    guildLookup = { handle: null, guild: null },
+}: {
+    query: string;
+    guildLookup?: GuildLookup;
+}) {
     const userId = usePage().props.auth.user?.id ?? null;
     const recentSearches = useRecentSearches(userId);
     const [draft, setDraft] = useState(query);
@@ -93,7 +103,7 @@ export default function Index({ query }: { query: string }) {
                 </form>
             </header>
 
-            <HashtagGuild term={draft.trim()} />
+            <HashtagGuild term={draft.trim()} initial={guildLookup} />
 
             {query !== '' && (
                 <TabGroup key={query}>
@@ -149,21 +159,75 @@ Index.layout = AppLayout;
 /**
  * Follows the search box rather than the last submitted search, so the banner comes and goes as the hashtag is typed.
  */
-function HashtagGuild({ term }: { term: string }) {
-    const { guilds } = usePage().props;
+export function HashtagGuild({
+    term,
+    initial,
+}: {
+    term: string;
+    initial: GuildLookup;
+}) {
+    const { guildsEnabled } = usePage().props;
     const handle = /^#\p{L}[\p{L}\p{M}\p{N}_]{0,59}$/u.test(term)
         ? term.slice(1).toLowerCase()
         : null;
+    const [lookup, setLookup] = useState<
+        (GuildLookup & { failed?: boolean }) | null
+    >(null);
+    const current =
+        initial.handle === handle
+            ? initial
+            : lookup?.handle === handle
+              ? lookup
+              : null;
 
-    if (!guilds || !handle) {
+    useEffect(() => {
+        if (!guildsEnabled || handle === null || handle === initial.handle) {
+            return;
+        }
+
+        const controller = new AbortController();
+        const timeout = setTimeout(() => {
+            void fetchGuilds({ handles: [handle] }, controller.signal)
+                .then((guilds) => {
+                    if (!controller.signal.aborted) {
+                        setLookup({ handle, guild: guilds[0] ?? null });
+                    }
+                })
+                .catch(() => {
+                    if (!controller.signal.aborted) {
+                        setLookup({ handle, guild: null, failed: true });
+                    }
+                });
+        }, 120);
+
+        return () => {
+            clearTimeout(timeout);
+            controller.abort();
+        };
+    }, [handle, initial.handle, guildsEnabled]);
+
+    if (!guildsEnabled || !handle) {
         return null;
     }
 
-    const guild = guilds.find((guild) => guild.handle === handle);
+    const guild = current?.guild;
+    const failed = current !== null && 'failed' in current && current.failed;
 
     return (
-        <div className="flex items-center justify-between gap-3 border-b px-4 py-4 sm:px-6">
-            {guild ? (
+        <div
+            className="flex items-center justify-between gap-3 border-b px-4 py-4 sm:px-6"
+            aria-busy={current === null}
+        >
+            {current === null || failed ? (
+                <>
+                    <p className="min-w-0 text-sm text-muted-foreground">
+                        {failed ? 'Guild lookup failed.' : 'Looking up guild…'}
+                    </p>
+                    <Button variant="outline" disabled>
+                        View guild
+                    </Button>
+                </>
+            ) : guild ? (
                 <>
                     <div className="flex min-w-0 items-center gap-2">
                         <GuildIcon guild={guild} />
