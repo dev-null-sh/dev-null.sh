@@ -1,13 +1,14 @@
 import { Link } from '@inertiajs/react';
 import { ChevronRight } from 'lucide-react';
 import { AuthorAvatar } from '@/components/author-avatar';
-import { formatCount } from '@/lib/numbers';
+import { formatCount, formatExactCount } from '@/lib/numbers';
 import { cn } from '@/lib/utils';
 import type { LinkTopic } from '@/types';
 
 /**
  * The strip at the bottom of a link card, once others talk about the link: who, and how many commits, leading to the
- * link's page. In a quoted commit, which is a link itself, it only says so.
+ * link's page. In a quoted commit, which is a link itself, it only says so. A shortened count reads exactly to screen
+ * readers and on hover.
  */
 export function LinkTopicFooter({
     topic,
@@ -16,7 +17,9 @@ export function LinkTopicFooter({
     topic: LinkTopic;
     isStatic?: boolean;
 }) {
-    const label = `${formatCount(topic.others)} other commit${topic.others === 1 ? '' : 's'} about this link`;
+    const noun = `other commit${topic.others === 1 ? '' : 's'} about this link`;
+    const label = `${formatCount(topic.others)} ${noun}`;
+    const exactLabel = `${formatExactCount(topic.others)} ${noun}`;
     const content = (
         <>
             {topic.authors.length > 0 && (
@@ -30,7 +33,13 @@ export function LinkTopicFooter({
                     ))}
                 </span>
             )}
-            <span className="min-w-0 truncate tabular-nums">{label}</span>
+            <span
+                className="min-w-0 truncate tabular-nums"
+                title={label === exactLabel ? undefined : exactLabel}
+            >
+                <span aria-hidden>{label}</span>
+                <span className="sr-only">{exactLabel}</span>
+            </span>
         </>
     );
     const className =
