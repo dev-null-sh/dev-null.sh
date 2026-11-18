@@ -26,17 +26,22 @@ final readonly class GuildController
 
     /**
      * The guild's board as its page on the web shows it: 30 threads per page, newest first. Everyone gets the pin the
-     * moderator set beside them, and it keeps its place on the board, which the web's page skips.
+     * moderator set beside them, and it keeps its place on the board, which the web's page skips. One snapshot reads the
+     * board, the pin and the guild, so they agree.
      */
     public function show(ShowApiGuildRequest $request, Guild $guild, #[CurrentUser] User $user, GuildsQuery $guilds, GuildCommitsQuery $commits, ReplyPreviewsQuery $replyPreviews): AnonymousResourceCollection
     {
-        $board = $commits->get($guild, $user, $request->integer('page', 1))->withQueryString();
-        $pinnedCommit = $commits->pinned($guild, $user);
+        [$board, $pinnedCommit, $guild] = $commits->snapshot($user, function () use ($commits, $guilds, $guild, $user, $request, $replyPreviews): array {
+            $board = $commits->get($guild, $user, $request->integer('page', 1))->withQueryString();
+            $pinnedCommit = $commits->pinned($guild, $user);
 
-        $replyPreviews->load([...$board->items(), ...array_filter([$pinnedCommit])], $user);
+            $replyPreviews->load([...$board->items(), ...array_filter([$pinnedCommit])], $user);
+
+            return [$board, $pinnedCommit, $guilds->find($guild, $user)];
+        });
 
         return CommitResource::collection($board)->additional([
-            'guild' => GuildResource::make($guilds->find($guild, $user)),
+            'guild' => GuildResource::make($guild),
             'pinned_commit' => $pinnedCommit instanceof Commit ? CommitResource::make($pinnedCommit) : null,
             'can_moderate' => $guild->user_id === $user->id,
         ]);

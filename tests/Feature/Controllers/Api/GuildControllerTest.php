@@ -8,6 +8,7 @@ use App\Enums\Feature;
 use App\Models\Commit;
 use App\Models\Guild;
 use App\Models\User;
+use App\Queries\GuildsQuery;
 use App\Services\Features;
 
 beforeEach(function (): void {
@@ -181,6 +182,16 @@ it('gives the moderator the board pin, which stays in its place on the board', f
         ->assertJsonPath('pinned_commit.id', $pinned->id)
         ->assertJsonPath('pinned_commit.reply_preview.data.0.id', $reply->id)
         ->assertJsonPath('can_moderate', true);
+});
+
+it('takes the moderator away together with the pause when the guild is paused during the request', function (): void {
+    $rust = Guild::factory()->create(['handle' => 'rust', 'user_id' => $this->user->id]);
+    $this->app->beforeResolving(GuildsQuery::class, fn () => $rust->update(['user_id' => null]));
+
+    signedApiRequest($this->keyPair, 'GET', route('api-guild.show', 'rust'))
+        ->assertOk()
+        ->assertJsonPath('guild.is_paused', true)
+        ->assertJsonPath('can_moderate', false);
 });
 
 it('still shows a paused guild and its board', function (): void {
