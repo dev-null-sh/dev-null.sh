@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Actions\UpdateGuildMembership;
+use App\Actions\UpdateGuildMute;
 use App\Enums\Feature;
 use App\Models\Guild;
 use App\Models\User;
@@ -73,16 +74,20 @@ it('lets admins mute during the admin preview', function (): void {
     expect($rust->muters()->whereKey($this->user->id)->exists())->toBeTrue();
 });
 
-it('does not find the guild while it is unknown or guilds are not available to the user', function (string $method, string $route, bool $adminOnly, string $handle): void {
-    resolve(Features::class)->update(Feature::Guilds, true, $adminOnly);
+it('does not find the guild while it is unknown or guilds are not available to the user', function (string $method, string $route, bool $muted, bool $adminOnly, string $handle): void {
     $rust = Guild::factory()->create(['handle' => 'rust']);
+    if ($muted) {
+        resolve(UpdateGuildMute::class)->handle($this->user, $rust, true);
+    }
+
+    resolve(Features::class)->update(Feature::Guilds, true, $adminOnly);
 
     signedApiRequest($this->keyPair, $method, route($route, $handle))->assertNotFound();
 
-    expect($rust->muters()->exists())->toBeFalse();
+    expect($rust->muters()->whereKey($this->user->id)->exists())->toBe($muted);
 })->with([
-    'mute' => ['POST', 'api-guild-mute.store'],
-    'unmute' => ['DELETE', 'api-guild-mute.destroy'],
+    'mute' => ['POST', 'api-guild-mute.store', false],
+    'unmute' => ['DELETE', 'api-guild-mute.destroy', true],
 ])->with([
     'unknown guild' => [false, 'go'],
     'admin preview' => [true, 'rust'],
