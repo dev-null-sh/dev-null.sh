@@ -8,6 +8,10 @@ import { ActionTooltip } from '@/components/action-tooltip';
 import { AuthorSwitcher, useAuthor } from '@/components/author-switcher';
 import { BodyCounter } from '@/components/body-counter';
 import {
+    ColorSwatchHint,
+    useColorSwatchHint,
+} from '@/components/color-swatch-hint';
+import {
     ImageDropOverlay,
     ImagePickerButton,
     ImagePickerPreviews,
@@ -58,7 +62,6 @@ import {
     maxRawBodyLength,
     minBodyLength,
 } from '@/lib/commit';
-import { ambiguousColorInDraft } from '@/lib/hashtags';
 import type { IssueKind } from '@/lib/issue-commands';
 import { hasModKey, useKeyLabels } from '@/lib/keyboard';
 import {
@@ -70,8 +73,6 @@ import {
 } from '@/lib/utils';
 import { show } from '@/routes/user';
 import type { OrganizationAuthor, User } from '@/types';
-
-const longestColorHintExample = '#a1234567';
 
 // The ring moves quickly while a post starts and slows toward the limit, yet only closes at the limit.
 function bodyProgress(count: number): number {
@@ -171,32 +172,12 @@ function CommitComposerBody({
         isSubmittable,
     });
     const isIssue = issue.command !== null;
-    const color = isIssue ? undefined : ambiguousColorInDraft(body);
-    const showColorHint = color !== undefined && !preview.isPreviewing;
-    const colorMarkup = `color(${color?.hex ?? longestColorHintExample})`;
-    const colorFix = color
-        ? {
-              body:
-                  body.slice(0, color.index) +
-                  colorMarkup +
-                  body.slice(color.index + color.hex.length),
-              caret: color.index + colorMarkup.length,
-          }
-        : null;
-    const canFixColor =
-        colorFix !== null &&
-        colorFix.body.length <= maxRawBodyLength &&
-        bodyCharacterCount(colorFix.body) <= maxBodyLength;
-    const applyColorFix = colorFix
-        ? () => {
-              updateBody(colorFix.body);
-              requestAnimationFrame(() => {
-                  const textarea = textareaRef.current;
-                  textarea?.focus();
-                  textarea?.setSelectionRange(colorFix.caret, colorFix.caret);
-              });
-          }
-        : undefined;
+    const colorHint = useColorSwatchHint({
+        body,
+        textareaRef,
+        updateBody,
+        hidden: isIssue || preview.isPreviewing,
+    });
 
     // When the dialog's text box shrinks, as the keyboard opens or an image is added, it keeps the caret in view.
     useEffect(() => {
@@ -348,8 +329,8 @@ function CommitComposerBody({
                             autoComplete="off"
                             aria-invalid={error ? true : undefined}
                             aria-describedby={
-                                showColorHint
-                                    ? `${id}-count ${id}-color-hint`
+                                colorHint
+                                    ? `${id}-count ${colorHint.id}`
                                     : `${id}-count`
                             }
                             className={cn(
@@ -381,34 +362,10 @@ function CommitComposerBody({
                     </div>
 
                     {!isIssue && (
-                        <div
-                            className={cn(
-                                'flex min-h-8 shrink-0 items-center gap-2 text-xs text-muted-foreground',
-                                { invisible: !showColorHint },
-                            )}
-                            aria-hidden={!showColorHint}
-                        >
-                            <span id={`${id}-color-hint`}>
-                                For a swatch, use{' '}
-                                <code className="whitespace-nowrap">
-                                    {colorMarkup}
-                                </code>
-                                .
-                            </span>
-                            <Button
-                                type="button"
-                                variant="link"
-                                size="sm"
-                                className="shrink-0 px-1 text-xs"
-                                disabled={
-                                    !showColorHint || !canFixColor || processing
-                                }
-                                data-test="use-color"
-                                onClick={applyColorFix}
-                            >
-                                Use as color
-                            </Button>
-                        </div>
+                        <ColorSwatchHint
+                            hint={colorHint}
+                            disabled={processing}
+                        />
                     )}
 
                     {guildHandle && (
