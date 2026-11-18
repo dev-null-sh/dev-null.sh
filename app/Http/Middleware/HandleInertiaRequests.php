@@ -12,6 +12,7 @@ use App\Enums\Log;
 use App\Enums\RepliesPerPage;
 use App\Enums\UserUpdate;
 use App\Http\Requests\ListNotificationsRequest;
+use App\Http\Resources\GuildResource;
 use App\Http\Resources\ShownStreams;
 use App\Models\Commit;
 use App\Models\Guild;
@@ -170,12 +171,7 @@ final class HandleInertiaRequests extends Middleware
             'guilds' => $user instanceof User
                 ? Inertia::once(fn (): ?array => resolve(Features::class)->available(Feature::Guilds, $user) ? resolve(GuildsQuery::class)->get($user)->map(fn (Guild $guild): array => [
                     'id' => $guild->id,
-                    ...$guild->toArray(),
-                    'member_count' => $guild->members_count,
-                    'is_joined' => $guild->is_joined,
-                    'is_muted' => $guild->is_muted,
-                    'is_paused' => $guild->user_id === null,
-                    'icon_url' => $guild->iconUrl(),
+                    ...GuildResource::make($guild)->resolve($request),
                 ])->all() : null)->until(60)->fresh($request->routeIs('guild.*', 'search.index'))->live(UserUpdate::Guilds->value, new PrivateChannel($user))
                 : null,
             ...$user instanceof User && $liveFollowing !== null ? [
