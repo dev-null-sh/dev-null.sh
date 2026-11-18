@@ -603,6 +603,7 @@ A signed request sees what the web shows you, such as your own pending commits a
 - read your own timeouts and bans, as your profile shows them;
 - search people and organizations by name or handle, and commits by meaning, with the web's limit of 15 commit searches a minute;
 - schedule commits, list your queue, cancel a scheduled commit, or post it early;
+- post or schedule a commit or a quote to a guild's board, while guilds are available to you, with the web's rule that a paused guild takes no new posts;
 - pin a commit to your profile, or unpin it;
 - translate commits;
 - suggest people to mention and /dev/null issues to reference while writing;
