@@ -35,6 +35,7 @@ it('saves legacy browser timezones using their current IANA names', function (st
     ['Asia/Katmandu', 'Asia/Kathmandu'],
     ['US/Eastern', 'America/New_York'],
     ['Europe/Kiev', 'Europe/Kyiv'],
+    ['America/Godthab', 'America/Nuuk'],
 ]);
 
 it('may opt in to showing the local time', function (): void {

@@ -27,6 +27,7 @@ trait NormalizesBrowserTimezone
                     'Asia/Katmandu' => 'Asia/Kathmandu',
                     'US/Eastern' => 'America/New_York',
                     'Europe/Kiev' => 'Europe/Kyiv',
+                    'America/Godthab' => 'America/Nuuk',
                 ][$timeZone] ?? IntlTimeZone::getCanonicalID($timeZone));
         } catch (IntlException) {
             return;
