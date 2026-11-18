@@ -463,3 +463,46 @@ test('preserves stored attachments when a failed read is retried after adding an
         vi.unstubAllGlobals();
     }
 });
+
+test('removing a new image before restoration cannot delete an unseen saved image', async () => {
+    vi.resetModules();
+    vi.doMock('react', mockReactHooks);
+    const hooks = await import('../../resources/js/hooks/use-stash');
+    const key = 'stash:recover-remove:commit';
+    const saved = new File(['saved'], 'original.png', { type: 'image/png' });
+    const added = new File(['added'], 'new.png', { type: 'image/png' });
+
+    storedImages.set(key, {
+        images: [saved],
+        descriptions: ['Original screenshot'],
+    });
+    failedImageReads = 1;
+    state = [];
+    vi.stubGlobal('window', { addEventListener() {} });
+    const render = () => {
+        cursor = 0;
+        return hooks.useStash('recover-remove', 'commit');
+    };
+
+    try {
+        const draft = render();
+        await Promise.resolve();
+
+        draft.updateImages([added], ['New screenshot']);
+        draft.updateImages([]);
+        await Promise.resolve();
+        await Promise.resolve();
+
+        const restored = render();
+        assert.deepEqual(restored.images.map((file) => file.name), ['original.png']);
+        assert.deepEqual(restored.descriptions, ['Original screenshot']);
+        assert.deepEqual(
+            storedImages.get(key)?.images.map((file) => file.name),
+            ['original.png'],
+        );
+    } finally {
+        failedImageReads = 0;
+        hooks.clearStashes('recover-remove');
+        vi.unstubAllGlobals();
+    }
+});
