@@ -19,7 +19,15 @@ trait NormalizesBrowserTimezone
         }
 
         try {
-            $iana = IntlTimeZone::getIanaID($timeZone);
+            // getIanaID is available only when PHP is built with ICU 74 or newer.
+            $iana = method_exists(IntlTimeZone::class, 'getIanaID')
+                ? IntlTimeZone::getIanaID($timeZone)
+                : ([
+                    'Asia/Calcutta' => 'Asia/Kolkata',
+                    'Asia/Katmandu' => 'Asia/Kathmandu',
+                    'US/Eastern' => 'America/New_York',
+                    'Europe/Kiev' => 'Europe/Kyiv',
+                ][$timeZone] ?? IntlTimeZone::getCanonicalID($timeZone));
         } catch (IntlException) {
             return;
         }
