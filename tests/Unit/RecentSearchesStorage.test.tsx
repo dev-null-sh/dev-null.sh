@@ -104,6 +104,23 @@ test('ignores unrelated and other-account changes but reacts to storage clears',
         [3, 2],
     );
 
+    // Independent subscribers for the same account both receive the update.
+    const secondListener = vi.fn();
+    const unsubscribeSecond = subscriptions[0](secondListener);
+    const { clearRecentSearches } = await import(
+        '../../resources/js/hooks/use-recent-searches'
+    );
+    clearRecentSearches('user-a');
+    assert.deepEqual(
+        notifications.map(({ mock }) => mock.calls.length),
+        [4, 2],
+    );
+    assert.equal(secondListener.mock.calls.length, 1);
+
     unsubscribers.splice(0).forEach((unsubscribe) => unsubscribe());
+    assert.equal(handlers.size, 1);
+    clearRecentSearches('user-a');
+    assert.equal(secondListener.mock.calls.length, 2);
+    unsubscribeSecond();
     assert.equal(handlers.size, 0);
 });
