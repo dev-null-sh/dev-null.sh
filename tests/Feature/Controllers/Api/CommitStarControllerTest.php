@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 use App\Enums\CommitStatus;
 use App\Enums\NotificationType;
+use App\Enums\OrganizationRole;
 use App\Models\Commit;
+use App\Models\Organization;
 use App\Models\User;
 
 beforeEach(function (): void {
@@ -242,6 +244,41 @@ it('may not list who starred the commit of someone else', function (): void {
     signedApiRequest($this->keyPair, 'GET', route('api-commit-star.index', $commit))
         ->assertNotFound();
 });
+
+it('lists who starred a commit of their organization to every member, as the web does', function (bool $posted): void {
+    $organization = Organization::factory()->create();
+    $teammate = User::factory()->create();
+    $organization->members()->attach([$this->user->id, $teammate->id], ['role' => OrganizationRole::Member]);
+
+    $commit = Commit::factory()->for($posted ? $this->user : $teammate)->create(['author_id' => $organization->id]);
+    $stargazer = User::factory()->create();
+    $stargazer->starredCommits()->attach($commit);
+
+    signedApiRequest($this->keyPair, 'GET', route('api-commit-star.index', $commit))
+        ->assertOk()
+        ->assertJsonPath('data.*.id', [$stargazer->id]);
+})->with([
+    'the member who posted it' => true,
+    'another member' => false,
+]);
+
+it('may not list who starred a commit of an organization the user is not a member of', function (Closure $commit): void {
+    $organization = Organization::factory()->create();
+    $commit = $commit($this->user, $organization);
+
+    User::factory()->create()->starredCommits()->attach($commit);
+
+    signedApiRequest($this->keyPair, 'GET', route('api-commit-star.index', $commit))
+        ->assertNotFound();
+})->with([
+    'someone outside it' => fn (User $user, Organization $organization): Commit => Commit::factory()->create(['author_id' => $organization->id]),
+    'a site admin outside it' => function (User $user, Organization $organization): Commit {
+        config(['app.admins' => [$user->handle]]);
+
+        return Commit::factory()->create(['author_id' => $organization->id]);
+    },
+    'the member who posted it, after leaving' => fn (User $user, Organization $organization): Commit => Commit::factory()->for($user)->create(['author_id' => $organization->id]),
+]);
 
 it('requires a signed request to list who starred a commit', function (): void {
     $commit = Commit::factory()->for($this->user)->create();
