@@ -8,6 +8,7 @@ use App\Enums\Feature;
 use App\Models\Guild;
 use App\Models\User;
 use App\Services\Features;
+use Illuminate\Support\Facades\DB;
 
 beforeEach(function (): void {
     resolve(Features::class)->update(Feature::Guilds, true, adminOnly: false);
@@ -16,14 +17,19 @@ beforeEach(function (): void {
     $this->keyPair = apiKeyPairFor($this->user);
 });
 
-it('joins a guild once, clearing a mute, as the web does', function (): void {
+it('joins a guild once, keeping when the user joined and clearing a mute, as the web does', function (): void {
     $rust = Guild::factory()->create(['handle' => 'rust']);
     resolve(UpdateGuildMute::class)->handle($this->user, $rust, true);
 
+    $this->freezeSecond();
     signedApiRequest($this->keyPair, 'POST', route('api-guild-membership.store', 'rust'))->assertNoContent();
+    $joinedAt = now()->toImmutable();
+    $this->travel(1)->minute();
+    resolve(UpdateGuildMute::class)->handle($this->user, $rust, true);
     signedApiRequest($this->keyPair, 'POST', route('api-guild-membership.store', 'rust'))->assertNoContent();
 
-    expect($rust->members()->whereKey($this->user->id)->exists())->toBeTrue()
+    expect(DB::table('guild_preferences')->where('user_id', $this->user->id)->value('joined_at'))->toBe($joinedAt->toDateTimeString())
+        ->and($rust->members()->whereKey($this->user->id)->exists())->toBeTrue()
         ->and($rust->muters()->whereKey($this->user->id)->exists())->toBeFalse();
     signedApiRequest($this->keyPair, 'GET', route('api-guild.show', 'rust'))
         ->assertJsonPath('guild.member_count', 1)
