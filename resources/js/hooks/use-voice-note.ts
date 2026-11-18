@@ -21,7 +21,7 @@ export type UseVoiceNoteReturn = {
      */
     readonly stop: () => Promise<VoiceDraft | null>;
     readonly discard: () => void;
-    readonly level: () => number;
+    readonly level: () => number | null;
 };
 
 const messageOf = (error: unknown): string =>
@@ -126,7 +126,7 @@ export function useVoiceNote(
         setState({ status: 'idle' });
     };
 
-    const level = useCallback(() => recording.current?.level() ?? 0, []);
+    const level = useCallback(() => recording.current?.level() ?? null, []);
 
     return { state, start, stop, discard, level };
 }

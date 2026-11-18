@@ -150,3 +150,94 @@ for (const failure of failures) {
         }
     });
 }
+
+test('continues audio capture but reports an unavailable meter when resume fails', async () => {
+    const originals = Object.fromEntries(
+        ['navigator', 'window', 'MediaRecorder', 'AudioContext'].map((name) => [
+            name,
+            Object.getOwnPropertyDescriptor(globalThis, name),
+        ]),
+    );
+    let tracksStopped = 0;
+    let recorderStopped = 0;
+    let meterClosed = 0;
+    const stream = {
+        getTracks: () => [{ stop: () => tracksStopped++ }],
+    };
+
+    class Recorder {
+        static isTypeSupported() {
+            return true;
+        }
+        state = 'inactive';
+        mimeType = 'audio/webm;codecs=opus';
+        onstart: (() => void) | null = null;
+        onerror: (() => void) | null = null;
+        ondataavailable: ((event: { data: Blob }) => void) | null = null;
+        onstop: (() => void) | null = null;
+        start() {
+            this.state = 'recording';
+            queueMicrotask(() => this.onstart?.());
+        }
+        stop() {
+            this.state = 'inactive';
+            recorderStopped++;
+            this.onstop?.();
+        }
+    }
+
+    class Meter {
+        createAnalyser() {
+            return {
+                fftSize: 1,
+                getFloatTimeDomainData: () => {
+                    throw new Error('unavailable meter should not be read');
+                },
+            };
+        }
+        createMediaStreamSource() {
+            return { connect: () => undefined };
+        }
+        resume() {
+            return Promise.reject(new Error('cannot resume meter'));
+        }
+        close() {
+            meterClosed++;
+            return Promise.resolve();
+        }
+    }
+
+    try {
+        Object.defineProperty(globalThis, 'navigator', {
+            configurable: true,
+            value: { mediaDevices: { getUserMedia: async () => stream } },
+        });
+        Object.defineProperty(globalThis, 'MediaRecorder', {
+            configurable: true,
+            value: Recorder,
+        });
+        Object.defineProperty(globalThis, 'AudioContext', {
+            configurable: true,
+            value: Meter,
+        });
+        Object.defineProperty(globalThis, 'window', {
+            configurable: true,
+            value: { setInterval: () => 1, clearInterval: () => undefined },
+        });
+
+        const recording = await startVoiceRecording();
+        assert.equal(recording.level(), null);
+        recording.cancel();
+        assert.equal(tracksStopped, 1);
+        assert.equal(recorderStopped, 1);
+        assert.equal(meterClosed, 1);
+    } finally {
+        for (const [name, descriptor] of Object.entries(originals)) {
+            if (descriptor === undefined) {
+                Reflect.deleteProperty(globalThis, name);
+            } else {
+                Object.defineProperty(globalThis, name, descriptor);
+            }
+        }
+    }
+});

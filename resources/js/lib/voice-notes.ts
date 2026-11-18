@@ -162,7 +162,8 @@ export type VoiceRecording = {
     /**
      * How loud the microphone is right now, from 0 to 1.
      */
-    level: () => number;
+    /** Null when the browser cannot provide microphone levels. Audio capture may still work. */
+    level: () => number | null;
     stop: () => Promise<VoiceDraft>;
     cancel: () => void;
 };
@@ -223,7 +224,8 @@ export async function startVoiceRecording(): Promise<VoiceRecording> {
     const chunks: Blob[] = [];
     let started: Promise<number>;
     let stopped: Promise<Blob>;
-    let level: () => number;
+    let level: () => number | null;
+    let meterUnavailable = false;
     let activeRecorder: MediaRecorder;
     const levels: number[] = [];
 
@@ -251,8 +253,16 @@ export async function startVoiceRecording(): Promise<VoiceRecording> {
         const analyser = meter.createAnalyser();
         const frame = new Float32Array(analyser.fftSize);
         meter.createMediaStreamSource(stream).connect(analyser);
-        void meter.resume().catch(() => undefined);
+        // Audio capture is independent of the meter. Do not block startup if
+        // resume remains pending, but expose a failed meter instead of silence.
+        void meter.resume().catch(() => {
+            meterUnavailable = true;
+        });
         level = () => {
+            if (meterUnavailable) {
+                return null;
+            }
+
             analyser.getFloatTimeDomainData(frame);
 
             return Math.sqrt(
@@ -262,7 +272,12 @@ export async function startVoiceRecording(): Promise<VoiceRecording> {
                 ),
             );
         };
-        sampling = window.setInterval(() => levels.push(level()), 50);
+        sampling = window.setInterval(() => {
+            const reading = level();
+            if (reading !== null) {
+                levels.push(reading);
+            }
+        }, 50);
     } catch (error) {
         // An error event queued by start() must not reject an orphaned promise.
         if (recorder !== null) {

@@ -435,6 +435,7 @@ function RecordingMeter({
         Array.from({ length: voiceBars }, () => 0),
     );
     const [elapsed, setElapsed] = useState(0);
+    const [meterUnavailable, setMeterUnavailable] = useState(false);
     const { level, stop } = voiceNote;
 
     useEffect(() => {
@@ -451,10 +452,15 @@ function RecordingMeter({
             if (now - last >= 80) {
                 last = now;
                 setElapsed(at);
-                setLevels((levels) => [
-                    ...levels.slice(1),
-                    Math.round(level() * 100),
-                ]);
+                const reading = level();
+                if (reading === null) {
+                    setMeterUnavailable(true);
+                } else {
+                    setLevels((levels) => [
+                        ...levels.slice(1),
+                        Math.round(reading * 100),
+                    ]);
+                }
             }
 
             frame = requestAnimationFrame(tick);
@@ -472,10 +478,16 @@ function RecordingMeter({
             <span className="sr-only" role="status">
                 Recording a voice note
             </span>
-            <Waveform
-                levels={levels}
-                className="h-6 min-w-0 flex-1 text-foreground"
-            />
+            {meterUnavailable ? (
+                <span className="min-w-0 flex-1 text-xs text-muted-foreground" role="status">
+                    Recording (audio levels unavailable)
+                </span>
+            ) : (
+                <Waveform
+                    levels={levels}
+                    className="h-6 min-w-0 flex-1 text-foreground"
+                />
+            )}
             <span
                 className={cn(
                     'shrink-0 font-mono text-xs text-muted-foreground tabular-nums',
