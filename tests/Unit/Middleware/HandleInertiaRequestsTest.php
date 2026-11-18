@@ -6,6 +6,7 @@ use App\Enums\CommitStatus;
 use App\Enums\LivePlatform;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\Commit;
+use App\Models\Guild;
 use App\Models\Headline;
 use App\Models\Notification;
 use App\Models\User;
@@ -537,3 +538,26 @@ it('suggests the round of people the user refreshed to', function (string $cooki
     'not a number' => ['abc', 0],
     'negative' => ['-3', 0],
 ]);
+
+it('suggests guilds to members who can see the guild preview', function (bool $isAdmin): void {
+    config(['app.admins' => ['admin']]);
+    $user = User::factory()->create(['handle' => $isAdmin ? 'admin' : 'member']);
+    $guild = Guild::factory()->create();
+
+    $request = Request::create('/', 'GET');
+    $request->setUserResolver(fn () => $user);
+
+    expect(new HandleInertiaRequests()->share($request)['suggestedGuilds']())
+        ->toBe($isAdmin ? [['id' => $guild->id, 'followed_members_count' => 0]] : null);
+})->with(['with the preview' => true, 'without the preview' => false]);
+
+it('does not suggest guilds to guests or where there is no aside', function (?string $path): void {
+    $request = Request::create($path ?? '/', 'GET');
+
+    if ($path !== null) {
+        $user = User::factory()->create();
+        $request->setUserResolver(fn () => $user);
+    }
+
+    expect(new HandleInertiaRequests()->share($request))->not->toHaveKey('suggestedGuilds');
+})->with(['guest' => null, 'operations' => '/operations', 'operations events' => '/operations/events']);

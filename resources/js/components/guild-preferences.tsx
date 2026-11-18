@@ -9,6 +9,7 @@ import { update as mute } from '@/actions/App/Http/Controllers/GuildMuteControll
 import { useFollowHover } from '@/components/follow-button';
 import { Button } from '@/components/ui/button';
 import { formatCount, formatExactCount } from '@/lib/numbers';
+import { toastWhenThrottled } from '@/lib/throttle';
 import type { Guild } from '@/types/guild';
 
 export function GuildMemberCount({ guild }: { guild: Guild }) {
@@ -30,14 +31,16 @@ export function GuildMemberCount({ guild }: { guild: Guild }) {
     );
 }
 
-export function GuildPreferences({ guild }: { guild: Guild }) {
+export function useGuildPreference(guild: Guild) {
     const [processing, setProcessing] = useState(false);
-    const { isJustToggled, markToggled, onMouseLeave } = useFollowHover();
 
     function update(kind: 'joined' | 'muted') {
+        if (processing) {
+            return;
+        }
+
         const key = kind === 'joined' ? 'is_joined' : 'is_muted';
         const value = !guild[key];
-        markToggled();
         setProcessing(true);
         router
             .optimistic<{ guilds: Guild[] | null }>((props) => ({
@@ -62,9 +65,27 @@ export function GuildPreferences({ guild }: { guild: Guild }) {
                     only: ['guilds'],
                     preserveScroll: true,
                     onSuccess: () => router.flushAll(),
+                    onHttpException: (response) =>
+                        !toastWhenThrottled(response),
                     onFinish: () => setProcessing(false),
                 },
             );
+    }
+
+    return { processing, update };
+}
+
+export function GuildPreferences({ guild }: { guild: Guild }) {
+    const { processing, update: save } = useGuildPreference(guild);
+    const { isJustToggled, markToggled, onMouseLeave } = useFollowHover();
+
+    function update(kind: 'joined' | 'muted') {
+        if (processing) {
+            return;
+        }
+
+        markToggled();
+        save(kind);
     }
 
     return (
@@ -82,7 +103,7 @@ export function GuildPreferences({ guild }: { guild: Guild }) {
                         ? 'Unmute this guild topic'
                         : 'Mute this guild topic in logs and search'
                 }
-                disabled={processing}
+                aria-disabled={processing}
                 onClick={() => update('muted')}
             >
                 {guild.is_muted ? (
@@ -97,7 +118,7 @@ export function GuildPreferences({ guild }: { guild: Guild }) {
                 className="group min-h-9 min-w-[5.5rem]"
                 aria-label={`${guild.is_joined ? 'Leave' : 'Join'} ${guild.name}`}
                 aria-pressed={guild.is_joined}
-                disabled={processing}
+                aria-disabled={processing}
                 onMouseLeave={onMouseLeave}
                 onClick={() => update('joined')}
             >

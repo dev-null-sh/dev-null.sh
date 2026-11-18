@@ -1,7 +1,7 @@
 import type { SharedClock } from '@/lib/utils';
 import type { Auth, SuggestedUser, User } from '@/types/auth';
 import type { Commit } from '@/types/commit';
-import type { Guild } from '@/types/guild';
+import type { Guild, SuggestedGuild } from '@/types/guild';
 import type {
     CommittedFlash,
     DeletedFlash,
@@ -48,6 +48,7 @@ declare module '@inertiajs/core' {
             /** When the server rendered the page, in milliseconds. */
             now: number;
             suggestedUsers?: SuggestedUser[];
+            suggestedGuilds?: SuggestedGuild[] | null;
             liveFollowing?: User[];
             hotTopics?: { id: string; name: string; summary: string | null }[];
             [key: string]: unknown;

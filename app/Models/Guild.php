@@ -23,6 +23,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property-read string $emoji
  * @property-read string|null $icon_path
  * @property-read int $members_count
+ * @property-read int $followed_members_count
  * @property-read bool $is_joined
  * @property-read bool $is_muted
  * @property-read CarbonInterface $created_at

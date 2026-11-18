@@ -7,6 +7,7 @@ import PartnerController from '@/actions/App/Http/Controllers/PartnerController'
 import PrivacyController from '@/actions/App/Http/Controllers/PrivacyController';
 import TermsController from '@/actions/App/Http/Controllers/TermsController';
 import { GitHubIcon } from '@/components/github-icon';
+import { GuildSuggestions } from '@/components/guild-suggestions';
 import { HotTopics } from '@/components/hot-topics';
 import { LiveFollowing } from '@/components/live-following';
 import NewYearSnippet from '@/components/new-year-snippet';
@@ -90,6 +91,7 @@ export function AppAside({
             <LiveFollowing />
             <HotTopics />
             <WhoToFollow />
+            <GuildSuggestions />
 
             <div className="-mt-4 flex flex-col gap-2 border-t pt-4 text-sm text-muted-foreground">
                 <div className="flex flex-wrap gap-x-2.5 gap-y-1">

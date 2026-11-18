@@ -10,3 +10,8 @@ export type Guild = {
     is_muted: boolean;
     is_paused: boolean;
 };
+
+export type SuggestedGuild = {
+    id: string;
+    followed_members_count: number;
+};

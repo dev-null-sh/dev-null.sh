@@ -25,6 +25,7 @@ use App\Queries\GuildsQuery;
 use App\Queries\HotTopicsQuery;
 use App\Queries\LiveFollowingQuery;
 use App\Queries\NotificationGroupsQuery;
+use App\Queries\SuggestedGuildsQuery;
 use App\Queries\SuggestedUsersQuery;
 use App\Services\CommitTranslations;
 use App\Services\Features;
@@ -192,6 +193,14 @@ final class HandleInertiaRequests extends Middleware
             // Onboarding and the operations console have no aside. Contextual suggestions must not reuse the once-cached list across pages.
             ...$suggestedUsers !== null ? [
                 'suggestedUsers' => ($context === null ? $suggestedUsers->once() : $suggestedUsers)->merge()->matchOn('id'),
+            ] : [],
+            ...$user instanceof User && $hasAside ? [
+                'suggestedGuilds' => Inertia::defer(fn (): ?array => resolve(Features::class)->available(Feature::Guilds, $user)
+                    ? resolve(SuggestedGuildsQuery::class)->get($user)->map(fn (Guild $guild): array => [
+                        'id' => $guild->id,
+                        'followed_members_count' => $guild->followed_members_count,
+                    ])->all()
+                    : null)->once(),
             ] : [],
         ];
     }

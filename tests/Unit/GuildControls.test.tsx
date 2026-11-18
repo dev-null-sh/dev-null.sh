@@ -299,3 +299,32 @@ test('keeps the mute slot still but hides it from joined users and keyboard navi
         );
     }
 });
+
+test('keeps a busy join button focusable and ignores clicks until its request ends', () => {
+    const optimistic = vi.spyOn(router, 'optimistic').mockReturnValue(router);
+    const put = vi.spyOn(router, 'put').mockImplementation(() => {});
+    const guild = {
+        id: 'rust-id',
+        name: 'Rust',
+        is_joined: false,
+        is_muted: false,
+    } as Guild;
+    const join = () => {
+        cursor = 0;
+
+        return elements(GuildPreferences({ guild })).find(
+            (element) => element.props['aria-label'] === 'Join Rust',
+        )!;
+    };
+
+    (join().props.onClick as () => void)();
+    assert.equal(join().props['aria-disabled'], true);
+    assert.equal(join().props.disabled, undefined);
+
+    (join().props.onClick as () => void)();
+    assert.equal(optimistic.mock.calls.length, 1);
+    assert.equal(put.mock.calls.length, 1);
+
+    put.mock.calls[0][2]?.onFinish?.({} as never);
+    assert.equal(join().props['aria-disabled'], false);
+});
