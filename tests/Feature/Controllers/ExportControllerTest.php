@@ -744,7 +744,8 @@ it('exports subscription metadata without delivery endpoints', function (): void
 
 it('exports only the users guilds without internal paths or identifiers', function (): void {
     $user = User::factory()->create();
-    Guild::factory()->create(['user_id' => $user->id, 'handle' => 'jobs', 'name' => 'Job Board', 'description' => 'Hiring.', 'emoji' => '💼', 'icon_path' => 'guild-icons/private-path.webp']);
+    $pin = Commit::factory()->create(['body' => '#jobs']);
+    Guild::factory()->create(['user_id' => $user->id, 'handle' => 'jobs', 'name' => 'Job Board', 'description' => 'Hiring.', 'emoji' => '💼', 'icon_path' => 'guild-icons/private-path.webp', 'pinned_commit_id' => $pin->id]);
     Guild::factory()->create(['user_id' => $user->id, 'handle' => 'rust']);
     Guild::factory()->create(['name' => 'Someone else']);
     GuildSubmission::factory()->for($user)->create(['handle' => 'adhd', 'name' => 'ADHD', 'description' => 'Waiting for review.', 'icon_path' => 'guild-icons/pending-path.webp']);
@@ -757,6 +758,7 @@ it('exports only the users guilds without internal paths or identifiers', functi
         ->and($data['guilds'][0])->toBe([
             'handle' => 'jobs', 'name' => 'Job Board', 'description' => 'Hiring.', 'emoji' => '💼',
             'icon' => route('guild-icon.show', 'jobs'),
+            'pinned_commit_id' => $pin->id,
             'created_at' => now()->toIso8601String(), 'updated_at' => now()->toIso8601String(),
         ])
         ->and($data['guilds'][1]['icon'])->toBeNull()

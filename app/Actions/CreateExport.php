@@ -143,6 +143,7 @@ final readonly class CreateExport
             'guilds' => Guild::query()->where('user_id', $user->id)->orderBy('handle')->get()->map(fn (Guild $guild): array => [
                 ...$guild->toArray(),
                 'icon' => $guild->icon_path === null ? null : route('guild-icon.show', $guild->handle),
+                'pinned_commit_id' => $guild->pinned_commit_id,
                 'created_at' => $guild->created_at->toIso8601String(),
                 'updated_at' => $guild->updated_at->toIso8601String(),
             ])->all(),

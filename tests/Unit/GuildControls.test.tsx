@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import * as React from 'react';
 import type { ReactElement, ReactNode } from 'react';
 import { beforeEach, test, vi } from 'vite-plus/test';
+import type { Commit } from '../../resources/js/types';
 import type { Guild } from '../../resources/js/types/guild';
 
 let state: unknown[];
@@ -10,13 +11,19 @@ let cursor = 0;
 const errors = { setError: vi.fn(), clearErrors: vi.fn() };
 vi.doMock('@inertiajs/react', async () => ({
     ...(await vi.importActual('@inertiajs/react')),
-    usePage: () => ({ props: { guilds: [] } }),
+    usePage: () => ({
+        props: {
+            guilds: [{ handle: 'rust', name: 'Rust' }],
+            auth: { isAdmin: false },
+        },
+    }),
 }));
 vi.doMock('../../resources/js/layouts/app-layout', () => ({
     default: () => null,
 }));
 vi.doMock('react', () => ({
     ...React,
+    useLayoutEffect: () => {},
     useRef: () => ({ current: errors }),
     useState: (initial: unknown) => {
         const index = cursor++;
@@ -37,7 +44,11 @@ vi.doMock('../../resources/js/components/follow-button', () => ({
     }),
 }));
 
-const { Form } = await import('@inertiajs/react');
+const { Form, router } = await import('@inertiajs/react');
+const { default: GuildBoard } =
+    await import('../../resources/js/pages/guild/show');
+const { CommitCard } =
+    await import('../../resources/js/components/commit-card');
 const { GuildDialog } =
     await import('../../resources/js/components/guild-dialog');
 const { GuildPreferences } =
@@ -71,7 +82,105 @@ function dialog(handle?: string) {
 beforeEach(() => {
     state = [];
     cursor = 0;
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
     vi.clearAllMocks();
+});
+
+test('promotes a separate pin without changing loaded chronological rows and restores its natural position on unpin', () => {
+    const commits = Array.from(
+        { length: 60 },
+        (_, index) => ({ id: String(index) }) as Commit,
+    );
+    const old = { id: 'old' } as Commit;
+    const boardIds = (pinnedCommit: Commit | null) => {
+        cursor = 0;
+        return elements(
+            GuildBoard({
+                handle: 'rust',
+                canModerate: true,
+                commits,
+                pinnedCommit,
+                page: 2,
+                hasMore: true,
+            }),
+        )
+            .filter((element) => element.type === CommitCard)
+            .map((element) => (element.props.commit as Commit).id);
+    };
+
+    assert.deepEqual(boardIds(old), [
+        'old',
+        ...commits.map((commit) => commit.id),
+    ]);
+    assert.deepEqual(boardIds(commits[40]), [
+        '40',
+        ...commits
+            .filter((commit) => commit.id !== '40')
+            .map((commit) => commit.id),
+    ]);
+    assert.deepEqual(
+        boardIds(null),
+        commits.map((commit) => commit.id),
+    );
+    assert.equal(commits.length, 60);
+});
+
+test('changes only the pin optimistically and prevents pin and load-more requests from overlapping', () => {
+    const commit = { id: 'target' } as Commit;
+    const view = () => {
+        cursor = 0;
+        return elements(
+            GuildBoard({
+                handle: 'rust',
+                canModerate: true,
+                commits: [commit],
+                pinnedCommit: null,
+                page: 20,
+                hasMore: true,
+            }),
+        );
+    };
+    const pinButton = () =>
+        elements(
+            view().find((element) => element.type === CommitCard)!.props
+                .threadActions as ReactNode,
+        )[0];
+    const loadButton = () =>
+        elements(
+            view().find(
+                (element) => element.props['aria-label'] === 'Guild commits',
+            )!.props.children as ReactNode,
+        )[0];
+    vi.stubGlobal('document', { querySelectorAll: () => [] });
+    const optimistic = vi.spyOn(router, 'optimistic').mockReturnValue(router);
+    const put = vi.spyOn(router, 'put').mockImplementation(() => {});
+    const get = vi.spyOn(router, 'get').mockImplementation(() => {});
+
+    (pinButton().props.onClick as () => void)();
+    assert.deepEqual(optimistic.mock.calls[0][0]({} as never), {
+        pinnedCommit: commit,
+    });
+    assert.deepEqual(put.mock.calls[0][1], { pinned: true });
+    assert.deepEqual(put.mock.calls[0][2]?.only, [
+        'pinnedCommit',
+        'canModerate',
+    ]);
+    assert.equal(pinButton().props.disabled, true);
+    assert.equal(loadButton().props.disabled, true);
+    put.mock.calls[0][2]?.onFinish?.({} as never);
+
+    (loadButton().props.onClick as () => void)();
+    assert.deepEqual(get.mock.calls[0][2]?.only, [
+        'commits',
+        'page',
+        'hasMore',
+        'pinnedCommit',
+        'canModerate',
+    ]);
+    get.mock.calls[0][2]?.onStart?.({} as never);
+    assert.equal(pinButton().props.disabled, true);
+    assert.equal(loadButton().props.disabled, true);
 });
 
 test('refreshes card data with directory search and navigation so newly created guilds can render', () => {

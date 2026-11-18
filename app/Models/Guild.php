@@ -16,6 +16,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 /**
  * @property-read string $id
  * @property-read string|null $user_id
+ * @property-read string|null $pinned_commit_id
  * @property-read string $handle
  * @property-read string $name
  * @property-read string $description

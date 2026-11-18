@@ -51,6 +51,18 @@ final readonly class GuildCommitsQuery
         return $this->snapshot($viewer, fn (): Paginator => $this->page($guild, $viewer, $page));
     }
 
+    public function pinned(Guild $guild, User $viewer): ?Commit
+    {
+        return $this->snapshot($viewer, function () use ($guild, $viewer): ?Commit {
+            if ($guild->pinned_commit_id === null || $this->rootIds($guild, $viewer, $guild->pinned_commit_id)->isEmpty()) {
+                return null;
+            }
+
+            return Commit::query()->withVisibleReplyCount($viewer)->withReplyPreviews($viewer)->withCardDataFor($viewer)
+                ->find($guild->pinned_commit_id);
+        });
+    }
+
     public function forPreference(User $user, bool $muted): Builder
     {
         /** @var list<string> $handles */
@@ -84,11 +96,14 @@ final readonly class GuildCommitsQuery
             ->filter()->all();
     }
 
-    /** @return Paginator<int, Commit> */
-    private function page(Guild $guild, User $viewer, int $page): Paginator
+    /** @return LazyCollection<int, string> */
+    public function rootIds(Guild $guild, User $viewer, ?string $forRoot = null): LazyCollection
     {
-        $roots = Commit::query()->topLevel()->visibleTo($viewer)->withoutMutedAuthorsFor($viewer)->select(['id', 'created_at']);
-        $ids = Commit::query()->visibleTo($viewer)->withoutMutedAuthorsFor($viewer)
+        $roots = Commit::query()->topLevel()->visibleTo($viewer)->withoutMutedAuthorsFor($viewer)
+            ->when($forRoot !== null, fn (CommitBuilder $query): CommitBuilder => $query->whereKey($forRoot))
+            ->select(['id', 'created_at']);
+
+        return Commit::query()->visibleTo($viewer)->withoutMutedAuthorsFor($viewer)
             ->where(fn (CommitBuilder $query): CommitBuilder => $query->where('guild_id', $guild->id)
                 ->orWhere(fn (CommitBuilder $query): CommitBuilder => $query->whereNull('guild_id')->whereLike('body', '%#%')))
             ->joinSub($roots, 'roots', fn (JoinClause $join): JoinClause => $join->on('roots.id', '=', DB::raw('coalesce(commits.root_id, commits.id)')))
@@ -97,7 +112,13 @@ final readonly class GuildCommitsQuery
             ->map(fn (stdClass $commit): Fluent => new Fluent(get_object_vars($commit)))
             ->filter(fn (Fluent $commit): bool => $commit->get('guild_id') !== null || in_array($guild->handle, $this->hashtags->handles($commit->string('body')->value()), true))
             ->map(fn (Fluent $commit): string => $commit->string('id')->value())
-            ->unique()->skip(($page - 1) * 30)->take(31)->values()->all();
+            ->unique()->values();
+    }
+
+    /** @return Paginator<int, Commit> */
+    private function page(Guild $guild, User $viewer, int $page): Paginator
+    {
+        $ids = $this->rootIds($guild, $viewer)->skip(($page - 1) * 30)->take(31)->all();
 
         $commits = Commit::query()->whereKey($ids)
             ->withVisibleReplyCount($viewer)->withReplyPreviews($viewer)->withCardDataFor($viewer)
