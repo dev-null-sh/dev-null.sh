@@ -60,6 +60,14 @@ final class CreateCommitRequest extends FormRequest
     }
 
     /**
+     * The board the commit goes to, or null when it goes to no guild.
+     */
+    public static function guildOf(FormRequest $request): ?Guild
+    {
+        return $request->filled('guild_handle') ? Guild::query()->where('handle', $request->string('guild_handle')->value())->first() : null;
+    }
+
+    /**
      * Images are checked by their contents, not their extension, and SVG is never accepted since it can carry scripts.
      *
      * @return array<string, array<int, string|ValidationRule|File|Dimensions|Enum>>
@@ -204,6 +212,6 @@ final class CreateCommitRequest extends FormRequest
 
     public function guild(): ?Guild
     {
-        return Guild::query()->where('handle', $this->string('guild_handle')->value())->first();
+        return self::guildOf($this);
     }
 }
