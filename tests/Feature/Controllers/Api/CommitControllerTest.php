@@ -76,6 +76,7 @@ it('shows an approved commit to anyone', function (): void {
             'created_at' => now()->toIso8601ZuluString(),
             'stars_count' => 0,
             'replies_count' => 0,
+            'views_count' => 0,
             'link_preview' => null,
             'images' => [],
             'author' => [
@@ -348,6 +349,7 @@ it('shows a signed request the commit as its page shows it to its user', functio
                 'is_pinned' => false,
                 'starred' => true,
                 'pasteis_count' => 4,
+                'views_count' => 0,
                 'deleted_at' => null,
                 'quoted_commit_id' => null,
                 'quoted_commit' => null,
@@ -373,6 +375,7 @@ it('shows a signed request the commit as its page shows it to its user', functio
                 'is_pinned' => false,
                 'starred' => false,
                 'pasteis_count' => 0,
+                'views_count' => 0,
                 'deleted_at' => null,
                 'quoted_commit_id' => null,
                 'quoted_commit' => null,
