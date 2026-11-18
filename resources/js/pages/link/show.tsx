@@ -8,7 +8,6 @@ import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
 import { HiddenLinkPreviewContext } from '@/components/hidden-link-preview-context';
 import { LinkPreview } from '@/components/link-preview';
 import {
-    AddYourTakeButton,
     displayedLink,
     linkLane,
     siteFavicon,
@@ -140,7 +139,6 @@ export default function Show({
                                 Open link
                             </a>
                         </Button>
-                        <AddYourTakeButton url={url} />
                     </div>
                 </div>
 

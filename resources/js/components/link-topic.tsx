@@ -1,15 +1,10 @@
-import { Link, router, usePage } from '@inertiajs/react';
-import { Link2, PenLine } from 'lucide-react';
+import { Link, router } from '@inertiajs/react';
+import { Link2 } from 'lucide-react';
 import type { MouseEvent } from 'react';
 import { useState } from 'react';
-import { commitDialogOpenKey } from '@/components/commit-composer-dialog';
 import { GraphCanvas } from '@/components/graph-canvas';
 import { GraphRail, RailSegment } from '@/components/graph-rail';
 import { LinkTopicCommits } from '@/components/link-topic-commits';
-import { Button } from '@/components/ui/button';
-import { useSharedState } from '@/hooks/use-shared-state';
-import { addLinkToCommitStash } from '@/hooks/use-stash';
-import { signIn } from '@/lib/auth';
 import { clickedCommit } from '@/lib/commit-click';
 import { formatCount } from '@/lib/numbers';
 import { hostname, readableUrl } from '@/lib/urls';
@@ -73,35 +68,6 @@ export function TopicIcon({
                 <Link2 aria-hidden className="size-1/2" />
             )}
         </span>
-    );
-}
-
-/**
- * Opens the commit dialog with the link in the draft, for a take of one's own on it. Guests are asked to sign in.
- */
-export function AddYourTakeButton({ url }: { url: string }) {
-    const userId = usePage().props.auth.user?.id;
-    const [, setIsComposing] = useSharedState<boolean>(
-        commitDialogOpenKey,
-        false,
-    );
-
-    const addTake = () => {
-        if (userId === undefined) {
-            signIn();
-
-            return;
-        }
-
-        addLinkToCommitStash(userId, url);
-        setIsComposing(true);
-    };
-
-    return (
-        <Button onClick={addTake}>
-            <PenLine />
-            Add your take
-        </Button>
     );
 }
 
