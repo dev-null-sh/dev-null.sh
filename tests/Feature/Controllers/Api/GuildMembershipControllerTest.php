@@ -159,12 +159,12 @@ it('lists the members of a paused guild without a moderator, and an empty guild'
     $go = Guild::factory()->create(['handle' => 'go', 'user_id' => null]);
 
     signedApiRequest($this->keyPair, 'GET', route('api-guild-membership.index', 'go'))
-        ->assertOk()->assertJsonCount(0, 'data')->assertJsonPath('moderator_id', null);
+        ->assertOk()->assertJsonCount(0, 'data')->assertJsonStructure(['moderator_id'])->assertJsonPath('moderator_id', null);
 
     $go->members()->attach($this->user, ['joined_at' => now()]);
 
     signedApiRequest($this->keyPair, 'GET', route('api-guild-membership.index', 'go'))
-        ->assertOk()->assertJsonPath('data.*.id', [$this->user->id])->assertJsonPath('moderator_id', null);
+        ->assertOk()->assertJsonPath('data.*.id', [$this->user->id])->assertJsonStructure(['moderator_id'])->assertJsonPath('moderator_id', null);
 });
 
 it('lets admins list members during the admin preview', function (): void {
