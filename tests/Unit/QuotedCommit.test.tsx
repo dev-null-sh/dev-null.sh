@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { createInertiaApp } from '@inertiajs/react';
 import { renderToString } from 'react-dom/server';
-import { test } from 'vite-plus/test';
+import { test, vi } from 'vite-plus/test';
 import { QuotedCommit } from '../../resources/js/components/quoted-commit';
 import type {
     LinkPreview,
@@ -28,6 +28,23 @@ const commit = {
     created_at: '2026-10-16T11:51:00.000000Z',
     author: { id: 'author', name: 'Matthieu Napoli', handle: 'mnapoli' },
 } as QuotedCommitData;
+
+// The fetch lifecycle is covered in CommitLinkPreview.test.tsx. Here the linked
+// commit is already loaded, so we can test its actual markup inside a quote.
+let resolvedLinkedCommit: QuotedCommitData | null = null;
+
+vi.mock('../../resources/js/components/commit-link-preview', () => ({
+    CommitLinkPreview: ({ isStatic }: { isStatic?: boolean }) =>
+        resolvedLinkedCommit ? (
+            <QuotedCommit
+                commit={resolvedLinkedCommit}
+                isPreview={isStatic}
+                suppressLinkedPreview
+            />
+        ) : (
+            <div aria-label="Loading linked commit" />
+        ),
+}));
 
 const poll = {
     id: 'poll',
@@ -129,6 +146,38 @@ test('shows the images, link card and embed of a quoted commit inside the single
         assert.match(body, shown);
         assert.equal(body.match(/<a\b/g)?.length, 1);
         assert.doesNotMatch(body, /<(button|iframe)\b/);
+    }
+});
+
+
+test('shows the resolved linked card inside an ordinary quote without nested links', async () => {
+    const preview: LinkPreview = {
+        url: 'https://dev-null.sh/@author/commits/123e4567-e89b-12d3-a456-426614174000',
+        title: null,
+        description: null,
+        image_url: null,
+        site_name: null,
+        is_pending: false,
+        commit_preview_url: '/@author/commits/123e4567-e89b-12d3-a456-426614174000/preview',
+    };
+
+    resolvedLinkedCommit = {
+        ...commit,
+        id: 'linked',
+        body_segments: [{ type: 'text', text: 'Resolved linked commit' }],
+        preview_segments: null,
+        link_preview: preview,
+    };
+
+    try {
+        const body = await render(false, { ...commit, link_preview: preview });
+
+        assert.match(body, /Resolved linked commit/);
+        assert.equal(body.match(/data-test="quoted-commit"/g)?.length, 2);
+        assert.equal(body.match(/<a\b/g)?.length, 1);
+        assert.doesNotMatch(body, /Loading linked commit/);
+    } finally {
+        resolvedLinkedCommit = null;
     }
 });
 
