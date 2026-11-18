@@ -245,6 +245,9 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
 
         // Guilds: the directory the web's Guilds page lists, a guild's board and its members...
         Route::get('guilds', [GuildController::class, 'index'])->name('api-guild.index');
+        Route::post('guilds', [GuildController::class, 'store'])
+            ->middleware([PreventPostingInTimeout::class, 'throttle:10,1,guilds:'])
+            ->name('api-guild.store');
         Route::get('guilds/{guild:handle}', [GuildController::class, 'show'])->name('api-guild.show');
         Route::get('guilds/{guild:handle}/members', [GuildMembershipController::class, 'index'])->name('api-guild-membership.index');
 
