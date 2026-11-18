@@ -106,7 +106,7 @@ export default function Show({
                 </p>
                 {moderator && (
                     <div className="mt-4 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-                        <span>Moderator</span>
+                        <span>Moderators</span>
                         <Link
                             href={showProfile(moderator.handle)}
                             prefetch
