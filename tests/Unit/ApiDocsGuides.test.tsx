@@ -57,6 +57,15 @@ test("shows a guide's code in the docs' code blocks, as highlighted by the serve
     );
 });
 
+test('points to the OpenAPI spec the API is described by', () => {
+    const html = renderToString(<Introduction snippets={{}} />);
+
+    assert.match(
+        html,
+        />spec<.*<a href="\/api\/v1\/openapi\.json">OpenAPI 3\.1<\/a>/s,
+    );
+});
+
 test('asks for JSON on every request, so every error comes back as JSON', () => {
     const html = renderToString(<Introduction snippets={{}} />);
 

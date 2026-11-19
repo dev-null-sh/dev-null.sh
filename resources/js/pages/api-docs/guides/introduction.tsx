@@ -1,4 +1,5 @@
 import { Link } from '@inertiajs/react';
+import OpenApiController from '@/actions/App/Http/Controllers/Api/OpenApiController';
 import ApiDocsController from '@/actions/App/Http/Controllers/ApiDocsController';
 import {
     Code,
@@ -43,6 +44,18 @@ export function Introduction({
                                     <Code>Accept: application/json</Code> on
                                     every request, so every error comes back as
                                     JSON
+                                </>
+                            ),
+                        },
+                        {
+                            name: 'spec',
+                            children: (
+                                <>
+                                    <a href={OpenApiController.show().url}>
+                                        OpenAPI 3.1
+                                    </a>
+                                    , generated from the code, so it changes
+                                    when the API does
                                 </>
                             ),
                         },

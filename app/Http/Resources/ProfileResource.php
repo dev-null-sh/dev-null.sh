@@ -23,10 +23,18 @@ final class ProfileResource extends JsonResource
     {
         $owner = $this->owner();
 
+        if ($owner instanceof User) {
+            return [
+                'type' => $this->type,
+                'id' => $this->id,
+                ...UserResource::make($owner)->toArray($request),
+            ];
+        }
+
         return [
             'type' => $this->type,
             'id' => $this->id,
-            ...($owner instanceof User ? UserResource::make($owner) : OrganizationResource::make($owner))->toArray($request),
+            ...OrganizationResource::make($owner)->toArray($request),
         ];
     }
 }
