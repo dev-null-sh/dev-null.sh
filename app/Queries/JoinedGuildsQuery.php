@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Queries;
 
+use App\Enums\CommitStatus;
 use App\Enums\Feature;
 use App\Models\Commit;
 use App\Models\Guild;
@@ -44,8 +45,13 @@ final readonly class JoinedGuildsQuery
         }
 
         $commits = $this->commitsSince($user, array_keys($readFrom), min($readFrom));
+        $ownCommits = $this->ownCommits($user, array_keys($readFrom));
+        $guilds = Guild::query()->whereKey(array_keys($readFrom))->get();
+        $ownCommitCounts = $guilds->mapWithKeys(fn (Guild $guild): array => [
+            $guild->handle => $ownCommits->filter(fn (array $commit): bool => $this->isPostedIn($guild, $commit))->count(),
+        ]);
 
-        return array_values(Guild::query()->whereKey(array_keys($readFrom))->get()
+        return array_values($guilds
             ->map(function (Guild $guild) use ($commits, $readFrom): array {
                 $guildReadFrom = CarbonImmutable::parse($readFrom[$guild->id]);
 
@@ -54,11 +60,15 @@ final readonly class JoinedGuildsQuery
                     'name' => $guild->name,
                     'emoji' => $guild->emoji,
                     'icon_url' => $guild->iconUrl(),
-                    'missed_commits' => $commits->filter(fn (array $commit): bool => ($commit['guild_id'] === $guild->id || ($commit['guild_id'] === null && in_array($guild->handle, $commit['handles'], true)))
+                    'missed_commits' => $commits->filter(fn (array $commit): bool => $this->isPostedIn($guild, $commit)
                         && $commit['created_at']->greaterThan($guildReadFrom))->count(),
                 ];
             })
-            ->sortBy([['missed_commits', 'desc'], ['handle', 'asc']])
+            ->sortBy([
+                fn (array $first, array $second): int => $ownCommitCounts[$second['handle']] <=> $ownCommitCounts[$first['handle']],
+                ['missed_commits', 'desc'],
+                ['handle', 'asc'],
+            ])
             ->all());
     }
 
@@ -97,5 +107,32 @@ final readonly class JoinedGuildsQuery
                 'guild_id' => $commit->guild_id,
                 'handles' => $commit->guild_id === null ? $this->hashtags->handles($commit->body) : [],
             ]);
+    }
+
+    /**
+     * @param  list<string>  $guildIds
+     * @return Collection<int, array{guild_id: string|null, handles: list<string>}>
+     */
+    private function ownCommits(User $user, array $guildIds): Collection
+    {
+        return Commit::query()
+            ->where('commits.user_id', $user->id)
+            ->where('commits.status', CommitStatus::Approved)
+            ->where(fn (CommitBuilder $query): CommitBuilder => $query->whereIn('commits.guild_id', $guildIds)
+                ->orWhere(fn (CommitBuilder $query): CommitBuilder => $query->whereNull('commits.guild_id')->whereLike('commits.body', '%#%')))
+            ->latest('commits.created_at')->orderByDesc('commits.id')
+            ->limit(self::COMMITS_READ)
+            ->get(['commits.guild_id', 'commits.body'])->toBase()
+            ->map(fn (Commit $commit): array => [
+                'guild_id' => $commit->guild_id,
+                'handles' => $commit->guild_id === null ? $this->hashtags->handles($commit->body) : [],
+            ]);
+    }
+
+    /** @param array{guild_id: string|null, handles: list<string>, ...} $commit */
+    private function isPostedIn(Guild $guild, array $commit): bool
+    {
+        return $commit['guild_id'] === $guild->id
+            || ($commit['guild_id'] === null && in_array($guild->handle, $commit['handles'], true));
     }
 }
