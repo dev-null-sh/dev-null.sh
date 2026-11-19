@@ -20,7 +20,7 @@ final class GuildBadgeResource extends JsonResource
             'handle' => $this->handle,
             'name' => $this->name,
             'emoji' => $this->emoji,
-            'icon_url' => $this->iconUrl(),
+            'icon_url' => $request->routeIs('api-*') ? $this->apiIconUrl($request->user()) : $this->iconUrl(),
         ];
     }
 }

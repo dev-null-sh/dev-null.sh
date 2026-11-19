@@ -437,6 +437,15 @@ export function CommitCard({
                                         because you joined{' '}
                                         <Hashtag
                                             hashtag={`#${commit.joined_guild}`}
+                                            guild={
+                                                commit.guild?.handle ===
+                                                commit.joined_guild
+                                                    ? commit.guild
+                                                    : undefined
+                                            }
+                                            guildMentions={
+                                                commit.guild_mentions
+                                            }
                                         />
                                     </p>
                                 )}

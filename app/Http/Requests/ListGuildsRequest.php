@@ -44,7 +44,8 @@ final class ListGuildsRequest extends FormRequest
     public function prepareForValidation(): void
     {
         if ($this->hasHeader('X-Guild-Handles')) {
-            $this->merge(['visible_guilds' => json_decode($this->header('X-Guild-Handles', ''), true)]);
+            $handles = json_decode($this->header('X-Guild-Handles', ''));
+            $this->merge(['visible_guilds' => is_array($handles) ? $handles : null]);
         }
     }
 }

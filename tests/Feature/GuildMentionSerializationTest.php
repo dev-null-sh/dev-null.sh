@@ -3,20 +3,27 @@
 declare(strict_types=1);
 
 use App\Enums\Feature;
+use App\Enums\RemotesFrom;
 use App\Http\Resources\CommitResource;
 use App\Http\Resources\MessageResource;
+use App\Http\Resources\NotificationResource;
 use App\Http\Resources\ScheduledCommitResource;
+use App\Http\Resources\ShownGuildMentions;
 use App\Http\Resources\ShownStreams;
 use App\Models\Commit;
 use App\Models\Guild;
 use App\Models\Message;
+use App\Models\Notification;
 use App\Models\Poll;
 use App\Models\ScheduledCommit;
 use App\Models\User;
 use App\Services\CommitTranslations;
 use App\Services\Features;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Exceptions;
+use Illuminate\Support\Str;
 
 it('batches cards with their loaded quotes replies and translations and gives each body only its own badges', function (): void {
     $viewer = User::factory()->create();
@@ -66,6 +73,14 @@ it('batches paginated cards without losing their cursor attributes', function ()
         ->and($shown['data'][0]['guild_mentions'])->toHaveKey('rust')
         ->and($shown['next_cursor'])->not->toBeNull()
         ->and(collect(DB::getQueryLog())->filter(fn (array $query): bool => str_contains($query['query'], 'from "guilds"')))->toHaveCount(1);
+
+    $next = Commit::query()->withCardDataFor($viewer)->orderBy('id')->cursorPaginate(2, cursor: $page->nextCursor());
+    $nextShown = ShownStreams::page($next)->toArray();
+
+    expect($nextShown['data'])->toHaveCount(1)
+        ->and($nextShown['data'][0]['guild_mentions'])->toHaveKey('rust')
+        ->and($nextShown['data'][0]['id'])->not->toBeIn(array_column($shown['data'], 'id'))
+        ->and($nextShown['next_cursor'])->toBeNull();
 });
 
 it('does not expose badge metadata from deleted cards or disabled guilds', function (): void {
@@ -82,8 +97,154 @@ it('does not expose badge metadata from deleted cards or disabled guilds', funct
     expect(ShownStreams::commit($deleted))->not->toHaveKeys(['body', 'guild_mentions']);
     resolve(Features::class)->update(Feature::Guilds, false);
     expect(ShownStreams::commit($visible)['guild_mentions'])->toBe([]);
+    resolve(Features::class)->update(Feature::Guilds, true, false);
     request()->setUserResolver(fn (): null => null);
     expect(ShownStreams::commit($visible)['guild_mentions'])->toBe([]);
+});
+
+it('does not disable badge enrichment on reused resources', function (bool $collection): void {
+    $viewer = User::factory()->create();
+    $this->actingAs($viewer);
+    request()->setUserResolver(fn (): User => $viewer);
+    resolve(Features::class)->update(Feature::Guilds, true, false);
+    Guild::factory()->create(['handle' => 'rust']);
+    $message = Message::factory()->create(['body' => '#rust']);
+    $resource = MessageResource::make($message);
+    $batch = MessageResource::collection(collect([$resource]));
+
+    $shown = ShownGuildMentions::of(['message' => $collection ? $batch : $resource], $viewer);
+
+    expect($shown['message'][$collection ? 0 : 'guild_mentions'])->not->toBeEmpty()
+        ->and($resource->withGuildMentions)->toBeTrue()
+        ->and($batch->withGuildMentions)->toBeTrue()
+        ->and($resource->resolve()['guild_mentions'])->toHaveKey('rust');
+})->with(['single' => false, 'collection' => true]);
+
+it('omits unloaded notification actors when serialized standalone', function (): void {
+    $notification = Notification::factory()->create();
+
+    $shown = NotificationResource::make($notification)->resolve();
+
+    expect($shown)->not->toHaveKey('actors')
+        ->and($shown['id'])->toBe($notification->id);
+});
+
+it('keeps a successful vote response when optional badge lookup fails', function (): void {
+    $viewer = User::factory()->create();
+    $this->actingAs($viewer);
+    resolve(Features::class)->update(Feature::Guilds, true, false);
+    $poll = Poll::factory()->withOptions('#rust', 'Other')->create();
+    Exceptions::fake();
+    $failing = true;
+    DB::connection()->beforeExecuting(function (string $query, array $bindings) use (&$failing): void {
+        throw_if($failing && str_contains($query, 'from "guilds"'), QueryException::class, 'pgsql', $query, $bindings, new PDOException('Injected badge lookup failure'));
+    });
+
+    try {
+        $this->postJson(route('commit-poll-vote.store', $poll->commit), ['option' => $poll->options[0]->id])
+            ->assertOk()->assertJsonPath('poll.total_votes', 1)->assertJsonPath('poll.options.0.guild_mentions', []);
+    } finally {
+        $failing = false;
+    }
+
+    $this->assertDatabaseHas('poll_votes', ['user_id' => $viewer->id, 'poll_option_id' => $poll->options[0]->id]);
+    Exceptions::assertReported(QueryException::class);
+});
+
+it('returns the first private message even when its optional badge lookup fails', function (): void {
+    config(['remotes.requests' => true, 'remotes.everyone' => true]);
+    $viewer = User::factory()->withRemotes()->create();
+    $partner = User::factory()->withRemotes(RemotesFrom::Following)->create();
+    $this->actingAs($viewer);
+    resolve(Features::class)->update(Feature::Guilds, true, false);
+    $payload = ['body' => '#rust', 'client_id' => Str::uuid()->toString()];
+    Exceptions::fake();
+    $failing = true;
+    DB::connection()->beforeExecuting(function (string $query, array $bindings) use (&$failing): void {
+        throw_if($failing && str_contains($query, 'from "guilds"'), QueryException::class, 'pgsql', $query, $bindings, new PDOException('Injected badge lookup failure'));
+    });
+
+    try {
+        $this->postJson(route('conversation-message.store', $partner), $payload)
+            ->assertCreated()->assertJsonPath('message.body', '#rust')->assertJsonPath('message.guild_mentions', []);
+    } finally {
+        $failing = false;
+    }
+
+    expect(Message::query()->sole()->body)->toBe('#rust');
+    Exceptions::assertReported(QueryException::class);
+    $this->postJson(route('conversation-message.store', $partner), $payload)->assertForbidden();
+});
+
+it('does not swallow programming errors in optional badge enrichment', function (): void {
+    $viewer = User::factory()->create();
+    $texts = (function (): Generator {
+        yield '#rust';
+        throw new LogicException('Not a database failure');
+    })();
+
+    expect(fn (): array => ShownGuildMentions::get($texts, $viewer))->toThrow(LogicException::class, 'Not a database failure');
+});
+
+it('returns a newly scheduled API commit even when its optional badge lookup fails', function (): void {
+    $viewer = User::factory()->create();
+    $keyPair = apiKeyPairFor($viewer);
+    resolve(Features::class)->update(Feature::Guilds, true, false);
+    Exceptions::fake();
+    $failing = true;
+    DB::connection()->beforeExecuting(function (string $query, array $bindings) use (&$failing): void {
+        throw_if($failing && str_contains($query, 'from "guilds"'), QueryException::class, 'pgsql', $query, $bindings, new PDOException('Injected badge lookup failure'));
+    });
+
+    try {
+        signedApiRequest($keyPair, 'POST', route('api-scheduled-commit.store'), [
+            'body' => '#rust', 'scheduled_at' => now()->addHour()->toIso8601String(),
+        ])->assertCreated()->assertJsonPath('data.body', '#rust')->assertJsonPath('data.guild_mentions', []);
+    } finally {
+        $failing = false;
+    }
+
+    expect(ScheduledCommit::query()->sole()->body)->toBe('#rust');
+    Exceptions::assertReported(QueryException::class);
+});
+
+it('keeps database failures visible for authoritative guild lookups', function (string $url): void {
+    $viewer = User::factory()->create();
+    $this->actingAs($viewer);
+    resolve(Features::class)->update(Feature::Guilds, true, false);
+    Exceptions::fake();
+    $failing = true;
+    DB::connection()->beforeExecuting(function (string $query, array $bindings) use (&$failing): void {
+        throw_if($failing && str_contains($query, 'from "guilds"'), QueryException::class, 'pgsql', $query, $bindings, new PDOException('Injected exact lookup failure'));
+    });
+
+    try {
+        $this->getJson($url)->assertInternalServerError();
+    } finally {
+        $failing = false;
+    }
+
+    Exceptions::assertReported(QueryException::class);
+})->with(['/search/guilds?handles[]=rust', '/search?q=%23rust']);
+
+it('does not turn mutation query failures into successful vote responses', function (): void {
+    $viewer = User::factory()->create();
+    $this->actingAs($viewer);
+    $poll = Poll::factory()->withOptions('#rust', 'Other')->create();
+    Exceptions::fake();
+    $failing = true;
+    DB::connection()->beforeExecuting(function (string $query, array $bindings) use (&$failing): void {
+        throw_if($failing && str_contains($query, 'insert into "poll_votes"'), QueryException::class, 'pgsql', $query, $bindings, new PDOException('Injected vote write failure'));
+    });
+
+    try {
+        $this->postJson(route('commit-poll-vote.store', $poll->commit), ['option' => $poll->options[0]->id])->assertInternalServerError();
+    } finally {
+        $failing = false;
+    }
+
+    $this->assertDatabaseEmpty('poll_votes');
+    Exceptions::assertReported(QueryException::class);
 });
 
 it('batches message and reply ghost badges without altering encrypted stored bodies', function (): void {

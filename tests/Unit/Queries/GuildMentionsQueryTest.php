@@ -57,3 +57,19 @@ it('does not query guilds when there are no prose hashtags', function (): void {
     expect($mentions)->toBe([])
         ->and(collect(DB::getQueryLog())->filter(fn (array $query): bool => str_contains($query['query'], 'from "guilds"')))->toHaveCount(0);
 });
+
+it('keeps every badge when a retained log exceeds the postgres binding limit', function (): void {
+    $viewer = User::factory()->create();
+    resolve(Features::class)->update(Feature::Guilds, true, false);
+    Guild::factory()->create(['handle' => 'guild0']);
+    Guild::factory()->create(['handle' => 'guild65535']);
+    $texts = (function (): Generator {
+        for ($index = 0; $index < 65536; $index++) {
+            yield '#guild'.$index;
+        }
+    })();
+
+    $mentions = resolve(GuildMentionsQuery::class)->get($texts, $viewer);
+
+    expect($mentions)->toHaveKeys(['guild0', 'guild65535'])->toHaveCount(2);
+});

@@ -33,6 +33,7 @@ const http = {
 
 vi.doMock('react', () => ({
     ...React,
+    useEffectEvent: (callback: () => void) => callback,
     useEffect: (effect: () => void) => {
         effects.push(effect);
     },

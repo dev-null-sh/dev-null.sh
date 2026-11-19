@@ -293,6 +293,27 @@ it('shortens urls for display', function (string $url, string $shortened): void 
     'slash before a trailing newline' => ["https://example.com/\n", "example.com/\n"],
 ]);
 
+it('masks recognized url spans without replacing matching text elsewhere', function (string $text, string $masked): void {
+    expect(resolve(Urls::class)->withoutUrls($text))->toBe($masked);
+})->with([
+    'plain text' => ['#linux and ordinary text', '#linux and ordinary text'],
+    'scheme host also used as hashtag' => ['#linux https://linux', '#linux  '],
+    'bare domain fragment' => ['example.com/#rust #php', '  #php'],
+    'repeated URLs and prefixes' => ['https://example.com/#a https://example.com/#a#b', '   '],
+    'sentence punctuation' => ['(https://example.com/path).', '( ).'],
+    'balanced punctuation' => ['https://example.com/a_(b).', ' .'],
+    'inline code' => ['`https://linux/#rust` https://linux', '`https://linux/#rust`  '],
+    'fenced code' => ["```\nhttps://linux/#rust\n```\nhttps://linux", "```\nhttps://linux/#rust\n```\n "],
+    'not a domain' => ['README.md #rust', 'README.md #rust'],
+    'unsupported scheme' => ['ftp://example.com/#rust', 'ftp://example.com/#rust'],
+    'word before scheme' => ['nothttps://example.com/#rust', 'nothttps://example.com/#rust'],
+    'scheme only' => ['https:// #rust', 'https:// #rust'],
+    'scheme and punctuation' => ['https://... #rust', 'https://... #rust'],
+    'maximum length' => ['https://example.com/'.str_repeat('x', 2028), ' '],
+    'oversized URL' => ['https://example.com/'.str_repeat('x', 2029), 'https://example.com/'.str_repeat('x', 2029)],
+    'oversized bare domain' => ['example.com/'.str_repeat('x', 2029), 'example.com/'.str_repeat('x', 2029)],
+]);
+
 it('shortens the urls in prose', function (): void {
     $urls = resolve(Urls::class);
 

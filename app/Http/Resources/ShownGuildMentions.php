@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Queries\GuildMentionsQuery;
 use App\Services\Hashtags;
 use Illuminate\Contracts\Support\Arrayable;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Collection;
 
@@ -25,8 +26,16 @@ final class ShownGuildMentions
      */
     public static function get(iterable $texts, ?User $viewer): array
     {
+        try {
+            $guilds = resolve(GuildMentionsQuery::class)->get($texts, $viewer);
+        } catch (QueryException $queryException) {
+            report($queryException);
+
+            return [];
+        }
+
         /** @var GuildMentions */
-        return array_map(fn (Guild $guild): array => GuildBadgeResource::make($guild)->resolve(), resolve(GuildMentionsQuery::class)->get($texts, $viewer));
+        return array_map(fn (Guild $guild): array => GuildBadgeResource::make($guild)->resolve(), $guilds);
     }
 
     /**
@@ -58,6 +67,7 @@ final class ShownGuildMentions
     private static function normalize(mixed $value): mixed
     {
         if ($value instanceof MessageResource || $value instanceof ScheduledCommitResource || $value instanceof ConversationResource || $value instanceof CommitResource || $value instanceof NotificationResource || $value instanceof GuildMentionCollection) {
+            $value = clone $value;
             $value->withGuildMentions = false;
         }
 

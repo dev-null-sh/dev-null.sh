@@ -160,11 +160,33 @@ export function hasMention(segments: BodySegment[]): boolean {
 export function typedGuildHandles(text: string): string[] {
     return [
         ...new Set(
-            typedProse(text).flatMap((prose) =>
-                [...prose.matchAll(hashtagPattern)].map((match) =>
-                    match[0].slice(1).toLowerCase(),
-                ),
-            ),
+            typedProse(text).flatMap((part, index) => {
+                const prose = part.replace(
+                    index === 0 ? /^> ?|(?<=\n)> ?/g : /(?<=\n)> ?/g,
+                    '',
+                );
+                const ranges = [
+                    ...colorsIn(prose, index === 0),
+                    ...[...prose.matchAll(urlPattern)].flatMap((match) => {
+                        const url = withoutTrailingPunctuation(match[0]);
+
+                        return hrefFor(url) === null
+                            ? []
+                            : [{ index: match.index, length: url.length }];
+                    }),
+                ];
+
+                return [...prose.matchAll(hashtagPattern)]
+                    .filter(
+                        (match) =>
+                            !ranges.some(
+                                (range) =>
+                                    match.index >= range.index &&
+                                    match.index < range.index + range.length,
+                            ),
+                    )
+                    .map((match) => match[0].slice(1).toLowerCase());
+            }),
         ),
     ];
 }

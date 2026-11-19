@@ -35,9 +35,8 @@ final readonly class GuildController
             'query' => $request->term(),
             'guildPage' => fn () => $query->paginate($request->term(), $request->integer('page', 1), $user)
                 ->through(fn (Guild $guild): array => ['id' => $guild->id, ...GuildResource::make($guild)->resolve($request)]),
-            'guilds' => Inertia::optional(fn (): array => $query->get($user, $request->visibleGuilds())
-                ->map(fn (Guild $guild): array => ['id' => $guild->id, ...GuildResource::make($guild)->resolve($request)])->all())
-                ->live(UserUpdate::Guilds->value, new PrivateChannel($user)),
+            'guilds' => Inertia::live(fn (): array => $query->get($user, $request->visibleGuilds())
+                ->map(fn (Guild $guild): array => ['id' => $guild->id, ...GuildResource::make($guild)->resolve($request)])->all(), UserUpdate::Guilds->value, new PrivateChannel($user)),
         ])->withViewData(['robots' => 'noindex, follow']);
     }
 

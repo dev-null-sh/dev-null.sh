@@ -59,7 +59,10 @@ export function ProfileGuilds({
                 </DialogHeader>
                 <ul className="min-h-0 overflow-y-auto px-3 pb-3">
                     {listedGuilds.map((guild) => (
-                        <li key={guild.handle} className="flex items-center gap-2 pr-3">
+                        <li
+                            key={guild.handle}
+                            className="flex items-center gap-2 pr-3"
+                        >
                             <DialogClose asChild>
                                 <Link
                                     prefetch
@@ -89,10 +92,16 @@ export function ProfileGuilds({
                             <GuildPreferences
                                 guild={guild}
                                 showMute={false}
-                                onChange={(fresh) => setListing((current) => ({
-                                    ...current,
-                                    guilds: current.guilds.map((listed) => listed.id === fresh.id ? fresh : listed),
-                                }))}
+                                onChange={(fresh) =>
+                                    setListing((current) => ({
+                                        ...current,
+                                        guilds: current.guilds.map((listed) =>
+                                            listed.id === fresh.id
+                                                ? fresh
+                                                : listed,
+                                        ),
+                                    }))
+                                }
                             />
                         </li>
                     ))}

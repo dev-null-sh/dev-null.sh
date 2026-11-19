@@ -14,9 +14,10 @@ final readonly class Hashtags
     /** @return list<string> */
     public function handles(string $text): array
     {
-        $urls = collect($this->urls->all($text))->flatMap(fn (string $url): array => [$url, (string) preg_replace('/^https?:\/\//i', '', $url)])->all();
-        $prose = str_replace($urls, '', $this->codeSpans->withoutCode($text));
+        $prose = $this->codeSpans->withoutCode((string) preg_replace('/^> ?/m', '', $text));
+        $prose = $this->urls->withoutUrls($prose);
         $prose = preg_replace('/(?<![\p{L}\p{M}\p{N}_#])color\(#(?:[0-9a-f]{8}|[0-9a-f]{6}|[0-9a-f]{3,4})\)/iu', ' ', $prose) ?? '';
+
         preg_match_all('/(?<![\p{L}\p{M}\p{N}_&\/#>-])#(\p{L}[\p{L}\p{M}\p{N}_]*)/u', $prose, $matches);
 
         return array_values(array_unique(array_map(mb_strtolower(...), $matches[1])));

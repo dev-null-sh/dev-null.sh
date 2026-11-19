@@ -559,7 +559,7 @@ it('lists guilds by members rather than commits and clears a mute when joining',
 
     $this->actingAs($admin)->get(route('guild.index'))->assertInertia(fn ($page) => $page
         ->component('guild/index')->where('guildPage.data.0.handle', 'rust')->where('guildPage.data.0.member_count', 1)
-        ->where('guildPage.data.1.is_joined', false)->where('guildPage.data.1.is_muted', false)->missing('guilds'));
+        ->where('guildPage.data.1.is_joined', false)->where('guildPage.data.1.is_muted', false)->where('guilds', []));
     $this->put(route('guild-membership.update', $jobs), ['joined' => true])->assertRedirect();
     $this->put(route('guild-membership.update', $jobs), ['joined' => true])->assertRedirect();
     $this->put(route('guild-mute.update', $jobs), ['muted' => true])->assertRedirect();
@@ -591,7 +591,7 @@ it('paginates matching guilds biggest first with handle ordering for ties', func
 
     $this->actingAs($admin)->get(route('guild.index', ['q' => 'Builders']))->assertOk()->assertInertia(fn ($page) => $page
         ->where('query', 'Builders')->where('guildPage.total', 25)->where('guildPage.last_page', 2)
-        ->where('guildPage.current_page', 1)->where('guildPage.data', fn ($data): bool => collect($data)->pluck('id')->all() === [$popular->id, ...$guilds->take(23)->modelKeys()])->missing('guilds'));
+        ->where('guildPage.current_page', 1)->where('guildPage.data', fn ($data): bool => collect($data)->pluck('id')->all() === [$popular->id, ...$guilds->take(23)->modelKeys()])->where('guilds', []));
     $this->get(route('guild.index', ['q' => 'Builders', 'page' => 2]))->assertOk()->assertInertia(fn ($page) => $page
         ->where('query', 'Builders')->where('guildPage.current_page', 2)->where('guildPage.total', 25)
         ->where('guildPage.data', fn ($data): bool => collect($data)->pluck('id')->all() === [$guilds[23]->id]));
@@ -641,7 +641,7 @@ it('returns complete viewer-specific cards only for the requested directory page
     ]);
 
     $this->actingAs($other)->get(route('guild.index', ['page' => 2]))->assertInertia(fn ($page) => $page
-        ->where('guildPage.data.6.is_muted', false)->missing('guilds'));
+        ->where('guildPage.data.6.is_muted', false)->where('guilds', []));
     $this->get('/search?q=%23'.$target->handle)->assertInertia(fn ($page) => $page
         ->where('guildLookup.handle', $target->handle)->where('guildLookup.guild.name', $target->name)->missing('guilds'));
     $this->get(route('guild.show', $target->handle))->assertInertia(fn ($page) => $page
@@ -669,7 +669,9 @@ it('refreshes the selected directory records without repaginating after their ra
         'handle' => 'group'.mb_str_pad((string) $sequence->index, 2, '0', STR_PAD_LEFT),
     ])->create();
     $guild = $guilds->last();
-    $this->actingAs($admin)->put(route('guild-membership.update', $guild), ['joined' => true])->assertRedirect();
+    $this->actingAs($admin)->get(route('guild.index', ['page' => 2]))->assertInertia(fn ($page) => $page
+        ->where('guildPage.data.0.handle', 'group24')->where('guilds', []));
+    $this->put(route('guild-membership.update', $guild), ['joined' => true])->assertRedirect();
 
     $this->get(route('guild.index', ['page' => 2]), [
         'X-Inertia-Version' => (string) resolve(HandleInertiaRequests::class)->version(request()),
@@ -683,7 +685,7 @@ it('refreshes the selected directory records without repaginating after their ra
 it('rejects malformed and unbounded directory refresh headers', function (string $header): void {
     $this->actingAs(User::factory()->create(['handle' => 'admin']))
         ->getJson(route('guild.index'), ['X-Guild-Handles' => $header])->assertUnprocessable()->assertJsonValidationErrors('visible_guilds');
-})->with(['invalid json', '"rust"', '{"handle":"rust"}', json_encode(array_fill(0, 25, 'rust'), JSON_THROW_ON_ERROR)]);
+})->with(['invalid json', '"rust"', '{"handle":"rust"}', '{"0":"rust"}', json_encode(array_fill(0, 25, 'rust'), JSON_THROW_ON_ERROR)]);
 
 it('includes newly created guild cards when refreshing directory search results', function (): void {
     $admin = User::factory()->create(['handle' => 'admin']);

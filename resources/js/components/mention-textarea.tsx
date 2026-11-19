@@ -308,8 +308,11 @@ export function MentionTextarea({
     );
     const [guildResult, setGuildResult] = useState<{
         query: string;
+        attempt: number;
         guilds: GuildBadge[];
+        failed?: boolean;
     } | null>(null);
+    const [guildAttempt, setGuildAttempt] = useState(0);
     const guildQuery =
         trigger?.kind === 'guild' && guildsEnabled
             ? trigger.query.toLowerCase()
@@ -338,6 +341,7 @@ export function MentionTextarea({
     const close = () => {
         setTrigger(null);
         setPosition(null);
+        setGuildAttempt((attempt) => attempt + 1);
     };
 
     const track = (textarea: HTMLTextAreaElement) => {
@@ -371,6 +375,7 @@ export function MentionTextarea({
             next.query !== trigger.query
         ) {
             setActiveIndex(0);
+            setGuildAttempt((attempt) => attempt + 1);
         }
 
         setTrigger(next);
@@ -445,17 +450,30 @@ export function MentionTextarea({
             void fetchGuilds({ q: guildQuery }, controller.signal)
                 .then((guilds) => {
                     if (!controller.signal.aborted) {
-                        setGuildResult({ query: guildQuery, guilds });
+                        setGuildResult({
+                            query: guildQuery,
+                            attempt: guildAttempt,
+                            guilds,
+                        });
                     }
                 })
-                .catch(() => undefined);
+                .catch(() => {
+                    if (!controller.signal.aborted) {
+                        setGuildResult({
+                            query: guildQuery,
+                            attempt: guildAttempt,
+                            guilds: [],
+                            failed: true,
+                        });
+                    }
+                });
         }, debounce);
 
         return () => {
             clearTimeout(timeout);
             controller.abort();
         };
-    }, [guildQuery]);
+    }, [guildQuery, guildAttempt]);
 
     useEffect(() => {
         if (!trigger) {
@@ -540,10 +558,13 @@ export function MentionTextarea({
     const emojiQuery =
         trigger?.kind === 'emoji' ? trigger.query.toLowerCase() : '';
     const emojis = emojiQuery === '' ? [] : searchEmoji(emojiQuery);
-    const matchingGuilds =
-        guildQuery !== null && guildResult?.query === guildQuery
-            ? guildResult.guilds
-            : [];
+    const currentGuildResult =
+        guildQuery !== null &&
+        guildResult?.query === guildQuery &&
+        guildResult.attempt === guildAttempt
+            ? guildResult
+            : null;
+    const matchingGuilds = currentGuildResult?.guilds ?? [];
     const optionCount =
         trigger?.kind === 'guild'
             ? matchingGuilds.length
@@ -559,7 +580,7 @@ export function MentionTextarea({
         trigger !== null &&
         position !== null &&
         (trigger.kind === 'guild'
-            ? matchingGuilds.length > 0
+            ? guildQuery !== null
             : trigger.kind === 'issue'
               ? issue !== null
               : trigger.kind === 'emoji'
@@ -626,6 +647,19 @@ export function MentionTextarea({
             const hasModifier = event.metaKey || event.ctrlKey || event.altKey;
 
             if (
+                event.key === 'Enter' &&
+                !hasModifier &&
+                !event.shiftKey &&
+                trigger?.kind === 'guild' &&
+                currentGuildResult?.failed
+            ) {
+                event.preventDefault();
+                setGuildAttempt((attempt) => attempt + 1);
+
+                return;
+            }
+
+            if (
                 (event.key === 'ArrowDown' || event.key === 'ArrowUp') &&
                 optionCount > 0
             ) {
@@ -683,7 +717,8 @@ export function MentionTextarea({
     const activeId = !isOpen
         ? undefined
         : trigger?.kind === 'guild'
-          ? `${id}-guild-${matchingGuilds[selectedIndex].handle}`
+          ? matchingGuilds[selectedIndex] &&
+            `${id}-guild-${matchingGuilds[selectedIndex].handle}`
           : trigger?.kind === 'issue'
             ? `${id}-issue-${issue?.number}`
             : trigger?.kind === 'emoji'
@@ -765,7 +800,36 @@ export function MentionTextarea({
                         data-mention-suggestions
                         data-test="mention-suggestions"
                     >
-                        {trigger?.kind === 'guild' ? (
+                        {trigger?.kind === 'guild' &&
+                        matchingGuilds.length === 0 ? (
+                            <div
+                                id={listId}
+                                className="flex min-h-14 items-center justify-between gap-3 px-4 py-2 text-sm text-muted-foreground"
+                                role="status"
+                            >
+                                <span>
+                                    {currentGuildResult === null
+                                        ? 'Looking up guilds…'
+                                        : currentGuildResult.failed
+                                          ? 'Guild lookup failed. Press Enter to retry.'
+                                          : 'No matching guilds.'}
+                                </span>
+                                {currentGuildResult?.failed && (
+                                    <button
+                                        type="button"
+                                        className="min-h-10 shrink-0 rounded-md px-2 text-primary hover:bg-accent"
+                                        onClick={() => {
+                                            textareaRef.current?.focus();
+                                            setGuildAttempt(
+                                                (attempt) => attempt + 1,
+                                            );
+                                        }}
+                                    >
+                                        Retry
+                                    </button>
+                                )}
+                            </div>
+                        ) : trigger?.kind === 'guild' ? (
                             <ul
                                 ref={listRef}
                                 id={listId}

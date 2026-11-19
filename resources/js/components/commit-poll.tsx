@@ -82,7 +82,23 @@ export function CommitPoll({
     const commitNotFound = useCommitNotFound();
     const now = useNow();
     const id = useId();
-    const [poll, setPoll] = useState(initialPoll);
+    const [snapshot, setSnapshot] = useState({
+        source: initialPoll,
+        poll: initialPoll,
+    });
+    // Parent refreshes update option badges, but unchanged props must not replace a newer read or vote.
+    const poll =
+        snapshot.source === initialPoll
+            ? snapshot.poll
+            : {
+                  ...snapshot.poll,
+                  options: snapshot.poll.options.map((option) => ({
+                      ...option,
+                      guild_mentions: initialPoll.options.find(
+                          (fresh) => fresh.id === option.id,
+                      )?.guild_mentions,
+                  })),
+              };
     const request = useHttp<{ option: string }, { poll: Poll }>({
         option: '',
     });
@@ -107,7 +123,10 @@ export function CommitPoll({
 
         if (response.ok && started === latest.current && !request.processing) {
             readSince.current = startedAt;
-            setPoll(((await response.json()) as { poll: Poll }).poll);
+            setSnapshot({
+                source: initialPoll,
+                poll: ((await response.json()) as { poll: Poll }).poll,
+            });
         }
     });
     const isApproved = commit.status === 'approved';
@@ -195,7 +214,7 @@ export function CommitPoll({
             }
 
             latest.current++;
-            setPoll(response.poll);
+            setSnapshot({ source: initialPoll, poll: response.poll });
             router.flushAll();
         } catch {
             if (!isNotFound) {

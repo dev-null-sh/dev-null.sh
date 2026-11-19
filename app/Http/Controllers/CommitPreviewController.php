@@ -27,12 +27,13 @@ final readonly class CommitPreviewController
     ): JsonResponse {
         $body = $request->string('body')->value();
         $mentions = $mentionedUsers->get($body);
+        $expanded = $emojiShortcodes->replace($body);
 
         return response()->json([
-            'segments' => $codeSpans->highlight($emojiShortcodes->replace($body)),
+            'segments' => $codeSpans->highlight($expanded),
             'mentions' => $mentions,
             'organization_mentions' => $mentionedOrganizations->get($body, $mentions),
-            'guild_mentions' => ShownGuildMentions::get([$body], $request->user()),
+            'guild_mentions' => ShownGuildMentions::get([$expanded], $request->user()),
         ]);
     }
 }

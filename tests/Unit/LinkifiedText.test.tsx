@@ -113,7 +113,14 @@ test('renders loaded guild badges on the first paint without a shared catalogue'
                 'Hiring #JoBs, exploring #rust. `#jobs` https://example.com/#jobs',
             )}
             mentions={null}
-            guildMentions={{ jobs: { handle: 'jobs', name: 'Job Board', emoji: '💼', icon_url: null } }}
+            guildMentions={{
+                jobs: {
+                    handle: 'jobs',
+                    name: 'Job Board',
+                    emoji: '💼',
+                    icon_url: null,
+                },
+            }}
         />
     );
     const auth = { user: { id: 'viewer' }, pasteis: null };
@@ -135,26 +142,102 @@ test('renders loaded guild badges on the first paint without a shared catalogue'
 });
 
 test('explicit posted guild metadata wins over mention metadata', () => {
-    const markup = renderPage(<Hashtag hashtag="#jobs" guild={{ handle: 'jobs', name: 'Posted board', emoji: '💼', icon_url: null }} guildMentions={{ jobs: { handle: 'jobs', name: 'Other board', emoji: '🦀', icon_url: null } }} />);
+    const markup = renderPage(
+        <Hashtag
+            hashtag="#jobs"
+            guild={{
+                handle: 'jobs',
+                name: 'Posted board',
+                emoji: '💼',
+                icon_url: null,
+            }}
+            guildMentions={{
+                jobs: {
+                    handle: 'jobs',
+                    name: 'Other board',
+                    emoji: '🦀',
+                    icon_url: null,
+                },
+            }}
+        />,
+    );
 
     assert.match(markup, /Posted board/);
     assert.doesNotMatch(markup, /Other board/);
 });
 
 test('private message bodies render their provided badge metadata on first paint', () => {
-    const markup = renderPage(<MessageText message={{ body: '#rust', guild_mentions: { rust: { handle: 'rust', name: 'Rustaceans', emoji: '🦀', icon_url: null } } }} isMine={false} />, { auth: { user: { id: 'viewer' } }, guildsEnabled: true });
+    const markup = renderPage(
+        <MessageText
+            message={{
+                body: '#rust',
+                guild_mentions: {
+                    rust: {
+                        handle: 'rust',
+                        name: 'Rustaceans',
+                        emoji: '🦀',
+                        icon_url: null,
+                    },
+                },
+            }}
+            isMine={false}
+        />,
+        { auth: { user: { id: 'viewer' } }, guildsEnabled: true },
+    );
 
     assert.match(markup, /href="\/guilds\/rust"/);
     assert.match(markup, /Rustaceans/);
 });
 
 test('draft guild lookups deduplicate case and ignore code, URLs and unfinished code', () => {
-    assert.deepEqual(typedGuildHandles('#JoBs #jobs #rust `#code` https://example.com/#url\n```\n#fence'), ['jobs', 'rust']);
+    assert.deepEqual(
+        typedGuildHandles(
+            '#JoBs #jobs #rust `#code` https://example.com/#url\n```\n#fence',
+        ),
+        ['jobs', 'rust'],
+    );
     assert.deepEqual(typedGuildHandles('`#unfinished'), []);
 });
 
+for (const [body, handles] of [
+    [
+        'https://example.com/#rust https://example.com?q=#jobs example.com#help',
+        [],
+    ],
+    [
+        '#abc #abcd #abcdef #abcdefab #000 #rust',
+        ['abc', 'abcd', 'abcdef', 'abcdefab', 'rust'],
+    ],
+    ['color(#abc) #abc #rust', ['abc', 'rust']],
+    ['#abc-x (#abc) #abc.com', ['abc']],
+    ['>#rust\n> #jobs\n>#RUST', ['rust', 'jobs']],
+    ['text\r\n>#rust\r\n>#abc', ['rust', 'abc']],
+    ['>>#rust\n`code`>#jobs\n`>#help`', []],
+    ['>https://example.com#jobs\n>#abc\n>#rust', ['abc', 'rust']],
+] as const) {
+    test(`draft guild detection agrees with rendered hashtags for ${body}`, () => {
+        assert.deepEqual(typedGuildHandles(body), handles);
+        const markup = renderPage(
+            <CommitBody segments={bodySegments(body)} mentions={null} />,
+            { auth: { user: { id: 'viewer' }, pasteis: null } },
+        );
+        const rendered = [
+            ...markup.matchAll(/data-test="hashtag"[^>]*>([^<]*)</g),
+        ].map((match) => match[1].slice(1).toLowerCase());
+
+        assert.deepEqual([...new Set(rendered)], handles);
+    });
+}
+
 test('missing metadata and inherited keys remain ordinary hashtags', () => {
-    const markup = renderPage(<LinkifiedText text="#constructor #jobs" mentions={null} guildMentions={{}} />, { auth: { user: { id: 'viewer' } }, guildsEnabled: true });
+    const markup = renderPage(
+        <LinkifiedText
+            text="#constructor #jobs"
+            mentions={null}
+            guildMentions={{}}
+        />,
+        { auth: { user: { id: 'viewer' } }, guildsEnabled: true },
+    );
 
     assert.doesNotMatch(markup, /data-test="guild-mention"/);
     assert.equal((markup.match(/data-test="hashtag"/g) ?? []).length, 2);
@@ -804,12 +887,23 @@ for (const link of [
 
 test('gives a bare hex-shaped hashtag its guild or search link and renders an explicit swatch', () => {
     const content = (
-        <LinkifiedText text="#dead color(#dead) #ff8a4c #000" mentions={null} />
+        <LinkifiedText
+            text="#dead color(#dead) #ff8a4c #000"
+            mentions={null}
+            guildMentions={{
+                dead: {
+                    handle: 'dead',
+                    name: 'Dead',
+                    emoji: '💻',
+                    icon_url: null,
+                },
+            }}
+        />
     );
     const auth = { user: { id: 'viewer' }, pasteis: null };
     const html = renderPage(content, {
         auth,
-        guilds: [{ handle: 'dead', name: 'Dead', emoji: '💻', icon_url: null }],
+        guildsEnabled: true,
     });
 
     assert.equal((html.match(/href="\/guilds\/dead"/g) ?? []).length, 1);
@@ -818,7 +912,13 @@ test('gives a bare hex-shaped hashtag its guild or search link and renders an ex
     assert.match(html, /background-color:#dead"><\/span>#dead<\/span>/);
     assert.match(html, /background-color:#000/);
 
-    const withoutGuild = renderPage(content, { auth, guilds: [] });
+    const withoutGuild = renderPage(
+        <LinkifiedText
+            text="#dead color(#dead) #ff8a4c #000"
+            mentions={null}
+        />,
+        { auth, guildsEnabled: true },
+    );
     assert.equal(
         (withoutGuild.match(/href="\/search\?q=%23dead"/g) ?? []).length,
         1,

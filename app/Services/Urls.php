@@ -106,6 +106,23 @@ final readonly class Urls
     }
 
     /**
+     * Masks recognized prose URL spans, preserving code and the punctuation around each URL.
+     */
+    public function withoutUrls(string $text): string
+    {
+        return $this->codeSpans->mapProse($text, fn (string $prose): string => (string) preg_replace_callback($this->pattern, function (array $matches): string {
+            $match = $this->withoutTrailingPunctuation($matches[0]);
+            $url = preg_match('/^https?:\/\//i', $match) === 1 ? $match : 'https://'.$match;
+
+            if (str_ends_with($url, '://') || mb_strlen($url) > self::MAX_LENGTH) {
+                return $matches[0];
+            }
+
+            return ' '.mb_substr($matches[0], mb_strlen($match));
+        }, $prose));
+    }
+
+    /**
      * Shortens every URL in the prose for display, leaving the code as written.
      */
     public function withShortenedUrls(string $text): string

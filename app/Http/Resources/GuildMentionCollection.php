@@ -21,6 +21,7 @@ final class GuildMentionCollection extends AnonymousResourceCollection
     public function toArray(Request $request): array
     {
         $shown = $this->collection->map(function (MessageResource|ScheduledCommitResource|ConversationResource|CommitResource|NotificationResource $resource) use ($request): array {
+            $resource = clone $resource;
             $resource->withGuildMentions = false;
 
             return $resource->resolve($request);

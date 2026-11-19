@@ -1,3 +1,4 @@
+import { usePage } from '@inertiajs/react';
 import { Fragment, type ReactNode } from 'react';
 import { CommitCard } from '@/components/commit-card';
 import { CommitSkeleton, EmptyFeed } from '@/components/commit-feed';
@@ -16,11 +17,16 @@ export function GuildSearchHeading({
     handle: string;
     guild?: GuildBadge | null;
 }) {
+    const visibleGuild = usePage().props.guildsEnabled ? guild : null;
+
     return (
         <span className="flex min-w-0 items-center gap-2 font-sans text-sm font-semibold">
-            <GuildIcon guild={guild ?? { emoji: '#', icon_url: null }} />
-            <span className="truncate" title={guild?.name ?? `#${handle}`}>
-                {guild?.name ?? `#${handle}`}
+            <GuildIcon guild={visibleGuild ?? { emoji: '#', icon_url: null }} />
+            <span
+                className="truncate"
+                title={visibleGuild?.name ?? `#${handle}`}
+            >
+                {visibleGuild?.name ?? `#${handle}`}
             </span>
         </span>
     );

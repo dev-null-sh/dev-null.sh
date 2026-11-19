@@ -53,8 +53,9 @@ final readonly class GuildsQuery
      */
     public function references(array $handles): Collection
     {
-        return Guild::query()->select(['handle', 'name', 'emoji', 'icon_path', 'updated_at'])
-            ->whereIn('handle', $handles)->orderBy('handle')->get();
+        return new Collection(collect(array_chunk($handles, 65535))->flatMap(fn (array $chunk): Collection => Guild::query()
+            ->select(['handle', 'name', 'emoji', 'icon_path', 'updated_at'])
+            ->whereIn('handle', $chunk)->orderBy('handle')->get())->all());
     }
 
     /** @return Collection<int, Guild> */

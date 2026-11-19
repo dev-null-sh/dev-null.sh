@@ -74,7 +74,11 @@ it('keeps guild badges on surviving pins without exposing the unpinned reply tar
     $hidden = pushToOrg($nuno, $org, '#hidden');
     $kept = Message::factory()->create(['conversation_id' => $org, 'user_id' => $nuno->id, 'body' => '#rust', 'reply_to_id' => $hidden->id]);
     $other = pushToOrg($nuno, $org, 'another pin');
-    $this->actingAs($mark)->putJson(route('message-pin.update', $kept))->assertOk();
+    $this->actingAs($mark)->putJson(route('message-pin.update', $kept))->assertOk()
+        ->assertJsonPath('pinned.0.guild_mentions.rust.name', 'Rust')
+        ->assertJsonCount(1, 'pinned.0.guild_mentions')
+        ->assertJsonMissingPath('pinned.0.reply_to_id')
+        ->assertJsonMissingPath('pinned.0.reply_to');
 
     $pinned = $this->putJson(route('message-pin.update', $other))
         ->assertOk()->assertJsonCount(2, 'pinned')->json('pinned');

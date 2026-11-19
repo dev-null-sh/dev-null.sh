@@ -36,10 +36,12 @@ export default function Index({
     const userId = usePage().props.auth.user?.id ?? null;
     const recentSearches = useRecentSearches(userId);
     const [draft, setDraft] = useState(query);
+    const [searchAttempt, setSearchAttempt] = useState(0);
     const inputRef = useRef<HTMLInputElement>(null);
     const { results, isWaiting } = useCommitSearch(query);
 
     const search = (term: string) => {
+        setSearchAttempt((attempt) => attempt + 1);
         router.replace({
             url: SearchController.index.url({
                 query: term === '' ? {} : { q: term },
@@ -103,7 +105,11 @@ export default function Index({
                 </form>
             </header>
 
-            <HashtagGuild term={draft.trim()} initial={guildLookup} />
+            <HashtagGuild
+                term={draft.trim()}
+                initial={guildLookup}
+                searchAttempt={searchAttempt}
+            />
 
             {query !== '' && (
                 <TabGroup key={query}>
@@ -162,26 +168,51 @@ Index.layout = AppLayout;
 export function HashtagGuild({
     term,
     initial,
+    searchAttempt = 0,
 }: {
     term: string;
     initial: GuildLookup;
+    searchAttempt?: number;
 }) {
     const { guildsEnabled } = usePage().props;
     const handle = /^#\p{L}[\p{L}\p{M}\p{N}_]{0,59}$/u.test(term)
         ? term.slice(1).toLowerCase()
         : null;
+    const [attempt, setAttempt] = useState(0);
+    const [context, setContext] = useState({
+        term,
+        guildsEnabled,
+        searchAttempt,
+    });
     const [lookup, setLookup] = useState<
-        (GuildLookup & { failed?: boolean }) | null
-    >(null);
+        (GuildLookup & { attempt: number; failed?: boolean }) | null
+    >(
+        guildsEnabled && initial.handle === handle
+            ? { ...initial, attempt: 0 }
+            : null,
+    );
+
+    if (
+        context.term !== term ||
+        context.guildsEnabled !== guildsEnabled ||
+        context.searchAttempt !== searchAttempt
+    ) {
+        setContext({ term, guildsEnabled, searchAttempt });
+        setAttempt(attempt + 1);
+        setLookup(null);
+    }
+
     const current =
-        initial.handle === handle
-            ? initial
-            : lookup?.handle === handle
-              ? lookup
-              : null;
+        lookup?.handle === handle &&
+        lookup.attempt === attempt &&
+        context.term === term &&
+        context.guildsEnabled === guildsEnabled &&
+        context.searchAttempt === searchAttempt
+            ? lookup
+            : null;
 
     useEffect(() => {
-        if (!guildsEnabled || handle === null || handle === initial.handle) {
+        if (!guildsEnabled || handle === null || current !== null) {
             return;
         }
 
@@ -190,12 +221,21 @@ export function HashtagGuild({
             void fetchGuilds({ handles: [handle] }, controller.signal)
                 .then((guilds) => {
                     if (!controller.signal.aborted) {
-                        setLookup({ handle, guild: guilds[0] ?? null });
+                        setLookup({
+                            handle,
+                            attempt,
+                            guild: guilds[0] ?? null,
+                        });
                     }
                 })
                 .catch(() => {
                     if (!controller.signal.aborted) {
-                        setLookup({ handle, guild: null, failed: true });
+                        setLookup({
+                            handle,
+                            attempt,
+                            guild: null,
+                            failed: true,
+                        });
                     }
                 });
         }, 120);
@@ -204,14 +244,14 @@ export function HashtagGuild({
             clearTimeout(timeout);
             controller.abort();
         };
-    }, [handle, initial.handle, guildsEnabled]);
+    }, [handle, guildsEnabled, attempt, current]);
 
     if (!guildsEnabled || !handle) {
         return null;
     }
 
     const guild = current?.guild;
-    const failed = current !== null && 'failed' in current && current.failed;
+    const failed = current?.failed === true;
 
     return (
         <div
@@ -223,8 +263,16 @@ export function HashtagGuild({
                     <p className="min-w-0 text-sm text-muted-foreground">
                         {failed ? 'Guild lookup failed.' : 'Looking up guild…'}
                     </p>
-                    <Button variant="outline" disabled>
-                        View guild
+                    <Button
+                        variant="outline"
+                        className="min-w-25 shrink-0"
+                        disabled={!failed}
+                        onClick={() => {
+                            setAttempt(attempt + 1);
+                            setLookup(null);
+                        }}
+                    >
+                        {failed ? 'Retry' : 'View guild'}
                     </Button>
                 </>
             ) : guild ? (
@@ -238,7 +286,11 @@ export function HashtagGuild({
                             {guild.name}
                         </span>
                     </div>
-                    <Button asChild variant="outline">
+                    <Button
+                        asChild
+                        variant="outline"
+                        className="min-w-25 shrink-0"
+                    >
                         <Link prefetch href={showGuild(handle)}>
                             View guild
                         </Link>

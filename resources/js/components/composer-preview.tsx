@@ -1,7 +1,7 @@
 import { useHttp, usePage } from '@inertiajs/react';
 import { Eye, Link2 } from 'lucide-react';
 import type { KeyboardEvent, RefObject } from 'react';
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useEffectEvent, useId, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import CommitPreviewController from '@/actions/App/Http/Controllers/CommitPreviewController';
 import { ActionTooltip } from '@/components/action-tooltip';
@@ -59,6 +59,7 @@ export function useComposerPreview({
     const [isResolving, setIsResolving] = useState(false);
     const [resolved, setResolved] = useState<Resolved | null>(null);
     const lookup = useRef<AbortController | null>(null);
+    const pendingLookup = useRef<AbortController | null>(null);
     const previewId = useId();
     const request = useHttp<
         { body: string; guild_handle?: string },
@@ -79,8 +80,18 @@ export function useComposerPreview({
     const handles = guildsEnabled ? typedGuildHandles(draft) : [];
     const needsPreviewRequest =
         hasCodeBlock(segments) || hasMention(segments) || handles.length > 0;
+    const cancelRequest = useEffectEvent(() => request.cancel());
 
-    useEffect(() => () => lookup.current?.abort(), [draft, guildHandle]);
+    useEffect(
+        () => () => {
+            lookup.current?.abort();
+            cancelRequest();
+            lookup.current = null;
+            pendingLookup.current = null;
+            setIsResolving(false);
+        },
+        [draft, guildHandle],
+    );
 
     const resolve = async (controller: AbortController) => {
         if (isResolved || !needsPreviewRequest) {
@@ -91,10 +102,16 @@ export function useComposerPreview({
             body: body.trim(),
             ...(guildHandle && { guild_handle: guildHandle }),
         }));
+        let validationRejected = false;
 
         try {
             const response = await request.submit(
                 CommitPreviewController.store(),
+                {
+                    onError: () => {
+                        validationRejected = true;
+                    },
+                },
             );
 
             if (controller.signal.aborted) {
@@ -118,8 +135,25 @@ export function useComposerPreview({
                     : response.guild_mentions,
             });
         } catch {
+            if (controller.signal.aborted) {
+                return;
+            }
+
+            if (validationRejected) {
+                setResolved({
+                    body: draft,
+                    guildHandle,
+                    segments: bodySegments(draft),
+                    mentions: {},
+                    organizationMentions: {},
+                    guildMentions: {},
+                });
+
+                return;
+            }
+
             // Keep writing when guild names could not be resolved, rather than changing the visible preview later.
-            if (handles.length > 0 && !controller.signal.aborted) {
+            if (handles.length > 0) {
                 toast.error('Could not load the preview. Try again.');
                 controller.abort();
             }
@@ -127,37 +161,52 @@ export function useComposerPreview({
     };
 
     const show = async (previewing: boolean, moveFocus: boolean) => {
+        if (previewing && pendingLookup.current) {
+            return;
+        }
+
         lookup.current?.abort();
         request.cancel();
         const controller = new AbortController();
         lookup.current = controller;
+        pendingLookup.current = null;
         setIsResolving(false);
 
         if (previewing) {
             const resolving = resolve(controller);
 
             if (handles.length > 0 && !isResolved) {
+                pendingLookup.current = controller;
                 setIsResolving(true);
                 await resolving;
                 if (lookup.current === controller) {
+                    pendingLookup.current = null;
                     setIsResolving(false);
                 }
             }
         }
 
         if (controller.signal.aborted) {
+            if (moveFocus && lookup.current === controller) {
+                textareaRef.current?.focus();
+            }
+
             return;
         }
 
         setIsPreviewing(previewing);
 
         if (moveFocus) {
-            requestAnimationFrame(() =>
+            requestAnimationFrame(() => {
+                if (controller.signal.aborted) {
+                    return;
+                }
+
                 (previewing
                     ? document.getElementById(previewId)
                     : textareaRef.current
-                )?.focus(),
-            );
+                )?.focus();
+            });
         }
     };
 
@@ -223,7 +272,7 @@ export function PreviewToggle({
                 onClick={() => preview.toggle(true)}
                 aria-pressed={preview.isPreviewing}
                 aria-busy={preview.isResolving}
-                disabled={preview.isResolving}
+                aria-disabled={preview.isResolving}
                 aria-label="Preview"
                 aria-keyshortcuts="Meta+Shift+P Control+Shift+P"
                 className={cn(
