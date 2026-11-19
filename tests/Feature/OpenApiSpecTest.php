@@ -58,6 +58,20 @@ it('describes the production API', function (): void {
     expect(freshOpenApiSpec()['servers'])->toBe([['url' => 'https://dev-null.sh/api/v1', 'description' => 'Production']]);
 });
 
+it('groups the endpoints as the docs list them', function (): void {
+    $spec = freshOpenApiSpec();
+    $tags = collect($spec['paths'])->flatMap(fn (array $item): array => collect($item)->pluck('tags')->flatten()->all())->unique()->values();
+
+    expect(array_column($spec['tags'], 'name'))->toBe(['Commits', 'Guilds', 'Headlines', 'Issues', 'Me', 'Notifications', 'Organizations', 'Remotes', 'Scheduled commits', 'Search', 'Users'])
+        ->and($tags->sort()->values()->all())->toBe(collect(array_column($spec['tags'], 'name'))->sort()->values()->all())
+        ->and(openApiOperation('get', '/log/{log}')['tags'])->toBe(['Me'])
+        ->and(openApiOperation('get', '/starred')['tags'])->toBe(['Me'])
+        ->and(openApiOperation('get', '/scheduled-commits')['tags'])->toBe(['Scheduled commits'])
+        ->and(openApiOperation('get', '/headlines')['tags'])->toBe(['Headlines'])
+        ->and(openApiOperation('get', '/guilds')['tags'])->toBe(['Guilds'])
+        ->and(openApiOperation('post', '/issues')['tags'])->toBe(['Issues']);
+});
+
 it('leaves out what only the apps use to work', function (): void {
     expect(array_keys(freshOpenApiSpec()['paths']))
         ->not->toContain('/devices')

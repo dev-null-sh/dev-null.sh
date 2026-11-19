@@ -57,10 +57,16 @@ export function moveToExample(
 }
 
 /**
- * Code for each client, one tab per client, the active one underlined in Commit Blue like the page tabs. Picking a
- * client picks it everywhere, and next time too.
+ * How to call an endpoint, one tab per client, the active one underlined in Commit Blue like the page tabs. Picking a
+ * client picks it on every endpoint, and next time too.
  */
-export function ExampleTabs({ examples }: { examples: ApiDocsExample[] }) {
+export function ExampleTabs({
+    examples,
+    holdHeight = true,
+}: {
+    examples: ApiDocsExample[];
+    holdHeight?: boolean;
+}) {
     const id = useId();
     // Each tab list on the page slides its own underline, so each needs a name of its own, as a CSS ident.
     const indicatorName = `example-tab-${id.replace(/[^\w-]/g, '')}`;
@@ -133,8 +139,9 @@ export function ExampleTabs({ examples }: { examples: ApiDocsExample[] }) {
                 ))}
             </div>
             {/* Where the page renders on the server, every example sits in the same cell, so the tallest sets the
-                height and the server's first tab giving way to the reader's own client moves nothing. */}
-            <div className="grid">
+                height and the server's first tab giving way to the reader's own client moves nothing. In a sticky
+                column, the height follows the example shown, or the hidden ones would hold it far below. */}
+            <div className={cn(holdHeight && 'grid')}>
                 {examples.map((candidate, index) => {
                     const isActive = index === active;
 
@@ -147,9 +154,11 @@ export function ExampleTabs({ examples }: { examples: ApiDocsExample[] }) {
                             aria-labelledby={`${id}-tab-${index}`}
                             aria-hidden={isActive ? undefined : true}
                             inert={!isActive}
+                            hidden={!holdHeight && !isActive}
                             className={cn(
-                                'col-start-1 row-start-1 min-w-0',
-                                !isActive && 'invisible',
+                                'min-w-0',
+                                holdHeight && 'col-start-1 row-start-1',
+                                holdHeight && !isActive && 'invisible',
                             )}
                         >
                             <CodeBlock

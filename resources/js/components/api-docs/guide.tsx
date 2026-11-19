@@ -4,13 +4,13 @@ import { cn } from '@/lib/utils';
 import type { ApiDocsSnippet } from '@/types';
 
 /**
- * How wide the docs' content is, so moving between their pages never changes the page's width.
+ * How wide the docs' content is, guides and reference alike, so moving between them never changes the page's width.
  */
 export const DOCS_WIDTH = 'max-w-[1160px]';
 
 /**
- * A guide of the API docs, read like the site's other long pages: one Feed White sheet on the console's shell, its
- * sections one after the other with a hairline between them, never a card each.
+ * A guide of the API docs, read like the site's other long pages: one Feed White sheet on the console's shell, as wide
+ * as the reference, its sections one after the other with a hairline between them, never a card each.
  */
 export function Guide({ children }: { children: ReactNode }) {
     return (
@@ -76,7 +76,7 @@ export function GuideSection({
 }
 
 /**
- * A guide's code, in the code block the rest of the site uses, highlighted by the server.
+ * A guide's code, in the code block the reference and the rest of the docs use, highlighted by the server.
  */
 export function Snippet({ snippet }: { snippet: ApiDocsSnippet | undefined }) {
     if (snippet === undefined) {

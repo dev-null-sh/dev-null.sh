@@ -8,8 +8,8 @@ use App\Enums\ApiDocsSection;
 use Tempest\Highlight\Highlighter;
 
 /**
- * The code the API docs' guides show, highlighted on the server, so a guide shows it in the same code block as
- * everywhere else on the site.
+ * The code the API docs' guides show, highlighted as the reference's code blocks are, so a guide shows it in the same
+ * block as everywhere else in the docs.
  */
 final readonly class ApiGuideSnippets
 {

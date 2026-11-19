@@ -19,7 +19,7 @@ it('gives each guide its code, highlighted as every code block of the docs is', 
     'authentication' => [ApiDocsSection::Authentication, ['keygen' => 'bash', 'message' => 'text']],
     'pagination' => [ApiDocsSection::Pagination, ['page' => 'json']],
     'errors' => [ApiDocsSection::Errors, ['error' => 'json', 'validation' => 'json']],
-    'a guide without code' => [ApiDocsSection::RateLimits, []],
+    'a group of the reference' => [ApiDocsSection::Users, []],
 ]);
 
 it('shows the first request against the production API', function (): void {

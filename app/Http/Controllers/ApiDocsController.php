@@ -6,6 +6,7 @@ namespace App\Http\Controllers;
 
 use App\Enums\ApiDocsSection;
 use App\Enums\ApiErrorCode;
+use App\Queries\ApiDocsQuery;
 use App\Queries\ApiRateLimitsQuery;
 use App\Services\ApiExamples;
 use App\Services\ApiGuideSnippets;
@@ -16,13 +17,16 @@ use Inertia\Response;
 final readonly class ApiDocsController
 {
     /**
-     * A page of the API docs, readable by everyone, with every section for the sidebar.
+     * A page of the API docs, readable by everyone, with every section for the sidebar, and the endpoints of a group
+     * of the reference. The search's index of every endpoint is sent once, and kept by the page across the visit.
      */
-    public function show(ApiDocsSection $section, PageMetadata $metadata, ApiExamples $examples, ApiGuideSnippets $snippets, ApiRateLimitsQuery $rateLimits): Response
+    public function show(ApiDocsSection $section, PageMetadata $metadata, ApiDocsQuery $endpoints, ApiExamples $examples, ApiGuideSnippets $snippets, ApiRateLimitsQuery $rateLimits): Response
     {
         return Inertia::render('api-docs/show', [
-            'sections' => array_map(fn (ApiDocsSection $section): array => $section->toArray(), ApiDocsSection::cases()),
+            'sections' => array_map(fn (ApiDocsSection $section): array => $section->toArray(), ApiDocsSection::ordered()),
             'current' => $section->value,
+            'endpoints' => $section->isGuide() ? [] : $endpoints->get($section),
+            'index' => Inertia::once(fn (): array => $endpoints->index()),
             'signing' => $section === ApiDocsSection::Authentication ? $examples->signing() : [],
             'rateLimits' => $section === ApiDocsSection::RateLimits ? $rateLimits->get() : [],
             'snippets' => $snippets->for($section),
