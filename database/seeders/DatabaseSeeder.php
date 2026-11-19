@@ -105,7 +105,7 @@ final class DatabaseSeeder extends Seeder
         foreach ([
             [$devNull, $localDeveloper, 'Organizations are live: mention one, follow one, and soon post as one.'],
             [$devNull, $maintainer, 'Release notes are out. Threads now open inline, and replies keep their place.'],
-            [$devNull, $contributor, 'We are looking for contributors on the Mac app. Good first issues are labelled.'],
+            [$devNull, $contributor, 'We are looking for contributors on the mobile app. Good first issues are labelled.'],
             [$laravel, $artisan, 'A new Laravel release is out, with a faster test runner and typed config.'],
             [$laravel, $artisan, 'Laracon talks are online. Grab a coffee and start with the keynote.'],
         ] as [$organization, $member, $body]) {

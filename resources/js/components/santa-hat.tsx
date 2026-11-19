@@ -22,16 +22,18 @@ export default function SantaHat({ className }: { className?: string }) {
             {PIXELS.flatMap((row, y) =>
                 row
                     .split('')
-                    .map((pixel, x) => (
-                        <rect
-                            key={`${x}-${y}`}
-                            x={x}
-                            y={y}
-                            width="1"
-                            height="1"
-                            fill={COLORS[pixel]}
-                        />
-                    )),
+                    .map((pixel, x) =>
+                        pixel === '.' ? null : (
+                            <rect
+                                key={`${x}-${y}`}
+                                x={x}
+                                y={y}
+                                width="1"
+                                height="1"
+                                fill={COLORS[pixel]}
+                            />
+                        ),
+                    ),
             )}
         </svg>
     );

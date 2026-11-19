@@ -5,6 +5,13 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.."
 SECONDS=0
 step() { printf '\n[%ss] %s\n' "$SECONDS" "$*"; }
 
+# Match third-party packages to the orb's Debian release, including stale snapshots.
+source /etc/os-release
+case "${ID}:${VERSION_CODENAME:-}" in
+    debian:bookworm|debian:trixie) ;;
+    *) printf 'Unsupported orb distribution: %s\n' "$PRETTY_NAME" >&2; exit 1 ;;
+esac
+
 step 'Removing legacy PostgreSQL 17 packages'
 legacy_packages=()
 for package in postgresql-17 postgresql-17-pgvector postgresql-client-17; do
@@ -29,22 +36,31 @@ for package in "${packages[@]}"; do
         missing+=("$package")
     fi
 done
-if ((${#missing[@]})); then
-    if [[ ! -f /etc/apt/sources.list.d/php.list ]]; then
-        keyring=$(mktemp)
-        curl -fsSL https://packages.sury.org/debsuryorg-archive-keyring.deb -o "$keyring"
-        sudo dpkg -i "$keyring"
-        rm "$keyring"
-        echo 'deb [signed-by=/usr/share/keyrings/debsuryorg-archive-keyring.gpg] https://packages.sury.org/php/ bookworm main' |
-            sudo tee /etc/apt/sources.list.d/php.list >/dev/null
+sources_changed=false
+if [[ ! -f /usr/share/keyrings/debsuryorg-archive-keyring.gpg ]]; then
+    keyring=$(mktemp)
+    curl -fsSL https://packages.sury.org/debsuryorg-archive-keyring.deb -o "$keyring"
+    sudo dpkg -i "$keyring"
+    rm "$keyring"
+fi
+if [[ ! -f /usr/share/keyrings/postgresql.asc ]]; then
+    curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc |
+        sudo tee /usr/share/keyrings/postgresql.asc >/dev/null
+fi
+php_source="deb [signed-by=/usr/share/keyrings/debsuryorg-archive-keyring.gpg] https://packages.sury.org/php/ $VERSION_CODENAME main"
+pgdg_source="deb [signed-by=/usr/share/keyrings/postgresql.asc] https://apt.postgresql.org/pub/repos/apt $VERSION_CODENAME-pgdg main"
+for source_name in php pgdg; do
+    source_variable="${source_name}_source"
+    source_file="/etc/apt/sources.list.d/$source_name.list"
+    if [[ "$(cat "$source_file" 2>/dev/null || true)" != "${!source_variable}" ]]; then
+        printf '%s\n' "${!source_variable}" | sudo tee "$source_file" >/dev/null
+        sources_changed=true
     fi
-    if [[ ! -f /etc/apt/sources.list.d/pgdg.list ]]; then
-        curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc |
-            sudo tee /usr/share/keyrings/postgresql.asc >/dev/null
-        echo 'deb [signed-by=/usr/share/keyrings/postgresql.asc] https://apt.postgresql.org/pub/repos/apt bookworm-pgdg main' |
-            sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
-    fi
+done
+if "$sources_changed" || ((${#missing[@]})); then
     sudo apt-get update -qq
+fi
+if ((${#missing[@]})); then
     sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "${missing[@]}"
 fi
 # Use the same PHP CLI configuration in setup, later shells, and supervised services.

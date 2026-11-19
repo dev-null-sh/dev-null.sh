@@ -4,6 +4,8 @@ import LogController from '@/actions/App/Http/Controllers/LogController';
 import { CommitCard, CommitTombstone } from '@/components/commit-card';
 import { CopyLinkButton } from '@/components/copy-link-button';
 import { GraphCanvas } from '@/components/graph-canvas';
+import { LinkTopicSection } from '@/components/link-topic';
+import type { LinkTopicAround } from '@/components/link-topic';
 import { RelatedCommits } from '@/components/related-commits';
 import { useContinuation } from '@/hooks/use-continuation';
 import AppLayout from '@/layouts/app-layout';
@@ -23,11 +25,13 @@ export default function Show({
     ancestors,
     continuation,
     replies,
+    linkTopic,
 }: {
     commit: Commit;
     ancestors: ThreadCommit[];
     continuation: ThreadContinuation;
     replies: CursorPaginated<ThreadCommit> | null;
+    linkTopic?: LinkTopicAround | null;
 }) {
     const { auth } = usePage().props;
     const { shown, nextId, size, isCapped, isLoading, loadMore } =
@@ -166,7 +170,20 @@ export default function Show({
                 )}
             </GraphCanvas>
 
-            {!isDeleted(commit) && <RelatedCommits commitId={commit.id} />}
+            {!isDeleted(commit) && linkTopic && (
+                <LinkTopicSection topic={linkTopic} />
+            )}
+
+            {!isDeleted(commit) && (
+                <RelatedCommits
+                    commitId={commit.id}
+                    exceptIds={
+                        linkTopic === undefined
+                            ? null
+                            : (linkTopic?.commits.map(({ id }) => id) ?? [])
+                    }
+                />
+            )}
         </>
     );
 }

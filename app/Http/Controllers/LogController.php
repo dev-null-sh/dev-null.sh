@@ -53,7 +53,7 @@ final readonly class LogController
 
         return Inertia::render('log/show', [
             'log' => $log,
-            'commits' => Inertia::scroll(fn (): CursorPaginator => ShownStreams::page($commits->paginate($log, $user, $request->through(), $request->cursor($log)))),
+            'commits' => Inertia::scroll(fn (): CursorPaginator => ShownStreams::page($commits->paginate($log, $user, $request->through(), $request->cursor($log)), $log === Log::Following ? $user : null)),
             'isRanked' => $log->isRanked(),
             'newCommitsCount' => Inertia::optional(function () use ($request, $user, $log, $latest): int {
                 $seen = $request->since();
@@ -61,6 +61,7 @@ final readonly class LogController
                 return $seen instanceof Commit || $request->boolean('everything') ? $latest->count($log, $user, $seen) : 0;
             }),
             'removedCommitIds' => Inertia::optional(fn (): array => $latest->missing($log, $user, $request->pending())),
+            'refreshedCommits' => Inertia::optional(fn (): array => ShownStreams::commits($commits->refreshed($user, $request->pending()))),
             'arrivedCommitIds' => Inertia::optional(fn (): array => $latest->arrived($log, $user, $request->arrived(), $request->through())),
             'windowDigest' => Inertia::optional(fn (): ?string => $latest->window($log, $user, $request->through(), $request->since())),
             'suggestions' => fn (): array => $user instanceof User && $log === Log::Following && ! $user->following()->exists()

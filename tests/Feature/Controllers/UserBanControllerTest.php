@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Contracts\Services\GitHubProvider;
 use App\Enums\ModerationReason;
 use App\Models\Ban;
+use App\Models\BanEvent;
 use App\Models\Commit;
 use App\Models\ScheduledCommit;
 use App\Models\User;
@@ -32,11 +33,15 @@ it('may ban a user', function (): void {
         ->github_id->toBe('583231')
         ->reason->toBe(ModerationReason::AiGenerated);
 
+    expect(BanEvent::query()->count())->toBe(1);
+    expect(BanEvent::query()->sole()->user->is($user))->toBeTrue();
+
     expect($user->refresh()->isBanned())->toBeTrue();
 
     $this->post(route('user-ban.store', $user), ['reason' => 'spam']);
 
     expect(Ban::query()->sole()->reason)->toBe(ModerationReason::Spam);
+    expect(BanEvent::query()->count())->toBe(2);
 });
 
 it('validates the reason of a ban', function (): void {

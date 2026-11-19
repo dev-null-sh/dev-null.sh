@@ -60,9 +60,19 @@ vi.doMock('react', () => ({
         ];
     },
 }));
+const organization = {
+    type: 'organization',
+    id: 'laravel',
+    handle: 'laravel',
+    lane: null,
+};
+const organizations = [organization];
 vi.doMock('@inertiajs/react', async () => ({
     ...(await vi.importActual('@inertiajs/react')),
-    usePage: () => ({ props: { auth: { user, isAdmin: false } }, flash }),
+    usePage: () => ({
+        props: { auth: { user, isAdmin: false, organizations } },
+        flash,
+    }),
     useHttp: () => http,
 }));
 vi.doMock('../../resources/js/hooks/use-user', () => ({
@@ -74,6 +84,8 @@ vi.doMock('../../resources/js/hooks/use-stash', () => ({
     discardSeriesStash: vi.fn(),
 }));
 
+const { ColorSwatchHint } =
+    await import('../../resources/js/components/color-swatch-hint');
 const { CommitComposer } =
     await import('../../resources/js/components/commit-composer');
 const { IssueCommandBadge, IssueCommandHint, IssueCommandSuggestions } =
@@ -97,7 +109,10 @@ function elements(node: ReactNode): Element[] {
         return [];
     }
     const element = node as Element;
-    if (typeof element.type === 'function' && element.props.stash === draft) {
+    if (
+        (typeof element.type === 'function' && element.props.stash === draft) ||
+        element.type === ColorSwatchHint
+    ) {
         const renderPart = element.type as (
             props: typeof element.props,
         ) => ReactNode;
@@ -111,9 +126,9 @@ function elements(node: ReactNode): Element[] {
     ];
 }
 
-function render() {
+function render(guildHandle?: string) {
     cursor = 0;
-    const form = CommitComposer({});
+    const form = CommitComposer({ guildHandle });
     const fields = elements(
         form.props.children({ processing: false, errors: {} }),
     );
@@ -130,6 +145,150 @@ beforeEach(() => {
     draft.descriptions = [];
 });
 
+test('previews guild text unchanged and uses the full draft character budget', () => {
+    draft.body = 'Learning Rust';
+    let view = render('rust');
+    assert.equal(
+        view.form.props.transform({ body: draft.body }).body,
+        'Learning Rust',
+    );
+    assert.equal(view.form.props.transform({}).guild_handle, 'rust');
+    const toggle = view.fields.find(
+        (element) => element.type === PreviewToggle,
+    )!;
+    assert.equal(
+        (toggle.props.preview as { draft: string }).draft,
+        'Learning Rust',
+    );
+    assert.equal(view.form.props.onBefore(), true);
+
+    for (const body of ['Learning #RUST!', '`#rust` then #rust', '(#rust)']) {
+        draft.body = body;
+        const preview = render('rust').fields.find(
+            (element) => element.type === PreviewToggle,
+        )!.props.preview as { draft: string };
+        assert.equal(preview.draft, body);
+    }
+    for (const body of [
+        '#rustlang',
+        '#rust_dev',
+        '`#rust`',
+        '```text\n#rust\n```',
+        'https://example.com?q=#rust',
+        'example.com?q=#rust',
+        'not#rust',
+        '&#rust',
+        '/#rust',
+        '>#rust',
+    ]) {
+        draft.body = body;
+        const preview = render('rust').fields.find(
+            (element) => element.type === PreviewToggle,
+        )!.props.preview as { draft: string };
+        assert.equal(preview.draft, body);
+    }
+    draft.body = 'x'.repeat(4000);
+    assert.equal(render('rust').form.props.onBefore(), true);
+    draft.body += 'x';
+    view = render('rust');
+    assert.equal(view.form.props.onBefore(), false);
+    assert.equal(
+        view.fields.find((element) => element.props.type === 'submit')?.props
+            .disabled,
+        true,
+    );
+    draft.body = '';
+    assert.equal(render('rust').form.props.onBefore(), false);
+});
+
+test('offers to format the last ambiguous hashtag as a swatch and updates only that part of the draft', () => {
+    draft.body = 'Guild #dead, try #CAFE! Keep the rest.';
+    const { form, fields } = render();
+    const action = fields.find(
+        (element) => element.props['data-test'] === 'use-color',
+    )!;
+    const textarea = fields.find(
+        (element) => element.type === MentionTextarea,
+    )!;
+    const syntax = fields.find((element) => element.type === 'code');
+
+    assert.equal(syntax?.props.children, 'color(#CAFE)');
+    assert.equal(action.props.type, 'button');
+    assert.equal(action.props.disabled, false);
+    assert.match(String(textarea.props['aria-describedby']), /-color-hint/);
+    assert.equal(form.props.onBefore(), true);
+
+    const input = { focus: vi.fn(), setSelectionRange: vi.fn() };
+    (textarea.props.ref as { current: typeof input }).current = input;
+    const requestFrame = vi.fn<(callback: FrameRequestCallback) => number>(
+        () => 1,
+    );
+    vi.stubGlobal('requestAnimationFrame', requestFrame);
+    try {
+        (action.props.onClick as () => void)();
+        assert.deepEqual(draft.updateBody.mock.calls, [
+            ['Guild #dead, try color(#CAFE)! Keep the rest.'],
+        ]);
+        requestFrame.mock.calls[0][0](0);
+        assert.equal(input.focus.mock.calls.length, 1);
+        assert.deepEqual(input.setSelectionRange.mock.calls, [[29, 29]]);
+    } finally {
+        vi.unstubAllGlobals();
+    }
+});
+
+test('leaves ordinary hashtags, automatic swatches, explicit colors, code, and URLs alone', () => {
+    for (const body of [
+        '#laravel #dead_guild #000 #123 #0ff',
+        'color(#dead) COLOR(#cafe)',
+        'color(#dead',
+        '`#dead` and `#cafe',
+        '```css\n#dead',
+        'https://example.com/?q=#dead example.com/?q=#cafe',
+    ]) {
+        draft.body = body;
+        const { fields } = render();
+        const textarea = fields.find(
+            (element) => element.type === MentionTextarea,
+        )!;
+        const action = fields.find(
+            (element) => element.props['data-test'] === 'use-color',
+        )!;
+
+        assert.doesNotMatch(
+            String(textarea.props['aria-describedby']),
+            /-color-hint/,
+            body,
+        );
+        assert.equal(action.props.disabled, true, body);
+    }
+});
+
+test('recognizes a guild draft after a successful post reload and leaves other drafts alone', () => {
+    draft.body = 'Learning Rust';
+    flash = { committed: { body: 'Learning Rust', guild_handle: 'rust' } };
+    render('rust');
+    effects.forEach((effect) => effect());
+    assert.equal(draft.drop.mock.calls.length, 1);
+});
+
+test('keeps identical restored text when another posting context was submitted', () => {
+    draft.body = 'Learning Rust';
+    for (const [guild, committedGuild] of [
+        ['rust', null],
+        [undefined, 'rust'],
+        ['rust', 'go'],
+    ]) {
+        effects = [];
+        flash = {
+            committed: { body: draft.body, guild_handle: committedGuild },
+        };
+        render(guild ?? undefined);
+        effects.forEach((effect) => effect());
+        assert.equal(draft.drop.mock.calls.length, 0);
+    }
+});
+
 test('preserves restored images and link cards and allows scheduling them', () => {
     draft.images = [image];
     draft.descriptions = ['A restored screenshot'];
@@ -141,6 +300,7 @@ test('preserves restored images and link cards and allows scheduling them', () =
     assert.deepEqual(form.props.transform(data), {
         ...data,
         commit_rules_accepted: true,
+        human_verification_token: '',
         images: [image],
         image_descriptions: ['A restored screenshot'],
     });
@@ -266,6 +426,7 @@ test('removing restored images enables polls and successful posting resets the p
         assert.deepEqual(view.form.props.transform(data), {
             ...data,
             commit_rules_accepted: true,
+            human_verification_token: '',
         });
         view.form.props.onSuccess({
             flash: { toast: { type: 'error', message: 'Slow down' } },
@@ -354,6 +515,7 @@ test('schedules in UTC with pasted images and the chosen link card', () => {
     assert.deepEqual(view.form.props.transform({ body: draft.body }), {
         body: draft.body,
         commit_rules_accepted: true,
+        human_verification_token: '',
         scheduled_at: scheduledAt,
     });
     assert.equal(
@@ -389,6 +551,7 @@ test('schedules in UTC with pasted images and the chosen link card', () => {
     assert.deepEqual(view.form.props.transform(data), {
         ...data,
         commit_rules_accepted: true,
+        human_verification_token: '',
         images: [image],
         image_descriptions: [''],
         scheduled_at: scheduledAt,
@@ -409,6 +572,7 @@ test('submits token-shaped text and restored images without secret approval', ()
     assert.deepEqual(form.props.transform({ body: draft.body }), {
         body: draft.body,
         commit_rules_accepted: true,
+        human_verification_token: '',
         images: [image],
         image_descriptions: ['A restored screenshot'],
     });
@@ -444,6 +608,7 @@ test('previews restored images and descriptions while keeping them attached when
     assert.deepEqual(view.form.props.transform({ body: draft.body }), {
         body: draft.body,
         commit_rules_accepted: true,
+        human_verification_token: '',
         images: [image],
         image_descriptions: ['A restored screenshot'],
     });
@@ -699,12 +864,6 @@ test('commands are not offered while the draft has images, a poll or a schedule'
 });
 
 test('schedules as the organization picked from the avatar', () => {
-    const organization = {
-        type: 'organization',
-        id: 'laravel',
-        handle: 'laravel',
-        lane: null,
-    };
     const node = () =>
         render().fields.find((element) => element.type === GraphRail)!.props
             .node as Element;
@@ -721,11 +880,31 @@ test('schedules as the organization picked from the avatar', () => {
     assert.deepEqual(render().form.props.transform({ body: draft.body }), {
         body: draft.body,
         commit_rules_accepted: true,
+        human_verification_token: '',
         author: 'laravel',
         scheduled_at: new Date('2026-10-17T10:30')
             .toISOString()
             .replace(/\.\d{3}Z$/, '+00:00'),
     });
+});
+
+test('posts as themselves once the picked organization is no longer theirs', () => {
+    const node = () =>
+        render().fields.find((element) => element.type === GraphRail)!.props
+            .node as Element;
+
+    (node().props.onChange as (author: unknown) => void)(organization);
+    organizations.length = 0;
+
+    try {
+        assert.equal(node().props.author, null);
+        assert.equal(
+            'author' in render().form.props.transform({ body: draft.body }),
+            false,
+        );
+    } finally {
+        organizations.push(organization);
+    }
 });
 
 test('turning scheduling off clears the chosen time and commits now', () => {
@@ -753,6 +932,7 @@ test('turning scheduling off clears the chosen time and commits now', () => {
     assert.deepEqual(render().form.props.transform({ body: draft.body }), {
         body: draft.body,
         commit_rules_accepted: true,
+        human_verification_token: '',
     });
 
     (find('aria-controls', 'body-schedule')!.props.onClick as () => void)();

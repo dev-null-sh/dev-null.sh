@@ -58,6 +58,8 @@ vi.doMock('../../resources/js/hooks/use-link-card', () => ({
 }));
 const { ConversationThread } =
     await import('../../resources/js/components/chat/conversation-thread');
+const { ColorSwatchHint } =
+    await import('../../resources/js/components/color-swatch-hint');
 const { MessageImages, MessageText } =
     await import('../../resources/js/components/chat/message-parts');
 type Element = ReactElement<Record<string, unknown>>;
@@ -210,6 +212,47 @@ function setup(
         },
     };
 }
+
+test('Remotes count emoji as single characters when applying a swatch', () => {
+    const { composer } = setup(false, 0, 'direct').render();
+    const renderComposer = composer.type as (
+        props: Element['props'],
+    ) => ReactNode;
+    const updateBody = vi.fn();
+    vi.spyOn(chatStore, 'pingTyping').mockImplementation(() => undefined);
+    vi.stubGlobal('requestAnimationFrame', vi.fn());
+
+    const actionFor = (body: string) => {
+        const fields = elements(
+            renderComposer({
+                ...composer.props,
+                draft: {
+                    stash: { body, updateBody },
+                    attachments: {
+                        images: [],
+                        error: null,
+                        clearError: vi.fn(),
+                    },
+                    linkCard: {},
+                    input: { current: null },
+                },
+            }),
+        );
+        const hint = fields.find((field) => field.type === ColorSwatchHint)!;
+        return elements(
+            ColorSwatchHint(
+                hint.props as React.ComponentProps<typeof ColorSwatchHint>,
+            ),
+        ).find((element) => element.props['data-test'] === 'use-color')!.props;
+    };
+
+    const prefix = '😀'.repeat(1_987);
+    const withinLimit = actionFor(`${prefix} #dead`);
+    assert.equal(withinLimit.disabled, false);
+    (withinLimit.onClick as () => void)();
+    assert.deepEqual(updateBody.mock.calls, [[`${prefix} color(#dead)`]]);
+    assert.equal(actionFor(`${prefix}😀 #dead`).disabled, true);
+});
 
 test('reveals a sent reply from the current reading position instead of snapping to the bottom', () => {
     const chat = setup(false, -150);

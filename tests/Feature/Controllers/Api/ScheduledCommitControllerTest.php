@@ -2,15 +2,19 @@
 
 declare(strict_types=1);
 
+use App\Actions\CreateScheduledCommit;
 use App\Actions\DeleteScheduledCommit;
 use App\Actions\UpdateScheduledCommitSubmittedAt;
 use App\Enums\CommitStatus;
+use App\Enums\Feature;
 use App\Enums\PollDuration;
 use App\Jobs\UnfurlLink;
 use App\Models\Commit;
+use App\Models\Guild;
 use App\Models\ScheduledCommit;
 use App\Models\User;
 use App\Models\UserTimeout;
+use App\Services\Features;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
@@ -218,3 +222,47 @@ it('reflects what became of the submitted commit', function (Closure $outcome, s
     'rejected' => [fn (Commit $commit): bool => $commit->update(['status' => CommitStatus::Rejected]), 'rejected'],
     'deleted' => [fn (Commit $commit): ?bool => $commit->delete(), 'deleted'],
 ]);
+
+it('schedules a board post for a guild from a signed request', function (): void {
+    resolve(Features::class)->update(Feature::Guilds, true, adminOnly: false);
+    $guild = Guild::factory()->create(['handle' => 'rust']);
+
+    signedApiRequest($this->keyPair, 'POST', route('api-scheduled-commit.store'), [
+        'body' => 'Board post',
+        'guild_handle' => 'rust',
+        'scheduled_at' => now()->addHour()->toIso8601String(),
+    ])->assertCreated();
+
+    expect(ScheduledCommit::query()->sole()->guild_id)->toBe($guild->id);
+});
+
+it('refuses to schedule a board post for a paused guild', function (): void {
+    resolve(Features::class)->update(Feature::Guilds, true, adminOnly: false);
+    Guild::factory()->create(['handle' => 'rust', 'user_id' => null]);
+
+    signedApiRequest($this->keyPair, 'POST', route('api-scheduled-commit.store'), [
+        'body' => 'Board post',
+        'guild_handle' => 'rust',
+        'scheduled_at' => now()->addHour()->toIso8601String(),
+    ])->assertUnprocessable()->assertJsonValidationErrors('guild_handle');
+
+    $this->assertDatabaseCount('scheduled_commits', 0);
+});
+
+it('refuses to schedule a board post when the guild is paused after validation', function (): void {
+    resolve(Features::class)->update(Feature::Guilds, true, adminOnly: false);
+    $guild = Guild::factory()->create(['handle' => 'rust']);
+    $this->app->beforeResolving(CreateScheduledCommit::class, function () use ($guild): void {
+        $guild->update(['user_id' => null]);
+    });
+
+    signedApiRequest($this->keyPair, 'POST', route('api-scheduled-commit.store'), [
+        'body' => 'Board post',
+        'guild_handle' => 'rust',
+        'scheduled_at' => now()->addHour()->toIso8601String(),
+    ])
+        ->assertUnprocessable()
+        ->assertExactJson(['message' => 'This guild is paused until it has a moderator.', 'code' => 'guild_paused']);
+
+    $this->assertDatabaseCount('scheduled_commits', 0);
+});

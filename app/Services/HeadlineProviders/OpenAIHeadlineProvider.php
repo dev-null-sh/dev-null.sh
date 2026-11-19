@@ -212,8 +212,9 @@ final readonly class OpenAIHeadlineProvider implements HeadlineProvider
     }
 
     /**
-     * Keep Decisions work bounded per post. Headline vectors are cached for an hour and missing vectors are embedded
-     * together; post vectors use the exact contextual input, not the commit's body-only search embedding.
+     * Keep Decisions work bounded per post. Headline vectors are cached for an hour as packed doubles, and missing
+     * vectors are embedded together; post vectors use the exact contextual input, not the commit's body-only search
+     * embedding.
      *
      * @param  array<int, string>  $bodies
      * @param  list<string>  $existing
@@ -225,27 +226,32 @@ final readonly class OpenAIHeadlineProvider implements HeadlineProvider
             return array_fill_keys(array_keys($bodies), $existing);
         }
 
-        $keys = array_map(fn (string $name): string => 'headline-embedding:'.hash('sha256', $name), $existing);
-        /** @var array<string, list<float>|null> $cached */
-        $cached = Cache::many($keys);
-        $missing = collect($existing)->reject(fn (string $name, int $index): bool => $cached[$keys[$index]] !== null);
+        $keys = array_map(fn (string $name): string => 'headline-vector:'.hash('sha256', $name), $existing);
+        /** @var array<string, string> $packed */
+        $packed = array_filter(Cache::many($keys));
+        $missing = collect($existing)->reject(fn (string $name, int $index): bool => array_key_exists($keys[$index], $packed));
 
         foreach ($missing->chunk(256) as $chunk) {
-            $vectors = $this->embeddings->embedMany(array_values($chunk->all()));
-            $values = array_combine($chunk->keys()->map(fn (int $index): string => $keys[$index])->all(), $vectors);
+            $values = array_combine(
+                $chunk->keys()->map(fn (int $index): string => $keys[$index])->all(),
+                array_map(fn (array $vector): string => pack('e*', ...$vector), $this->embeddings->embedMany(array_values($chunk->all()))),
+            );
             Cache::putMany($values, 3600);
-            $cached = array_replace($cached, $values);
+            $packed = array_replace($packed, $values);
         }
 
+        $vectors = array_map(function (string $key) use ($packed): array {
+            $vector = unpack('e*', $packed[$key]);
+            assert($vector !== false);
+
+            /** @var list<float> */
+            return array_values($vector);
+        }, $keys);
         $queries = array_combine(array_keys($bodies), $this->embeddings->embedMany(array_values($bodies)));
 
         return collect($bodies)->map(fn (string $body, int $index): array => collect($existing)
-            ->sortByDesc(function (string $name, int $headlineIndex) use ($cached, $keys, $queries, $index): float {
-                $vector = $cached[$keys[$headlineIndex]];
-                assert(is_array($vector));
-
-                return $this->similarity($queries[$index], $vector);
-            })->take(self::MATCH_CANDIDATES)->all())->all();
+            ->sortByDesc(fn (string $name, int $headlineIndex): float => $this->similarity($queries[$index], $vectors[$headlineIndex]))
+            ->take(self::MATCH_CANDIDATES)->all())->all();
     }
 
     /**

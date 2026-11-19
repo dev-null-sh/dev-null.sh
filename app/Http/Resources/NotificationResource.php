@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace App\Http\Resources;
 
+use App\Enums\NotificationType;
 use App\Models\Commit;
 use App\Models\Notification;
 use App\Models\Organization;
+use App\Models\UserTimeout;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -40,6 +42,11 @@ final class NotificationResource extends JsonResource
             'actors_count' => $this->actors_count,
             'unread_count' => $this->unread_count,
             'commit' => $this->commit instanceof Commit ? CommitResource::make($this->commit) : null,
+            ...$this->type === NotificationType::TimedOut && $this->timeout instanceof UserTimeout ? ['timeout' => [
+                'reason' => $this->timeout->reason->label(),
+                'duration' => $this->timeout->duration(),
+                'ends_at' => $this->timeout->ends_at->toIso8601ZuluString(),
+            ]] : [],
         ];
     }
 }

@@ -31,10 +31,12 @@ use App\Http\Controllers\Api\ConversationTypingController;
 use App\Http\Controllers\Api\CurrentUserController;
 use App\Http\Controllers\Api\DeviceController;
 use App\Http\Controllers\Api\DevicePushTokenController;
+use App\Http\Controllers\Api\GuildController;
+use App\Http\Controllers\Api\HeadlineController;
+use App\Http\Controllers\Api\IssueController;
 use App\Http\Controllers\Api\IssueSuggestionController;
 use App\Http\Controllers\Api\LiveFollowingController;
 use App\Http\Controllers\Api\LogController;
-use App\Http\Controllers\Api\MacAppController;
 use App\Http\Controllers\Api\MentionSuggestionController;
 use App\Http\Controllers\Api\MessageImageController;
 use App\Http\Controllers\Api\MessageLinkPreviewController;
@@ -77,6 +79,7 @@ use App\Http\Controllers\Api\UserFollowersController;
 use App\Http\Controllers\Api\UserFollowingController;
 use App\Http\Controllers\Api\UserLaneController;
 use App\Http\Controllers\Api\UserLiveController;
+use App\Http\Controllers\Api\UserModerationHistoryController;
 use App\Http\Controllers\Api\UserMuteController;
 use App\Http\Controllers\Api\UserPasteisModeController;
 use App\Http\Controllers\Api\UserProfileController;
@@ -96,6 +99,7 @@ use App\Http\Middleware\AuthenticateSshSignature;
 use App\Http\Middleware\PreventPostingInTimeout;
 use App\Http\Middleware\RequireCommitRules;
 use App\Http\Middleware\ThrottleCommits;
+use App\Http\Middleware\ThrottleIssues;
 use App\Http\Middleware\UpdateLastSeenAt;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
@@ -108,7 +112,7 @@ Route::prefix('cli')->group(function (): void {
         ->middleware([AuthenticateSshSignature::class, PreventPostingInTimeout::class, RequireCommitRules::class, ThrottleCommits::class])
         ->name('cli-commit.store');
     Route::post('key-lookups', [KeyLookupController::class, 'store'])
-        ->middleware('throttle:60,1')
+        ->middleware('throttle:60,1,key-lookups:')
         ->name('cli-key-lookup.store');
 });
 
@@ -130,9 +134,6 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         Route::get('organizations/{handle}/mentions', [OrganizationMentionController::class, 'index'])
             ->name('api-organization-mention.index');
     });
-
-    // The Mac app's latest release, which its update check compares with, unsigned so it sends nothing about anyone...
-    Route::get('apps/mac', [MacAppController::class, 'show'])->name('api-mac-app.show');
 
     // Signing in: the app redeems the code it got on the web, signed with a key that isn't approved yet...
     Route::post('devices', [DeviceController::class, 'store'])
@@ -184,6 +185,9 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         // User Settings: what the web's settings show only the user...
         Route::get('me/settings', [UserSettingsController::class, 'show'])->name('api-user-settings.show');
 
+        // User Moderation History: the timeouts and bans the web shows on the user's own profile...
+        Route::get('me/moderation-history', [UserModerationHistoryController::class, 'show'])->name('api-user-moderation-history.show');
+
         // User Timezone and Translation, as the web's settings save them...
         Route::put('me/timezone', [UserTimezoneController::class, 'update'])->name('api-user-timezone.update');
         Route::put('me/automatic-translation', [UserAutomaticTranslationController::class, 'update'])->name('api-user-automatic-translation.update');
@@ -226,6 +230,15 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             ->middleware('throttle:search')
             ->name('api-commit-search.index');
 
+        // Hot topics: the headlines the web's aside shows, and each one's page with its recap...
+        Route::get('headlines', [HeadlineController::class, 'index'])->name('api-headline.index');
+        Route::get('headlines/{headline}', [HeadlineController::class, 'show'])
+            ->whereUuid('headline')
+            ->name('api-headline.show');
+
+        // Guilds: the directory the web's Guilds page lists...
+        Route::get('guilds', [GuildController::class, 'index'])->name('api-guild.index');
+
         // Composer suggestions: people to mention and /dev/null issues to reference, as the web's composer suggests them...
         Route::get('search/mentions', [MentionSuggestionController::class, 'index'])
             ->middleware('throttle:people')
@@ -233,6 +246,11 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         Route::get('search/issues', [IssueSuggestionController::class, 'index'])
             ->middleware('throttle:issue-suggestions')
             ->name('api-issue-suggestion.index');
+
+        // Feature requests and bug reports, opened on GitHub as the web's /feature and /bug commands open them...
+        Route::post('issues', [IssueController::class, 'store'])
+            ->middleware([PreventPostingInTimeout::class, 'throttle:10,1,issues:', ThrottleIssues::class])
+            ->name('api-issue.store');
 
         // User Remotes: the switch from the web's settings, and the settings menu on its Remotes page...
         Route::put('me/remotes', [UserRemotesController::class, 'update'])->name('api-user-remotes.update');
@@ -296,7 +314,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
 
         // Commit Pastel...
         Route::post('commits/{commit}/pasteis', [CommitPastelController::class, 'store'])
-            ->middleware('throttle:60,1')
+            ->middleware('throttle:60,1,pasteis:')
             ->name('api-commit-pastel.store');
 
         // Commit Poll Vote...
@@ -333,7 +351,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
 
         // Organization Admin: claiming an organization's page, which GitHub confirms the user belongs to...
         Route::post('organizations/{handle}/claim', [OrganizationAdminController::class, 'store'])
-            ->middleware('throttle:10,1')
+            ->middleware('throttle:10,1,organization-claims:')
             ->name('api-organization-admin.store');
 
         // Who to Follow...
