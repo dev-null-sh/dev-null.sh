@@ -7,7 +7,7 @@ namespace App\Contracts\Services;
 /**
  * Reads the Open Graph metadata of the page behind a link someone shared.
  *
- * @phpstan-type Metadata array{title: string|null, description: string|null, image_url: string|null, site_name: string|null}
+ * @phpstan-type Metadata array{title: string|null, description: string|null, image_url: string|null, icon_url: string|null, site_name: string|null}
  */
 interface LinkPreviewProvider
 {

@@ -20,6 +20,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property-read string|null $title
  * @property-read string|null $description
  * @property-read string|null $image_url
+ * @property-read string|null $icon_url
  * @property-read string|null $site_name
  * @property-read CarbonInterface|null $fetched_at
  * @property-read CarbonInterface $created_at
@@ -51,6 +52,7 @@ final class LinkPreview extends Model
             'title' => 'string',
             'description' => 'string',
             'image_url' => 'string',
+            'icon_url' => 'string',
             'site_name' => 'string',
             'fetched_at' => 'datetime',
             'created_at' => 'datetime',

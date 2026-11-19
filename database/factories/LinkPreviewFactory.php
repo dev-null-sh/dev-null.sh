@@ -23,6 +23,7 @@ final class LinkPreviewFactory extends Factory
             'title' => null,
             'description' => null,
             'image_url' => null,
+            'icon_url' => null,
             'site_name' => null,
             'fetched_at' => null,
         ];

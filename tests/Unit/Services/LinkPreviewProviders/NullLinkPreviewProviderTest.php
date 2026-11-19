@@ -14,7 +14,7 @@ it('fetches no page', function (): void {
     Http::fake();
 
     expect(new NullLinkPreviewProvider()->metadata('https://example.com/'))
-        ->toBe(['title' => null, 'description' => null, 'image_url' => null, 'site_name' => null]);
+        ->toBe(['title' => null, 'description' => null, 'image_url' => null, 'icon_url' => null, 'site_name' => null]);
 
     Http::assertNothingSent();
 });

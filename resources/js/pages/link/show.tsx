@@ -10,7 +10,7 @@ import { LinkPreview } from '@/components/link-preview';
 import {
     displayedLink,
     linkLane,
-    siteFavicon,
+    siteIcons,
     TopicIcon,
 } from '@/components/link-topic';
 import { PageTabs } from '@/components/page-tabs';
@@ -71,6 +71,7 @@ export default function Show({
     url,
     pageUrl,
     link,
+    iconUrl,
     sort,
     stats,
     commits,
@@ -78,6 +79,7 @@ export default function Show({
     url: string;
     pageUrl: string;
     link: LinkPreviewData | null;
+    iconUrl: string | null;
     sort: 'top' | 'latest';
     stats: LinkStats;
     commits: CursorPaginated<Commit> | null;
@@ -123,7 +125,7 @@ export default function Show({
                         style={{ '--lane': lane } as CSSProperties}
                     >
                         <TopicIcon
-                            iconUrl={siteFavicon(url)}
+                            iconUrls={siteIcons(url, iconUrl)}
                             className="size-16 rounded-lg"
                         />
                     </span>

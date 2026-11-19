@@ -15,9 +15,15 @@ function commitCount(count: number): string {
     return `${formatCount(count)} commit${count === 1 ? '' : 's'}`;
 }
 
-/** A stand-in until the app reads icons itself, when it fetches a link's page. */
-export function siteFavicon(url: string): string | null {
-    return URL.canParse(url) ? `https://favicon.show/${hostname(url)}` : null;
+/**
+ * The icons to try for a link's site, in order: the one its page declares, read with its card, then the one browsers
+ * look for at the site's root.
+ */
+export function siteIcons(url: string, iconUrl: string | null): string[] {
+    return [
+        ...(iconUrl === null ? [] : [iconUrl]),
+        ...(URL.canParse(url) ? [`${new URL(url).origin}/favicon.ico`] : []),
+    ];
 }
 
 /**
@@ -37,15 +43,17 @@ export function displayedLink(url: string): string {
     return readableUrl(url).replace(/^https?:\/\/(?:www\.)?/u, '');
 }
 
+/** The first of the icons that loads, or a link drawn in their place. */
 export function TopicIcon({
-    iconUrl,
+    iconUrls,
     className,
 }: {
-    iconUrl: string | null;
+    iconUrls: string[];
     className?: string;
 }) {
-    const [isBroken, setIsBroken] = useState(false);
-    const hasIcon = iconUrl !== null && !isBroken;
+    const [brokenUrls, setBrokenUrls] = useState<string[]>([]);
+    const iconUrl = iconUrls.find((url) => !brokenUrls.includes(url));
+    const hasIcon = iconUrl !== undefined;
 
     return (
         <span
@@ -61,7 +69,18 @@ export function TopicIcon({
                     src={iconUrl}
                     alt=""
                     referrerPolicy="no-referrer"
-                    onError={() => setIsBroken(true)}
+                    // Decoding also fails for an icon that failed to load before hydration, which never fires onError.
+                    ref={(image) => {
+                        image
+                            ?.decode()
+                            .catch(() =>
+                                setBrokenUrls((urls) =>
+                                    urls.includes(iconUrl)
+                                        ? urls
+                                        : [...urls, iconUrl],
+                                ),
+                            );
+                    }}
                     className="size-full object-contain"
                 />
             ) : (
@@ -79,12 +98,14 @@ function LinkTopicBlock({
     url,
     pageUrl,
     title,
+    iconUrl,
     count,
     commits,
 }: {
     url: string;
     pageUrl: string;
     title: string | null;
+    iconUrl: string | null;
     count: number;
     commits: Commit[];
 }) {
@@ -129,7 +150,7 @@ function LinkTopicBlock({
                         <span className="relative flex rounded-lg bg-card">
                             <span className="relative flex rounded-lg border-2 border-(--lane) p-0.5">
                                 <TopicIcon
-                                    iconUrl={siteFavicon(url)}
+                                    iconUrls={siteIcons(url, iconUrl)}
                                     className="size-10"
                                 />
                             </span>
@@ -189,6 +210,7 @@ export type LinkTopicAround = {
     url: string;
     page_url: string;
     title: string | null;
+    icon_url: string | null;
     count: number;
     commits: Commit[];
 };
@@ -215,6 +237,7 @@ export function LinkTopicSection({ topic }: { topic: LinkTopicAround }) {
                     url={topic.url}
                     pageUrl={topic.page_url}
                     title={topic.title}
+                    iconUrl={topic.icon_url}
                     count={topic.count}
                     commits={topic.commits}
                 />
