@@ -17,6 +17,7 @@ use App\Enums\CommitStatus;
 use App\Enums\Feature;
 use App\Enums\Log;
 use App\Enums\UserUpdate;
+use App\Events\ProfilesUpdated;
 use App\Events\UsersUpdated;
 use App\Exceptions\GuildModeratorRemoved;
 use App\Http\Middleware\HandleInertiaRequests;
@@ -770,19 +771,20 @@ it('limits how often a member changes a guild membership or a guild mute', funct
     ['guild-mute.update', ['muted' => true]],
 ]);
 
-it('announces a membership only to the members of the guild and to the person who changed it', function (bool $joined): void {
+it('announces a membership to its members and refreshes the changed persons profile', function (bool $joined): void {
     $admin = User::factory()->create(['handle' => 'admin']);
     $member = User::factory()->create();
     User::factory()->create();
     $guild = Guild::factory()->create();
     $guild->members()->attach($member, ['joined_at' => now()]);
-    Event::fake([UsersUpdated::class]);
+    Event::fake([UsersUpdated::class, ProfilesUpdated::class]);
 
     $this->actingAs($admin)->put(route('guild-membership.update', $guild), ['joined' => $joined])->assertRedirect();
 
     Event::assertDispatchedTimes(UsersUpdated::class, 2);
     Event::assertDispatched(UsersUpdated::class, fn (UsersUpdated $event): bool => $event->update === UserUpdate::Guilds && $event->userIds === [$member->id, $admin->id]);
     Event::assertDispatched(UsersUpdated::class, fn (UsersUpdated $event): bool => $event->update === UserUpdate::Relationships && $event->userIds === [$admin->id]);
+    Event::assertDispatched(ProfilesUpdated::class, fn (ProfilesUpdated $event): bool => $event->profileIds === [$admin->id]);
 })->with([true, false]);
 
 it('announces an edit of a guild only to its members and to its creator', function (): void {
