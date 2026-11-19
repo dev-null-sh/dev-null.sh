@@ -65,8 +65,8 @@ final readonly class JoinedGuildsQuery
                 ];
             })
             ->sortBy([
-                fn (array $first, array $second): int => $ownCommitCounts[$second['handle']] <=> $ownCommitCounts[$first['handle']],
                 ['missed_commits', 'desc'],
+                fn (array $first, array $second): int => $ownCommitCounts[$second['handle']] <=> $ownCommitCounts[$first['handle']],
                 ['handle', 'asc'],
             ])
             ->all());

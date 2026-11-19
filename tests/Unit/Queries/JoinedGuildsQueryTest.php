@@ -44,7 +44,7 @@ it('counts a commit written after the read time and no commit written at the rea
     expect(array_column(resolve(JoinedGuildsQuery::class)->get($reader), 'missed_commits', 'handle'))->toBe(['rust' => 1, 'php' => 0]);
 });
 
-it('lists first the guild with the most commits of the reader, board posts and hashtags included', function (): void {
+it('orders guilds with equal missed commits by the commits of the reader, board posts and hashtags included', function (): void {
     resolve(Features::class)->update(Feature::Guilds, true, adminOnly: false);
     $reader = User::factory()->create();
     $rust = Guild::factory()->create(['handle' => 'rust']);
@@ -62,7 +62,7 @@ it('lists first the guild with the most commits of the reader, board posts and h
     expect(array_column(resolve(JoinedGuildsQuery::class)->get($reader), 'handle'))->toBe(['zig', 'rust', 'php']);
 });
 
-it('orders the guilds by the commits of the reader before the missed commits', function (): void {
+it('orders the guilds by the missed commits before the commits of the reader', function (): void {
     resolve(Features::class)->update(Feature::Guilds, true, adminOnly: false);
     $reader = User::factory()->create();
     $quiet = Guild::factory()->create(['handle' => 'quiet']);
@@ -74,23 +74,20 @@ it('orders the guilds by the commits of the reader before the missed commits', f
     Commit::factory()->for($reader)->create(['guild_id' => $quiet->id]);
     Commit::factory()->count(3)->create(['guild_id' => $busy->id]);
 
-    expect(array_column(resolve(JoinedGuildsQuery::class)->get($reader), 'missed_commits', 'handle'))->toBe(['quiet' => 0, 'busy' => 3]);
+    expect(array_column(resolve(JoinedGuildsQuery::class)->get($reader), 'missed_commits', 'handle'))->toBe(['busy' => 3, 'quiet' => 0]);
 });
 
-it('orders guilds with equal commits of the reader by the missed commits, then by the handle', function (): void {
+it('orders guilds with equal missed commits and equal commits of the reader by the handle', function (): void {
     resolve(Features::class)->update(Feature::Guilds, true, adminOnly: false);
     $reader = User::factory()->create();
     $beta = Guild::factory()->create(['handle' => 'beta']);
     $alpha = Guild::factory()->create(['handle' => 'alpha']);
-    $missed = Guild::factory()->create(['handle' => 'missed']);
     DB::table('guild_preferences')->insert([
-        ['guild_id' => $beta->id, 'user_id' => $reader->id, 'joined_at' => now()->subDay()],
-        ['guild_id' => $alpha->id, 'user_id' => $reader->id, 'joined_at' => now()->subDay()],
-        ['guild_id' => $missed->id, 'user_id' => $reader->id, 'joined_at' => now()->subDay()],
+        ['guild_id' => $beta->id, 'user_id' => $reader->id, 'joined_at' => now()],
+        ['guild_id' => $alpha->id, 'user_id' => $reader->id, 'joined_at' => now()],
     ]);
-    Commit::factory()->create(['guild_id' => $missed->id]);
 
-    expect(array_column(resolve(JoinedGuildsQuery::class)->get($reader), 'handle'))->toBe(['missed', 'alpha', 'beta']);
+    expect(array_column(resolve(JoinedGuildsQuery::class)->get($reader), 'handle'))->toBe(['alpha', 'beta']);
 });
 
 it('leaves the commits of other people and the unapproved commits of the reader out of the order', function (): void {
