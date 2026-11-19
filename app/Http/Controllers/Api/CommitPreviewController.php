@@ -23,11 +23,12 @@ final readonly class CommitPreviewController
     public function store(CreateApiCommitPreviewRequest $request, EmojiShortcodes $emojiShortcodes, CommitBodies $commitBodies, Mentions $mentions, MentionedUsersQuery $mentionedUsers, MentionedOrganizationsQuery $mentionedOrganizations): JsonResponse
     {
         $body = $emojiShortcodes->replace($request->string('body')->value());
+        $users = $mentionedUsers->get($body);
 
         return response()->json(['data' => [
             'body' => $body,
             ...$commitBodies->segments($body),
-            'mentions' => $mentions->positions($body, $mentionedOrganizations->get($body, $mentionedUsers->get($body))),
+            'mentions' => $mentions->positions($body, $mentionedOrganizations->get($body, $users), $users),
             'guild_mentions' => ShownGuildMentions::get([$body], $request->user()),
         ]]);
     }
