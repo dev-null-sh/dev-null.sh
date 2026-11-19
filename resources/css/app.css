@@ -1005,9 +1005,16 @@ html body[data-scroll-locked] {
         color: transparent;
     }
 
-    /* Colored children like links would shine through, so hide the whole subtree. */
-    .spoiler:not([data-revealed='true']) * {
+    /* Colored children like links would shine through, so the content hides as a whole. */
+    .spoiler:not([data-revealed='true']) .spoiler-content {
         visibility: hidden;
+    }
+
+    /* The reveal control sits beside the content and stays readable on the hidden block. */
+    .spoiler-toggle {
+        color: var(--background);
+        text-decoration: underline;
+        font-size: 0.75rem;
     }
 
     .spoiler[data-revealed='true'] {

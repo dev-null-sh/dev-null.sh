@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { App } from '@inertiajs/react';
 import type { ComponentProps, ReactElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { test } from 'vite-plus/test';
+import { test, vi } from 'vite-plus/test';
 import { BodyCounter } from '../../resources/js/components/body-counter';
 import { ConversationList } from '../../resources/js/components/chat/conversation-list';
 import { MessageText } from '../../resources/js/components/chat/message-parts';
@@ -84,7 +84,6 @@ test('the counter discounts commit links but not issue links', () => {
 
 function renderPage(
     content: ReactElement,
-    user: unknown = null,
     props: Record<string, unknown> = {},
 ): string {
     return renderToStaticMarkup(
@@ -97,7 +96,7 @@ function renderPage(
                     version: null,
                     props: {
                         errors: {},
-                        auth: { user, pasteis: null },
+                        auth: { user: null, pasteis: null },
                         ...props,
                     },
                     clearHistory: false,
@@ -1250,36 +1249,45 @@ test('separates subtext from surrounding paragraphs', () => {
 });
 
 test('words future timestamps as upcoming', () => {
-    const markup = renderToStaticMarkup(
-        <LinkifiedText text="At <t:9999999999:R> o clock" mentions={null} />,
-    );
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-15T12:00:00Z'));
+    try {
+        const markup = renderToStaticMarkup(
+            <LinkifiedText
+                text="At <t:9999999999:R> o clock"
+                mentions={null}
+            />,
+        );
 
-    assert.ok(markup.includes('data-test="timestamp"'));
-    assert.ok(markup.includes('in '));
+        assert.ok(markup.includes('data-test="timestamp"'));
+        assert.ok(markup.includes('in '));
 
-    const soon = renderToStaticMarkup(
-        <LinkifiedText
-            text={`At <t:${Math.ceil(Date.now() / 1000) + 7200}:R> o clock`}
-            mentions={null}
-        />,
-    );
+        const soon = renderToStaticMarkup(
+            <LinkifiedText
+                text={`At <t:${Math.ceil(Date.now() / 1000) + 7200}:R> o clock`}
+                mentions={null}
+            />,
+        );
 
-    assert.ok(soon.includes('data-test="timestamp"'));
-    assert.ok(soon.includes('in 2h'));
+        assert.ok(soon.includes('data-test="timestamp"'));
+        assert.ok(soon.includes('in 2h'));
 
-    const imminent = renderToStaticMarkup(
-        <LinkifiedText
-            text={`At <t:${Math.ceil(Date.now() / 1000) + 30}:R> o clock`}
-            mentions={null}
-        />,
-    );
+        const imminent = renderToStaticMarkup(
+            <LinkifiedText
+                text={`At <t:${Math.ceil(Date.now() / 1000) + 30}:R> o clock`}
+                mentions={null}
+            />,
+        );
 
-    assert.ok(imminent.includes('data-test="timestamp"'));
-    assert.ok(imminent.includes('soon'));
-    assert.ok(!imminent.includes('now'));
+        assert.ok(imminent.includes('data-test="timestamp"'));
+        assert.ok(imminent.includes('soon'));
+        assert.ok(!imminent.includes('now'));
+    } finally {
+        vi.useRealTimers();
+    }
 });
 
-test('keeps linked children inside hidden spoilers', () => {
+test('keeps spoiler links outside the reveal button', () => {
     const markup = renderToStaticMarkup(
         <LinkifiedText text="||[x](https://example.com)||" mentions={null} />,
     );
@@ -1287,6 +1295,9 @@ test('keeps linked children inside hidden spoilers', () => {
     assert.ok(markup.includes('data-test="spoiler"'));
     assert.ok(markup.includes('data-revealed="false"'));
     assert.ok(markup.includes('href="https://example.com"'));
+    // The link sits beside the reveal control, never inside it.
+    assert.ok(markup.indexOf('</button>') < markup.indexOf('<a '));
+    assert.ok(markup.match(/<button[^>]*aria-label="Reveal spoiler"/));
 });
 
 test('leaves fenced code verbatim while formatting the prose around it', () => {
@@ -1315,6 +1326,56 @@ test('omits spoiler content from static previews', () => {
     assert.ok(!markup.includes('secret'));
 });
 
+test('formats far-future timestamps from the validated date', () => {
+    const markup = renderToStaticMarkup(
+        <LinkifiedText text="At <t:8640000000000:R> o clock" mentions={null} />,
+    );
+
+    assert.ok(markup.includes('data-test="timestamp"'));
+});
+
+test('renders combined bold and italic markers', () => {
+    const markup = renderToStaticMarkup(
+        <LinkifiedText
+            text="***both*** and **bold** and *italic*"
+            mentions={null}
+        />,
+    );
+
+    assert.ok(markup.includes('<strong><em>both</em></strong>'));
+    assert.ok(!markup.includes('*both*'));
+    assert.ok(markup.includes('<strong>bold</strong>'));
+    assert.ok(markup.includes('<em>italic</em>'));
+});
+
+test('keeps balanced parentheses inside masked destinations', () => {
+    const markup = renderToStaticMarkup(
+        <LinkifiedText
+            text="[Mercury](https://en.wikipedia.org/wiki/Mercury_(planet))"
+            mentions={null}
+        />,
+    );
+
+    assert.ok(
+        markup.includes(
+            'href="https://en.wikipedia.org/wiki/Mercury_(planet)"',
+        ),
+    );
+    assert.ok(!markup.includes(')</a>)'));
+});
+
+test('leaves formatting markers inside bare URLs literal', () => {
+    const markup = renderToStaticMarkup(
+        <LinkifiedText
+            text="See https://example.com/**x y** end"
+            mentions={null}
+        />,
+    );
+
+    assert.ok(!markup.includes('<strong>'));
+    assert.ok(markup.includes('<a '));
+});
+
 test('never nests an anchor inside a masked label', () => {
     for (const text of [
         '[https://a.com](https://b.com)',
@@ -1333,14 +1394,16 @@ test('keeps hashtags plain inside masked labels when signed in', () => {
 
     const topLevel = renderPage(
         <LinkifiedText text="#topic" mentions={null} />,
-        user,
+        {
+            auth: { user, pasteis: null },
+        },
     );
 
     assert.ok(topLevel.includes('data-test="hashtag"'));
 
     const masked = renderPage(
         <LinkifiedText text="[#topic](https://example.com)" mentions={null} />,
-        user,
+        { auth: { user, pasteis: null } },
     );
 
     assert.equal(masked.match(/<a[\s>]/g)?.length, 1);

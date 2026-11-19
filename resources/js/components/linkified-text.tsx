@@ -906,7 +906,7 @@ type InlineOptions = {
 // pieces recurse through the same pass, so mentions and links still resolve inside bold or spoilers. Plain
 // `code` passes through untouched.
 const richInlinePattern =
-    /(?<code>`[^`\n]*`)|(?<masked>\[(?<maskedLabel>[^\]\n]+)\]\((?<maskedUrl>https?:\/\/[^)\s]+)\))|(?<timestamp><t:(?<timestampAt>\d+)(?::(?<timestampFormat>[tTdDfFR]))?>)|(?<spoiler>\|\|(?<spoilerContent>[\s\S]+?)\|\|)|(?<bold>\*\*(?<boldContent>[^\s*](?:[^*\n]*?[^\s*])?)\*\*)|(?<underline>__(?<underlineContent>[^\s_](?:[^_\n]*?[^\s_])?)__)|(?<strike>~~(?<strikeContent>[^\s~](?:[^~\n]*?[^\s~])?)~~)|(?<italicStar>\*(?<italicStarContent>[^\s*](?:[^*\n]*?[^\s*])?)\*)|(?<italicUnder>_(?<italicUnderContent>[^\s_](?:[^_\n]*?[^\s_])?)_)/g;
+    /(?<code>`[^`\n]*`)|(?<masked>\[(?<maskedLabel>[^\]\n]+)\]\((?<maskedUrl>https?:\/\/(?:[^()\s]|\([^()\s]*\))*)\))|(?<timestamp><t:(?<timestampAt>\d+)(?::(?<timestampFormat>[tTdDfFR]))?>)|(?<spoiler>\|\|(?<spoilerContent>[\s\S]+?)\|\|)|(?<boldItalic>\*\*\*(?<boldItalicContent>[^\s*](?:[^*\n]*?[^\s*])?)\*\*\*)|(?<bold>\*\*(?<boldContent>[^\s*](?:[^*\n]*?[^\s*])?)\*\*)|(?<underline>__(?<underlineContent>[^\s_](?:[^_\n]*?[^\s_])?)__)|(?<strike>~~(?<strikeContent>[^\s~](?:[^~\n]*?[^\s~])?)~~)|(?<italicStar>\*(?<italicStarContent>[^\s*](?:[^*\n]*?[^\s*])?)\*)|(?<italicUnder>_(?<italicUnderContent>[^\s_](?:[^_\n]*?[^\s_])?)_)/g;
 
 /**
  * Whether the character counts as part of a word, so underscore italics keep their underscores in snake_case.
@@ -917,7 +917,8 @@ function isWordCharacter(character: string | undefined): boolean {
 
 /**
  * Hides the children behind a tap to reveal, holding them back only while hidden so nothing interactive escapes.
- * Static previews offer no tap, so they omit the hidden content entirely.
+ * The reveal control and the content are siblings, so links never land inside the button and the button's
+ * accessible name never leaks the hidden text. Static previews offer no tap, so they omit the content entirely.
  */
 function SpoilerText({
     children,
@@ -934,15 +935,17 @@ function SpoilerText({
     }
 
     return (
-        <button
-            type="button"
-            onClick={() => setRevealed((previous) => !previous)}
-            data-revealed={revealed}
-            data-test="spoiler"
-            className="spoiler cursor-pointer"
-        >
-            {children}
-        </button>
+        <span className="spoiler" data-revealed={revealed} data-test="spoiler">
+            <button
+                type="button"
+                onClick={() => setRevealed((previous) => !previous)}
+                aria-label={revealed ? 'Hide spoiler' : 'Reveal spoiler'}
+                className="spoiler-toggle cursor-pointer"
+            >
+                {revealed ? 'Hide' : 'Show'}
+            </button>{' '}
+            <span className="spoiler-content">{children}</span>
+        </span>
     );
 }
 
@@ -991,7 +994,7 @@ function TimestampText({ at, format }: { at: string; format: string }) {
         if (ahead >= 60) {
             return (
                 <span title={title} data-test="timestamp">
-                    in {formatFuture(ahead)}
+                    in {formatFuture(ahead, date)}
                 </span>
             );
         }
@@ -1019,7 +1022,7 @@ function TimestampText({ at, format }: { at: string; format: string }) {
 /**
  * Words a future distance in the largest fitting unit, for upcoming timestamps.
  */
-function formatFuture(totalSeconds: number): string {
+function formatFuture(totalSeconds: number, target: Date): string {
     if (totalSeconds < 3600) {
         return `${Math.floor(totalSeconds / 60)}m`;
     }
@@ -1036,7 +1039,7 @@ function formatFuture(totalSeconds: number): string {
         timeZone: readerClock().timeZone,
         month: 'short',
         day: 'numeric',
-    }).format(new Date(Date.now() + totalSeconds * 1000));
+    }).format(target);
 }
 
 /**
@@ -1061,12 +1064,8 @@ function withRichInline(
         const groups = match.groups ?? {};
         const index = match.index;
 
-        if (
-            linkRanges.some(
-                ([start, end]) =>
-                    index >= start && index + match[0].length <= end,
-            )
-        ) {
+        // A match opening inside a bare URL belongs to the URL, even when it runs past it.
+        if (linkRanges.some(([start, end]) => index >= start && index < end)) {
             continue;
         }
 
@@ -1146,9 +1145,18 @@ function withRichInline(
             );
         } else if (groups.spoilerContent !== undefined) {
             parts.push(
-                <SpoilerText key={key} isStatic={options.isStatic}>
+                <SpoilerText
+                    key={`${key}:${groups.spoilerContent}`}
+                    isStatic={options.isStatic}
+                >
                     {nested(groups.spoilerContent, 2)}
                 </SpoilerText>,
+            );
+        } else if (groups.boldItalicContent !== undefined) {
+            parts.push(
+                <strong key={key}>
+                    <em>{nested(groups.boldItalicContent, 3)}</em>
+                </strong>,
             );
         } else if (groups.boldContent !== undefined) {
             parts.push(
