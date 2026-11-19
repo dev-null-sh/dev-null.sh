@@ -9,6 +9,7 @@ import {
     GuildPreferences,
 } from '@/components/guild-preferences';
 import { Button } from '@/components/ui/button';
+import { WordmarkText } from '@/components/wordmark-text';
 import AppLayout from '@/layouts/app-layout';
 
 export default function Index({
@@ -224,7 +225,7 @@ export default function Index({
                                 className="line-clamp-2 min-h-10 text-sm wrap-anywhere"
                                 title={guild.description}
                             >
-                                {guild.description}
+                                <WordmarkText>{guild.description}</WordmarkText>
                             </p>
                             <div className="mt-auto flex flex-wrap items-center justify-between gap-2">
                                 <GuildMemberCount guild={guild} />

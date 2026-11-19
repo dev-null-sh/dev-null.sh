@@ -22,6 +22,7 @@ import {
 } from '@/components/guild-preferences';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
+import { WordmarkText } from '@/components/wordmark-text';
 import AppLayout from '@/layouts/app-layout';
 import { firstReadCommit } from '@/lib/guild-read-marker';
 import type { Commit } from '@/types';
@@ -222,7 +223,7 @@ export default function Show({
                     <GuildMemberCount guild={guild} />
                 </div>
                 <p className="mt-4 text-[15px] leading-relaxed wrap-anywhere whitespace-pre-wrap">
-                    {guild.description}
+                    <WordmarkText>{guild.description}</WordmarkText>
                 </p>
                 <div className="mt-4 flex flex-wrap items-center gap-3">
                     {!canModerate && <GuildReportButton guild={guild} />}
