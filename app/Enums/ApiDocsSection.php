@@ -10,16 +10,27 @@ namespace App\Enums;
 enum ApiDocsSection: string
 {
     case Introduction = 'introduction';
+    case Authentication = 'authentication';
+    case RateLimits = 'rate-limits';
+    case Pagination = 'pagination';
+    case Errors = 'errors';
 
     public function title(): string
     {
-        return $this->name;
+        return match ($this) {
+            self::RateLimits => 'Rate limits',
+            default => $this->name,
+        };
     }
 
     public function description(): string
     {
         return match ($this) {
             self::Introduction => 'What the API is for, and where it lives',
+            self::Authentication => 'Reading as anyone, or signing requests as someone',
+            self::RateLimits => 'How many requests a minute, and what happens past that',
+            self::Pagination => 'Following a list from one page to the next',
+            self::Errors => 'What went wrong, and the code that says which error it is',
         };
     }
 

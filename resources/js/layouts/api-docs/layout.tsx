@@ -1,5 +1,12 @@
 import { usePage } from '@inertiajs/react';
-import { BookOpen } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+import {
+    BookOpen,
+    CircleAlert,
+    Gauge,
+    KeyRound,
+    ListOrdered,
+} from 'lucide-react';
 import type { PropsWithChildren } from 'react';
 import ApiDocsController from '@/actions/App/Http/Controllers/ApiDocsController';
 import LogController from '@/actions/App/Http/Controllers/LogController';
@@ -8,13 +15,21 @@ import type { ConsoleNavGroup } from '@/layouts/console/layout';
 import { home } from '@/routes';
 import type { ApiDocsProps, ApiDocsSection } from '@/types';
 
+const ICONS: Record<string, LucideIcon> = {
+    introduction: BookOpen,
+    authentication: KeyRound,
+    'rate-limits': Gauge,
+    pagination: ListOrdered,
+    errors: CircleAlert,
+};
+
 function navItems(sections: ApiDocsSection[]) {
     return sections.map((section) => ({
         key: section.slug,
         title: section.title,
         description: section.description,
         href: ApiDocsController.show(section.slug),
-        icon: BookOpen,
+        icon: ICONS[section.slug] ?? BookOpen,
     }));
 }
 

@@ -35,6 +35,11 @@ final readonly class SignedRequests
 
     public const string ImagesNamespace = 'devnull-api-images';
 
+    /**
+     * How many requests whose signature doesn't check out an address may make a minute.
+     */
+    public const int FailuresPerAddressPerMinute = 60;
+
     private const array Headers = ['X-Devnull-Timestamp', 'X-Devnull-Nonce', 'X-SSH-Signature'];
 
     public function __construct(private SshSignatures $sshSignatures, private UpdateDeviceLastUsedAt $updateDeviceLastUsedAt)
