@@ -12,6 +12,9 @@ use App\Models\CommitReport;
 use App\Models\Conversation;
 use App\Models\ConversationParticipant;
 use App\Models\Device;
+use App\Models\Guild;
+use App\Models\GuildReport;
+use App\Models\GuildSubmission;
 use App\Models\Message;
 use App\Models\Poll;
 use App\Models\PollOption;
@@ -53,6 +56,11 @@ use Traversable;
  *     dismissed_suggestions: Generator<int, ExportUser>,
  *     organizations: array<int, array{handle: string, role: string, joined_at: string}>,
  *     followed_organizations: array<int, array{handle: string, followed_at: string}>,
+ *     guilds: array<int, array<string, mixed>>,
+ *     guild_submissions: array<int, array<string, mixed>>,
+ *     guild_preferences: array<int, stdClass>,
+ *     guild_reports: array<int, array{handle: string, details: string, created_at: string}>,
+ *     guild_moderator_removals: array<int, stdClass>,
  *     pending_follows: list<string>,
  *     messages: Generator<int, ExportMessage>,
  *     reports: Traversable<int, array<string, mixed>>,
@@ -134,7 +142,28 @@ final readonly class CreateExport
             'dismissed_suggestions' => $this->handles($user->dismissedSuggestions()),
             'organizations' => $this->organizations($user),
             'followed_organizations' => $this->followedOrganizations($user),
+            'guilds' => Guild::query()->where('user_id', $user->id)->orderBy('handle')->get()->map(fn (Guild $guild): array => [
+                ...$guild->toArray(),
+                'icon' => $guild->icon_path === null ? null : route('guild-icon.show', $guild->handle),
+                'pinned_commit_id' => $guild->pinned_commit_id,
+                'created_at' => $guild->created_at->toIso8601String(),
+                'updated_at' => $guild->updated_at->toIso8601String(),
+            ])->all(),
+            'guild_submissions' => GuildSubmission::query()->where('user_id', $user->id)->orderBy('handle')->get()->map(fn (GuildSubmission $submission): array => [
+                'handle' => $submission->handle,
+                'name' => $submission->name,
+                'description' => $submission->description,
+                'emoji' => $submission->emoji,
+                'has_icon' => $submission->icon_path !== null,
+                'created_at' => $submission->created_at->toIso8601String(),
+            ])->all(),
+            'guild_preferences' => DB::table('guild_preferences')->join('guilds', 'guilds.id', '=', 'guild_preferences.guild_id')
+                ->where('guild_preferences.user_id', $user->id)->orderBy('handle')->get(['handle', 'joined_at', 'muted_at', 'read_at'])->all(),
             'pending_follows' => $this->pendingFollows($user),
+            'guild_reports' => GuildReport::query()->where('reporter_id', $user->id)->with('guild')->oldest('id')->get()->map(fn (GuildReport $report): array => [
+                'handle' => $report->guild->handle, 'details' => $report->details, 'created_at' => $report->created_at->toIso8601String(),
+            ])->all(),
+            'guild_moderator_removals' => DB::table('guild_moderator_removals')->where('github_id', $user->github_id)->orderBy('handle')->get(['handle', 'created_at'])->all(),
             'messages' => $this->messages($user),
             'reports' => CommitReport::query()->where('reporter_id', $user->id)->oldest('id')->cursor()->map(fn (CommitReport $report): array => [
                 'commit_id' => $report->commit_id,
@@ -206,8 +235,8 @@ final readonly class CreateExport
     {
         $commits = $user->commits()
             ->withTrashed()
-            ->select(['id', 'parent_id', 'quoted_commit_id', 'body', 'status', 'pasteis_count', 'created_at', 'updated_at', 'deleted_at'])
-            ->with('images:id,commit_id')
+            ->select(['id', 'parent_id', 'quoted_commit_id', 'guild_id', 'body', 'status', 'pasteis_count', 'created_at', 'updated_at', 'deleted_at'])
+            ->with(['images:id,commit_id', 'guild'])
             ->lazyById(500);
 
         $translations = resolve(CommitTranslations::class);
@@ -220,6 +249,7 @@ final readonly class CreateExport
                     'id' => $commit->id,
                     'parent_id' => $commit->parent_id,
                     'quoted_commit_id' => $commit->quoted_commit_id,
+                    'guild_handle' => $commit->guild?->handle,
                     'body' => $commit->body,
                     'cached_translations' => $cached[$translations->key($commit)],
                     'status' => $commit->status->value,

@@ -7,6 +7,7 @@ namespace App\Http\Requests;
 use App\Dto\NewPoll;
 use App\Enums\PollDuration;
 use App\Models\Commit;
+use App\Models\Guild;
 use App\Models\Organization;
 use App\Models\User;
 use App\Queries\MentionedUsersQuery;
@@ -26,7 +27,8 @@ use Illuminate\Validation\Validator;
 /**
  * A commit from the mobile app, sent as JSON, or with images as multipart (see SignedRequests). It may reply to a commit
  * or quote one, as on the web, but not both. The images are checked as the web checks them. A reply may also go to
- * anyone its parent was addressed to, as the web's Replying to picks them.
+ * anyone its parent was addressed to, as the web's Replying to picks them. A commit or a quote, never a reply, may go
+ * to a guild's board.
  */
 final class CreateApiCommitRequest extends FormRequest
 {
@@ -67,6 +69,7 @@ final class CreateApiCommitRequest extends FormRequest
             'images.*' => $attachmentRules['images.*'],
             'image_descriptions' => $attachmentRules['image_descriptions'],
             'image_descriptions.*' => $attachmentRules['image_descriptions.*'],
+            'guild_handle' => [...CreateCommitRequest::guildRules($this)['guild_handle'], 'prohibits:parent_id'],
         ];
     }
 
@@ -122,6 +125,11 @@ final class CreateApiCommitRequest extends FormRequest
         return $this->filled('quoted_commit_id')
             ? Commit::query()->visibleTo($user)->find($this->string('quoted_commit_id')->value())
             : null;
+    }
+
+    public function guild(): ?Guild
+    {
+        return CreateCommitRequest::guildOf($this);
     }
 
     public function poll(): ?NewPoll

@@ -81,7 +81,8 @@ const { FailedJobsPanel } =
     await import('../../resources/js/components/operations/health-failed-jobs');
 const { OverviewEvents } =
     await import('../../resources/js/components/operations/overview-events');
-const { default: Links } = await import('../../resources/js/pages/links/index');
+const { LinkTopicSection } =
+    await import('../../resources/js/components/link-topic');
 const { PinnedBanner } =
     await import('../../resources/js/components/chat/pinned-messages');
 const { MentionsBell } =
@@ -643,19 +644,14 @@ test('link topic commits follow date preferences without changing relative label
     const panel = () =>
         renderToString(
             <TooltipProvider>
-                <Links
-                    url={null}
-                    topLinks={[
-                        {
-                            url: 'https://example.com',
-                            title: 'Example link',
-                            description: null,
-                            people: 2,
-                            commits: 2,
-                            stars: 3,
-                            top_commits: commits,
-                        },
-                    ]}
+                <LinkTopicSection
+                    topic={{
+                        url: 'https://example.com',
+                        page_url: '/links/example',
+                        title: 'Example link',
+                        count: 2,
+                        commits,
+                    }}
                 />
             </TooltipProvider>,
         );

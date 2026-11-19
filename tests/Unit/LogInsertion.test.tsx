@@ -291,7 +291,7 @@ function insertAt(
             Show({
                 log,
                 commits,
-                isRanked: false,
+                isRanked: log === 'trending',
                 suggestions: [],
             }),
         );
@@ -833,6 +833,47 @@ test('reconciles removals and new arrivals in the same polling cycle', () => {
         'new-1',
         'new-2',
     ]);
+});
+
+test('refreshes guild attribution after cross-tab relationship changes even when feed IDs stay the same', async () => {
+    const fake = fakeConnection();
+    connectRealtime(fake.connection);
+    viewer = { id: 'reader' } as User;
+    const feed = insertAt(700, false, [], 'following', 0, false, true);
+    const data = feed.data().map(commit => ({ ...commit, joined_guild: 'rust' })) as Commit[];
+    feed.deliver(data);
+    fake.joined.get('private-users.reader')!.emit('relationships');
+    await vi.advanceTimersByTimeAsync(1_000);
+    const request = reload.mock.calls.at(-1)![0] as ReloadOptions;
+    assert.ok(request.only?.includes('commits'));
+    const refreshed = data.map(commit => ({ ...commit, joined_guild: null }));
+    request.onSuccess?.({ props: { commits: { data: refreshed } } } as never);
+    feed.deliver(refreshed);
+    request.onFinish?.({} as never);
+    await vi.advanceTimersByTimeAsync(0);
+    assert.deepEqual(feed.data().map(commit => commit.id), data.map(commit => commit.id));
+    assert.ok(feed.data().every(commit => commit.joined_guild === null));
+    assert.equal(feed.readingTop(), feed.top);
+});
+
+test('keeps the ranked range and order when guild relationships change', async () => {
+    const fake = fakeConnection();
+    connectRealtime(fake.connection);
+    viewer = { id: 'reader' } as User;
+    const feed = insertAt(700, false, [], 'trending', 0, false, true);
+    const data = [...feed.data(), ...Array.from({ length: 30 }, (_, index) => ({ id: `ranked-${index}` }))] as Commit[];
+    feed.deliver(data);
+    fake.joined.get('private-users.reader')!.emit('relationships');
+    await vi.advanceTimersByTimeAsync(1_000);
+    const request = reload.mock.calls.at(-1)![0] as ReloadOptions;
+    assert.ok(!request.only?.includes('commits'));
+    assert.ok(request.only?.includes('refreshedCommits'));
+    request.onSuccess?.({ props: { newCommitsCount: 0, removedCommitIds: ['ranked-2'], refreshedCommits: [{id: 'ranked-1', reply_preview: {data: [], next_cursor: null}}] } } as never);
+    request.onFinish?.({} as never);
+    await vi.advanceTimersByTimeAsync(0);
+    assert.deepEqual(feed.data().map(commit => commit.id), data.filter(commit => commit.id !== 'ranked-2').map(commit => commit.id));
+    assert.deepEqual(feed.data().find(commit => commit.id === 'ranked-1')?.reply_preview?.data, []);
+    assert.equal(reload.mock.calls.length, 1);
 });
 
 for (const log of ['latest', 'following'] as const) {

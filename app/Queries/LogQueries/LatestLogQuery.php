@@ -14,11 +14,13 @@ final readonly class LatestLogQuery implements LogQuery
     public function builder(?User $user): CommitBuilder
     {
         return Commit::query()
+            ->whereNull('guild_id')
             ->visibleTo($user)
             ->withoutMutedAuthorsFor($user)
+            ->withoutMutedGuildsFor($user)
             ->topLevel()
             ->withVisibleReplyCount($user)
-            ->withReplyPreviews($user)
+            ->withReplyPreviews($user, inLog: true)
             ->withCardDataFor($user)
             ->latest()
             ->latest('id');

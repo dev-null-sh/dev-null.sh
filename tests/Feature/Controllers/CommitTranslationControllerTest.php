@@ -269,6 +269,23 @@ it('hides translations everywhere and stops queueing detection once an admin swi
         ->where('commit.translation.translated.body_segments.0.text', 'Good morning'));
 });
 
+it('limits translations and their cached content to admins during a preview', function (): void {
+    config(['app.admins' => ['admin']]);
+    $admin = User::factory()->create(['handle' => 'admin']);
+    $member = User::factory()->create();
+    $commit = Commit::factory()->create(['body' => 'Guten morgen']);
+    $this->mock(TranslationProvider::class)->shouldReceive('translate')->once()
+        ->andReturn(['source_language' => 'de', 'body' => 'Good morning']);
+    resolve(Features::class)->update(Feature::Translations, true, true);
+
+    $this->actingAs($admin)->postJson(route('commit-translation.store', $commit), ['language' => 'en'])
+        ->assertOk()->assertJsonPath('translation.translated.body_segments.0.text', 'Good morning');
+    $this->actingAs($member)->postJson(route('commit-translation.store', $commit), ['language' => 'en'])->assertNotFound();
+    $this->getJson(route('commit-translation.show', [$commit, 'language' => 'en']))->assertNotFound();
+    $this->get(route('commit.show', ['profile' => $commit->user, 'commit' => $commit]))
+        ->assertOk()->assertInertia(fn ($page) => $page->missing('commit.translation'));
+});
+
 it('skips language detection jobs that were already queued when the feature is switched off', function (): void {
     config(['queue.default' => 'database']);
     $this->mock(TranslationProvider::class)->shouldNotReceive('translate');

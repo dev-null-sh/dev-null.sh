@@ -7,9 +7,13 @@ namespace App\Http\Resources;
 use App\Dto\ThreadContinuation;
 use App\Models\Commit;
 use App\Models\CommitReport;
+use App\Models\LinkPreview;
 use App\Models\Notification;
 use App\Models\Profile;
 use App\Models\User;
+use App\Queries\GuildCommitsQuery;
+use App\Queries\LinkCommitsQuery;
+use App\Services\LinkPages;
 use Illuminate\Pagination\CursorPaginator;
 use Illuminate\Support\Collection;
 
@@ -66,8 +70,20 @@ final class ShownStreams
             return $shown;
         }
 
+        $shown['guild_handle'] = $commit->relationLoaded('guild') ? $commit->guild?->handle : null;
+        $shown['guild'] = $commit->relationLoaded('guild') && $commit->guild !== null ? [
+            'handle' => $commit->guild->handle,
+            'name' => $commit->guild->name,
+            'emoji' => $commit->guild->emoji,
+            'icon_url' => $commit->guild->iconUrl(),
+        ] : null;
+
         if (is_array($shown['author'] ?? null) && $commit->relationLoaded('author') && $commit->author instanceof Profile) {
             $shown['author'] = self::authored($shown['author'], $commit->author);
+        }
+
+        if (is_array($shown['link_preview'] ?? null)) {
+            $shown['link_topic'] = self::linkTopic($commit);
         }
 
         if (is_array($shown['quoted_commit'] ?? null) && $commit->relationLoaded('quotedCommit')) {
@@ -104,10 +120,11 @@ final class ShownStreams
      * @param  CursorPaginator<int, Commit>  $page
      * @return CursorPaginator<int, ShownCommitResource>
      */
-    public static function page(CursorPaginator $page): CursorPaginator
+    public static function page(CursorPaginator $page, ?User $joinedGuildsFor = null): CursorPaginator
     {
+        $guilds = $joinedGuildsFor instanceof User ? resolve(GuildCommitsQuery::class)->joinedFor($page->items(), $joinedGuildsFor) : [];
         $shown = clone $page;
-        $shown->setCollection($page->getCollection()->map(fn (Commit $commit): ShownCommitResource => new ShownCommitResource($commit)));
+        $shown->setCollection($page->getCollection()->map(fn (Commit $commit): ShownCommitResource => new ShownCommitResource($commit, $guilds[$commit->id] ?? null)));
 
         return $shown;
     }
@@ -146,6 +163,42 @@ final class ShownStreams
     public static function continuation(ThreadContinuation $continuation): array
     {
         return [...$continuation->toArray(), 'data' => self::commits($continuation->commits)];
+    }
+
+    /**
+     * Who else the viewer may see talk about the commit's link, once enough people do, so its card leads to the link's
+     * page. Null when the card was loaded without them.
+     *
+     * @return array{url: string, others: int, authors: list<array<mixed>>}|null
+     */
+    private static function linkTopic(Commit $commit): ?array
+    {
+        $link = $commit->linkPreview;
+
+        if (! $link instanceof LinkPreview || ! $link->hasAttribute('topic_people_count')) {
+            return null;
+        }
+
+        $people = $link->getAttribute('topic_people_count');
+        $commits = $link->getAttribute('topic_commits_count');
+
+        if (! is_int($people) || ! is_int($commits) || $people < LinkCommitsQuery::MIN_PEOPLE) {
+            return null;
+        }
+
+        $url = resolve(LinkPages::class)->url($link->url);
+
+        return $url === null ? null : [
+            'url' => $url,
+            'others' => $commits - 1,
+            'authors' => array_values($link->commits
+                ->reject(fn (Commit $other): bool => $other->id === $commit->id || $other->author_id === $commit->author_id)
+                ->unique('author_id')
+                ->take(3)
+                ->map(fn (Commit $other): array => $other->author instanceof Profile ? $other->author->toArray() : [])
+                ->filter()
+                ->all()),
+        ];
     }
 
     /**

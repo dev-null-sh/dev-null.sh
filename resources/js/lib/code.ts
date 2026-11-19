@@ -70,16 +70,22 @@ export function mapProse(
         .join('');
 }
 
-/**
- * The text with its committed code blanked out to spaces of the same length, so what is found in the prose keeps its
- * place in the text.
- */
-export function withoutCode(text: string): string {
-    return splitCode(text)
+function blankCode(text: string, pattern: RegExp): string {
+    return splitCode(text, pattern)
         .map((part, index) =>
             index % 2 === 0 ? part : ' '.repeat(part.length),
         )
         .join('');
+}
+
+/** Replaces code with spaces to preserve prose offsets. */
+export function withoutCode(text: string): string {
+    return blankCode(text, codePattern);
+}
+
+/** Also blanks out unfinished code in a draft. */
+export function withoutTypedCode(text: string): string {
+    return blankCode(text, typedCodePattern);
 }
 
 /**

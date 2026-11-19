@@ -293,6 +293,12 @@ export default function Show() {
                         keeps a timeout from ending early by signing up again.
                     </p>
                     <p>
+                        If you are removed as a guild moderator, we retain your
+                        GitHub account ID, the guild hashtag and removal date,
+                        including after account deletion, to prevent you from
+                        reclaiming that guild with the same GitHub account.
+                    </p>
+                    <p>
                         When you delete your account, we keep your GitHub ID
                         until you sign in again, so that your page doesn't come
                         back before you sign up.

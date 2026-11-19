@@ -7,6 +7,7 @@ import { CommitImages } from '@/components/commit-images';
 import { CommitPoll } from '@/components/commit-poll';
 import { CommitStatusBadge } from '@/components/commit-status-badge';
 import { LinkPreview } from '@/components/link-preview';
+import { LinkTopicFooter } from '@/components/link-topic-footer';
 import { useDateTime } from '@/hooks/use-date-time';
 import { useNow } from '@/hooks/use-now';
 import { cn, isDeleted } from '@/lib/utils';
@@ -79,6 +80,14 @@ export function QuotedCommit({
                     preview={commit.link_preview}
                     isStatic
                     source={{ commitId: commit.id }}
+                    footer={
+                        commit.link_topic && (
+                            <LinkTopicFooter
+                                topic={commit.link_topic}
+                                isStatic
+                            />
+                        )
+                    }
                 />
             )}
         </>

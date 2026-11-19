@@ -45,6 +45,10 @@ import { EventLine, typingText } from '@/components/chat/org';
 import { PinnedBanner, usePinMessage } from '@/components/chat/pinned-messages';
 import { VoiceNote, VoiceNoteComposer } from '@/components/chat/voice-note';
 import {
+    ColorSwatchHint,
+    useColorSwatchHint,
+} from '@/components/color-swatch-hint';
+import {
     ImageDropOverlay,
     ImagePickerButton,
     ImagePickerPreviews,
@@ -1835,6 +1839,22 @@ function Composer({
 
     const voiceNote = useVoiceNote(showError);
     const isVoicing = voiceNote.state.status !== 'idle';
+    const updateBody = (value: string) => {
+        stash.updateBody(value);
+        showError(null);
+        attachments.clearError();
+
+        if (value.trim() !== '') {
+            pingTyping(target);
+        }
+    };
+    const colorHint = useColorSwatchHint({
+        body,
+        textareaRef: input,
+        updateBody,
+        hidden: isVoicing,
+        acceptsBody: (value) => characterCount(value) <= maxLength,
+    });
 
     const pushVoiceNote = async () => {
         const voice = await voiceNote.stop();
@@ -2068,15 +2088,8 @@ function Composer({
                                     autoFocus={autoFocus}
                                     value={body}
                                     maxLength={maxLength}
-                                    onValueChange={(value) => {
-                                        stash.updateBody(value);
-                                        showError(null);
-                                        attachments.clearError();
-
-                                        if (value.trim() !== '') {
-                                            pingTyping(target);
-                                        }
-                                    }}
+                                    onValueChange={updateBody}
+                                    aria-describedby={colorHint?.id}
                                     onFocus={moveCaretToEnd}
                                     onPaste={onPaste}
                                     onKeyDown={onKeyDown}
@@ -2104,6 +2117,10 @@ function Composer({
                                     </span>
                                 )}
                             </div>
+                            <ColorSwatchHint
+                                hint={colorHint}
+                                className="basis-full px-3"
+                            />
                             <ImagePickerButton
                                 count={attachments.images.length}
                                 reading={attachments.reading}

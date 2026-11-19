@@ -19,6 +19,7 @@ import HeadlineController from '@/actions/App/Http/Controllers/HeadlineControlle
 import ProfileSearchController from '@/actions/App/Http/Controllers/ProfileSearchController';
 import SearchController from '@/actions/App/Http/Controllers/SearchController';
 import { AuthorAvatar } from '@/components/author-avatar';
+import { GuildSearchHeading } from '@/components/commit-search-results';
 import { HotTopicContent } from '@/components/hot-topics';
 import { OrganizationAvatar } from '@/components/organization-avatar';
 import { DialogOverlay, DialogPortal } from '@/components/ui/dialog';
@@ -34,6 +35,7 @@ import {
 import { signIn } from '@/lib/auth';
 import { searchCandidates } from '@/lib/chat';
 import { searchCommits, TooManySearches } from '@/lib/commit-search';
+import { groupSearchCommits } from '@/lib/commit-search-results';
 import { useKeyLabels } from '@/lib/keyboard';
 import type { SearchAction } from '@/lib/search-actions';
 import { searchActions } from '@/lib/search-actions';
@@ -560,11 +562,13 @@ function optionsFor(
             organization,
         }),
     );
-    const commitOptions: Option[] = commits.map((commit) => ({
-        kind: 'commit',
-        id: `commit-${commit.id}`,
-        commit,
-    }));
+    const commitOptions: Option[] = groupSearchCommits(commits)
+        .flatMap(([, group]) => group)
+        .map((commit) => ({
+            kind: 'commit',
+            id: `commit-${commit.id}`,
+            commit,
+        }));
     const seeAll: Option[] =
         commitTerm === '' ? [] : [{ kind: 'all', id: 'all', needsSignIn }];
 
@@ -608,9 +612,19 @@ const headings: Record<Option['kind'], ReactNode> = {
 };
 
 function headingBefore(options: Option[], index: number): ReactNode {
-    const kind = options[index].kind;
+    const option = options[index];
+    const previous = options[index - 1];
+    const kind = option.kind;
 
-    if (options[index - 1]?.kind === kind) {
+    if (option.kind === 'commit' && option.commit.guild_handle) {
+        return previous?.kind === 'commit' &&
+            previous.commit.guild_handle ===
+                option.commit.guild_handle ? null : (
+            <GuildSearchHeading handle={option.commit.guild_handle} />
+        );
+    }
+
+    if (previous?.kind === kind) {
         return null;
     }
 
@@ -686,7 +700,7 @@ function ResultOption({
             {heading && (
                 <li
                     role="presentation"
-                    className="px-3 pt-2 pb-1 font-mono text-xs text-muted-foreground first:pt-1"
+                    className="border-t px-3 pt-2 pb-1 font-mono text-xs text-muted-foreground first:border-0 first:pt-1"
                 >
                     {heading}
                 </li>

@@ -24,4 +24,5 @@ enum UserUpdate: string
     case Commits = 'commits';
     case Moderation = 'moderation';
     case Live = 'live';
+    case Guilds = 'guilds';
 }

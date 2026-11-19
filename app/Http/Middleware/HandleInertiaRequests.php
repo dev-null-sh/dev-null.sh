@@ -7,22 +7,28 @@ namespace App\Http\Middleware;
 use App\Contracts\Services\HumanVerificationProvider;
 use App\Dto\ReaderClock;
 use App\Enums\EventTheme;
+use App\Enums\Feature;
 use App\Enums\Log;
 use App\Enums\RepliesPerPage;
 use App\Enums\UserUpdate;
 use App\Http\Requests\ListNotificationsRequest;
+use App\Http\Resources\GuildResource;
 use App\Http\Resources\ShownStreams;
 use App\Models\Commit;
+use App\Models\Guild;
 use App\Models\Organization;
 use App\Models\User;
 use App\Queries\BioProfilesQuery;
 use App\Queries\ConversationsQuery;
 use App\Queries\DevelopersCountQuery;
+use App\Queries\GuildsQuery;
 use App\Queries\HotTopicsQuery;
+use App\Queries\JoinedGuildsQuery;
 use App\Queries\LiveFollowingQuery;
 use App\Queries\NotificationGroupsQuery;
 use App\Queries\SuggestedUsersQuery;
 use App\Services\CommitTranslations;
+use App\Services\Features;
 use Carbon\CarbonInterface;
 use Closure;
 use Illuminate\Broadcasting\Channel;
@@ -167,6 +173,15 @@ final class HandleInertiaRequests extends Middleware
             'isLiteMobileApp' => str_contains((string) $request->userAgent(), 'DevNullLite/'),
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'showsWhoToFollow' => $showsWhoToFollow,
+            'guilds' => $user instanceof User
+                ? Inertia::once(fn (): ?array => resolve(Features::class)->available(Feature::Guilds, $user) ? resolve(GuildsQuery::class)->get($user)->map(fn (Guild $guild): array => [
+                    'id' => $guild->id,
+                    ...GuildResource::make($guild)->resolve($request),
+                ])->all() : null)->until(60)->fresh($request->routeIs('guild.*', 'search.index'))->live(UserUpdate::Guilds->value, new PrivateChannel($user))
+                : null,
+            'joinedGuilds' => $user instanceof User
+                ? Inertia::once(fn (): array => resolve(JoinedGuildsQuery::class)->get($user))->until(60)->live(UserUpdate::Guilds->value, new PrivateChannel($user))
+                : [],
             ...$user instanceof User && $liveFollowing !== null ? [
                 // Drawn again when someone followed goes live or stops, never on its own, so it doesn't reshuffle.
                 'liveFollowing' => $liveFollowing,

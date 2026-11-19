@@ -4,6 +4,16 @@ declare(strict_types=1);
 
 use Illuminate\Support\Facades\Route;
 
+it('disables service workers only when configured for the preview', function (): void {
+    $this->get(route('home'))->assertOk()->assertDontSee('name="service-worker"', false);
+
+    config(['app.service_worker_enabled' => false]);
+
+    $this->get(route('home'))
+        ->assertOk()
+        ->assertSee('<meta name="service-worker" content="disabled">', false);
+});
+
 it('links the favicons and the web app manifest', function (): void {
     $this->get(route('home'))
         ->assertOk()

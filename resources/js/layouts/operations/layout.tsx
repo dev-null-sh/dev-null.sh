@@ -180,7 +180,7 @@ function navGroups(): { label: string; items: NavEntry[] }[] {
                 {
                     page: 'operations/features',
                     title: 'Features',
-                    description: 'Turn features on and off for everyone',
+                    description: 'Choose who can use each feature',
                     href: FeatureController.index(),
                     icon: Flag,
                 },

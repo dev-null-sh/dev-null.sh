@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Actions\DeleteScheduledCommit;
 use App\Enums\CommitStatus;
 use App\Models\Commit;
+use App\Models\Guild;
 use App\Models\ScheduledCommit;
 use App\Models\User;
 use App\Models\UserTimeout;
@@ -77,4 +78,16 @@ it('requires a signed request', function (): void {
     $scheduled = ScheduledCommit::factory()->for($this->user)->create();
 
     $this->postJson(route('api-scheduled-commit-submission.store', $scheduled))->assertUnauthorized();
+});
+
+it('says the guild is paused when committing now a board post to a paused guild, and keeps it queued', function (): void {
+    $guild = Guild::factory()->create(['user_id' => null]);
+    $scheduled = ScheduledCommit::factory()->for($this->user)->for($guild)->create(['scheduled_at' => now()->addDay()]);
+
+    signedApiRequest($this->keyPair, 'POST', route('api-scheduled-commit-submission.store', $scheduled))
+        ->assertUnprocessable()
+        ->assertExactJson(['message' => 'This guild is paused until it has a moderator.', 'code' => 'guild_paused']);
+
+    expect(Commit::query()->count())->toBe(0)
+        ->and($scheduled->fresh())->submitted_at->toBeNull()->canceled_at->toBeNull();
 });

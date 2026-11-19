@@ -78,6 +78,7 @@ This file documents the platform's features, stack, and stories. Feature entries
 ## Repository
 
 - **Repository:** [dev-null-sh/dev-null.sh](https://github.com/dev-null-sh/dev-null.sh).
+- **License:** [MIT](LICENSE.md). You can use, copy, change, share and sell the code, also in a commercial product, as long as each copy keeps the copyright notice and the license.
 - **Setup and development:** [README](README.md).
 - **Product terminology and behavior:** [Product guide](PRODUCT.md).
 
@@ -133,7 +134,7 @@ While nobody has claimed an organization's page, it says so to signed-in visitor
 
 After that, members are managed on /dev/null, not mirrored from GitHub. An organization's members open its **Settings** from its page, where the **Members** tab lists everyone, each an **admin** or a **member**. Admins add people by their /dev/null handle, searching by handle or name as they type, except people they blocked or who blocked them, make them admins or members, and remove them. Any member can leave. Its last admin can't leave or become a member. Only its members see who its members are; its page lists its admins to everyone. Your organizations and your role in each are in your data export and go when you delete your account.
 
-Its admins and members can **post as the organization**: in the composer, and in a reply's, they open their avatar and pick the organization, then switch back to themselves the same way. Every commit and reply starts as yourself. A commit from an organization shows the organization alone, with its square avatar and color, at `/@{handle}/commits/{id}`: nobody else sees which member posted it. It belongs to the organization: any of its members can delete it, and none can star it, report it, vote in its poll or give it pastéis. It counts toward no one's level, and blocking or muting the person who posted it doesn't hide it. Moderators see the person who posted it, in the review queue and in reports, and can time out or ban them from their profile. If they delete their account, the organization's commits they posted stay. Its admins and members hear about the organization in their own notifications, all except whoever did it: replies to its commits, quotes of them, stars on them and commits that mention it, said as the organization's, like **replied to @laravel's commit** or **mentioned @laravel**. They all see the organization's pending and rejected commits, like whoever posted them, and all hear when one is rejected, with the reason. Someone removed from the organization keeps what they already heard and hears nothing new, and no longer sees its rejected commits or what they heard about them. They can schedule commits as the organization too, the same way: if they are no longer a member when it is due, it is canceled. When the organization replies, quotes or mentions someone, they hear it from the organization, never from whoever posted it, so blocking or muting that person doesn't silence it; its members hear nothing of what it does to its own commits or mentioning itself. Its first commit isn't announced to its followers, as a person's is. Apps can post as an organization through the API too, by sending its handle as `author`.
+Its admins and members can **post as the organization**: in the composer, in a reply's and in the quote dialog, they open their avatar and pick the organization, then switch back to themselves the same way. Every commit, reply and quote starts as yourself. A commit from an organization shows the organization alone, with its square avatar and color, at `/@{handle}/commits/{id}`: nobody else sees which member posted it. It belongs to the organization: any of its members can delete it, and none can star it, report it, vote in its poll or give it pastéis. It counts toward no one's level, and blocking or muting the person who posted it doesn't hide it. Moderators see the person who posted it, in the review queue and in reports, and can time out or ban them from their profile. If they delete their account, the organization's commits they posted stay. Its admins and members hear about the organization in their own notifications, all except whoever did it: replies to its commits, quotes of them, stars on them and commits that mention it, said as the organization's, like **replied to @laravel's commit** or **mentioned @laravel**. They all see the organization's pending and rejected commits, like whoever posted them, and all hear when one is rejected, with the reason. Someone removed from the organization keeps what they already heard and hears nothing new, and no longer sees its rejected commits or what they heard about them. They can schedule commits as the organization too, the same way: if they are no longer a member when it is due, it is canceled. When the organization replies, quotes or mentions someone, they hear it from the organization, never from whoever posted it, so blocking or muting that person doesn't silence it; its members hear nothing of what it does to its own commits or mentioning itself. Its first commit isn't announced to its followers, as a person's is. Apps can post as an organization through the API too, by sending its handle as `author`.
 
 Every organization has a color, /dev/null's blue until an admin chooses another in the **Profile** tab of its **Settings**, where its admins land: one of the same six lane colors as developers, or a custom one. It rings the organization's avatar, leads its handle, and colors its link preview.
 
@@ -271,7 +272,7 @@ Typing **@** in a composer opens developer suggestions. Use ↑/↓ to move, Ent
 
 Typing **#123** in a composer looks up that exact issue or pull request in the /dev/null repository, `dev-null-sh/dev-null.sh`. The matching title appears beneath the number; click it or use Enter or Tab to insert its GitHub URL, just like choosing an emoji suggestion. A space or punctuation leaves the number as typed and dismisses the suggestion. Missing numbers and failed lookups leave the text unchanged. Code, URL fragments, and references qualified with another repository are not expanded.
 
-A hex color such as `#ff8a4c` or `#fff` shows with a small swatch of the color, outside code. A color written only with digits counts when it has 6 or 8 digits or starts with a zero, which issue numbers here don't: `#000`, `#000000` and `#333333` are colors, while `#123` and `#333` stay plain text.
+Write `color(#ff8a4c)` or `color(#fff)` outside code to show the hex value with a small color swatch. The `color(...)` markup stays in the draft and is hidden in the rendered commit. It accepts 3, 4, 6 or 8 hex digits. A bare `#` followed by a letter is a hashtag. On the web, if the text of a commit, reply, quote, or Remotes message contains a hashtag that could be a color, the composer shows the swatch syntax and offers to apply it. Colors that start with a digit can still show a swatch without the markup: `#000`, `#000000` and `#333333` are colors, while `#123` and `#333` stay plain text. The full-width `＃` also works for automatic swatches, as in `＃fff`. A swatch written with `color(...)` does not add the commit to a guild.
 
 Sources: [body renderer](resources/js/components/commit-body.tsx), [emoji picker button](resources/js/components/emoji-picker.tsx), [colors](resources/js/lib/colors.ts), [code blocks](resources/js/components/code-block.tsx), [mention suggestions](app/Http/Controllers/MentionSuggestionController.php), [mention parsing](app/Services/Mentions.php).
 
@@ -299,11 +300,13 @@ Sources: [image picker](resources/js/components/commit-image-picker.tsx), [image
 
 Each link in a commit or reply counts as at most **23 characters** toward the 4,000-character allowance; shorter links count at their actual length. This also applies to quotes, scheduled commits, previews, and terminal and app submissions. The full URL is stored and followed directly, not through a redirect service. Prose URLs longer than **2,048 characters** are rejected, including the inferred `https://` scheme for bare domains. Code still counts literally toward the 4,000-character allowance. Bodies are additionally capped at 40,000 raw characters to bound storage and processing. Private messages and issue drafts keep their existing literal character limits.
 
-URLs and bare domains in commits and replies become clickable links. Long URLs are shortened visually; hover reveals the full destination. GitHub repository links show as `owner/repo`, and issue or pull request links as `owner/repo#123`, with the GitHub mark. Links to /dev/null commits show as the author's username and a short hash. Code keeps its literal text. The first link normally gets a preview card with available title, description, and image. In the commit, reply, and quote composers, choose another link from the body or choose no card; terminal commits and app commits always use the first link. Missing site metadata may leave a link without a rich preview.
+URLs and bare domains in commits and replies become clickable links. Long URLs are shortened visually; hover reveals the full destination. GitHub repository links show as `owner/repo`, and issue or pull request links as `owner/repo#123`, with the GitHub mark. Links to /dev/null commits show as the author's username and a short hash. Code keeps its literal text. The first link normally gets a preview card with available title, description, and image. In the commit, reply, and quote composers, choose another link from the body or choose no card; terminal commits and app commits always use the first link. Missing site metadata may leave a link without a rich preview. Different ways of writing the same link share one card: the host's case, a default port, a lone trailing `/`, the highlight a browser adds to a link (`#:~:text=`), and tracking parameters such as `utm_*`, `fbclid` or YouTube's `si` don't make a new one, and a few sites share one card across their addresses, so `youtube.com/watch?v=…` and `youtu.be/…` show the same card, as do `twitter.com` and `x.com`. Any other `#fragment` stays part of the link, so a link to a news entry, a line of code or a comment keeps a card of its own. The card links to that shared address, while the commit keeps the link exactly as written.
 
 Supported links can also show click-to-play embedded players: YouTube, Vimeo, Loom, Twitch, Spotify, SoundCloud, Apple Music, Suno, CodePen, and asciinema. Only the link that gets the card can show a player, so choosing no card means no player. Embeds depend on server configuration and the linked URL being supported. Third-party player content loads only after you press play; those providers have their own privacy policies. This is embedding a link, not uploading a video or audio file to /dev/null.
 
-Sources: [link rendering](resources/js/components/linkified-text.tsx), [link-card selection](app/Http/Requests/CreateCommitRequest.php), [embed configuration](config/embeds.php), [embedded player](resources/js/components/link-embed.tsx).
+Every https link has a page of its own at `dev-null.sh/link/` followed by the link without `https://`, such as `dev-null.sh/link/remember-this.io`. It lists every commit and reply whose card is that link, the most starred first under **Top** or the newest first under **Latest**, with how many commits and people talk about it, and a button to open the link. Anyone can read it, signed in or not, and it shows each viewer only the commits they may see. Once commits from at least two people use a link as their card, the card on each of them says how many other commits are about the link, with a few of their authors, and leads to its page; a commit's page also shows the most starred of those commits from outside its thread, under **More about** the link's site, before the related commits. Until then, nothing links to the page and search engines leave it out. Links that aren't https never get a page.
+
+Sources: [link rendering](resources/js/components/linkified-text.tsx), [link-card selection](app/Http/Requests/CreateCommitRequest.php), [shared link cards](app/Services/CanonicalUrls.php), [embed configuration](config/embeds.php), [embedded player](resources/js/components/link-embed.tsx), [link pages](app/Http/Controllers/LinkController.php).
 
 ### Replies and threads
 
@@ -327,7 +330,7 @@ Sources: [related commits query](app/Queries/RelatedCommitsQuery.php), [related 
 
 ### Quoting commits
 
-Quote a visible commit to publish a new top-level commit with your own commentary and an embedded card pointing to the original. Quotes follow normal commit limits, image support, and moderation. The quote composer has a preview and link-card choice, but no poll or scheduling. Quoting is different from replying: the quote appears in logs as its own post, and it is also listed among the original's replies and counted in its reply count. The original author is notified after approval, except for self-quotes.
+Quote a visible commit to publish a new top-level commit with your own commentary and an embedded card pointing to the original. Quotes follow normal commit limits, image support, and moderation. The quote composer has a preview and link-card choice, but no poll or scheduling. Members of an organization can quote [as the organization](#organization-pages) by picking it from their avatar in the quote dialog. Quoting is different from replying: the quote appears in logs as its own post, and it is also listed among the original's replies and counted in its reply count. The original author is notified after approval, except for self-quotes.
 
 The embedded original only shows content the viewer may see. Deleted originals appear as `[deleted]`; otherwise-inaccessible originals appear as `[unavailable]` without exposing their author or body. There is no comment-free repost action.
 
@@ -375,7 +378,7 @@ Sources: [Starred page](resources/js/pages/starred/index.tsx), [Starred controll
 
 ### Pinning a commit
 
-Pin one of your own top-level commits to feature it at the top of your profile's Commits tab. Pinning another replaces the previous pin; unpin to return to the normal list. Replies cannot be pinned, and pinning does not override a commit's visibility or moderation state.
+Pin one of your own top-level commits to feature it at the top of your profile's Commits tab. Pinning another replaces the previous pin; unpin to return to the normal list. Replies and guild board posts cannot be pinned to a profile, and pinning does not override a commit's visibility or moderation state.
 
 Sources: [pin authorization](app/Http/Requests/UpdateCommitPinRequest.php), [pin action](app/Actions/UpdateCommitPin.php), [profile page](resources/js/pages/user/show.tsx).
 
@@ -385,7 +388,9 @@ Enable **Pastéis mode** in Settings → Profile to give pastry awards to other 
 
 Pastéis do not notify anyone and do not affect Trending. Turning Pastéis mode off hides its controls and counters, including the pastéis count on profiles; people can still give you pastéis. The pastel emoji and mode commemorate Fernando Andrade bringing Portuguese custard pastries to the livestream team, rather than representing a payment or purchasable currency.
 
-Sources: [Pastéis setting](resources/js/components/pasteis-mode-setting.tsx), [award action](app/Actions/CreateCommitPastel.php), [award authorization](app/Http/Requests/CreateCommitPastelRequest.php), [pastry lore](#pastéis-de-nata).
+With Pastéis mode on, the words **pastel**, **pasteis** and **pastéis** in commits automatically show as the pastel emoji. To talk about pastéis without rendering the emoji, write a backslash right before the word, like: `\pastel`.
+
+Sources: [Pastéis setting](resources/js/components/pasteis-mode-setting.tsx), [award action](app/Actions/CreateCommitPastel.php), [award authorization](app/Http/Requests/CreateCommitPastelRequest.php), [pastel words](resources/js/lib/pasteis.ts), [pastry lore](#pastéis-de-nata).
 
 ### Notifications
 
@@ -587,12 +592,14 @@ An app can use the same `/api/v1` for you with signed requests. It keeps an SSH 
 A signed request sees what the web shows you, such as your own pending commits and your organizations'. It can also, with the web's validation, moderation, and rate limits:
 
 - read your account, logs, replies, notifications (including grouped activity), and starred commits;
+- read the organizations you are a member of, your role in each, and whether posting as an organization is switched on;
 - commit, reply, and quote, with images, and delete your commits, with the same undo window as the web;
 - preview commit drafts without publishing them;
 - request a feature or report a bug as `/feature` and `/bug` do, with the same limit of 10 opened issues a day;
 - follow or unfollow people and organizations, mute or unmute, and block or unblock, and list who you muted and blocked;
 - read who to follow, also as it is suggested beside a profile or a commit, and mark a suggestion not interested;
 - read the hot topics, and each one's commits from the past week with its recap;
+- list guilds as the Guilds page does, 24 a page, searched by name, handle or description, with whether you joined or muted each one and whether it is paused, while guilds are available to you;
 - star or unstar, and list who starred your own commit, newest first, 20 a page;
 - create polls on commits that are neither replies nor quotes, and vote on polls;
 - change Remotes settings, read and send messages with images, link cards, and voice notes in conversations and orgs, mark them pulled, react to messages and list your reactions, pin and unpin org messages as a maintainer, find people, and start orgs;
@@ -600,8 +607,10 @@ A signed request sees what the web shows you, such as your own pending commits a
 - stash or reopen conversations and orgs, pin and mute them, merge or drop message requests, and send typing indicators;
 - switch Pastéis mode and give pastéis;
 - report commits;
+- read your own timeouts and bans, as your profile shows them;
 - search people and organizations by name or handle, and commits by meaning, with the web's limit of 15 commit searches a minute;
 - schedule commits, list your queue, cancel a scheduled commit, or post it early;
+- post or schedule a commit or a quote to a guild's board, while guilds are available to you, with the web's rule that a paused guild takes no new posts;
 - pin a commit to your profile, or unpin it;
 - translate commits;
 - suggest people to mention and /dev/null issues to reference while writing;
@@ -611,7 +620,7 @@ A signed request sees what the web shows you, such as your own pending commits a
 
 Signed lists show each commit with its newest reply or quote. Add `?replies_per_page=` with 3, 5, 10, 15, 20, or 25 to show that many replies and quotes, like the replies choice in Settings → Appearance.
 
-Signed request bodies are JSON, or multipart when they carry images or a voice note, so app commits can have images with descriptions or a poll but no link-card choice. Before your first app submission, accept the [commit rules](#moderation) through the web composer. Signed requests are limited to **120 requests per minute per user**. Settings → Devices lists your approved devices, with the app's name when it gave one and when each was last used, and revokes them.
+Signed request bodies are JSON, or multipart when they carry images or a voice note, so app commits can have images with descriptions or a poll but no link-card choice. Before your first app submission, accept the [commit rules](#moderation) through the web composer. Signed requests are limited to **120 requests per minute per user**. Each action's per-minute limit (pastéis, opening issues, and so on) counts on its own, shared between the web and the API. Settings → Devices lists your approved devices, with the app's name when it gave one and when each was last used, and revokes them.
 
 Sources: [signed requests](app/Services/SignedRequests.php), [sign-in page](app/Http/Controllers/MobileAuthorizationController.php), [devices settings](resources/js/pages/device/index.tsx), [API routes](routes/api.php).
 
@@ -620,6 +629,12 @@ Sources: [signed requests](app/Services/SignedRequests.php), [sign-in page](app/
 **/dev/null for iOS and Android** are native apps in public beta. Join the iOS beta through TestFlight or the Android beta through Google Play, both linked from **/apps**. On a phone, the website also suggests the app for that phone just above the bottom navigation, until you dismiss it in that browser. They use the same account, commits, and conversations as the web: the log, commits with photos, polls, and scheduling, stars, quotes, replies, notifications, profiles, and Remotes with images, voice notes, reactions, and pings.
 
 Sign in with GitHub: the app makes a signing key that stays on your phone and signs every request, so there is no password, and the phone shows up under **Settings → Devices**. On iOS you can also link an Apple ID to an existing account, which never creates a new one.
+
+Once you allow notifications in a version of the app that asks for them, the phone gets pushes for follows, replies, mentions, and Remotes messages and pings, even when the app is closed. Each kind has its own switch in the app, with Remotes split into direct remotes and orgs, and all are on until you turn them off. A push says who did something, such as "Replied to your commit" or "Sent you a message" under their name, and never what they wrote: no commit text, message text, images, or voice notes are sent to Google or Apple, though an org's pushes carry its name. Nobody you mute, block, or are blocked by pushes you, and neither does a muted remote; a stashed remote still does, since a new message brings it back. Pushes wait about ten seconds and are skipped if you have read the message or the notification by then. They go through Firebase Cloud Messaging to the phone the app registered, and stop when you turn notifications off in the app, sign out, or revoke the device.
+
+Push delivery is best-effort. On Android, Firebase can replace alerts waiting for an offline phone with the newest one, so a separate system notification for every event is not guaranteed. The activity and messages themselves remain available when you open the app.
+
+Sources: [notification pushes](app/Jobs/SendNotificationPush.php), [Remotes pushes](app/Jobs/SendRemotePush.php), [push switches](app/Enums/PushPreference.php), [Firebase delivery](app/Services/DevicePushProviders/FcmDevicePushProvider.php).
 
 [NativePHP](https://nativephp.com) builds both apps with NativePHP Mobile: native screens, with the app logic in Laravel. The code is open source at [nativephp/dev-null-app](https://github.com/nativephp/dev-null-app), and feedback and pull requests go there.
 
@@ -655,6 +670,20 @@ Successful issue creation is limited to **ten issues per day per user**, shared 
 
 Sources: [issue command UI](resources/js/components/issue-command.tsx), [issue validation](app/Http/Requests/CreateIssueRequest.php), [issue controller](app/Http/Controllers/IssueController.php), [daily limit](app/Http/Middleware/ThrottleIssues.php), [API issue controller](app/Http/Controllers/Api/IssueController.php).
 
+### Guilds (preview)
+
+Guilds are public groups around hashtags and are not generally available yet. In the preview, matching hashtags become small clickable guild labels; ordinary hashtags still open search. Create a guild from the Guilds overview or a hashtag's search page. From the overview, its display name determines the hashtag: “Laravel 4ever” becomes `#laravel4ever`. Display names and handles each allow up to 60 characters. When claiming a hashtag, the display name must match its letters, numbers and underscores, ignoring case; spaces, punctuation and decorative symbols are ignored, so `/dev/null` is valid for `#devnull`. Accents and underscores remain significant. Its creator joins automatically and maintains its display name, icon and description; a new display name must still match the hashtag, so `#adhd` can become “ADHD” but never another hashtag. Each person can create up to 100 guilds. A guild's name, description and icon pass the same automated moderation as commits before the guild is published or edited. When the moderation flags a new guild or an edit, it waits for an admin to review it instead: nothing of it is public until it is approved, the guild keeps its current details meanwhile, and a rejected submission is discarded. Submitting again for the same hashtag replaces the one still waiting, and new guilds waiting for review count toward the creation limit.
+
+The Guilds page lists groups by member count, with 24 guilds per page. Search matches keywords in guild names, handles, and descriptions, ignoring case; a leading `#` is optional. This directory search is keyword-based, not semantic. Click a guild's member count to browse its members: the moderator appears first, labeled “(moderator)”, followed by newest joins, with 50 people per page and Load more for the next page. Joining adds matching commits to Following without following every author and clears any existing mute. When a commit appears only because of a joined guild, it says “because you joined” beside the guild label. Leave a guild to reveal its Mute control. Muting hides matching commits from logs and search, including commits by followed authors. You can still open the guild or a commit directly.
+
+The guilds you joined are listed in the left navigation, with the guilds that have the most commits you missed first. The count starts from your last visit to the guild's board, or from when you joined, and leaves out your own commits, commits you cannot see, and commits by people you muted. Counts above 99 show as 99+, and a muted guild is not listed. Opening a board clears its count, and a line marks where the commits that are new since your last visit end.
+
+Each guild's bulletin board shows commits posted directly to it and regular commits containing its exact hashtag—not semantic search. Matching replies bring their thread onto the board, even when the root has no hashtag. Threads show reply previews and expand like a regular commit log, ordered by root date, newest first. Each page contains 30 distinct root commits; replies do not use up that limit, and Load more adds the next page. Posts from the board's composer stay attached to that guild without an automatic hashtag, including scheduled posts. They count toward the author's commit count but do not appear in their profile log or general feeds. Outside the board, such as when one is opened by its link, a board post names the guild it was posted in and notes that it is not shown in general logs. They appear in Following when you join the guild, and in semantic search suggestions and results under a divider with the guild's name and icon. Regular hashtag commits keep appearing on profiles and in feeds as usual. Typing a hashtag offers matching guilds in the autocomplete menu; select one with the keyboard or pointer to insert its handle.
+
+The guild's moderator can pin one commit from its board, including a thread brought in by a matching reply. It appears first with a “Pinned to board” label, without appearing twice or changing profile pins or other guilds. The pin is separate from the 30 chronological threads per page, so pinning never changes what Load more brings in. Pinning another replaces it; unpinning restores its natural position if already loaded, or removes its promotion until you load that older page. A pin never overrides visibility, blocks or author mutes, and disappears from the board if the thread no longer matches the guild. Permanently deleting the pinned commit clears the pin.
+
+Guild descriptions can be reported privately. When a guild has no moderator, including after its moderator deletes their account, it is paused, not deleted. Its page, posts, icon, description, memberships and mute preferences stay connected. New board posts wait until it has a moderator; scheduled board posts stay pending and keep their guild, and committing one now says the guild is paused. Ordinary hashtag commits still appear. A different person can claim the hashtag to resume the same guild, but a removed moderator cannot reclaim it.
+
 ### Exporting your data
 
 Choose **Download JSON** in Settings → Profile to export your account data. The export includes:
@@ -663,6 +692,7 @@ Choose **Download JSON** in Settings → Profile to export your account data. Th
 - the days you used /dev/null (dates, not times), oldest first, with which of its apps you used on each (days before apps were tracked say web, whatever you used, and a phone approved before the mobile app started identifying itself says other), and the last of them;
 - your commits and replies (including pending, rejected, and deleted entries still stored), their cached translations, polls, and your votes;
 - stars, followers and people you follow, mutes, blocks, and dismissed **Not interested** suggestions;
+- guilds you moderate, guilds and guild edits you submitted that are waiting for review, your guild memberships and mutes, reports you submitted, and guild moderator-removal records relating to your account;
 - messages you sent, including links to your voice notes, and notifications;
 - SSH key fingerprints, approved devices, timeout history, and ban history;
 - active-session metadata: IP address, browser information, and last activity.
@@ -675,11 +705,13 @@ Sources: [export settings](resources/js/pages/user-profile/edit.tsx), [export co
 
 ### Deleting your account
 
-Settings → Profile → **Delete account** opens a confirmation for permanent deletion of your /dev/null account; an app can also delete it through the signed API. It does not delete your GitHub account. Your top-level commits and every reply under those threads are erased. Your replies are also removed, except that replies from other people beneath them survive under authorless `[deleted]` placeholders. Your devices, the messages and reactions you sent, and all your uploaded images are erased too; other people's messages in your conversations stay with them. Account deletion is not covered by the 30-second commit undo.
+Settings → Profile → **Delete account** opens a confirmation for permanent deletion of your /dev/null account; an app can also delete it through the signed API. It does not delete your GitHub account. Your top-level commits and every reply under those threads are erased. Your replies are also removed, except that replies from other people beneath them survive under authorless `[deleted]` placeholders. Your devices, the messages and reactions you sent, and your personal uploaded images are erased too; other people's messages in your conversations stay with them. A guild you moderated is paused and keeps its shared icon and description, memberships and other people's posts. Account deletion is not covered by the 30-second commit undo.
 
 You can sign in with GitHub again later, but start from a new account rather than restoring the deleted one. Export your data first if you want a copy. Deleting from /dev/null cannot retract copies of public content held elsewhere.
 
 As the privacy policy explains, timeout and ban records retain your GitHub account id, reason, and dates after account deletion, so deleting and recreating an account cannot evade those restrictions. Your GitHub account id is also kept until you sign in again, only so that your page doesn't come back as one of a developer not on /dev/null yet. Deleted content may also remain in backups and logs for a period.
+
+For guilds, which are not generally available yet, a moderator removal retains only the GitHub account ID, hashtag and removal date after account deletion, so the same GitHub account cannot reclaim that guild. Guild descriptions, icons and reports are not retained by that restriction.
 
 Sources: [account deletion confirmation](resources/js/components/delete-user.tsx), [account deletion](app/Actions/DeleteUser.php), [privacy policy](resources/js/pages/privacy/show.tsx).
 
