@@ -3,11 +3,13 @@ import type { LucideIcon } from 'lucide-react';
 import {
     BookOpen,
     CircleAlert,
+    FileJson,
     Gauge,
     KeyRound,
     ListOrdered,
 } from 'lucide-react';
 import type { PropsWithChildren } from 'react';
+import OpenApiController from '@/actions/App/Http/Controllers/Api/OpenApiController';
 import ApiDocsController from '@/actions/App/Http/Controllers/ApiDocsController';
 import LogController from '@/actions/App/Http/Controllers/LogController';
 import ConsoleLayout from '@/layouts/console/layout';
@@ -34,7 +36,7 @@ function navItems(sections: ApiDocsSection[]) {
 }
 
 /**
- * The API docs as a console beside the log, its guides in the sidebar.
+ * The API docs as a console beside the log: the guides in the sidebar, and the spec elsewhere.
  */
 export default function ApiDocsLayout({ children }: PropsWithChildren) {
     const { props } = usePage<ApiDocsProps>();
@@ -43,6 +45,19 @@ export default function ApiDocsLayout({ children }: PropsWithChildren) {
         {
             label: 'Guide',
             items: navItems(props.sections),
+        },
+        {
+            label: 'Elsewhere',
+            items: [
+                {
+                    key: 'openapi',
+                    title: 'openapi.json',
+                    description: 'The whole API as OpenAPI 3.1',
+                    href: OpenApiController.show().url,
+                    icon: FileJson,
+                    external: true,
+                },
+            ],
         },
     ];
 
