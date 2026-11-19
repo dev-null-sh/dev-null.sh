@@ -11,6 +11,7 @@ use App\Http\Requests\CreateGuildRequest;
 use App\Http\Requests\ListGuildsRequest;
 use App\Http\Requests\ShowGuildRequest;
 use App\Http\Requests\UpdateGuildRequest;
+use App\Http\Resources\GuildLiveResource;
 use App\Http\Resources\ShownStreams;
 use App\Models\Guild;
 use App\Models\GuildSubmission;
@@ -63,7 +64,7 @@ final readonly class GuildController
             'handle' => $guild->handle,
             'readFrom' => $joinedGuilds->readFrom($guild, $user),
             'canModerate' => $guild->user_id === $user->id,
-            'live' => $guild->shownLive(),
+            'live' => GuildLiveResource::of($guild),
             'pinnedCommit' => ShownStreams::commit($query->pinned($guild, $user)),
             'commits' => $commits->currentPage() > 1
                 ? Inertia::merge(ShownStreams::commits($commits))->matchOn('id')

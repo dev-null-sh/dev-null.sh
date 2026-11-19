@@ -13,6 +13,11 @@ use Illuminate\Support\Facades\DB;
 
 final readonly class DeleteGuildLive
 {
+    public function __construct(private DeleteGuildLiveNotifications $notifications)
+    {
+        //
+    }
+
     /**
      * Clears the guild's stream. A moderator must still be the moderator. The scheduler passes no moderator, because
      * the deadline already passed.
@@ -36,10 +41,9 @@ final readonly class DeleteGuildLive
 
             $guild->update(['live_platform' => null, 'live_url' => null, 'live_ends_at' => null]);
 
-            event(new UsersUpdated(
-                DB::table('guild_preferences')->where('guild_id', $guild->id)->pluck('user_id')->push($guild->user_id)->filter()->unique()->values(),
-                UserUpdate::Guilds,
-            ));
+            $this->notifications->handle($guild);
+
+            event(new UsersUpdated($guild->viewerIds(), UserUpdate::Guilds));
         });
     }
-};
+}

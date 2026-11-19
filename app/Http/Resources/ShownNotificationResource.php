@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Resources;
 
 use App\Enums\NotificationType;
+use App\Models\Guild;
 use App\Models\Notification;
 use App\Models\Profile;
 use App\Models\UserTimeout;
@@ -33,6 +34,12 @@ final class ShownNotificationResource extends JsonResource implements Arrayable
                     'reason' => $notification->timeout->reason->label(),
                     'duration' => $notification->timeout->duration(),
                     'ends_at' => $notification->timeout->ends_at->toIso8601ZuluString(),
+                ],
+            ] : [],
+            ...$notification->type === NotificationType::GuildLive && $notification->relationLoaded('guild') && $notification->guild instanceof Guild ? [
+                'guild' => [
+                    'handle' => $notification->guild->handle,
+                    'name' => $notification->guild->name,
                 ],
             ] : [],
             ...$notification->relationLoaded('actors') ? [

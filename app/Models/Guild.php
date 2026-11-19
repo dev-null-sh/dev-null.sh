@@ -14,6 +14,8 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 /**
  * @property-read string $id
@@ -87,15 +89,12 @@ final class Guild extends Model
     }
 
     /**
-     * @return array{url: string, thumbnail_url: string, ends_at: string}|null
+     * People who should refresh this guild: everyone with a preference, and the moderator when there is one.
+     *
+     * @return Collection<int, mixed>
      */
-    public function shownLive(): ?array
+    public function viewerIds(): Collection
     {
-        $stream = $this->liveStream();
-        $endsAt = $this->live_ends_at;
-
-        return $stream instanceof LiveStream && $endsAt !== null
-            ? [...$stream->toArray(), 'ends_at' => $endsAt->toJSON()]
-            : null;
+        return DB::table('guild_preferences')->where('guild_id', $this->id)->pluck('user_id')->push($this->user_id)->filter()->unique()->values();
     }
 }

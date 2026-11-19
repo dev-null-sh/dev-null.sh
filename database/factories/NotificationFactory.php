@@ -39,6 +39,7 @@ final class NotificationFactory extends Factory
                     NotificationType::Starred => 'starred:'.$notification->commit_id.':'.$notification->actor_id,
                     NotificationType::LeveledUp => 'leveled_up:'.$notification->level,
                     NotificationType::TimedOut => 'timed_out:'.$notification->timeout_id,
+                    NotificationType::GuildLive => 'guild_live:'.$notification->guild_id,
                     default => $notification->type->value.':'.($notification->commit_id ?? $notification->actor_id),
                 },
             ]))

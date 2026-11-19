@@ -14,6 +14,11 @@ use Illuminate\Support\Facades\DB;
 
 final readonly class UpdateGuildLive
 {
+    public function __construct(private CreateGuildLiveNotifications $notifications)
+    {
+        //
+    }
+
     /**
      * Points the guild at a YouTube or Twitch stream for a few hours. Only its current moderator can do this.
      */
@@ -33,10 +38,9 @@ final readonly class UpdateGuildLive
                 'live_ends_at' => now()->addHours($hours),
             ]);
 
-            event(new UsersUpdated(
-                DB::table('guild_preferences')->where('guild_id', $guild->id)->pluck('user_id')->push($guild->user_id)->filter()->unique()->values(),
-                UserUpdate::Guilds,
-            ));
+            $this->notifications->handle($guild, $user);
+
+            event(new UsersUpdated($guild->viewerIds(), UserUpdate::Guilds));
         });
     }
-};
+}

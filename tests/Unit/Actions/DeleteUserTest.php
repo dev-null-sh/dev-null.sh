@@ -12,6 +12,7 @@ use App\Actions\DeleteUser;
 use App\Actions\UpdateCommitHotScores;
 use App\Contracts\Services\TranslationProvider;
 use App\Dto\ThreadEngagement;
+use App\Enums\LivePlatform;
 use App\Enums\OrganizationRole;
 use App\Enums\UserUpdate;
 use App\Events\UsersUpdated;
@@ -494,7 +495,12 @@ it('pauses moderated guilds and preserves other peoples posts memberships and sc
     $other = Guild::factory()->create();
     $commit = Commit::factory()->create(['body' => 'Hiring #jobs']);
     $board = Commit::factory()->for($user)->for($guild)->create(['body' => 'A board post']);
-    $guild->update(['pinned_commit_id' => $board->id]);
+    $guild->update([
+        'pinned_commit_id' => $board->id,
+        'live_platform' => LivePlatform::YouTube,
+        'live_url' => 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+        'live_ends_at' => now()->addHour(),
+    ]);
     $other->update(['pinned_commit_id' => $board->id]);
     $member = User::factory()->create();
     $otherBoard = Commit::factory()->for($member)->for($guild)->create();
@@ -515,7 +521,8 @@ it('pauses moderated guilds and preserves other peoples posts memberships and sc
     $this->assertModelExists($otherSubmission);
     Storage::disk()->assertExists($otherSubmission->icon_path);
     Storage::disk()->assertMissing('guild-icons/pending.webp');
-    expect($guild->fresh())->user_id->toBeNull()->pinned_commit_id->toBeNull();
+    expect($guild->fresh())->user_id->toBeNull()->pinned_commit_id->toBeNull()
+        ->live_platform->toBeNull()->live_url->toBeNull()->live_ends_at->toBeNull();
     expect($other->fresh()->pinned_commit_id)->toBeNull();
     $this->assertModelMissing($board);
     expect($otherBoard->fresh()->guild_id)->toBe($guild->id);

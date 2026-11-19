@@ -26,6 +26,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property-read string|null $commit_id
  * @property-read string|null $subject_id
  * @property-read string|null $timeout_id
+ * @property-read string|null $guild_id
  * @property-read string $key
  * @property-read string|null $reason
  * @property-read int|null $level
@@ -37,6 +38,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property-read Organization|null $organization
  * @property-read Commit|null $commit
  * @property-read UserTimeout|null $timeout
+ * @property-read Guild|null $guild
  * @property-read string $group_id
  * @property-read int $event_count
  * @property-read int $actors_count
@@ -52,6 +54,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'second_actor_id',
     'third_actor_id',
     'timeout_id',
+    'guild_id',
 ])]
 #[UseEloquentBuilder(NotificationBuilder::class)]
 final class Notification extends Model
@@ -139,5 +142,15 @@ final class Notification extends Model
     public function timeout(): BelongsTo
     {
         return $this->belongsTo(UserTimeout::class);
+    }
+
+    /**
+     * The guild that went live, when this alerts its members.
+     *
+     * @return BelongsTo<Guild, $this>
+     */
+    public function guild(): BelongsTo
+    {
+        return $this->belongsTo(Guild::class);
     }
 }
