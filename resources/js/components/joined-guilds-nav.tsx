@@ -1,12 +1,9 @@
 import { Link, usePage } from '@inertiajs/react';
+import * as TooltipPrimitive from '@radix-ui/react-tooltip';
 import { useState } from 'react';
 import { show } from '@/actions/App/Http/Controllers/GuildController';
 import { GuildIcon } from '@/components/guild-icon';
-import {
-    Tooltip,
-    TooltipContent,
-    TooltipTrigger,
-} from '@/components/ui/tooltip';
+import { TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useCurrentUrl } from '@/hooks/use-current-url';
 import { inOpeningOrder } from '@/lib/joined-guilds-order';
 import { cn } from '@/lib/utils';
@@ -33,7 +30,7 @@ function JoinedGuildLink({
             : guild.name;
 
     return (
-        <Tooltip>
+        <TooltipPrimitive.Root>
             <TooltipTrigger asChild>
                 <Link
                     href={href}
@@ -77,7 +74,7 @@ function JoinedGuildLink({
                 </Link>
             </TooltipTrigger>
             {iconsOnly && <TooltipContent side="right">{label}</TooltipContent>}
-        </Tooltip>
+        </TooltipPrimitive.Root>
     );
 }
 
