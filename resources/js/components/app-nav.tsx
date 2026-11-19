@@ -5,6 +5,7 @@ import {
     Star,
     GitCommitVertical,
     History,
+    HandHelping,
     MessagesSquare,
     PanelLeftClose,
     PanelLeftOpen,
@@ -17,6 +18,7 @@ import {
 } from 'lucide-react';
 import type { ReactElement, ReactNode } from 'react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import ContributorRequestController from '@/actions/App/Http/Controllers/ContributorRequestController';
 import ConversationController from '@/actions/App/Http/Controllers/ConversationController';
 import { index as guildIndex } from '@/actions/App/Http/Controllers/GuildController';
 import LogController from '@/actions/App/Http/Controllers/LogController';
@@ -110,6 +112,11 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
             title: 'Profile',
             href: hrefFor((user) => show(user)),
             icon: UserRound,
+        },
+        {
+            title: 'Help wanted',
+            href: ContributorRequestController.index(),
+            icon: HandHelping,
         },
         {
             title: 'Starred',
@@ -566,7 +573,9 @@ export function MobileNav({ children }: { children?: ReactNode }) {
     const [isChangelogOpen, setIsChangelogOpen] = useState(false);
     const allItems = useNavItems();
     const menuItems = allItems.filter((item) =>
-        ['Profile', 'Settings', 'Operations', 'Guilds'].includes(item.title),
+        ['Profile', 'Settings', 'Operations', 'Guilds', 'Help wanted'].includes(
+            item.title,
+        ),
     );
     const items = allItems.filter(
         (item) =>

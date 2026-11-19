@@ -20,6 +20,7 @@ This file documents the platform's features, stack, and stories. Feature entries
   - [Following, Latest, and Trending logs](#following-latest-and-trending-logs)
   - [Searching developers, organizations, and commits](#searching-developers-organizations-and-commits)
   - [Writing commits](#writing-commits)
+  - [Contributor requests](#contributor-requests)
   - [Translating commits](#translating-commits)
   - [Code, emoji, and mentions](#code-emoji-and-mentions)
   - [Draft previews](#draft-previews)
@@ -228,6 +229,16 @@ The public search searches developers, organizations, and commits, not this know
 Sources: [search page](resources/js/pages/search/index.tsx), [commit search query](app/Queries/CommitSearchQuery.php), [search validation](app/Http/Requests/ListCommitSearchRequest.php), [knowledge-base query](app/Queries/KnowledgeBaseSearchQuery.php).
 
 Livestream history: the team agreed to build semantic search on [day two at 2:57:59](https://www.youtube.com/watch?v=nfmVdXZfzUE&t=10679s). The discussion connects immutable commits with simpler embeddings: editing would require re-embedding, versioning, and reconsidering notifications. At the time they deferred editing and versioning “for now”; the decision is now final: commit editing will never be added.
+
+### Contributor requests
+
+The **Help wanted** board at `/help-wanted` lists requests for coding, testing, documentation, design, or feedback on GitHub projects. Guests can read approved requests. Filter by kind and open, filled, or all requests; pages contain up to 12 items, newest first.
+
+Signed-in developers post a request at `/help-wanted/create` with a description and an HTTPS `github.com/owner/repository` or issue URL. The description and project link become an ordinary immutable commit, subject to the same commit validation, rules acceptance, shared posting rate limit, timeouts, moderation, mutes, and blocks. Pending or rejected requests are visible only to their author on the board. Linking a project does not establish ownership or verify its visibility on GitHub. Replies use the normal commit thread.
+
+Only the author can mark a request filled or reopen it. Its description, kind, and project link cannot be edited. Deleting its commit hides the request; deleting the account removes its request records. Private JSON exports include the account's request metadata in schema version 10.
+
+The JSON API exposes `GET /api/v1/help-wanted` with optional `kind` and `status` filters, and signed `POST /api/v1/help-wanted` and `PUT /api/v1/help-wanted/{contributorRequest}` for creation and status changes. These use the same validation, visibility, and ownership rules as the web.
 
 ### Writing commits
 
