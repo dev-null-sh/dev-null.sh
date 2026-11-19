@@ -63,6 +63,7 @@ final readonly class GuildController
             'handle' => $guild->handle,
             'readFrom' => $joinedGuilds->readFrom($guild, $user),
             'canModerate' => $guild->user_id === $user->id,
+            'live' => $guild->shownLive(),
             'pinnedCommit' => ShownStreams::commit($query->pinned($guild, $user)),
             'commits' => $commits->currentPage() > 1
                 ? Inertia::merge(ShownStreams::commits($commits))->matchOn('id')

@@ -12,6 +12,8 @@ import { GraphCanvas } from '@/components/graph-canvas';
 import { RailSegment } from '@/components/graph-rail';
 import { GuildDialog } from '@/components/guild-dialog';
 import { GuildIcon } from '@/components/guild-icon';
+import { GuildLiveButton } from '@/components/guild-live-button';
+import { LiveStreamCard } from '@/components/live-stream-card';
 import {
     GuildRemovalButton,
     GuildReportButton,
@@ -23,15 +25,17 @@ import {
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { WordmarkText } from '@/components/wordmark-text';
+import { useNow } from '@/hooks/use-now';
 import AppLayout from '@/layouts/app-layout';
 import { firstReadCommit } from '@/lib/guild-read-marker';
-import type { Commit } from '@/types';
+import type { Commit, LiveStream } from '@/types';
 import type { JoinedGuild } from '@/types/guild';
 
 export default function Show({
     handle,
     readFrom,
     canModerate,
+    live,
     pinnedCommit,
     commits,
     page,
@@ -40,12 +44,16 @@ export default function Show({
     handle: string;
     readFrom: string | null;
     canModerate: boolean;
+    live: LiveStream | null;
     pinnedCommit: Commit | null;
     commits: Commit[];
     page: number;
     hasMore: boolean;
 }) {
     const { guilds, auth } = usePage().props;
+    const now = useNow();
+    const stream =
+        live?.ends_at != null && new Date(live.ends_at) > now ? live : null;
     const [isLoading, setIsLoading] = useState(false);
     const [isPinning, setIsPinning] = useState(false);
     const pinnedCommitId = pinnedCommit?.id;
@@ -191,6 +199,9 @@ export default function Show({
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
                         <GuildPreferences guild={guild} />
+                        {canModerate && !guild.is_paused && (
+                            <GuildLiveButton handle={handle} live={stream} />
+                        )}
                         {canModerate && (
                             <GuildDialog
                                 key={handle}
@@ -225,6 +236,14 @@ export default function Show({
                 <p className="mt-4 text-[15px] leading-relaxed wrap-anywhere whitespace-pre-wrap">
                     <WordmarkText>{guild.description}</WordmarkText>
                 </p>
+                {stream && (
+                    <div className="mt-4 max-w-sm">
+                        <LiveStreamCard
+                            user={{ name: guild.name }}
+                            stream={stream}
+                        />
+                    </div>
+                )}
                 <div className="mt-4 flex flex-wrap items-center gap-3">
                     {!canModerate && <GuildReportButton guild={guild} />}
                     {auth.isAdmin && !guild.is_paused && (
