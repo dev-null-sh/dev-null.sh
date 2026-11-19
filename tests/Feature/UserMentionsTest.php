@@ -32,6 +32,17 @@ it('keeps an API mention on the user it captured after they rename and someone e
     expect($newcomer->id)->not->toBe($original->id);
 });
 
+it('keeps each mention of a handle made of digits on the user it captured', function (): void {
+    $hundred = User::factory()->create(['handle' => '123']);
+    $zero = User::factory()->create(['handle' => '0']);
+
+    $id = signedApiRequest($this->keyPair, 'POST', route('api-commit.store'), ['body' => '@123 @0'])->assertCreated()->json('data.id');
+
+    signedApiRequest($this->keyPair, 'GET', route('api-commit.show', $id))
+        ->assertOk()
+        ->assertJsonPath('data.mentions.*.id', [$hundred->id, $zero->id]);
+});
+
 it('gives a preview the ids its mentions would capture', function (): void {
     $nuno = User::factory()->create(['handle' => 'nunomaduro']);
     $laravel = Organization::factory()->create(['handle' => 'laravel']);
