@@ -79,4 +79,11 @@ export type Notification =
           commit_id: string;
           subject_id: null;
           commit: Omit<Commit, 'author'>;
+      })
+    | (BaseNotification & {
+          type: 'guild_live';
+          commit_id: null;
+          subject_id: null;
+          commit: null;
+          guild: { handle: string; name: string };
       });

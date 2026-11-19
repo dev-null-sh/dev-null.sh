@@ -48,6 +48,13 @@ final class NotificationBuilder extends Builder
                             ->whereColumn('organization_members.organization_id', 'notifications.organization_id')
                             ->whereColumn('organization_members.user_id', 'notifications.recipient_id')))
                     ->offset(0)))
+            ->orWhere(fn (Builder $query): Builder => $query
+                ->where('type', NotificationType::GuildLive)
+                ->whereExists(fn (QueryBuilder $guilds): QueryBuilder => $guilds
+                    ->from('guilds')
+                    ->whereColumn('guilds.id', 'notifications.guild_id')
+                    ->where('guilds.live_ends_at', '>', now())
+                    ->offset(0)))
             ->orWhereIn('type', [NotificationType::LeveledUp, NotificationType::TimedOut]))
             ->withoutSilencedActors();
     }

@@ -10,6 +10,7 @@ use App\Actions\DeleteGuildModerator;
 use App\Actions\DeleteUser;
 use App\Actions\UpdateDevicePushToken;
 use App\Contracts\Services\TranslationProvider;
+use App\Enums\LivePlatform;
 use App\Enums\ModerationReason;
 use App\Enums\NotificationType;
 use App\Enums\OrganizationRole;
@@ -745,7 +746,11 @@ it('exports subscription metadata without delivery endpoints', function (): void
 it('exports only the users guilds without internal paths or identifiers', function (): void {
     $user = User::factory()->create();
     $pin = Commit::factory()->create(['body' => '#jobs']);
-    Guild::factory()->create(['user_id' => $user->id, 'handle' => 'jobs', 'name' => 'Job Board', 'description' => 'Hiring.', 'emoji' => '💼', 'icon_path' => 'guild-icons/private-path.webp', 'pinned_commit_id' => $pin->id]);
+    Guild::factory()->create([
+        'user_id' => $user->id, 'handle' => 'jobs', 'name' => 'Job Board', 'description' => 'Hiring.', 'emoji' => '💼',
+        'icon_path' => 'guild-icons/private-path.webp', 'pinned_commit_id' => $pin->id,
+        'live_platform' => LivePlatform::YouTube, 'live_url' => 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', 'live_ends_at' => now()->addHour(),
+    ]);
     Guild::factory()->create(['user_id' => $user->id, 'handle' => 'rust']);
     Guild::factory()->create(['name' => 'Someone else']);
     GuildSubmission::factory()->for($user)->create(['handle' => 'adhd', 'name' => 'ADHD', 'description' => 'Waiting for review.', 'icon_path' => 'guild-icons/pending-path.webp']);
@@ -759,9 +764,13 @@ it('exports only the users guilds without internal paths or identifiers', functi
             'handle' => 'jobs', 'name' => 'Job Board', 'description' => 'Hiring.', 'emoji' => '💼',
             'icon' => route('guild-icon.show', 'jobs'),
             'pinned_commit_id' => $pin->id,
+            'live_platform' => 'youtube',
+            'live_url' => 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+            'live_ends_at' => now()->addHour()->toIso8601String(),
             'created_at' => now()->toIso8601String(), 'updated_at' => now()->toIso8601String(),
         ])
         ->and($data['guilds'][1]['icon'])->toBeNull()
+        ->and($data['guilds'][1]['live_url'])->toBeNull()
         ->and($data['guild_submissions'])->toBe([[
             'handle' => 'adhd', 'name' => 'ADHD', 'description' => 'Waiting for review.', 'emoji' => '💻', 'has_icon' => true,
             'created_at' => now()->toIso8601String(),

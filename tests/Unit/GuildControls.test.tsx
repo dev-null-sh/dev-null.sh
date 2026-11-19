@@ -54,6 +54,7 @@ vi.doMock('../../resources/js/components/follow-button', () => ({
         onMouseLeave: vi.fn(),
     }),
 }));
+vi.doMock('@/hooks/use-now', () => ({ useNow: () => new Date(0) }));
 
 const { Form, router } = await import('@inertiajs/react');
 const { default: GuildBoard } =
@@ -112,6 +113,7 @@ test('promotes a separate pin without changing loaded chronological rows and res
                 handle: 'rust',
                 readFrom: null,
                 canModerate: true,
+                live: null,
                 commits,
                 pinnedCommit,
                 page: 2,
@@ -149,6 +151,7 @@ test('clears the missed commits of a joined guild when its board opens', () => {
         handle: 'rust',
         readFrom: null,
         canModerate: false,
+        live: null,
         commits: [],
         pinnedCommit: null,
         page: 1,
@@ -186,6 +189,7 @@ test('changes only the pin optimistically and prevents pin and load-more request
                 handle: 'rust',
                 readFrom: null,
                 canModerate: true,
+                live: null,
                 commits: [commit],
                 pinnedCommit: null,
                 page: 20,

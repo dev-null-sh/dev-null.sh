@@ -41,6 +41,7 @@ final readonly class NotificationGroupsQuery
                 'commit',
                 'timeout',
                 'organization',
+                'guild',
             ])
             ->latest()->latest('id');
         $perPage = $through instanceof CarbonImmutable
@@ -114,6 +115,7 @@ final readonly class NotificationGroupsQuery
                     ->withExists(['followers as is_followed' => fn (Builder $query): Builder => $query->whereKey($user->id)]),
                 'organization',
                 'timeout',
+                'guild',
             ]);
     }
 

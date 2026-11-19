@@ -63,6 +63,7 @@ use App\Http\Controllers\ForecastController;
 use App\Http\Controllers\GuildCommitPinController;
 use App\Http\Controllers\GuildController;
 use App\Http\Controllers\GuildIconController;
+use App\Http\Controllers\GuildLiveController;
 use App\Http\Controllers\GuildMembershipController;
 use App\Http\Controllers\GuildModeratorController;
 use App\Http\Controllers\GuildMuteController;
@@ -379,6 +380,8 @@ Route::middleware('auth')->group(function (): void {
     Route::get('guilds/{guild:handle}/icon', [GuildIconController::class, 'show'])->name('guild-icon.show');
     Route::post('guilds', [GuildController::class, 'store'])->middleware([PreventPostingInTimeout::class, 'throttle:10,1'])->name('guild.store');
     Route::put('guilds/{guild:handle}', [GuildController::class, 'update'])->middleware([PreventPostingInTimeout::class, 'throttle:10,1'])->name('guild.update');
+    Route::put('guilds/{guild:handle}/live', [GuildLiveController::class, 'update'])->middleware(PreventPostingInTimeout::class)->name('guild-live.update');
+    Route::delete('guilds/{guild:handle}/live', [GuildLiveController::class, 'destroy'])->name('guild-live.destroy');
     Route::put('guilds/{guild:handle}/commits/{commit}/pin', [GuildCommitPinController::class, 'update'])
         ->whereUuid('commit')->withTrashed()->middleware('throttle:pins')->name('guild-commit-pin.update');
     Route::put('guild-memberships/{guild}', [GuildMembershipController::class, 'update'])->whereUuid('guild')->middleware('throttle:follows')->name('guild-membership.update');

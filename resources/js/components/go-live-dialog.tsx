@@ -35,9 +35,13 @@ export function endStream(callbacks?: {
 export function GoLiveDialog({
     open,
     onOpenChange,
+    form = UserLiveController.update.form(),
+    description = 'Share your YouTube or Twitch stream and your avatar gets a live marker that sends people to it, for as long as you choose.',
 }: {
     open: boolean;
     onOpenChange: (open: boolean) => void;
+    form?: ReturnType<typeof UserLiveController.update.form>;
+    description?: string;
 }) {
     const [hours, setHours] = useState(defaultHours);
     const hoursLabel = hours === 1 ? '1 hour' : `${hours} hours`;
@@ -47,14 +51,10 @@ export function GoLiveDialog({
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent>
                 <DialogTitle>Go live</DialogTitle>
-                <DialogDescription>
-                    Share your YouTube or Twitch stream and your avatar gets a
-                    live marker that sends people to it, for as long as you
-                    choose.
-                </DialogDescription>
+                <DialogDescription>{description}</DialogDescription>
 
                 <Form
-                    {...UserLiveController.update.form()}
+                    {...form}
                     options={{ preserveScroll: true }}
                     onSuccess={() => {
                         onOpenChange(false);

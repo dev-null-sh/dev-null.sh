@@ -6,6 +6,7 @@ namespace App\Http\Resources;
 
 use App\Enums\NotificationType;
 use App\Models\Commit;
+use App\Models\Guild;
 use App\Models\Notification;
 use App\Models\Organization;
 use App\Models\UserTimeout;
@@ -47,6 +48,12 @@ final class NotificationResource extends JsonResource
                 'duration' => $this->timeout->duration(),
                 'ends_at' => $this->timeout->ends_at->toIso8601ZuluString(),
             ]] : [],
+            ...$this->type === NotificationType::GuildLive && $this->relationLoaded('guild') && $this->guild instanceof Guild ? [
+                'guild' => [
+                    'handle' => $this->guild->handle,
+                    'name' => $this->guild->name,
+                ],
+            ] : [],
         ];
     }
 }

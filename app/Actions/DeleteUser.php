@@ -76,6 +76,7 @@ final readonly class DeleteUser
 
             // Report creation holds shared reporter and commit locks until its attachment paths are saved.
             $guilds = Guild::query()->where('user_id', $user->id)->orderBy('id')->lockForUpdate()->get();
+            Guild::query()->whereKey($guilds->modelKeys())->update(['live_platform' => null, 'live_url' => null, 'live_ends_at' => null]);
             $guildMembers = DB::table('guild_preferences')->whereIn('guild_id', $guilds->modelKeys())->whereNot('user_id', $user->id)->pluck('user_id');
             $imagePaths = [...$this->reportImagePaths($user), ...$this->imagePaths($user), ...$this->scheduledImagePaths($user), ...$this->messageImagePaths($user), ...$this->messageVoicePaths($user), ...$this->guildSubmissionIconPaths($user)];
             resolve(DeleteStoredFiles::class)->retain($imagePaths);

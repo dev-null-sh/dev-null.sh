@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Dto\LiveStream;
+use App\Enums\LivePlatform;
 use Carbon\CarbonInterface;
 use Database\Factories\GuildFactory;
 use Illuminate\Database\Eloquent\Attributes\Visible;
@@ -12,6 +14,8 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 /**
  * @property-read string $id
@@ -22,6 +26,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property-read string $description
  * @property-read string $emoji
  * @property-read string|null $icon_path
+ * @property-read LivePlatform|null $live_platform
+ * @property-read string|null $live_url
+ * @property-read CarbonInterface|null $live_ends_at
  * @property-read int $members_count
  * @property-read bool $is_joined
  * @property-read bool $is_muted
@@ -57,5 +64,37 @@ final class Guild extends Model
     public function iconUrl(): ?string
     {
         return $this->icon_path === null ? null : route('guild-icon.show', ['guild' => $this->handle, 'v' => $this->updated_at->getTimestampMs()]);
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function casts(): array
+    {
+        return [
+            'live_platform' => LivePlatform::class,
+            'live_url' => 'string',
+            'live_ends_at' => 'datetime',
+        ];
+    }
+
+    /**
+     * The stream the guild points at until it runs out, which also hides a stream the scheduler has not cleared yet.
+     */
+    public function liveStream(): ?LiveStream
+    {
+        return $this->live_ends_at?->isFuture() === true
+            ? $this->live_platform?->driver()->stream((string) $this->live_url)
+            : null;
+    }
+
+    /**
+     * People who should refresh this guild: everyone with a preference, and the moderator when there is one.
+     *
+     * @return Collection<int, mixed>
+     */
+    public function viewerIds(): Collection
+    {
+        return DB::table('guild_preferences')->where('guild_id', $this->id)->pluck('user_id')->push($this->user_id)->filter()->unique()->values();
     }
 }

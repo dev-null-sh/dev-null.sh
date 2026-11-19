@@ -661,6 +661,8 @@ Each guild's bulletin board shows commits posted directly to it and regular comm
 
 The guild's moderator can pin one commit from its board, including a thread brought in by a matching reply. It appears first with a “Pinned to board” label, without appearing twice or changing profile pins or other guilds. The pin is separate from the 30 chronological threads per page, so pinning never changes what Load more brings in. Pinning another replaces it; unpinning restores its natural position if already loaded, or removes its promotion until you load that older page. A pin never overrides visibility, blocks or author mutes, and disappears from the board if the thread no longer matches the guild. Permanently deleting the pinned commit clears the pin.
 
+The guild's moderator can point the guild at a YouTube or Twitch stream for 1 to 12 hours, from **Go live** on the guild page. The same links work as on a profile, and the stream plays on the provider in a new tab, never inside /dev/null. While it is live, the guild page shows the stream's thumbnail and a **Watch** button. Members who have joined, and have not muted the guild, get a notification that names the moderator and the guild and opens the guild page. The moderator is not notified. Ending the stream, letting the hours run out, or removing the moderator clears the link and that notification. Going live again sends a new unread notification. A paused guild cannot go live.
+
 Guild descriptions can be reported privately. When a guild has no moderator, including after its moderator deletes their account, it is paused, not deleted. Its page, posts, icon, description, memberships and mute preferences stay connected. New board posts wait until it has a moderator; scheduled board posts stay pending and keep their guild, and committing one now says the guild is paused. Ordinary hashtag commits still appear. A different person can claim the hashtag to resume the same guild, but a removed moderator cannot reclaim it.
 
 ### Exporting your data
@@ -671,7 +673,7 @@ Choose **Download JSON** in Settings → Profile to export your account data. Th
 - the days you used /dev/null (dates, not times), oldest first, with which of its apps you used on each (days before apps were tracked say web, whatever you used, and a phone approved before the mobile app started identifying itself says other), and the last of them;
 - your commits and replies (including pending, rejected, and deleted entries still stored), their cached translations, polls, and your votes;
 - stars, followers and people you follow, mutes, blocks, and dismissed **Not interested** suggestions;
-- guilds you moderate, guilds and guild edits you submitted that are waiting for review, your guild memberships and mutes, reports you submitted, and guild moderator-removal records relating to your account;
+- guilds you moderate, including a current YouTube or Twitch stream link when one is set, guilds and guild edits you submitted that are waiting for review, your guild memberships and mutes, reports you submitted, and guild moderator-removal records relating to your account;
 - messages you sent, including links to your voice notes, and notifications;
 - SSH key fingerprints, approved devices, timeout history, and ban history;
 - active-session metadata: IP address, browser information, and last activity.

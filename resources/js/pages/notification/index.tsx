@@ -18,6 +18,7 @@ import {
     Hourglass,
     MessageSquareReply,
     Quote,
+    Radio,
     Star,
     UserPlus,
     X,
@@ -33,6 +34,7 @@ import {
     useState,
 } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
+import { show as showGuild } from '@/actions/App/Http/Controllers/GuildController';
 import { index } from '@/actions/App/Http/Controllers/NotificationController';
 import { show as groupShow } from '@/actions/App/Http/Controllers/NotificationGroupController';
 import NotificationReadAtController from '@/actions/App/Http/Controllers/NotificationReadAtController';
@@ -1184,6 +1186,7 @@ export function NotificationContent({
         notification.type === 'mentioned' ||
         notification.type === 'first_commit';
     const level = notification.type === 'leveled_up' ? notification : null;
+    const guildLive = notification.type === 'guild_live' ? notification : null;
     const Icon = {
         followed: UserPlus,
         leveled_up: ChevronsUp,
@@ -1195,6 +1198,7 @@ export function NotificationContent({
         approved: Check,
         rejected: X,
         timed_out: Hourglass,
+        guild_live: Radio,
     }[notification.type];
     const icon = (
         <Icon
@@ -1207,17 +1211,19 @@ export function NotificationContent({
         />
     );
     const href =
-        notification.type === 'followed' ||
-        notification.type === 'timed_out' ||
-        notification.type === 'leveled_up' ||
-        (!summary && notification.type === 'starred')
-            ? show(actor)
-            : CommitController.show({
-                  profile: isOwnCommit
-                      ? (notification.organization ?? user)
-                      : actor,
-                  commit: notification.commit,
-              });
+        notification.type === 'guild_live'
+            ? showGuild(notification.guild.handle)
+            : notification.type === 'followed' ||
+                notification.type === 'timed_out' ||
+                notification.type === 'leveled_up' ||
+                (!summary && notification.type === 'starred')
+              ? show(actor)
+              : CommitController.show({
+                    profile: isOwnCommit
+                        ? (notification.organization ?? user)
+                        : actor,
+                    commit: notification.commit,
+                });
     const time = (
         <time
             dateTime={notification.created_at}
@@ -1245,9 +1251,11 @@ export function NotificationContent({
         rejected: `${organization ? whose : 'Your'} commit was rejected`,
         timed_out: 'You were put in timeout',
         leveled_up: level && `You reached level ${level.level}: ${level.rank}`,
+        guild_live: guildLive && `went live in ${guildLive.guild.name}`,
     }[notification.type];
     const excerpt =
         notification.type === 'followed' ||
+        notification.type === 'guild_live' ||
         isImageOnly ? null : notification.type === 'leveled_up' ? (
             <p className="mt-1 text-sm text-muted-foreground">
                 {notification.rank_description}

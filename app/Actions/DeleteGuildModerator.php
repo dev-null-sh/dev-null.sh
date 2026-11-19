@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\DB;
 
 final readonly class DeleteGuildModerator
 {
-    public function __construct(private AdminsQuery $admins)
+    public function __construct(private AdminsQuery $admins, private DeleteGuildLiveNotifications $notifications)
     {
         //
     }
@@ -28,7 +28,8 @@ final readonly class DeleteGuildModerator
                 DB::table('guild_moderator_removals')->insertOrIgnore([
                     'github_id' => $moderator->github_id, 'handle' => $guild->handle, 'created_at' => now(),
                 ]);
-                $guild->update(['user_id' => null]);
+                $guild->update(['user_id' => null, 'live_platform' => null, 'live_url' => null, 'live_ends_at' => null]);
+                $this->notifications->handle($guild);
             }
 
             $viewers = DB::table('guild_preferences')->where('guild_id', $guild->id)->pluck('user_id');
