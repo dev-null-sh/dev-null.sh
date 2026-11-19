@@ -46,14 +46,18 @@ final readonly class JoinedGuildsQuery
         $commits = $this->commitsSince($user, array_keys($readFrom), min($readFrom));
 
         return array_values(Guild::query()->whereKey(array_keys($readFrom))->get()
-            ->map(fn (Guild $guild): array => [
-                'handle' => $guild->handle,
-                'name' => $guild->name,
-                'emoji' => $guild->emoji,
-                'icon_url' => $guild->iconUrl(),
-                'missed_commits' => $commits->filter(fn (array $commit): bool => $commit['created_at']->greaterThan($readFrom[$guild->id])
-                    && ($commit['guild_id'] === $guild->id || ($commit['guild_id'] === null && in_array($guild->handle, $commit['handles'], true))))->count(),
-            ])
+            ->map(function (Guild $guild) use ($commits, $readFrom): array {
+                $guildReadFrom = CarbonImmutable::parse($readFrom[$guild->id]);
+
+                return [
+                    'handle' => $guild->handle,
+                    'name' => $guild->name,
+                    'emoji' => $guild->emoji,
+                    'icon_url' => $guild->iconUrl(),
+                    'missed_commits' => $commits->filter(fn (array $commit): bool => ($commit['guild_id'] === $guild->id || ($commit['guild_id'] === null && in_array($guild->handle, $commit['handles'], true)))
+                        && $commit['created_at']->greaterThan($guildReadFrom))->count(),
+                ];
+            })
             ->sortBy([['missed_commits', 'desc'], ['handle', 'asc']])
             ->all());
     }

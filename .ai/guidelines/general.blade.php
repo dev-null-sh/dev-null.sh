@@ -25,14 +25,9 @@
 - Fix failures introduced by the changes. Never lower coverage thresholds or exclude code just to pass. Report pre-existing failures or environment blockers explicitly; do not claim a check passed when it failed or could not run.
 - When the local PostgreSQL has pgvector older than 0.8, ignore the tests that skip with `pgvectorLacksIterativeScan()` and the coverage that they leave out (`RelatedCommitController`, `Api/RelatedCommitController`, `ListRelatedCommitsRequest`, `ListApiRelatedCommitsRequest`, `RelatedCommitsQuery`). Do not upgrade the extension and do not change code to reach 100% for them; CI runs them on `pgvector/pgvector:pg18`.
 
-## Mac app
-
-- Whenever a change touches the Mac app (`../mac-os-app`), rebuild it with its `scripts/build.sh` before finishing, signed and notarized like the published build: `DEVELOPER_ID=89A1DD63507AAD8592A9E56668F15A22AB42A939 NOTARY_PROFILE=devnull scripts/build.sh`. Check that `DevNull.json` says `"notarized": true` before finishing. The build writes `public/downloads/DevNull.dmg` and `public/downloads/DevNull.json` here: leave both in the working tree to ship with the change, never restore or discard them.
-- Every build that replaces the published one ships under a new version: bump `CFBundleShortVersionString` in the Mac app's `Info.plist` before building, minor for new features and patch for fixes. Never publish a different build under a version that already shipped. The apps page and the app's update check read the version from `DevNull.json`, so check it there.
-
 ## Open source
 
-- This repository and the Mac app's are public. Never write anything private into code, comments, rules, tests, commit messages, or pull requests: secrets, credentials, personal data, private user content, or internal details of the production setup.
+- This repository is public. Never write anything private into code, comments, rules, tests, commit messages, or pull requests: secrets, credentials, personal data, private user content, or internal details of the production setup.
 
 ## Product guide maintenance
 

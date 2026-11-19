@@ -330,6 +330,39 @@ it('merges board posts and exact hashtags newest first with thirty roots per pag
     $this->getJson(route('guild.show', ['guild' => 'café_dev', 'page' => 0]))->assertUnprocessable()->assertJsonValidationErrors('page');
 });
 
+it('reads the roots of a guild page once however many commits carry a hashtag', function (): void {
+    $admin = User::factory()->create(['handle' => 'admin']);
+    $guild = Guild::factory()->create(['handle' => 'rust']);
+    $post = Commit::factory()->for($guild)->create(['body' => 'Direct to the board']);
+    Commit::factory()->count(250)->create(['body' => 'Reading #php today']);
+    DB::flushQueryLog();
+    DB::enableQueryLog();
+
+    $this->actingAs($admin)->get(route('guild.show', 'rust'))->assertOk()->assertInertia(fn ($page) => $page
+        ->has('commits', 1)->where('commits.0.id', $post->id)->where('hasMore', false));
+
+    expect(collect(DB::getQueryLog())->filter(fn (array $query): bool => str_contains($query['query'], '"roots"')))->toHaveCount(1);
+
+    DB::disableQueryLog();
+});
+
+it('reads the roots of a guild page one more time for its pinned commit', function (): void {
+    $admin = User::factory()->create(['handle' => 'admin']);
+    $guild = Guild::factory()->create(['handle' => 'rust']);
+    $post = Commit::factory()->for($guild)->create(['body' => 'Direct to the board']);
+    DB::table('guilds')->where('id', $guild->id)->update(['pinned_commit_id' => $post->id]);
+    Commit::factory()->count(250)->create(['body' => 'Reading #php today']);
+    DB::flushQueryLog();
+    DB::enableQueryLog();
+
+    $this->actingAs($admin)->get(route('guild.show', 'rust'))->assertOk()->assertInertia(fn ($page) => $page
+        ->where('pinnedCommit.id', $post->id));
+
+    expect(collect(DB::getQueryLog())->filter(fn (array $query): bool => str_contains($query['query'], '"roots"')))->toHaveCount(2);
+
+    DB::disableQueryLog();
+});
+
 it('includes roots matched only by nested replies without exposing hidden roots or replies', function (): void {
     $admin = User::factory()->create(['handle' => 'admin']);
     Guild::factory()->create(['handle' => 'rust']);
