@@ -343,7 +343,7 @@ it('shows a signed request the commit as its page shows it to its user', functio
                     ['type' => 'code', 'code' => '@Override'],
                 ],
                 'preview_segments' => null,
-                'mentions' => [['handle' => 'nunomaduro', 'offset' => 4, 'length' => 11, 'kind' => 'user']],
+                'mentions' => [['handle' => 'nunomaduro', 'offset' => 4, 'length' => 11, 'kind' => 'user', 'id' => null]],
                 'status' => 'approved',
                 'is_pinned' => false,
                 'starred' => true,
