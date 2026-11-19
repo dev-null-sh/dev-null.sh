@@ -8,6 +8,10 @@ import { ActionTooltip } from '@/components/action-tooltip';
 import { AuthorSwitcher, useAuthor } from '@/components/author-switcher';
 import { BodyCounter } from '@/components/body-counter';
 import {
+    ColorSwatchHint,
+    useColorSwatchHint,
+} from '@/components/color-swatch-hint';
+import {
     ImageDropOverlay,
     ImagePickerButton,
     ImagePickerPreviews,
@@ -168,6 +172,12 @@ function CommitComposerBody({
         isSubmittable,
     });
     const isIssue = issue.command !== null;
+    const colorHint = useColorSwatchHint({
+        body,
+        textareaRef,
+        updateBody,
+        hidden: isIssue || preview.isPreviewing,
+    });
 
     // When the dialog's text box shrinks, as the keyboard opens or an image is added, it keeps the caret in view.
     useEffect(() => {
@@ -318,7 +328,11 @@ function CommitComposerBody({
                             }
                             autoComplete="off"
                             aria-invalid={error ? true : undefined}
-                            aria-describedby={`${id}-count`}
+                            aria-describedby={
+                                colorHint
+                                    ? `${id}-count ${colorHint.id}`
+                                    : `${id}-count`
+                            }
                             className={cn(
                                 'col-start-1 row-start-1 block field-sizing-content max-h-[60dvh] min-h-10 w-full resize-none overflow-x-hidden overflow-y-auto bg-transparent py-1.5 pr-9 text-[17px] leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:outline-none',
                                 {
@@ -346,6 +360,13 @@ function CommitComposerBody({
                             />
                         )}
                     </div>
+
+                    {!isIssue && (
+                        <ColorSwatchHint
+                            hint={colorHint}
+                            disabled={processing}
+                        />
+                    )}
 
                     {guildHandle && (
                         <p className="text-xs text-muted-foreground">

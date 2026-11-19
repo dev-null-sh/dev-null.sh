@@ -3,8 +3,20 @@ import { GraphCanvas } from '@/components/graph-canvas';
 import { useRelatedCommits } from '@/hooks/use-related-commits';
 import type { Commit } from '@/types';
 
-export function RelatedCommits({ commitId }: { commitId: string }) {
-    const commits = useRelatedCommits(commitId);
+/**
+ * Leaves out the commits the page already shows above, like those about the commit's link, and waits while they are
+ * null, still loading, so that they never push the related commits down.
+ */
+export function RelatedCommits({
+    commitId,
+    exceptIds = [],
+}: {
+    commitId: string;
+    exceptIds?: string[] | null;
+}) {
+    const commits = useRelatedCommits(commitId).filter(
+        ({ id }) => exceptIds !== null && !exceptIds.includes(id),
+    );
 
     if (commits.length === 0) {
         return null;

@@ -43,6 +43,7 @@ final readonly class CreateCommit
         private CreateMentionNotifications $createMentionNotifications,
         private CreateFirstCommitNotifications $createFirstCommitNotifications,
         private CreateCommitImages $createCommitImages,
+        private CreateLinkPreview $createLinkPreview,
         private CreateWorldReply $createWorldReply,
         private UpdateCommitHotScores $updateCommitHotScores,
         private TheAlgorithm $theAlgorithm,
@@ -77,7 +78,7 @@ final readonly class CreateCommit
                 throw new GuildPaused;
             }
 
-            $linkPreview = $this->linkPreviewFor($url);
+            $linkPreview = $url === null ? null : $this->createLinkPreview->handle($url);
             $createdAt = now();
             $hasGoodReputation = $user->hasGoodReputation();
             $mentions = $this->mentionedUsers->get($body);
@@ -173,20 +174,5 @@ final readonly class CreateCommit
             $newPoll->options,
             array_keys($newPoll->options),
         ));
-    }
-
-    /**
-     * Commits that link to the same URL share one preview, so a page is fetched once however often it is linked.
-     */
-    private function linkPreviewFor(?string $url): ?LinkPreview
-    {
-        if ($url === null) {
-            return null;
-        }
-
-        return LinkPreview::query()->firstOrCreate(
-            ['url_hash' => hash('sha256', $url)],
-            ['url' => $url],
-        );
     }
 }

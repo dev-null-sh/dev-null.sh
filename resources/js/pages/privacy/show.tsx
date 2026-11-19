@@ -1,5 +1,4 @@
 import { Head, Link } from '@inertiajs/react';
-import AppController from '@/actions/App/Http/Controllers/AppController';
 import TermsController from '@/actions/App/Http/Controllers/TermsController';
 import {
     DocumentList,
@@ -129,23 +128,10 @@ export default function Show() {
                             </>,
                             <>
                                 <strong>From our apps:</strong> when you approve
-                                a device, such as{' '}
-                                <Link href={AppController.index()} prefetch>
-                                    the Mac app
-                                </Link>
-                                , its key's fingerprint, its name (for a Mac,
-                                the computer's name), when you approved it, and
-                                when it was last used, until you revoke it. The
-                                private key stays in your device's Keychain and
-                                never reaches us. The Mac app keeps messages and
-                                images in memory only and saves just its
-                                preferences on your Mac; its notifications never
-                                show what a message says; and it uses the
-                                microphone only while you record a voice note.
-                                Its update check asks dev-null.sh for the latest
-                                version without your account or anything about
-                                your Mac, beyond what every request carries,
-                                such as your IP address.
+                                a device, its key's fingerprint, its name, when
+                                you approved it, and when it was last used,
+                                until you revoke it. The private key stays in
+                                your device's Keychain and never reaches us.
                             </>,
                             <>
                                 <strong>From others:</strong> what other users

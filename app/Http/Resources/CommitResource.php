@@ -58,6 +58,12 @@ final class CommitResource extends JsonResource
             'short_hash' => mb_substr(str_replace('-', '', $this->id), -7),
             'body' => $this->body,
             'guild_handle' => $this->whenLoaded('guild', fn (Guild $guild): string => $guild->handle),
+            'guild' => $this->whenLoaded('guild', fn (Guild $guild): array => [
+                'handle' => $guild->handle,
+                'name' => $guild->name,
+                'emoji' => $guild->emoji,
+                'icon_url' => $guild->iconUrl(),
+            ]),
             'parent_id' => $isSigned ? $this->parent_id : $this->parent?->id,
             'html_url' => route('commit.show', [$this->author, $this->resource]),
             'created_at' => $this->created_at->toIso8601ZuluString(),

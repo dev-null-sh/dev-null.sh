@@ -2,7 +2,9 @@
 
 declare(strict_types=1);
 
+use App\Actions\CreateCommit;
 use App\Enums\CommitStatus;
+use App\Enums\Feature;
 use App\Enums\PollDuration;
 use App\Http\Requests\CreateApiCommitRequest;
 use App\Http\Requests\CreateCommitReplyRequest;
@@ -16,6 +18,7 @@ use App\Models\Poll;
 use App\Models\PollOption;
 use App\Models\PollVote;
 use App\Models\User;
+use App\Services\Features;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Queue;
@@ -67,6 +70,7 @@ it('shows an approved commit to anyone', function (): void {
             'short_hash' => 'e3f4a5b',
             'body' => 'Shipped the public API',
             'guild_handle' => null,
+            'guild' => null,
             'parent_id' => null,
             'html_url' => route('commit.show', [$user, $commit]),
             'created_at' => now()->toIso8601ZuluString(),
@@ -93,14 +97,18 @@ it('shows an approved commit to anyone', function (): void {
         ]]);
 });
 
-it('includes the guild handle in a public commit preview', function (): void {
-    $guild = Guild::factory()->create();
+it('includes the guild pill in a public commit preview', function (bool $image): void {
+    $guild = Guild::factory()->create(['handle' => 'adhd', 'name' => 'ADHD', 'emoji' => '🧠', 'icon_path' => $image ? 'guild-icons/example.webp' : null]);
     $commit = Commit::factory()->for($guild)->create();
 
     $this->getJson(route('api-commit.show', $commit))
         ->assertOk()
-        ->assertJsonPath('data.guild_handle', $guild->handle);
-});
+        ->assertJsonPath('data.guild_handle', 'adhd')
+        ->assertJsonPath('data.guild', [
+            'handle' => 'adhd', 'name' => 'ADHD', 'emoji' => '🧠',
+            'icon_url' => $image ? route('guild-icon.show', ['guild' => 'adhd', 'v' => $guild->updated_at->getTimestampMs()]) : null,
+        ]);
+})->with([false, true]);
 
 it('includes the guild handle of a quoted commit for a signed request', function (): void {
     $guild = Guild::factory()->create();
@@ -319,6 +327,7 @@ it('shows a signed request the commit as its page shows it to its user', functio
                 'short_hash' => 'e3f4a5b',
                 'body' => 'Ask @nunomaduro about `@Override`',
                 'guild_handle' => null,
+                'guild' => null,
                 'parent_id' => $root->id,
                 'html_url' => route('commit.show', [$user, $commit]),
                 'created_at' => now()->toIso8601ZuluString(),
@@ -349,6 +358,7 @@ it('shows a signed request the commit as its page shows it to its user', functio
                 'short_hash' => mb_substr(str_replace('-', '', $root->id), -7),
                 'body' => 'Who broke prod?',
                 'guild_handle' => 'rust',
+                'guild' => ['handle' => 'rust', 'name' => $root->guild->name, 'emoji' => $root->guild->emoji, 'icon_url' => null],
                 'parent_id' => null,
                 'html_url' => route('commit.show', [$root->user, $root]),
                 'created_at' => now()->subMinute()->toIso8601ZuluString(),
@@ -1050,4 +1060,65 @@ it('rejects commits and deletes that are not signed', function (): void {
 
     expect(Commit::query()->count())->toBe(1);
     $this->assertNotSoftDeleted($commit);
+});
+
+it('posts a commit or a quote to a guild board from a signed request', function (bool $quote): void {
+    Queue::fake();
+    resolve(Features::class)->update(Feature::Guilds, true, adminOnly: false);
+    $guild = Guild::factory()->create(['handle' => 'rust', 'name' => 'Rust', 'emoji' => '🦀']);
+    $quoted = Commit::factory()->create();
+
+    signedApiRequest(apiKeyPairFor(User::factory()->create()), 'POST', route('api-commit.store'), [
+        'body' => 'Borrow checker wins again',
+        'guild_handle' => 'rust',
+        ...$quote ? ['quoted_commit_id' => $quoted->id] : [],
+    ])
+        ->assertCreated()
+        ->assertJsonPath('data.body', 'Borrow checker wins again')
+        ->assertJsonPath('data.guild_handle', 'rust')
+        ->assertJsonPath('data.guild.name', 'Rust');
+
+    expect(Commit::query()->where('body', 'Borrow checker wins again')->sole())
+        ->guild_id->toBe($guild->id)
+        ->quoted_commit_id->toBe($quote ? $quoted->id : null);
+})->with(['commit' => false, 'quote' => true]);
+
+it('refuses a board post from a signed request that the web would refuse', function (Closure $payload): void {
+    Queue::fake();
+    resolve(Features::class)->update(Feature::Guilds, true, adminOnly: false);
+    Guild::factory()->create(['handle' => 'rust']);
+
+    signedApiRequest(apiKeyPairFor(User::factory()->create()), 'POST', route('api-commit.store'), ['body' => 'Board post', 'guild_handle' => 'rust', ...$payload()])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('guild_handle');
+
+    expect(Commit::query()->where('body', 'Board post')->exists())->toBeFalse();
+})->with([
+    'unknown guild' => [fn (): array => ['guild_handle' => 'go']],
+    'paused guild' => [function (): array {
+        Guild::query()->update(['user_id' => null]);
+
+        return [];
+    }],
+    'admin preview' => [function (): array {
+        resolve(Features::class)->update(Feature::Guilds, true, adminOnly: true);
+
+        return [];
+    }],
+    'reply' => [fn (): array => ['parent_id' => Commit::factory()->create()->id]],
+]);
+
+it('refuses a board post from a signed request when the guild is paused after validation', function (): void {
+    Queue::fake();
+    resolve(Features::class)->update(Feature::Guilds, true, adminOnly: false);
+    $guild = Guild::factory()->create(['handle' => 'rust']);
+    $this->app->beforeResolving(CreateCommit::class, function () use ($guild): void {
+        $guild->update(['user_id' => null]);
+    });
+
+    signedApiRequest(apiKeyPairFor(User::factory()->create()), 'POST', route('api-commit.store'), ['body' => 'Board post', 'guild_handle' => 'rust'])
+        ->assertUnprocessable()
+        ->assertExactJson(['message' => 'This guild is paused until it has a moderator.', 'code' => 'guild_paused']);
+
+    expect(Commit::query()->where('body', 'Board post')->exists())->toBeFalse();
 });

@@ -129,6 +129,6 @@ final class CreateScheduledCommitRequest extends FormRequest
 
     public function guild(): ?Guild
     {
-        return Guild::query()->where('handle', $this->string('guild_handle')->value())->first();
+        return CreateCommitRequest::guildOf($this);
     }
 }

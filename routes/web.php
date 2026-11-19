@@ -60,12 +60,17 @@ use App\Http\Controllers\FailedJobRetryController;
 use App\Http\Controllers\FailedJobsController;
 use App\Http\Controllers\FeatureController;
 use App\Http\Controllers\ForecastController;
+use App\Http\Controllers\GuildCommitPinController;
 use App\Http\Controllers\GuildController;
 use App\Http\Controllers\GuildIconController;
 use App\Http\Controllers\GuildMembershipController;
 use App\Http\Controllers\GuildModeratorController;
 use App\Http\Controllers\GuildMuteController;
+use App\Http\Controllers\GuildReadController;
 use App\Http\Controllers\GuildReportController;
+use App\Http\Controllers\GuildSubmissionApprovalController;
+use App\Http\Controllers\GuildSubmissionController;
+use App\Http\Controllers\GuildSubmissionIconController;
 use App\Http\Controllers\HeadlineController;
 use App\Http\Controllers\HumanVerificationController;
 use App\Http\Controllers\InboxController;
@@ -73,6 +78,7 @@ use App\Http\Controllers\IssueController;
 use App\Http\Controllers\IssueSuggestionController;
 use App\Http\Controllers\JoinLinkController;
 use App\Http\Controllers\LinkController;
+use App\Http\Controllers\LinkSitemapController;
 use App\Http\Controllers\LiveStreamController;
 use App\Http\Controllers\LocalSessionController;
 use App\Http\Controllers\LogController;
@@ -239,9 +245,8 @@ Route::get('partners', [PartnerController::class, 'index'])->name('partner.index
 // Logos, colors, and backgrounds, downloadable by everyone...
 Route::get('brand', [BrandController::class, 'show'])->name('brand.show');
 
-// The apps, downloadable by everyone, where the Mac app's first page used to be too...
+// The apps, downloadable by everyone...
 Route::get('apps', [AppController::class, 'index'])->name('app.index');
-Route::get('mac', fn () => to_route('app.index', status: 301));
 
 // What was merged into production, readable by everyone...
 Route::get('changelog', [ChangelogController::class, 'index'])->name('changelog.index');
@@ -283,6 +288,12 @@ Route::middleware([RememberIntendedUrl::class, RedirectToHandleCase::class])->gr
         ->name('commit-photo.show');
 });
 
+// Every commit about a link, at the link without its scheme...
+Route::get('link/{url}', [LinkController::class, 'show'])
+    ->where('url', '.+')
+    ->middleware(RememberIntendedUrl::class)
+    ->name('link.show');
+
 // Sitemaps, the same for everyone, so they skip the web group's session and cookies, which would keep a cache from sharing them...
 Route::withoutMiddleware('web')->middleware('cache.headers:public;max_age=3600;etag')->group(function (): void {
     Route::get('sitemap.xml', [SitemapController::class, 'index'])->name('sitemap.index');
@@ -295,6 +306,8 @@ Route::withoutMiddleware('web')->middleware('cache.headers:public;max_age=3600;e
     Route::get('sitemaps/commits-{day}.xml', [CommitSitemapController::class, 'show'])
         ->where('day', '[0-9]{4}-[0-9]{2}-[0-9]{2}')
         ->name('commit-sitemap.show');
+    Route::get('sitemaps/links.xml', [LinkSitemapController::class, 'index'])
+        ->name('link-sitemap.index');
 });
 
 // User...
@@ -366,8 +379,11 @@ Route::middleware('auth')->group(function (): void {
     Route::get('guilds/{guild:handle}/icon', [GuildIconController::class, 'show'])->name('guild-icon.show');
     Route::post('guilds', [GuildController::class, 'store'])->middleware([PreventPostingInTimeout::class, 'throttle:10,1'])->name('guild.store');
     Route::put('guilds/{guild:handle}', [GuildController::class, 'update'])->middleware([PreventPostingInTimeout::class, 'throttle:10,1'])->name('guild.update');
+    Route::put('guilds/{guild:handle}/commits/{commit}/pin', [GuildCommitPinController::class, 'update'])
+        ->whereUuid('commit')->withTrashed()->middleware('throttle:pins')->name('guild-commit-pin.update');
     Route::put('guild-memberships/{guild}', [GuildMembershipController::class, 'update'])->whereUuid('guild')->middleware('throttle:follows')->name('guild-membership.update');
     Route::put('guild-mutes/{guild}', [GuildMuteController::class, 'update'])->whereUuid('guild')->middleware('throttle:follows')->name('guild-mute.update');
+    Route::put('guild-reads/{guild}', [GuildReadController::class, 'update'])->whereUuid('guild')->middleware('throttle:120,1')->name('guild-read.update');
     Route::post('guild-reports/{guild}', [GuildReportController::class, 'store'])->whereUuid('guild')->middleware('throttle:10,1')->name('guild-report.store');
 });
 
@@ -456,9 +472,6 @@ Route::middleware('auth')->group(function (): void {
 
     // Private starred commits...
     Route::get('starred', [StarredCommitController::class, 'index'])->name('starred.index');
-
-    // Every commit about a link, a prototype only reachable by its URL...
-    Route::get('links', [LinkController::class, 'index'])->name('link.index');
 
     // Commit...
     Route::get('scheduled-commits', [ScheduledCommitController::class, 'index'])->name('scheduled-commit.index');
@@ -623,6 +636,9 @@ Route::middleware('auth')->group(function (): void {
     Route::get('moderation/guilds', [GuildReportController::class, 'index'])->name('guild-report.index');
     Route::delete('moderation/guilds/{guild}/moderator', [GuildModeratorController::class, 'destroy'])->whereUuid('guild')->name('guild-moderator.destroy');
     Route::delete('moderation/guild-reports/{report}', [GuildReportController::class, 'destroy'])->whereUuid('report')->name('guild-report.destroy');
+    Route::get('moderation/guild-submissions/{submission}/icon', [GuildSubmissionIconController::class, 'show'])->whereUuid('submission')->name('guild-submission-icon.show');
+    Route::post('moderation/guild-submissions/{submission}/approval', [GuildSubmissionApprovalController::class, 'store'])->whereUuid('submission')->name('guild-submission-approval.store');
+    Route::delete('moderation/guild-submissions/{submission}', [GuildSubmissionController::class, 'destroy'])->whereUuid('submission')->name('guild-submission.destroy');
     Route::get('moderation/reports/{report}/images/{image}', [CommitReportImageController::class, 'show'])->whereUuid('report')->whereIn('image', ['0', '1', '2'])->name('commit-report-image.show');
     Route::get('moderation/reports', [ReportedCommitController::class, 'index'])->name('reported-commit.index');
     Route::delete('moderation/reports/{report}', [CommitReportController::class, 'destroy'])->name('commit-report.destroy');
