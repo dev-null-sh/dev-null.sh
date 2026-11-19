@@ -11,10 +11,12 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * @property-read string $id
- * @property-read string $user_id
+ * @property-read string|null $user_id
+ * @property-read string|null $pinned_commit_id
  * @property-read string $handle
  * @property-read string $name
  * @property-read string $description
@@ -34,6 +36,12 @@ final class Guild extends Model
 
     use HasUuids;
 
+    /** @return HasMany<Commit, $this> */
+    public function commits(): HasMany
+    {
+        return $this->hasMany(Commit::class);
+    }
+
     /** @return BelongsToMany<User, $this> */
     public function members(): BelongsToMany
     {
@@ -44,5 +52,10 @@ final class Guild extends Model
     public function muters(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'guild_preferences')->wherePivotNotNull('muted_at');
+    }
+
+    public function iconUrl(): ?string
+    {
+        return $this->icon_path === null ? null : route('guild-icon.show', ['guild' => $this->handle, 'v' => $this->updated_at->getTimestampMs()]);
     }
 }

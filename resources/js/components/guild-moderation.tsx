@@ -1,6 +1,6 @@
 import { Form, router } from '@inertiajs/react';
 import { useState } from 'react';
-import { destroy } from '@/actions/App/Http/Controllers/GuildController';
+import { destroy } from '@/actions/App/Http/Controllers/GuildModeratorController';
 import { store } from '@/actions/App/Http/Controllers/GuildReportController';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
@@ -95,11 +95,11 @@ export function GuildRemovalButton({
                 <DialogHeader>
                     <DialogTitle>Remove {guild.name}’s moderator?</DialogTitle>
                     <DialogDescription>
-                        This is the guild’s last moderator. Removing them hides
-                        the guild page until a different moderator claims #
-                        {guild.handle}. Its icon, description, memberships and
-                        mute preferences will be removed. Commits keep their
-                        hashtag. This moderator cannot reclaim the guild.
+                        This is the guild’s last moderator. Removing them pauses
+                        the guild until a different moderator claims #
+                        {guild.handle}. Its posts, icon, description,
+                        memberships and mute preferences stay connected. This
+                        moderator cannot reclaim the guild.
                     </DialogDescription>
                 </DialogHeader>
                 <Form
