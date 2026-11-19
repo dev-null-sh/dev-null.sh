@@ -163,6 +163,28 @@ test('underlines the active example tab like the page tabs, with an underline th
     assert.doesNotMatch(tabs[1] ?? '', /tab-indicator/);
 });
 
+test('shows only the active example where its height must follow it, as in a sticky column', () => {
+    const html = renderToString(
+        <ExampleTabs
+            holdHeight={false}
+            examples={[
+                { label: 'curl', language: 'bash', code: 'curl', html: 'curl' },
+                {
+                    label: 'fetch',
+                    language: 'javascript',
+                    code: 'fetch()',
+                    html: 'fetch()',
+                },
+            ]}
+        />,
+    );
+    const panels = html.match(/<div[^>]*role="tabpanel"[^>]*>/g) ?? [];
+
+    assert.equal(panels.length, 2);
+    assert.doesNotMatch(panels[0] ?? '', /hidden|row-start-1/);
+    assert.match(panels[1] ?? '', /hidden=""/);
+});
+
 test('keeps every example in the same place, the hidden ones holding the height of the tallest', () => {
     const html = renderToString(
         <ExampleTabs

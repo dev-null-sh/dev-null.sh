@@ -7,6 +7,7 @@ use App\Enums\Log;
 use App\Enums\ProfileType;
 use App\Http\Controllers\AboutController;
 use App\Http\Controllers\ApiDocsController;
+use App\Http\Controllers\ApiDocsSchemaController;
 use App\Http\Controllers\AppController;
 use App\Http\Controllers\BanController;
 use App\Http\Controllers\BannedController;
@@ -256,6 +257,14 @@ Route::get('changelog', [ChangelogController::class, 'index'])->name('changelog.
 // The API docs, readable by everyone...
 Route::redirect('docs/api', '/docs/api/'.ApiDocsSection::Introduction->value)->name('api-docs.index');
 Route::get('docs/api/{section}', [ApiDocsController::class, 'show'])->name('api-docs.show');
+// An endpoint's schemas are the same for everyone, so they skip the web group's session and cookies, which would keep a
+// cache from sharing them, and its route bindings with them: the section is read by the controller...
+Route::get('docs/api/{section}/schemas/{endpoint}', [ApiDocsSchemaController::class, 'show'])
+    ->withoutMiddleware('web')
+    ->middleware('cache.headers:public;max_age=3600;etag')
+    ->whereIn('section', array_column(ApiDocsSection::cases(), 'value'))
+    ->where('endpoint', '[A-Za-z0-9._-]{1,100}')
+    ->name('api-docs-schema.show');
 
 // Public pages, readable by guests and crawlers...
 Route::middleware([RememberIntendedUrl::class, RedirectToHandleCase::class])->group(function (): void {
