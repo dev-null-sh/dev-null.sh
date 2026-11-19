@@ -16,6 +16,10 @@ it('gives each guide its code, highlighted as every code block of the docs is', 
     }
 })->with([
     'introduction' => [ApiDocsSection::Introduction, ['firstRequest' => 'bash']],
+    'authentication' => [ApiDocsSection::Authentication, ['keygen' => 'bash', 'message' => 'text']],
+    'pagination' => [ApiDocsSection::Pagination, ['page' => 'json']],
+    'errors' => [ApiDocsSection::Errors, ['error' => 'json', 'validation' => 'json']],
+    'a guide without code' => [ApiDocsSection::RateLimits, []],
 ]);
 
 it('shows the first request against the production API', function (): void {
@@ -23,4 +27,9 @@ it('shows the first request against the production API', function (): void {
         ->toContain('curl')
         ->toContain('https://dev-null.sh/api/v1/users/nunomaduro')
         ->toContain('Accept: application/json');
+});
+
+it('escapes what the message to sign holds', function (): void {
+    expect(resolve(ApiGuideSnippets::class)->for(ApiDocsSection::Authentication)['message']['html'])
+        ->toBe("&lt;unix timestamp&gt;\n&lt;nonce&gt;\n&lt;METHOD&gt;\n&lt;path and query&gt;\n&lt;body&gt;");
 });

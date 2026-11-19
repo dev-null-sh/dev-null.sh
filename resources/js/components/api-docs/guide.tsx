@@ -37,9 +37,11 @@ function anchor(title: string): string {
  */
 export function GuideSection({
     title,
+    meta,
     children,
 }: {
     title: string;
+    meta?: ReactNode;
     children: ReactNode;
 }) {
     const id = anchor(title);
@@ -62,6 +64,11 @@ export function GuideSection({
                         {title}
                     </a>
                 </h2>
+                {meta && (
+                    <span className="font-mono text-[13px] text-muted-foreground">
+                        {meta}
+                    </span>
+                )}
             </div>
             {children}
         </section>
@@ -98,15 +105,17 @@ export function Code({ children }: { children: ReactNode }) {
  */
 export function FieldList({
     fields,
+    keyWidth = 'sm:grid-cols-[9rem_minmax(0,1fr)]',
 }: {
     fields: { name: string; children: ReactNode }[];
+    keyWidth?: string;
 }) {
     return (
         <dl className="divide-y rounded-lg border">
             {fields.map((field) => (
                 <div
                     key={field.name}
-                    className="grid gap-x-3 gap-y-0.5 px-3 py-2.5 sm:grid-cols-[9rem_minmax(0,1fr)]"
+                    className={`grid gap-x-3 gap-y-0.5 px-3 py-2.5 ${keyWidth}`}
                 >
                     <dt className="font-mono text-[13px] text-muted-foreground">
                         {field.name}

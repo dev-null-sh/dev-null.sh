@@ -578,9 +578,9 @@ The read-only JSON API at `/api/v1` requires no authentication or token, except 
 
 Subscribe in a feed reader to `/@{handle}/feed.atom` for a profile's latest **50 approved top-level commits**, including image enclosures. Feeds are public and can be cached for five minutes.
 
-The **API docs** at `/docs/api`, linked as **API** from the aside and the user menu, are readable by everyone. Their Introduction says what the API is for, its base URL and format, with a first request anyone can send.
+The **API docs** at `/docs/api`, linked as **API** from the aside and the user menu, are readable by everyone. Five guides (Introduction, Authentication, Rate limits, Pagination, Errors) explain how the API works, including how to get a key approved and sign a request, with the rate limits and error codes read from the code. Authentication shows a signing helper once for each client: `devnull_sign` for the shell, `devnullHeaders()` for Laravel and Node.js.
 
-Sources: [API routes](routes/api.php), [API controllers](app/Http/Controllers/Api), [feed generation](app/Actions/CreateUserFeed.php), [rate limits](app/Providers/AppServiceProvider.php), [docs page](app/Http/Controllers/ApiDocsController.php), [guides](resources/js/pages/api-docs/guides).
+Sources: [API routes](routes/api.php), [API controllers](app/Http/Controllers/Api), [feed generation](app/Actions/CreateUserFeed.php), [rate limits](app/Providers/AppServiceProvider.php), [docs page](app/Http/Controllers/ApiDocsController.php), [rate limits listed](app/Queries/ApiRateLimitsQuery.php), [error codes](app/Enums/ApiErrorCode.php), [examples](app/Services/ApiExamples.php), [guides](resources/js/pages/api-docs/guides).
 
 ### Signed API and devices
 

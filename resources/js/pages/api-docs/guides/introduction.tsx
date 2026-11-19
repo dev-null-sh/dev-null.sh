@@ -1,3 +1,5 @@
+import { Link } from '@inertiajs/react';
+import ApiDocsController from '@/actions/App/Http/Controllers/ApiDocsController';
 import {
     Code,
     FieldList,
@@ -51,6 +53,21 @@ export function Introduction({
             <GuideSection title="Your first request">
                 <p>A profile, as anyone can read it:</p>
                 <Snippet snippet={snippets.firstRequest} />
+                <p>
+                    Lists come a page at a time: see{' '}
+                    <Link href={ApiDocsController.show('pagination')} prefetch>
+                        Pagination
+                    </Link>
+                    . To read what someone sees, or to commit for them, sign the
+                    request: see{' '}
+                    <Link
+                        href={ApiDocsController.show('authentication')}
+                        prefetch
+                    >
+                        Authentication
+                    </Link>
+                    .
+                </p>
             </GuideSection>
 
             <GuideSection title="Same rules as the web">
