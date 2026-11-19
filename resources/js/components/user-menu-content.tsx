@@ -6,6 +6,7 @@ import {
     Star,
     FileText,
     HeartHandshake,
+    HandHelping,
     LogOut,
     Settings,
     Shield,
@@ -13,6 +14,7 @@ import {
 } from 'lucide-react';
 import AboutController from '@/actions/App/Http/Controllers/AboutController';
 import AppController from '@/actions/App/Http/Controllers/AppController';
+import ContributorRequestController from '@/actions/App/Http/Controllers/ContributorRequestController';
 import OperationsController from '@/actions/App/Http/Controllers/OperationsController';
 import PartnerController from '@/actions/App/Http/Controllers/PartnerController';
 import PrivacyController from '@/actions/App/Http/Controllers/PrivacyController';
@@ -58,6 +60,16 @@ export function UserMenuContent({ user }: Props) {
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
+                <DropdownMenuItem asChild>
+                    <Link
+                        className="block w-full cursor-pointer"
+                        href={ContributorRequestController.index()}
+                        onClick={cleanup}
+                    >
+                        <HandHelping className="mr-2" />
+                        Help wanted
+                    </Link>
+                </DropdownMenuItem>
                 <DropdownMenuItem asChild>
                     <Link
                         className="block w-full cursor-pointer"

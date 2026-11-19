@@ -5,6 +5,7 @@ import { CommitCard } from '@/components/commit-card';
 import { GraphCanvas } from '@/components/graph-canvas';
 import { Button } from '@/components/ui/button';
 import AppLayout from '@/layouts/app-layout';
+import { signIn } from '@/lib/auth';
 import { contributorHelp } from '@/types/contributor-request';
 import type {
     ContributorHelp,
@@ -42,18 +43,19 @@ export default function Index({
                     />
                     Help wanted
                 </h1>
-                <Button size="sm" asChild>
-                    <Link
-                        href={
-                            auth.user
-                                ? ContributorRequestController.create()
-                                : '/login'
-                        }
-                    >
+                {auth.user ? (
+                    <Button size="sm" asChild>
+                        <Link href={ContributorRequestController.create()}>
+                            <Plus aria-hidden />
+                            Post a request
+                        </Link>
+                    </Button>
+                ) : (
+                    <Button size="sm" onClick={signIn}>
                         <Plus aria-hidden />
                         Post a request
-                    </Link>
-                </Button>
+                    </Button>
+                )}
             </header>
             <div className="border-b px-4 py-5 sm:px-6">
                 <p className="text-sm text-muted-foreground">
