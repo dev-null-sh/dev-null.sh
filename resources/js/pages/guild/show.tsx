@@ -13,7 +13,6 @@ import { RailSegment } from '@/components/graph-rail';
 import { GuildDialog } from '@/components/guild-dialog';
 import { GuildIcon } from '@/components/guild-icon';
 import { GuildLiveButton } from '@/components/guild-live-button';
-import { LiveStreamCard } from '@/components/live-stream-card';
 import {
     GuildRemovalButton,
     GuildReportButton,
@@ -22,6 +21,7 @@ import {
     GuildMemberCount,
     GuildPreferences,
 } from '@/components/guild-preferences';
+import { LiveStreamCard } from '@/components/live-stream-card';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { WordmarkText } from '@/components/wordmark-text';

@@ -48,4 +48,4 @@ final class UpdateGuildLiveRequest extends FormRequest
     {
         return LivePlatform::for($this->url()) ?? abort(422);
     }
-};
+}

@@ -35,6 +35,12 @@ final readonly class DeleteGuildLive
                 throw new GuildModeratorRemoved;
             }
 
+            // The scheduler selected this guild before taking the lock. A moderator may have started a new stream
+            // since then, and that stream is still running.
+            if (! $moderator instanceof User && $guild->live_ends_at?->isFuture() === true) {
+                return;
+            }
+
             if ($guild->live_platform === null && $guild->live_url === null && $guild->live_ends_at === null) {
                 return;
             }

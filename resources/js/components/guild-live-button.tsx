@@ -30,11 +30,14 @@ export function GuildLiveButton({
                     disabled={isEnding}
                     onClick={() => {
                         setIsEnding(true);
-                        router.visit(GuildLiveController.destroy({ guild: handle }), {
-                            preserveScroll: true,
-                            onFinish: () => setIsEnding(false),
-                            onSuccess: () => router.flushAll(),
-                        });
+                        router.visit(
+                            GuildLiveController.destroy({ guild: handle }),
+                            {
+                                preserveScroll: true,
+                                onFinish: () => setIsEnding(false),
+                                onSuccess: () => router.flushAll(),
+                            },
+                        );
                     }}
                     aria-label="End stream"
                     title="End stream"

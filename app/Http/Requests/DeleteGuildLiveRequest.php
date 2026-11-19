@@ -26,4 +26,4 @@ final class DeleteGuildLiveRequest extends FormRequest
     {
         return [];
     }
-};
+}

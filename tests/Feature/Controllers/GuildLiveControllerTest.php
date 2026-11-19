@@ -2,13 +2,17 @@
 
 declare(strict_types=1);
 
+use App\Actions\CreateGuildLiveNotifications;
+use App\Actions\DeleteGuildLive;
 use App\Actions\DeleteGuildModerator;
+use App\Actions\UpdateGuildLive;
 use App\Enums\LivePlatform;
 use App\Enums\NotificationType;
 use App\Jobs\EndLiveStreams;
 use App\Models\Guild;
 use App\Models\Notification;
 use App\Models\User;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 
 beforeEach(function (): void {
@@ -218,4 +222,96 @@ it('clears a guild stream that ran out', function (): void {
     expect($ended->refresh()->live_url)->toBeNull()
         ->and($running->refresh()->liveStream()?->url)->toBe('https://www.youtube.com/watch?v=dQw4w9WgXcQ')
         ->and(Notification::query()->where('guild_id', $ended->id)->exists())->toBeFalse();
+});
+
+it('keeps a stream renewed while scheduled cleanup still holds the expired guild', function (): void {
+    $admin = User::factory()->create(['handle' => 'admin']);
+    $member = User::factory()->create();
+    $expired = Guild::factory()->create([
+        'user_id' => $admin->id,
+        'live_platform' => LivePlatform::YouTube,
+        'live_url' => 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+        'live_ends_at' => now()->subMinute(),
+    ]);
+    DB::table('guild_preferences')->insert([
+        'guild_id' => $expired->id,
+        'user_id' => $member->id,
+        'joined_at' => now(),
+        'muted_at' => null,
+    ]);
+
+    resolve(UpdateGuildLive::class)->handle(Guild::query()->findOrFail($expired->id), $admin, LivePlatform::Twitch, 'https://twitch.tv/octocat', 2);
+
+    resolve(DeleteGuildLive::class)->handle($expired);
+
+    expect($expired->refresh())
+        ->live_platform->toBe(LivePlatform::Twitch)
+        ->live_url->toBe('https://www.twitch.tv/octocat')
+        ->and($expired->live_ends_at?->isFuture())->toBeTrue()
+        ->and(Notification::query()->where('guild_id', $expired->id)->where('type', NotificationType::GuildLive)->sole()->recipient_id)->toBe($member->id);
+});
+
+it('refuses a moderator who loses the guild after authorization', function (): void {
+    $admin = User::factory()->create(['handle' => 'admin']);
+    $guild = Guild::factory()->create([
+        'user_id' => $admin->id,
+        'live_platform' => LivePlatform::YouTube,
+        'live_url' => 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+        'live_ends_at' => now()->addHour(),
+    ]);
+    $this->app->beforeResolving(UpdateGuildLive::class, function () use ($guild): void {
+        $guild->update(['user_id' => null]);
+    });
+
+    $this->actingAs($admin)->fromRoute('guild.show', $guild)
+        ->put(route('guild-live.update', $guild), ['url' => 'https://youtu.be/dQw4w9WgXcQ', 'hours' => 2])
+        ->assertSessionHasErrors(['url' => 'You no longer moderate this guild.'])
+        ->assertRedirectToRoute('guild.show', $guild);
+
+    expect($guild->refresh()->live_url)->toBe('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+});
+
+it('refuses to end a stream after the moderator is removed', function (): void {
+    $admin = User::factory()->create(['handle' => 'admin']);
+    $guild = Guild::factory()->create([
+        'user_id' => $admin->id,
+        'live_platform' => LivePlatform::YouTube,
+        'live_url' => 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+        'live_ends_at' => now()->addHour(),
+    ]);
+    $this->app->beforeResolving(DeleteGuildLive::class, function () use ($guild): void {
+        $guild->update(['user_id' => null]);
+    });
+
+    $this->actingAs($admin)->fromRoute('guild.show', $guild)
+        ->delete(route('guild-live.destroy', $guild))
+        ->assertSessionHasErrors(['url' => 'You no longer moderate this guild.'])
+        ->assertRedirectToRoute('guild.show', $guild);
+
+    expect($guild->refresh()->live_url)->toBe('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+});
+
+it('leaves a guild alone when it is not live', function (): void {
+    $admin = User::factory()->create(['handle' => 'admin']);
+    $guild = Guild::factory()->create(['user_id' => $admin->id]);
+
+    resolve(DeleteGuildLive::class)->handle($guild, $admin);
+
+    expect($guild->refresh())
+        ->live_platform->toBeNull()
+        ->live_url->toBeNull()
+        ->live_ends_at->toBeNull();
+});
+
+it('ignores a recipient id that is not a string', function (): void {
+    $admin = User::factory()->create(['handle' => 'admin']);
+    $guild = Guild::factory()->create(['user_id' => $admin->id]);
+    $preferences = Mockery::mock(Builder::class);
+    $preferences->shouldReceive('where', 'whereNotNull', 'whereNull')->andReturnSelf();
+    $preferences->shouldReceive('pluck')->once()->with('user_id')->andReturn(collect([1]));
+    DB::shouldReceive('table')->once()->with('guild_preferences')->andReturn($preferences);
+
+    resolve(CreateGuildLiveNotifications::class)->handle($guild, $admin);
+
+    expect(Notification::query()->where('guild_id', $guild->id)->exists())->toBeFalse();
 });

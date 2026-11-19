@@ -37,4 +37,4 @@ final readonly class GuildLiveController
 
         return back();
     }
-};
+}

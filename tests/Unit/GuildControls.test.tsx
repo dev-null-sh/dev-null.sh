@@ -54,6 +54,7 @@ vi.doMock('../../resources/js/components/follow-button', () => ({
         onMouseLeave: vi.fn(),
     }),
 }));
+vi.doMock('@/hooks/use-now', () => ({ useNow: () => new Date(0) }));
 
 const { Form, router } = await import('@inertiajs/react');
 const { default: GuildBoard } =
