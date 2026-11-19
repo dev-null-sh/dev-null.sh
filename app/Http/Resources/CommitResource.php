@@ -25,7 +25,8 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * and how many pastéis it was given, which the app only shows in pastéis mode, as the web does. Like the web's cards,
  * it also has preview_segments, the excerpt a list shows of a long commit, the poll, with what the user may see of
  * its votes, and the commit it quotes, or null once the user may no longer see that one, while quoted_commit_id still
- * says it quoted something. In a list, reply_preview is the newest reply or quote the web shows under it. As on the
+ * says it quoted something. In a list, reply_preview is the newest reply or quote the web shows under it, and on the
+ * Following log, joined_guild is the handle of the joined guild that alone brought the commit there, or null. As on the
  * web, the counts, link_preview, images, starred, parent, poll, quoted_commit and reply_preview are only
  * there when they were loaded, so ancestors and the commits of notifications come without some of them. The images of
  * a commit that isn't published yet have temporary URLs, since the app has no web session to load them with. For the
@@ -88,6 +89,7 @@ final class CommitResource extends JsonResource
             'status' => $this->status,
             'is_pinned' => $this->author?->user?->pinned_commit_id === $this->id,
             'starred' => $this->whenHas('starred'),
+            'joined_guild' => $this->whenHas('joined_guild'),
             'pasteis_count' => $this->pasteis_count,
             'deleted_at' => null,
             'parent' => $this->whenLoaded('parent', fn (Commit $parent): self => self::make($parent)),
