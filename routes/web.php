@@ -385,7 +385,7 @@ Route::middleware('auth')->group(function (): void {
         ->whereUuid('commit')->withTrashed()->middleware('throttle:pins')->name('guild-commit-pin.update');
     Route::put('guild-memberships/{guild}', [GuildMembershipController::class, 'update'])->whereUuid('guild')->middleware('throttle:follows')->name('guild-membership.update');
     Route::put('guild-mutes/{guild}', [GuildMuteController::class, 'update'])->whereUuid('guild')->middleware('throttle:follows')->name('guild-mute.update');
-    Route::put('guild-reads/{guild}', [GuildReadController::class, 'update'])->whereUuid('guild')->middleware('throttle:120,1')->name('guild-read.update');
+    Route::put('guild-reads/{guild}', [GuildReadController::class, 'update'])->whereUuid('guild')->middleware('throttle:120,1,guild-reads:')->name('guild-read.update');
     Route::post('guild-reports/{guild}', [GuildReportController::class, 'store'])->whereUuid('guild')->middleware('throttle:10,1')->name('guild-report.store');
 });
 
