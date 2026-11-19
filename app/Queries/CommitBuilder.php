@@ -8,9 +8,11 @@ use App\Enums\CommitStatus;
 use App\Enums\RepliesPerPage;
 use App\Enums\TopicType;
 use App\Models\Commit;
+use App\Models\LinkPreview;
 use App\Models\Organization;
 use App\Models\User;
 use App\Services\CommitTranslations;
+use Closure;
 use Illuminate\Contracts\Database\Query\Expression;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
@@ -26,12 +28,17 @@ use Illuminate\Pagination\Cursor;
 final class CommitBuilder extends Builder
 {
     /**
+     * A card shows up to three other people talking about its link, and the newest commits may share authors.
+     */
+    private const int TOPIC_AUTHORS_READ = 6;
+
+    /**
      * Every column but the embedding, in the table's order.
      */
     private const array COLUMNS_BUT_EMBEDDING = [
         'id', 'user_id', 'body', 'created_at', 'updated_at', 'status', 'parent_id', 'deleted_at', 'link_preview_id',
         'quoted_commit_id', 'mentions', 'ai_decision', 'ai_categories', 'root_id', 'hot_score', 'pasteis_count', 'author_id',
-        'headlines_classified_at', 'escalated_at',
+        'headlines_classified_at', 'escalated_at', 'guild_id',
     ];
 
     /**
@@ -219,7 +226,7 @@ final class CommitBuilder extends Builder
             'quotedCommit' => fn (BelongsTo $query): BelongsTo => $query
                 ->withTrashed()
                 ->where(fn (self $query): self => $query->visibleTo($viewer))
-                ->with(['author', 'linkPreview', 'images'])
+                ->with(['author', 'linkPreview' => $this->linkPreviewWithTopicFor($viewer), 'images', 'guild'])
                 ->withPollFor($viewer),
         ]);
     }
@@ -249,7 +256,7 @@ final class CommitBuilder extends Builder
         return $this
             ->withVisibleReplyCount(null)
             ->withCount('stars')
-            ->with(['author', 'linkPreview', 'images', 'parent' => fn (BelongsTo $query): BelongsTo => $query->where('status', CommitStatus::Approved)]);
+            ->with(['author', 'linkPreview', 'images', 'guild', 'parent' => fn (BelongsTo $query): BelongsTo => $query->where('status', CommitStatus::Approved)]);
     }
 
     public function pending(): self
@@ -317,11 +324,32 @@ final class CommitBuilder extends Builder
     public function withCardDataFor(?User $viewer): self
     {
         return $this
-            ->with(['author', 'linkPreview', 'images'])
+            ->with(['author', 'linkPreview' => $this->linkPreviewWithTopicFor($viewer), 'images', 'guild'])
             ->withQuotedCommitFor($viewer)
             ->withStarsFor($viewer)
             ->withPollFor($viewer)
             ->afterQuery(fn (Collection $commits) => resolve(CommitTranslations::class)->attach($commits));
+    }
+
+    /**
+     * The link card with how many commits and people the viewer may see talk about its link, and the newest of those
+     * commits with their authors, so the card can say who else talks about it.
+     *
+     * @return Closure(BelongsTo<LinkPreview, Commit>): void
+     */
+    private function linkPreviewWithTopicFor(?User $viewer): Closure
+    {
+        return function (BelongsTo $link) use ($viewer): void {
+            $link->getQuery()
+                ->withCount([
+                    'commits as topic_commits_count' => fn (self $commits): self => $commits->visibleTo($viewer),
+                    'commits as topic_people_count' => fn (self $commits): self => $commits->visibleTo($viewer)->select(new QueryExpression('count(distinct commits.author_id)')),
+                ])
+                ->with(['commits' => function (HasMany $commits) use ($viewer): void {
+                    $commits->getQuery()->visibleTo($viewer)->withoutMutedAuthorsFor($viewer)->with('author')->latest()->orderByDesc('id')->limit(self::TOPIC_AUTHORS_READ)
+                        ->afterQuery(fn (Collection $topic): Collection => resolve(GuildCommitsQuery::class)->rejectMuted($topic, $viewer));
+                }]);
+        };
     }
 
     /**

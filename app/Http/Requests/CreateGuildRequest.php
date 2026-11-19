@@ -6,7 +6,8 @@ namespace App\Http\Requests;
 
 use App\Enums\Feature;
 use App\Models\Guild;
-use App\Rules\UnflaggedGuild;
+use App\Models\GuildSubmission;
+use App\Rules\FlaggedGuild;
 use App\Services\EmojiShortcodes;
 use App\Services\Features;
 use Closure;
@@ -16,22 +17,25 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\In;
+use Illuminate\Validation\Rules\Unique;
 use Illuminate\Validation\Validator;
 
 final class CreateGuildRequest extends FormRequest
 {
     private const int MAX_PER_USER = 100;
 
+    private bool $isFlagged = false;
+
     public function authorize(Features $features): Response
     {
         return $features->available(Feature::Guilds, $this->user()) ? Response::allow() : Response::denyAsNotFound();
     }
 
-    /** @return array<string, list<string|In>> */
+    /** @return array<string, list<string|In|Unique>> */
     public function rules(EmojiShortcodes $emoji): array
     {
         return [
-            'handle' => ['required', 'string', 'max:60', 'regex:/^\p{L}[\p{L}\p{M}\p{N}_]*$/uD', 'unique:guilds,handle'],
+            'handle' => ['required', 'string', 'max:60', 'regex:/^\p{L}[\p{L}\p{M}\p{N}_]*$/uD', Rule::unique('guilds', 'handle')->whereNotNull('user_id')],
             'name' => ['required', 'string', 'max:60'],
             'description' => ['required', 'string', 'max:500'],
             'emoji' => ['required', 'string', Rule::in($emoji->emoji())],
@@ -41,9 +45,9 @@ final class CreateGuildRequest extends FormRequest
     }
 
     /** @return list<Closure(Validator): void> */
-    public function after(UnflaggedGuild $unflagged): array
+    public function after(FlaggedGuild $flagged): array
     {
-        return [function (Validator $validator) use ($unflagged): void {
+        return [function (Validator $validator) use ($flagged): void {
             if ($validator->errors()->isNotEmpty()) {
                 return;
             }
@@ -56,15 +60,35 @@ final class CreateGuildRequest extends FormRequest
                 $validator->errors()->add('handle', 'You cannot reclaim a guild you were removed from.');
             }
 
-            if (Guild::query()->where('user_id', $this->user()?->id)->count() >= self::MAX_PER_USER) {
+            $guilds = Guild::query()->where('user_id', $this->user()?->id);
+            $submissions = GuildSubmission::query()->where('user_id', $this->user()?->id)->where('handle', '!=', $this->string('handle')->value())->whereNotIn('handle', (clone $guilds)->select('handle'));
+
+            if ($guilds->count() + $submissions->count() >= self::MAX_PER_USER) {
                 $validator->errors()->add('handle', 'You can create up to '.self::MAX_PER_USER.' guilds.');
             }
 
             if ($validator->errors()->isEmpty()) {
                 $icon = $this->file('images.0');
-                $unflagged->validate($validator, $this->string('name')->value()."\n\n".$this->string('description')->value(), $icon instanceof UploadedFile ? $icon : null);
+                $this->isFlagged = $flagged->validate($validator, $this->string('name')->value()."\n\n".$this->string('description')->value(), $icon instanceof UploadedFile ? $icon : null);
             }
         }];
+    }
+
+    /**
+     * Whether the moderation flagged the guild, so it waits for an admin instead of being published.
+     */
+    public function isFlagged(): bool
+    {
+        return $this->isFlagged;
+    }
+
+    /** @return array<string, string> */
+    public function messages(): array
+    {
+        return [
+            'handle.unique' => 'A guild already uses this hashtag. Choose a different display name.',
+            'handle.regex' => 'Use a display name whose hashtag starts with a letter and contains only letters, numbers and underscores.',
+        ];
     }
 
     public function prepareForValidation(): void

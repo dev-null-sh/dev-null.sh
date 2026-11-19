@@ -317,13 +317,6 @@ export const storyAfter: StoryEvent[] = [
         kind: 'milestone',
     },
     {
-        time: 'Oct 25',
-        title: '/dev/null for Mac',
-        body: 'A native app for Remotes. Like Telegram, but full of devs.',
-        kind: 'milestone',
-        href: '/apps',
-    },
-    {
         time: 'Oct 27',
         title: 'Running on FrankenPHP',
         body: 'The PHP app server written in Go, from Kévin Dunglas.',

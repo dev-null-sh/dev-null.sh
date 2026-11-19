@@ -30,9 +30,4 @@ final class CreateCommitPreviewRequest extends FormRequest
             ...CreateCommitRequest::guildRules($this),
         ];
     }
-
-    public function passedValidation(): void
-    {
-        CreateCommitRequest::appendGuildHashtag($this);
-    }
 }

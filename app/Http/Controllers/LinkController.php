@@ -4,40 +4,54 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-use App\Http\Requests\ListLinksRequest;
+use App\Http\Requests\ShowLinkRequest;
 use App\Http\Resources\ShownStreams;
 use App\Models\LinkPreview;
 use App\Models\User;
 use App\Queries\LinkCommitsQuery;
-use App\Queries\TopLinksQuery;
+use App\Services\LinkPages;
+use App\Services\PageMetadata;
 use Illuminate\Container\Attributes\CurrentUser;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Pagination\CursorPaginator;
 use Inertia\Inertia;
 use Inertia\Response;
 
-/**
- * A prototype of topics, a link being one: a page to explore them, and a page for each one with every commit about it.
- */
 final readonly class LinkController
 {
-    public function index(ListLinksRequest $request, #[CurrentUser] User $user, LinkCommitsQuery $commits, TopLinksQuery $topLinks): Response
+    /**
+     * Every commit about a link, the link being their topic. The page is public like a commit's, at the link as commits
+     * store it, and only indexed once enough people talk about the link. A card no commit the viewer may see uses, shared
+     * in a message or a hidden commit, shows nothing of what it was.
+     */
+    public function show(ShowLinkRequest $request, #[CurrentUser] ?User $user, LinkCommitsQuery $commits, LinkPages $pages, PageMetadata $metadata): Response|RedirectResponse
     {
         $url = $request->link();
+        $pageUrl = $pages->url($url);
+        assert(is_string($pageUrl));
 
-        if ($url === null) {
-            return Inertia::render('links/index', [
-                'url' => null,
-                'topLinks' => $topLinks->get($user),
-            ]);
+        if ($url !== $request->requestedLink()) {
+            $query = $request->getQueryString();
+
+            return redirect()->to($query === null ? $pageUrl : "{$pageUrl}?{$query}", 301);
         }
 
         $link = LinkPreview::query()->where('url_hash', hash('sha256', $url))->first();
+        $stats = $link instanceof LinkPreview ? $commits->stats($link, $user) : ['commits' => 0, 'people' => 0];
+        $link = $stats['commits'] > 0 ? $link : null;
+        $isNewestFirst = $request->isNewestFirst();
 
-        return Inertia::render('links/index', [
+        $preview = $user instanceof User || $request->inertia() ? null : $metadata->link($url, $pageUrl, $link, $stats);
+
+        return Inertia::render('link/show', [
             'url' => $url,
+            'pageUrl' => $pageUrl,
             'link' => $link,
-            'stats' => $link === null ? ['commits' => 0, 'people' => 0] : $commits->stats($link, $user),
-            'commits' => $link === null ? null : Inertia::scroll(fn (): CursorPaginator => ShownStreams::page($commits->builder($link, $user)->cursorPaginate(20))),
-        ]);
+            'sort' => $isNewestFirst ? 'latest' : 'top',
+            'stats' => $stats,
+            'commits' => $link instanceof LinkPreview
+                ? Inertia::scroll(fn (): CursorPaginator => ShownStreams::page($commits->builder($link, $user, $isNewestFirst)->cursorPaginate(20)))
+                : null,
+        ])->withViewData(['preview' => $preview]);
     }
 }

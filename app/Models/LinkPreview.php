@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Attributes\Visible;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * @property-read string $id
@@ -55,6 +56,16 @@ final class LinkPreview extends Model
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
         ];
+    }
+
+    /**
+     * The commits whose link card it is.
+     *
+     * @return HasMany<Commit, $this>
+     */
+    public function commits(): HasMany
+    {
+        return $this->hasMany(Commit::class);
     }
 
     /**

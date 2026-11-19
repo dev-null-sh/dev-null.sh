@@ -19,6 +19,8 @@ final class ShowGuildRequest extends FormRequest
     /** @return array<string, list<string>> */
     public function rules(): array
     {
-        return ['page' => ['sometimes', 'integer', 'min:1']];
+        return [
+            'page' => ['sometimes', 'integer', 'min:1', 'max:'.intdiv(PHP_INT_MAX, 30)],
+        ];
     }
 }
