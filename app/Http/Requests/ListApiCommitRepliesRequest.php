@@ -25,8 +25,14 @@ final class ListApiCommitRepliesRequest extends FormRequest
         return $commit->isVisibleTo($user) ? Response::allow() : Response::denyAsNotFound();
     }
 
+    public function exceptedReplyId(): ?string
+    {
+        return $this->string('except')->value() ?: null;
+    }
+
     /**
-     * Newest first continues the next_cursor of a reply preview, as on the web.
+     * Newest first continues the next_cursor of a reply preview, as on the web. Except leaves out the reply that
+     * continues the author's thread, which the web shows on its own.
      *
      * @return array<string, list<string>>
      */
@@ -34,6 +40,7 @@ final class ListApiCommitRepliesRequest extends FormRequest
     {
         return [
             'newest' => ['sometimes', 'boolean'],
+            'except' => ['sometimes', 'nullable', 'uuid'],
         ];
     }
 }
