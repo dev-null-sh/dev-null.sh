@@ -66,6 +66,10 @@ const { GuildPreferences } =
     await import('../../resources/js/components/guild-preferences');
 const { default: GuildIndex } =
     await import('../../resources/js/pages/guild/index');
+const { ProfileGuilds } =
+    await import('../../resources/js/components/profile-guilds');
+const { Dialog, DialogClose } =
+    await import('../../resources/js/components/ui/dialog');
 type Element = ReactElement<Record<string, unknown>>;
 function elements(node: ReactNode): Element[] {
     if (!React.isValidElement(node)) return [];
@@ -350,4 +354,58 @@ test('keeps the mute slot still but hides it from joined users and keyboard navi
             joined,
         );
     }
+});
+
+test('joins or leaves profile guilds beside their links and keeps a left guild listed until the dialog reopens', () => {
+    const profileGuilds = (handles: string[]) => {
+        cursor = 0;
+        return elements(ProfileGuilds({ handles, handle: 'taylor' }));
+    };
+    const rows = (view: Element[]) =>
+        view
+            .filter((element) => element.type === 'li')
+            .map((row) =>
+                React.Children.toArray(row.props.children as ReactNode),
+            );
+
+    let view = profileGuilds(['rust']);
+    const [link, preferences] = rows(view)[0] as Element[];
+    assert.equal(link.type, DialogClose);
+    assert.equal(preferences.type, GuildPreferences);
+    assert.equal(preferences.props.showMute, false);
+    const controls = elements(
+        GuildPreferences(
+            preferences.props as Parameters<typeof GuildPreferences>[0],
+        ),
+    );
+    assert.ok(
+        controls.every(
+            (element) =>
+                !String(element.props['aria-label']).startsWith('Mute'),
+        ),
+    );
+    assert.ok(
+        controls.some(
+            (element) =>
+                element.props.type === 'button' &&
+                element.props.variant === 'outline',
+        ),
+    );
+
+    const listed = (view: Element[]) =>
+        view
+            .filter((element) => element.type === GuildPreferences)
+            .map((element) => (element.props.guild as Guild).handle);
+
+    view = profileGuilds([]);
+    assert.deepEqual(listed(view), ['rust']);
+
+    (
+        view.find((element) => element.type === Dialog)!.props.onOpenChange as (
+            open: boolean,
+        ) => void
+    )(true);
+    view = profileGuilds([]);
+    assert.deepEqual(listed(view), []);
+    assert.equal(rows(view).length, 1);
 });

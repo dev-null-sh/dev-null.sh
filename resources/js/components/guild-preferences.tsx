@@ -65,7 +65,7 @@ export function GuildPreferences({
                 (kind === 'joined' ? membership : mute).url(guild.id),
                 { [kind]: value },
                 {
-                    only: ['guilds', 'profileGuilds'],
+                    only: ['guilds'],
                     preserveScroll: true,
                     onSuccess: () => router.flushAll(),
                     onFinish: () => setProcessing(false),
