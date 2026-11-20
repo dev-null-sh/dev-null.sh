@@ -106,7 +106,7 @@ it('includes the guild pill in a public commit preview', function (bool $image):
         ->assertJsonPath('data.guild_handle', 'adhd')
         ->assertJsonPath('data.guild', [
             'handle' => 'adhd', 'name' => 'ADHD', 'emoji' => '🧠',
-            'icon_url' => $image ? route('guild-icon.show', ['guild' => 'adhd', 'v' => $guild->updated_at->getTimestampMs()]) : null,
+            'icon_url' => $guild->apiIconUrl(null),
         ]);
 })->with([false, true]);
 
