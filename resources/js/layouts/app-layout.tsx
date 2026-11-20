@@ -25,6 +25,7 @@ import { MobileAppSuggestion } from '@/components/mobile-app-suggestion';
 import { ProductHuntBanner } from '@/components/product-hunt-banner';
 import { SearchDialog } from '@/components/search-dialog';
 import { TermsDialog } from '@/components/terms-dialog';
+import { TimeoutDialog } from '@/components/timeout-dialog';
 import {
     useChat,
     useRemoteAlerts,
@@ -206,6 +207,8 @@ export default function AppLayout({ children }: AppLayoutProps) {
                     onOpenChange={setIsComposing}
                     issue={composingIssue}
                 />
+
+                <TimeoutDialog />
 
                 {!isGuest && (
                     <GoLiveDialog

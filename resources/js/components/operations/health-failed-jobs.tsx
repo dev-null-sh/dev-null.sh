@@ -9,11 +9,12 @@ import FailedJobsController from '@/actions/App/Http/Controllers/FailedJobsContr
 import { EmptyFeed } from '@/components/commit-feed';
 import { Panel } from '@/components/operations/section';
 import { Button } from '@/components/ui/button';
+import { useDateTime } from '@/hooks/use-date-time';
 import { useListSlide } from '@/hooks/use-list-slide';
 import { useNow } from '@/hooks/use-now';
 import { PAGE_PROPS } from '@/layouts/operations/layout';
 import { formatCount } from '@/lib/numbers';
-import { cn, formatFullDateTime, formatRelativeTime } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import type { FailedJob, FailedJobs } from '@/types';
 
 const LEAVE_DELAY_MS = 700;
@@ -29,6 +30,7 @@ function FailedJobRow({
     failedJob: FailedJob;
     hasReplacement: boolean;
 }) {
+    const { formatFullDateTime, formatRelativeTime } = useDateTime();
     const now = useNow();
     const [state, setState] = useState<
         'idle' | 'confirming' | 'retrying' | 'forgetting'

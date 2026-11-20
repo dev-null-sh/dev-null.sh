@@ -35,6 +35,7 @@ import AppLogoIcon from '@/components/app-logo-icon';
 import AppWordmark from '@/components/app-wordmark';
 import AppearanceToggleTab from '@/components/appearance-tabs';
 import { ChatDock } from '@/components/chat/chat-dock';
+import { TimeoutDialog } from '@/components/timeout-dialog';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { useRemoteAlerts, useRemoteUpdates } from '@/hooks/use-chat';
@@ -505,6 +506,7 @@ export default function OperationsLayout({ children }: PropsWithChildren) {
             </div>
 
             {hasRemotes && <ChatDock user={user} />}
+            <TimeoutDialog />
         </div>
     );
 }

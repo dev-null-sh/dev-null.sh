@@ -34,6 +34,11 @@ vi.doMock('@inertiajs/react', async () => ({
 vi.doMock('@/hooks/use-user', () => ({
     useUser: () => ({ user: { id: 'viewer', handle: 'viewer' } }),
 }));
+vi.doMock('@/hooks/use-date-time', async () => {
+    const { createDateTime } = await import('@/lib/date-time');
+
+    return { useDateTime: () => createDateTime() };
+});
 vi.doMock('@/hooks/use-now', () => ({ useNow: () => 0 }));
 
 const { EditProfileMenu } =

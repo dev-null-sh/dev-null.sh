@@ -21,7 +21,7 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { formatFullDateTime } from '@/lib/utils';
+import { useDateTime } from '@/hooks/use-date-time';
 import type { User } from '@/types';
 
 export type UserModeration = {
@@ -41,6 +41,7 @@ export function UserModerationStatus({
     moderation: UserModeration;
 }) {
     const { timeoutsCount, timeout, ban } = moderation;
+    const { formatFullDateTime } = useDateTime();
 
     return (
         <p
