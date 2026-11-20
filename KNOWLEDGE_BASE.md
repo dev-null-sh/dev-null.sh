@@ -385,6 +385,12 @@ Sources: [pin authorization](app/Http/Requests/UpdateCommitPinRequest.php), [pin
 
 Enable **Pastéis mode** in Settings → Profile to give pastry awards to other people's commits. You get **10 pastéis per day**, with the allowance resetting at **00:00 UTC**, and each click gives one. You cannot award your own commit. Unlike stars, repeated clicks can give more than one pastel to the same commit, using your daily allowance.
 
+Each account also has **one Diamond pastel per week**, independent of the ten daily pastéis. It resets on Monday at 00:00 UTC; unused Diamonds do not accumulate. Open a commit's pastel counter by hovering, focusing or tapping it, then choose a gift. The Diamond choice appears only while it is available. After giving a Diamond, you can still give ordinary pastéis to that same commit, using your daily allowance.
+
+On **December 25, from 00:00 through 23:59 UTC**, each ordinary gift has a **50% chance** of becoming a **Frosted pastel**. It uses one ordinary pastel, not an extra gift. Frosted pastéis cannot be selected directly and remain in collections after Christmas Day ends.
+
+Commits and profiles keep one normal pastel icon and their total count. If they have received a Diamond, the normal icon has a subtle halo. The collection appears in a popover, showing the Original, Diamond and Frosted counts. Diamond sparkles and Frosted snowflakes animate while the collection is open, including the small icons; reduced-motion preferences disable those animations. Readers with Pastéis mode off see none of these controls, counts, collections or effects. Hover, focus or tap a variant in a collection to read its meaning: Original is everyday appreciation, Diamond is a legendary thank-you for a particularly appreciated commit or developer, and Frosted is a Christmas surprise.
+
 Pastéis do not notify anyone and do not affect Trending. Turning Pastéis mode off hides its controls and counters, including the pastéis count on profiles; people can still give you pastéis. The pastel emoji and mode commemorate Fernando Andrade bringing Portuguese custard pastries to the livestream team, rather than representing a payment or purchasable currency.
 
 With Pastéis mode on, the words **pastel**, **pasteis** and **pastéis** in commits automatically show as the pastel emoji. To talk about pastéis without rendering the emoji, write a backslash right before the word, like: `\pastel`.

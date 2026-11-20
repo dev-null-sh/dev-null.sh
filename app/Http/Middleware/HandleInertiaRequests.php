@@ -158,6 +158,8 @@ final class HandleInertiaRequests extends Middleware
                 ] : null, UserUpdate::Account),
                 'pasteis' => $live(fn (): ?array => $user?->pasteis_mode ? [
                     'remaining' => $user->pasteisRemaining(),
+                    'diamond_remaining' => $user->diamondPasteisRemaining(),
+                    'diamond_resets_at' => now()->startOfWeek(1)->addWeek()->toIso8601ZuluString(),
                     'day' => today()->toDateString(),
                 ] : null, UserUpdate::Account),
             ],

@@ -97,7 +97,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
     $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
 
     expect($data)->toBe([
-        'schema_version' => 9,
+        'schema_version' => 10,
         'exported_at' => now()->toIso8601String(),
         'profile' => [
             'github_id' => $user->github_id,
@@ -118,6 +118,9 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
             'lane_color' => '#1a2b3c',
             'pasteis_mode' => true,
             'pasteis_received' => 17,
+            'pasteis_diamond_received' => 0,
+            'pasteis_frosted_received' => 0,
+            'diamond_pastel_given_at' => null,
             'pasteis_given_today' => 6,
             'pasteis_given_on' => '2026-10-15',
             'remotes_enabled' => true,
@@ -293,6 +296,8 @@ it('exports all the signed-in users commits including replies, deleted ones, and
         ],
         'status' => 'approved',
         'pasteis_count' => 3,
+        'pasteis_diamond_count' => 0,
+        'pasteis_frosted_count' => 0,
         'images' => [],
         'created_at' => $approved->created_at->toIso8601String(),
         'updated_at' => $approved->updated_at->toIso8601String(),

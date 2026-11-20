@@ -6,25 +6,32 @@ namespace App\Actions;
 
 use App\Enums\CommitStatus;
 use App\Enums\CommitUpdate;
+use App\Enums\PastelVariant;
 use App\Enums\UserUpdate;
 use App\Events\CommitsUpdated;
 use App\Events\ProfilesUpdated;
 use App\Events\UsersUpdated;
 use App\Models\Commit;
 use App\Models\User;
+use App\Services\PastelSeason;
 use Illuminate\Support\Facades\DB;
 
 final readonly class CreateCommitPastel
 {
-    public function handle(User $user, Commit $commit): bool
+    public function __construct(private PastelSeason $season)
     {
-        return DB::transaction(function () use ($user, $commit): bool {
+        //
+    }
+
+    public function handle(User $user, Commit $commit, PastelVariant $variant = PastelVariant::Original): bool
+    {
+        return DB::transaction(function () use ($user, $commit, $variant): bool {
             $users = User::query()->whereKey([$user->id, $commit->user_id])
                 ->orderBy('id')->lockForUpdate()->get()->keyBy('id');
             $sender = $users->get($user->id);
             assert($sender instanceof User);
 
-            $remaining = $sender->pasteisRemaining();
+            $remaining = $variant === PastelVariant::Diamond ? $sender->diamondPasteisRemaining() : $sender->pasteisRemaining();
 
             if ($remaining === 0) {
                 return false;
@@ -32,13 +39,23 @@ final readonly class CreateCommitPastel
 
             $recipientCommit = Commit::query()->lockForUpdate()->findOrFail($commit->id);
 
-            $sender->update([
-                'pasteis_given_on' => today()->toDateString(),
-                'pasteis_given_today' => User::DAILY_PASTEIS - $remaining + 1,
-            ]);
+            if ($variant === PastelVariant::Diamond) {
+                $sender->update(['diamond_pastel_given_at' => now()]);
+            } else {
+                $sender->update([
+                    'pasteis_given_on' => today()->toDateString(),
+                    'pasteis_given_today' => User::DAILY_PASTEIS - $remaining + 1,
+                ]);
+                $variant = $this->season->variant();
+            }
 
             $recipientCommit->increment('pasteis_count');
             User::query()->whereKey($commit->user_id)->increment('pasteis_received');
+
+            if ($variant !== PastelVariant::Original) {
+                $recipientCommit->increment('pasteis_'.$variant->value.'_count');
+                User::query()->whereKey($commit->user_id)->increment('pasteis_'.$variant->value.'_received');
+            }
 
             // The count is everyone's to see, and the giver's other devices learn what they have left to give.
             if ($recipientCommit->status === CommitStatus::Approved) {

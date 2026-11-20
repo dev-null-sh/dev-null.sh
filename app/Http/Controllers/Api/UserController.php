@@ -39,6 +39,10 @@ final readonly class UserController
                 'follows_you' => $user->isFollowing($currentUser),
                 'is_muting' => $currentUser->isMuting($user),
                 'pasteis_received' => $user->pasteis_received,
+                'pasteis_collection' => $currentUser->pasteis_mode ? [
+                    'diamond' => $user->pasteis_diamond_received,
+                    'frosted' => $user->pasteis_frosted_received,
+                ] : null,
                 'activity' => $activity->get($user, $currentUser),
                 'streaks' => $userStreaks,
                 'achievements' => $achievements->get($user, $currentUser, $userStreaks),

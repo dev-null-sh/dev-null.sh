@@ -52,7 +52,10 @@ use LogicException;
  * @property-read bool $push_direct_remotes
  * @property-read bool $push_org_remotes
  * @property-read int $pasteis_received
+ * @property-read int $pasteis_diamond_received
+ * @property-read int $pasteis_frosted_received
  * @property-read int $pasteis_given_today
+ * @property-read CarbonInterface|null $diamond_pastel_given_at
  * @property-read CarbonInterface|null $pasteis_given_on
  * @property-read string|null $pinned_commit_id
  * @property-read bool|null $automatic_translation
@@ -115,6 +118,9 @@ use LogicException;
     'push_direct_remotes',
     'push_org_remotes',
     'pasteis_received',
+    'pasteis_diamond_received',
+    'pasteis_frosted_received',
+    'diamond_pastel_given_at',
     'pasteis_given_today',
     'pasteis_given_on',
     'pinned_commit_id',
@@ -174,8 +180,11 @@ final class User extends Authenticatable
         'push_direct_remotes' => true,
         'push_org_remotes' => true,
         'pasteis_received' => 0,
+        'pasteis_diamond_received' => 0,
+        'pasteis_frosted_received' => 0,
         'pasteis_given_today' => 0,
         'pasteis_given_on' => null,
+        'diamond_pastel_given_at' => null,
         'live_platform' => null,
         'live_url' => null,
         'live_ends_at' => null,
@@ -217,8 +226,11 @@ final class User extends Authenticatable
             'push_direct_remotes' => 'boolean',
             'push_org_remotes' => 'boolean',
             'pasteis_received' => 'integer',
+            'pasteis_diamond_received' => 'integer',
+            'pasteis_frosted_received' => 'integer',
             'pasteis_given_today' => 'integer',
             'pasteis_given_on' => 'date',
+            'diamond_pastel_given_at' => 'datetime',
             'pinned_commit_id' => 'string',
             'timezone' => 'string',
             'show_local_time' => 'boolean',
@@ -636,6 +648,11 @@ final class User extends Authenticatable
     public function pasteisRemaining(): int
     {
         return self::DAILY_PASTEIS - ($this->pasteis_given_on?->isToday() ? $this->pasteis_given_today : 0);
+    }
+
+    public function diamondPasteisRemaining(): int
+    {
+        return $this->diamond_pastel_given_at !== null && $this->diamond_pastel_given_at->greaterThanOrEqualTo(now()->startOfWeek(1)) ? 0 : 1;
     }
 
     public function lane(): int|string

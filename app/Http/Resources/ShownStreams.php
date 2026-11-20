@@ -70,6 +70,9 @@ final class ShownStreams
             return $shown;
         }
 
+        $shown['pasteis_diamond_count'] = $commit->pasteis_diamond_count;
+        $shown['pasteis_frosted_count'] = $commit->pasteis_frosted_count;
+
         $shown['guild_handle'] = $commit->relationLoaded('guild') ? $commit->guild?->handle : null;
         $shown['guild'] = $commit->relationLoaded('guild') && $commit->guild !== null ? [
             'handle' => $commit->guild->handle,

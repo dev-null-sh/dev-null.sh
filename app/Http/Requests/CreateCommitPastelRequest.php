@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests;
 
+use App\Enums\PastelVariant;
 use App\Models\Commit;
 use App\Models\User;
 use Illuminate\Auth\Access\Response;
@@ -28,10 +29,15 @@ final class CreateCommitPastelRequest extends FormRequest
     }
 
     /**
-     * @return array{}
+     * @return array<string, list<string>>
      */
     public function rules(): array
     {
-        return [];
+        return ['variant' => ['sometimes', 'string', 'in:original,diamond']];
+    }
+
+    public function variant(): PastelVariant
+    {
+        return PastelVariant::from($this->string('variant', 'original')->value());
     }
 }

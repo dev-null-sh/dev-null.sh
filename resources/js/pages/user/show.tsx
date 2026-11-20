@@ -31,6 +31,8 @@ import {
 import { LocalTime } from '@/components/local-time';
 import { MembersLink } from '@/components/members-link';
 import { PageTabs } from '@/components/page-tabs';
+import { PastelCollection } from '@/components/pastel-collection';
+import { PastelIcon } from '@/components/pastel-icon';
 import { PinCommitButton } from '@/components/pin-commit-button';
 import { ProfileGuilds } from '@/components/profile-guilds';
 import { ProfileLiveButton } from '@/components/profile-live-button';
@@ -54,7 +56,7 @@ import { useProfileCommits } from '@/hooks/use-profile-commits';
 import { refreshSharedState, useSharedState } from '@/hooks/use-shared-state';
 import AppLayout from '@/layouts/app-layout';
 import { commitStateKey } from '@/lib/commit-state';
-import { exactCountTitle, formatCount } from '@/lib/numbers';
+import { exactCountTitle, formatCount, formatExactCount } from '@/lib/numbers';
 import { profileAvatarPosition } from '@/lib/profile-avatar';
 import { formatClockMonth, laneColor, laneTint } from '@/lib/utils';
 import type {
@@ -75,6 +77,7 @@ export default function Show({
     profileGuilds,
     bioProfiles,
     pasteisReceived,
+    pasteisCollection,
     isFollowing,
     followsYou,
     isMuting,
@@ -94,6 +97,7 @@ export default function Show({
     profileGuilds: string[] | null;
     bioProfiles: Record<string, string>;
     pasteisReceived: number | null;
+    pasteisCollection?: { diamond: number; frosted: number } | null;
     isFollowing: boolean;
     followsYou: boolean;
     isMuting: boolean;
@@ -130,6 +134,30 @@ export default function Show({
         commitStateKey('pasteis_received', user.id),
         pasteisReceived ?? 0,
     );
+
+    const [diamondCount] = useSharedState(
+        commitStateKey('pasteis_diamond_received', user.id),
+        pasteisCollection?.diamond ?? 0,
+    );
+    const [frostedCount] = useSharedState(
+        commitStateKey('pasteis_frosted_received', user.id),
+        pasteisCollection?.frosted ?? 0,
+    );
+
+    useEffect(() => {
+        refreshSharedState(
+            new Map([
+                [
+                    commitStateKey('pasteis_diamond_received', user.id),
+                    pasteisCollection?.diamond ?? 0,
+                ],
+                [
+                    commitStateKey('pasteis_frosted_received', user.id),
+                    pasteisCollection?.frosted ?? 0,
+                ],
+            ]),
+        );
+    }, [user.id, pasteisCollection?.diamond, pasteisCollection?.frosted]);
 
     useEffect(() => {
         if (pasteisReceived !== null) {
@@ -536,25 +564,29 @@ export default function Show({
                     <FollowersYouKnow user={user} preview={followersYouKnow} />
                 )}
                 {auth.pasteis && pasteisReceived !== null && (
-                    <p
-                        className="mt-3 flex items-center gap-1.5 text-sm text-muted-foreground"
-                        data-test="profile-pasteis-count"
-                    >
-                        <img
-                            src="/pastel-de-nata.svg"
-                            alt=""
-                            width={20}
-                            height={20}
-                            className="size-5 shrink-0 object-contain"
-                        />
-                        <span
-                            className="font-mono font-medium text-foreground tabular-nums"
-                            title={exactCountTitle(pasteisCount)}
-                        >
-                            {formatCount(pasteisCount)}
-                        </span>
-                        {pluralize(pasteisCount, 'pastel', 'pastéis')} received
-                    </p>
+                    <PastelCollection
+                        total={pasteisCount}
+                        diamond={diamondCount}
+                        frosted={frostedCount}
+                        trigger={
+                            <button
+                                type="button"
+                                className="mt-3 inline-flex items-center gap-1.5 rounded-md text-sm text-muted-foreground focus-visible:outline-2 focus-visible:outline-ring"
+                                data-test="profile-pasteis-count"
+                                aria-label={`View pastéis collection, ${formatExactCount(pasteisCount)} ${pluralize(pasteisCount, 'pastel', 'pastéis')} received`}
+                            >
+                                <PastelIcon glow={diamondCount > 0} />
+                                <span
+                                    className="font-mono font-medium text-foreground tabular-nums"
+                                    title={exactCountTitle(pasteisCount)}
+                                >
+                                    {formatCount(pasteisCount)}
+                                </span>
+                                {pluralize(pasteisCount, 'pastel', 'pastéis')}{' '}
+                                received
+                            </button>
+                        }
+                    />
                 )}
             </header>
 

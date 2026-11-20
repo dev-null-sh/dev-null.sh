@@ -1,0 +1,88 @@
+.pastel-icon {
+    display: inline-block;
+    position: relative;
+    flex-shrink: 0;
+    width: var(--pastel-size);
+    height: var(--pastel-size);
+    isolation: isolate;
+    vertical-align: middle;
+}
+.pastel-icon > img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+.pastel-icon-glow > img {
+    filter: drop-shadow(0 0 3px #b7dfff80) drop-shadow(0 0 5px #c5a9ff40);
+}
+.pastel-icon[data-variant='diamond'] > img {
+    filter: drop-shadow(0 0 4px #b7dfff99) drop-shadow(0 0 7px #c5a9ff66);
+}
+.pastel-particle {
+    position: absolute;
+    pointer-events: none;
+    left: var(--particle-x);
+    top: var(--particle-y);
+    width: calc(var(--pastel-size) * 0.18);
+    height: calc(var(--pastel-size) * 0.18);
+    opacity: 0;
+    color: var(--particle-tint);
+    z-index: 2;
+    overflow: visible;
+    filter: drop-shadow(0 0 1px currentColor);
+}
+.pastel-icon[data-variant='frosted'] .pastel-particle {
+    top: -20%;
+    width: calc(var(--pastel-size) * 0.3);
+    height: calc(var(--pastel-size) * 0.3);
+    color: #d8ebf7;
+}
+@media (prefers-reduced-motion: no-preference) {
+    .pastel-icon:is(:hover, [data-animated='true']) .pastel-particle,
+    button:is(:hover, :focus-visible) .pastel-icon .pastel-particle {
+        animation: pastel-spark var(--particle-duration) var(--particle-delay)
+            infinite both;
+    }
+    .pastel-icon[data-variant='frosted']:is(:hover, [data-animated='true'])
+        .pastel-particle,
+    button:is(:hover, :focus-visible)
+        .pastel-icon[data-variant='frosted']
+        .pastel-particle {
+        animation-name: pastel-snow;
+        animation-duration: calc(var(--particle-duration) * 1.5);
+    }
+}
+@keyframes pastel-spark {
+    0% {
+        opacity: 0;
+        transform: translate(0, 4px) scale(0.3);
+    }
+    20% {
+        opacity: 1;
+        transform: translate(0, 0) scale(1.3);
+    }
+    70% {
+        opacity: 0.8;
+    }
+    100% {
+        opacity: 0;
+        transform: translate(6px, calc(var(--pastel-size) * -0.8)) rotate(80deg)
+            scale(0.3);
+    }
+}
+@keyframes pastel-snow {
+    0% {
+        opacity: 0;
+        transform: translate(-3px, -6px) rotate(0);
+    }
+    20% {
+        opacity: 1;
+    }
+    80% {
+        opacity: 0.85;
+    }
+    100% {
+        opacity: 0;
+        transform: translate(5px, calc(var(--pastel-size) * 1.3)) rotate(100deg);
+    }
+}

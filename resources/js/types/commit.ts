@@ -112,6 +112,8 @@ export type Commit = {
     deleted_at?: null;
     stars_count: number;
     pasteis_count: number;
+    pasteis_diamond_count?: number;
+    pasteis_frosted_count?: number;
     starred: boolean;
     author: CommitAuthor;
     replies_count?: number;

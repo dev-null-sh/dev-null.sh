@@ -84,6 +84,8 @@ it('lists the latest commits of everyone, newest first', function (): void {
         'is_pinned' => false,
         'starred' => false,
         'pasteis_count' => 2,
+        'pasteis_diamond_count' => 0,
+        'pasteis_frosted_count' => 0,
         'deleted_at' => null,
         'quoted_commit_id' => null,
         'quoted_commit' => null,
