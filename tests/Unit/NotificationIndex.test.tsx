@@ -121,6 +121,28 @@ const previewedNames = (body: string): number =>
 
 const other = { ...actor, id: 'other', name: 'Other', handle: 'other' };
 
+test('renders shield and ended-streak notifications without a commit target', async () => {
+    for (const [type, title] of [
+        ['streak_shield_earned', 'You earned a streak shield'],
+        ['streak_shield_used', 'A shield protected your streak'],
+        ['streak_ended', 'Your commit streak ended'],
+    ] as const) {
+        const body = await render([
+            {
+                ...notification,
+                type,
+                commit: null,
+                commit_id: null,
+                subject_id: null,
+                reason: 'Protected 2026-11-15. 0/2 shields remaining.',
+            } as NotificationGroup,
+        ]);
+        assert.ok(body.includes(title));
+        assert.ok(body.includes('0/2 shields remaining.'));
+        assert.ok(body.includes('/@mnapoli'));
+    }
+});
+
 test('separates last-visit activity without a border under the preceding notification', async () => {
     const body = await render([
         { ...notification, read_at: '2026-10-16T12:00:00.000000Z' },

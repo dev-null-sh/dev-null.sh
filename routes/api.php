@@ -89,6 +89,7 @@ use App\Http\Controllers\Api\UserRemotePreferencesController;
 use App\Http\Controllers\Api\UserRemotesController;
 use App\Http\Controllers\Api\UserSearchController;
 use App\Http\Controllers\Api\UserSettingsController;
+use App\Http\Controllers\Api\UserStreakShieldsController;
 use App\Http\Controllers\Api\UserTermsController;
 use App\Http\Controllers\Api\UserTimezoneController;
 use App\Http\Controllers\Api\UserTranslationLanguageController;
@@ -196,6 +197,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         // User Timezone and Translation, as the web's settings save them...
         Route::put('me/timezone', [UserTimezoneController::class, 'update'])->name('api-user-timezone.update');
         Route::put('me/automatic-translation', [UserAutomaticTranslationController::class, 'update'])->name('api-user-automatic-translation.update');
+        Route::put('me/streak-shields', [UserStreakShieldsController::class, 'update'])->name('api-user-streak-shields.update');
         Route::put('me/translation-language', [UserTranslationLanguageController::class, 'update'])->name('api-user-translation-language.update');
 
         // Devices: the keys approved to sign as the user, as the web's Devices page lists and revokes them...

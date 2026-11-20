@@ -255,7 +255,7 @@ it('reuses passed streaks without re-running streak calculation', function (): v
     $user = User::factory()->create();
     Commit::factory()->for($user)->create();
 
-    $mockStreaks = ['longest' => 42, 'current' => 5];
+    $mockStreaks = ['longest' => 42, 'current' => 5, 'shields' => 0, 'protected_days' => 0];
     $result = resolve(UserAchievementsQuery::class)->get($user, $user, $mockStreaks);
 
     expect($result['xp_breakdown']['streak']['count'])->toBe(42)

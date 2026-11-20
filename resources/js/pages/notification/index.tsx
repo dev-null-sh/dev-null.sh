@@ -18,6 +18,8 @@ import {
     Hourglass,
     MessageSquareReply,
     Quote,
+    ShieldCheck,
+    ShieldPlus,
     Star,
     UserPlus,
     X,
@@ -1184,6 +1186,10 @@ export function NotificationContent({
         notification.type === 'mentioned' ||
         notification.type === 'first_commit';
     const level = notification.type === 'leveled_up' ? notification : null;
+    const isStreak =
+        notification.type === 'streak_shield_earned' ||
+        notification.type === 'streak_shield_used' ||
+        notification.type === 'streak_ended';
     const Icon = {
         followed: UserPlus,
         leveled_up: ChevronsUp,
@@ -1195,6 +1201,9 @@ export function NotificationContent({
         approved: Check,
         rejected: X,
         timed_out: Hourglass,
+        streak_shield_earned: ShieldPlus,
+        streak_shield_used: ShieldCheck,
+        streak_ended: Hourglass,
     }[notification.type];
     const icon = (
         <Icon
@@ -1207,9 +1216,7 @@ export function NotificationContent({
         />
     );
     const href =
-        notification.type === 'followed' ||
-        notification.type === 'timed_out' ||
-        notification.type === 'leveled_up' ||
+        notification.commit === null ||
         (!summary && notification.type === 'starred')
             ? show(actor)
             : CommitController.show({
@@ -1245,12 +1252,19 @@ export function NotificationContent({
         rejected: `${organization ? whose : 'Your'} commit was rejected`,
         timed_out: 'You were put in timeout',
         leveled_up: level && `You reached level ${level.level}: ${level.rank}`,
+        streak_shield_earned: 'You earned a streak shield',
+        streak_shield_used: 'A shield protected your streak',
+        streak_ended: 'Your commit streak ended',
     }[notification.type];
     const excerpt =
         notification.type === 'followed' ||
         isImageOnly ? null : notification.type === 'leveled_up' ? (
             <p className="mt-1 text-sm text-muted-foreground">
                 {notification.rank_description}
+            </p>
+        ) : isStreak ? (
+            <p className="mt-1 text-sm text-muted-foreground">
+                {notification.reason}
             </p>
         ) : timeout ? (
             <div className="mt-1 space-y-1 text-sm text-muted-foreground">
@@ -1542,6 +1556,10 @@ export function NotificationContent({
                                         >
                                             {notification.type}
                                         </span>
+                                    ) : isStreak ? (
+                                        <span className="rounded-sm bg-muted px-2 py-0.5 font-mono text-xs text-muted-foreground">
+                                            streak
+                                        </span>
                                     ) : !grouped ? (
                                         <span className="relative z-10 flex">
                                             <ActorAvatar
@@ -1599,6 +1617,7 @@ export function NotificationContent({
                                         )}
                                         {!moderation &&
                                             !level &&
+                                            !isStreak &&
                                             (grouped ? (
                                                 <>
                                                     <Link

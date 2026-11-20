@@ -16,5 +16,8 @@ it('has the types of a notification', function (): void {
         'LeveledUp' => 'leveled_up',
         'FirstCommit' => 'first_commit',
         'TimedOut' => 'timed_out',
+        'StreakShieldEarned' => 'streak_shield_earned',
+        'StreakShieldUsed' => 'streak_shield_used',
+        'StreakEnded' => 'streak_ended',
     ]);
 });
