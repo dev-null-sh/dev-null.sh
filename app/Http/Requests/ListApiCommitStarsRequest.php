@@ -12,7 +12,8 @@ use Illuminate\Foundation\Http\FormRequest;
 final class ListApiCommitStarsRequest extends FormRequest
 {
     /**
-     * Only authors see who starred their commit, as on the web. Everyone else only sees how many did.
+     * Only authors see who starred their commit, as on the web, so every member of an organization sees who starred its
+     * commits. Everyone else only sees how many did.
      */
     public function authorize(): Response
     {
@@ -22,7 +23,7 @@ final class ListApiCommitStarsRequest extends FormRequest
         $commit = $this->route('commit');
         assert($commit instanceof Commit);
 
-        return $commit->user_id === $user->id ? Response::allow() : Response::denyAsNotFound();
+        return $commit->isOwnedBy($user) ? Response::allow() : Response::denyAsNotFound();
     }
 
     /**
