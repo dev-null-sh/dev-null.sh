@@ -351,3 +351,53 @@ test('keeps the mute slot still but hides it from joined users and keyboard navi
         );
     }
 });
+
+test('keeps busy guild buttons focusable and ignores clicks until their request ends', () => {
+    const optimistic = vi.spyOn(router, 'optimistic').mockReturnValue(router);
+    const put = vi.spyOn(router, 'put').mockImplementation(() => {});
+    const guild = {
+        id: 'rust-id',
+        name: 'Rust',
+        is_joined: false,
+        is_muted: false,
+    } as Guild;
+    const button = (label: string) => {
+        cursor = 0;
+
+        return elements(GuildPreferences({ guild })).find(
+            (element) => element.props['aria-label'] === label,
+        )!;
+    };
+
+    (button('Join Rust').props.onClick as () => void)();
+
+    for (const label of ['Join Rust', 'Mute Rust']) {
+        assert.equal(button(label).props['aria-disabled'], true);
+        assert.equal(button(label).props.disabled, undefined);
+    }
+
+    (button('Join Rust').props.onClick as () => void)();
+    (button('Mute Rust').props.onClick as () => void)();
+    assert.equal(optimistic.mock.calls.length, 1);
+    assert.equal(put.mock.calls.length, 1);
+
+    put.mock.calls[0][2]?.onFinish?.({} as never);
+    assert.equal(button('Join Rust').props['aria-disabled'], false);
+});
+
+test('toasts instead of showing the error page when joining a guild is throttled', () => {
+    vi.spyOn(router, 'optimistic').mockReturnValue(router);
+    const put = vi.spyOn(router, 'put').mockImplementation(() => {});
+    cursor = 0;
+    const join = elements(
+        GuildPreferences({
+            guild: { id: 'rust-id', name: 'Rust' } as Guild,
+        }),
+    ).find((element) => element.props['aria-label'] === 'Join Rust')!;
+
+    (join.props.onClick as () => void)();
+    const options = put.mock.calls[0][2];
+
+    assert.equal(options?.onHttpException?.({ status: 429 } as never), false);
+    assert.equal(options?.onHttpException?.({ status: 500 } as never), true);
+});
