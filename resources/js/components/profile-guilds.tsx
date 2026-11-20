@@ -1,4 +1,5 @@
 import { Link, usePage } from '@inertiajs/react';
+import { useState } from 'react';
 import { show } from '@/actions/App/Http/Controllers/GuildController';
 import { GuildIcon } from '@/components/guild-icon';
 import { GuildPreferences } from '@/components/guild-preferences';
@@ -21,9 +22,16 @@ export function ProfileGuilds({
     handle: string;
 }) {
     const { guilds } = usePage().props;
+    const [listedHandles, setListedHandles] = useState(handles);
 
     return (
-        <Dialog>
+        <Dialog
+            onOpenChange={(open) => {
+                if (open) {
+                    setListedHandles(handles);
+                }
+            }}
+        >
             <DialogTrigger asChild>
                 <button type="button" className="group flex gap-1.5">
                     <span
@@ -45,7 +53,7 @@ export function ProfileGuilds({
                     </DialogDescription>
                 </DialogHeader>
                 <ul className="min-h-0 overflow-y-auto px-3 pb-3">
-                    {handles.map((joinedHandle) => {
+                    {listedHandles.map((joinedHandle) => {
                         const guild = guilds?.find(
                             (guild) => guild.handle === joinedHandle,
                         );
@@ -94,7 +102,7 @@ export function ProfileGuilds({
                             </li>
                         );
                     })}
-                    {handles.length === 0 && (
+                    {listedHandles.length === 0 && (
                         <li className="p-3 text-sm text-muted-foreground">
                             No guilds joined yet.
                         </li>
