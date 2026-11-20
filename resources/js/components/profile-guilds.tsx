@@ -1,6 +1,7 @@
 import { Link, usePage } from '@inertiajs/react';
 import { show } from '@/actions/App/Http/Controllers/GuildController';
 import { GuildIcon } from '@/components/guild-icon';
+import { GuildPreferences } from '@/components/guild-preferences';
 import {
     Dialog,
     DialogClose,
@@ -50,12 +51,15 @@ export function ProfileGuilds({
                         );
 
                         return (
-                            <li key={joinedHandle}>
+                            <li
+                                key={joinedHandle}
+                                className="flex items-center gap-2 pr-3"
+                            >
                                 <DialogClose asChild>
                                     <Link
                                         prefetch
                                         href={show(joinedHandle)}
-                                        className="flex min-w-0 items-center gap-3 rounded-md p-3 hover:bg-accent focus-visible:bg-accent"
+                                        className="flex min-w-0 flex-1 items-center gap-3 rounded-md p-3 hover:bg-accent focus-visible:bg-accent"
                                     >
                                         {guild && (
                                             <GuildIcon
@@ -81,6 +85,12 @@ export function ProfileGuilds({
                                         </span>
                                     </Link>
                                 </DialogClose>
+                                {guild && (
+                                    <GuildPreferences
+                                        guild={guild}
+                                        showMute={false}
+                                    />
+                                )}
                             </li>
                         );
                     })}
