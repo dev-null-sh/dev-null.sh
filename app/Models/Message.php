@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
@@ -147,6 +148,16 @@ final class Message extends Model
     public function reactions(): HasMany
     {
         return $this->hasMany(MessageReaction::class)->orderBy('id');
+    }
+
+    /**
+     * The org members the message mentioned who have not opened or cleared it yet.
+     *
+     * @return BelongsToMany<User, $this>
+     */
+    public function mentionedUsers(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'message_mentions');
     }
 
     /**

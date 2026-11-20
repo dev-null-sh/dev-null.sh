@@ -112,3 +112,15 @@ it('sends guests to the log, and back to the list once they sign in', function (
 
     expect(session('url.intended'))->toBe(route('user-following.index', $user));
 });
+
+it('names which people and organizations the loaded following lists hold', function (): void {
+    $user = User::factory()->create();
+    $person = User::factory()->create();
+    $organization = Organization::factory()->create();
+    $user->following()->attach($person);
+    $user->followedOrganizations()->attach($organization);
+    $this->actingAs(User::factory()->create());
+
+    expect(loadedDigest('user-following.index', $user, ['users' => 1, 'organizations' => 1]))
+        ->toBe(['users' => digestOf($person->id), 'organizations' => digestOf($organization->id)]);
+});

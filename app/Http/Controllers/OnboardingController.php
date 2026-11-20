@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Actions\UpdateUserOnboardedAt;
+use App\Enums\UserUpdate;
 use App\Http\Requests\ShowOnboardingRequest;
 use App\Models\Organization;
 use App\Models\User;
 use App\Queries\SuggestedUsersQuery;
+use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Http\RedirectResponse;
@@ -24,7 +26,7 @@ final readonly class OnboardingController
             'preferredLane' => $user->preferredLane(),
             'automaticLane' => $user->automaticLane(),
             'suggestions' => fn (): Collection => $suggested->get($user, limit: 5),
-            'githubImport' => fn (): ?array => $this->githubImport($request, $user),
+            'githubImport' => Inertia::live(fn (): ?array => $this->githubImport($request, $user), on: UserUpdate::Onboarding->value, channel: new PrivateChannel($user)),
             'commitScriptUrl' => route('cli-script.show'),
         ]);
     }

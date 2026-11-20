@@ -25,7 +25,7 @@ final readonly class ReplyPreviewsQuery
             ->whereInstanceOf(Commit::class)
             ->filter(fn (Commit $commit): bool => $commit->hasAttribute('reply_preview'));
 
-        $ids = $commits->flatMap(fn (Commit $commit): array => array_column($this->preview($commit)['data'], 'id'));
+        $ids = $commits->flatMap(fn (Commit $commit): array => $this->preview($commit)['data']->modelKeys());
 
         $replies = $ids->isEmpty() ? new Collection() : Commit::query()
             ->withTrashed()
@@ -39,18 +39,18 @@ final readonly class ReplyPreviewsQuery
 
         foreach ($commits as $commit) {
             $commit->setRelation('replyPreview', new Collection(array_values(array_filter(array_map(
-                fn (array $reply): ?Commit => $replies->get($reply['id']),
-                $this->preview($commit)['data'],
+                fn (Commit $reply): ?Commit => $replies->get($reply->id),
+                $this->preview($commit)['data']->all(),
             )))));
         }
     }
 
     /**
-     * @return array{data: list<array{id: string}>, next_cursor: string|null}
+     * @return array{data: Collection<int, Commit>, next_cursor: string|null}
      */
     private function preview(Commit $commit): array
     {
-        /** @var array{data: list<array{id: string}>, next_cursor: string|null} $preview */
+        /** @var array{data: Collection<int, Commit>, next_cursor: string|null} $preview */
         $preview = $commit->getAttribute('reply_preview');
 
         return $preview;

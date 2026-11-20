@@ -5,8 +5,12 @@ import { useEffect, useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import ScheduledCommitController from '@/actions/App/Http/Controllers/ScheduledCommitController';
 import { ActionTooltip } from '@/components/action-tooltip';
-import { AuthorSwitcher } from '@/components/author-switcher';
+import { AuthorSwitcher, useAuthor } from '@/components/author-switcher';
 import { BodyCounter } from '@/components/body-counter';
+import {
+    ColorSwatchHint,
+    useColorSwatchHint,
+} from '@/components/color-swatch-hint';
 import {
     ImageDropOverlay,
     ImagePickerButton,
@@ -100,6 +104,7 @@ function CommitComposerBody({
     author,
     onAuthorChange,
     stash,
+    guildHandle,
     attachments,
     linkCard,
     schedule,
@@ -119,6 +124,7 @@ function CommitComposerBody({
     author: OrganizationAuthor | null;
     onAuthorChange: (author: OrganizationAuthor | null) => void;
     stash: UseStashReturn;
+    guildHandle?: string;
     attachments: ReturnType<typeof useImageAttachments>;
     linkCard: UseLinkCardReturn;
     schedule: ReturnType<typeof useCommitSchedule>;
@@ -150,7 +156,7 @@ function CommitComposerBody({
             : bodyCharacterCount(body),
     );
     const isFilled = hasImages || characterCount(body.trim()) >= minBodyLength;
-    const error = errors.body ?? errors.link_preview_url;
+    const error = errors.body ?? errors.link_preview_url ?? errors.author;
     const scheduleError =
         errors.scheduled_at ??
         (scheduledAt && !isExistingLocalTime(scheduledAt)
@@ -159,8 +165,19 @@ function CommitComposerBody({
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const textBox = useRef<HTMLDivElement>(null);
     const imageInputRef = useRef<HTMLInputElement>(null);
-    const preview = useComposerPreview({ body, textareaRef, isSubmittable });
+    const preview = useComposerPreview({
+        body,
+        guildHandle,
+        textareaRef,
+        isSubmittable,
+    });
     const isIssue = issue.command !== null;
+    const colorHint = useColorSwatchHint({
+        body,
+        textareaRef,
+        updateBody,
+        hidden: isIssue || preview.isPreviewing,
+    });
 
     const startPoll = () => {
         setPoll(emptyPollDraft);
@@ -318,11 +335,19 @@ function CommitComposerBody({
                             }}
                             placeholder={
                                 issue.command?.placeholder ??
-                                (poll ? 'Ask a question' : 'What did you ship?')
+                                (poll
+                                    ? 'Ask a question'
+                                    : guildHandle
+                                      ? 'What do you want to share with the guild?'
+                                      : 'What did you ship?')
                             }
                             autoComplete="off"
                             aria-invalid={error ? true : undefined}
-                            aria-describedby={`${id}-count`}
+                            aria-describedby={
+                                colorHint
+                                    ? `${id}-count ${colorHint.id}`
+                                    : `${id}-count`
+                            }
                             className={cn(
                                 'col-start-1 row-start-1 block field-sizing-content max-h-[60dvh] min-h-10 w-full resize-none overflow-x-hidden overflow-y-auto bg-transparent py-1.5 pr-9 text-[17px] leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:outline-none',
                                 {
@@ -351,6 +376,18 @@ function CommitComposerBody({
                         )}
                     </div>
 
+                    {!isIssue && (
+                        <ColorSwatchHint
+                            hint={colorHint}
+                            disabled={processing}
+                        />
+                    )}
+
+                    {guildHandle && (
+                        <p className="text-xs text-muted-foreground">
+                            Posted to this guild, not your profile log.
+                        </p>
+                    )}
                     {issue.hint && (
                         <IssueCommandHint
                             command={issue.hint}
@@ -600,19 +637,24 @@ export function CommitComposer({
     id = 'body',
     isInDialog = false,
     issue: initialIssue = null,
+    guildHandle,
     onCommitted,
 }: {
     id?: string;
     isInDialog?: boolean;
     issue?: IssueKind | null;
+    guildHandle?: string;
     onCommitted?: () => void;
 }) {
     const schedule = useCommitSchedule();
     const { isScheduling, scheduledAt, setScheduledAt, setIsScheduling } =
         schedule;
     const { user } = useUser();
-    const [author, setAuthor] = useState<OrganizationAuthor | null>(null);
-    const stash = useStash(user.id, 'commit');
+    const { author, setAuthor } = useAuthor();
+    const stash = useStash(
+        user.id,
+        guildHandle ? `guild:${guildHandle}` : 'commit',
+    );
     const { body } = stash;
     const linkCard = useLinkCard(body);
     const [draftVersion, setDraftVersion] = useState(0);
@@ -636,6 +678,7 @@ export function CommitComposer({
         body,
         updateBody: stash.updateBody,
         enabled:
+            !guildHandle &&
             !attachments.reading &&
             !hasImages &&
             poll === null &&
@@ -667,7 +710,11 @@ export function CommitComposer({
 
     // A deploy reloads the page before onSuccess can drop the draft, so the reloaded page names the commit it became.
     useEffect(() => {
-        if (committed !== undefined && isSavedAs(body, committed.body)) {
+        if (
+            committed !== undefined &&
+            (committed.guild_handle ?? null) === (guildHandle ?? null) &&
+            isSavedAs(body, committed.body)
+        ) {
             drop();
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -702,6 +749,7 @@ export function CommitComposer({
                 : CommitController.store.form())}
             onBefore={() =>
                 !isPosting.current &&
+                isSubmittable &&
                 !attachments.isReading() &&
                 issue.command === null &&
                 commitRules.beforeSubmit()
@@ -714,7 +762,10 @@ export function CommitComposer({
             }}
             transform={(data) => ({
                 ...data,
+                body,
+                ...(guildHandle && { guild_handle: guildHandle }),
                 commit_rules_accepted: commitRules.hasAccepted(),
+                human_verification_token: commitRules.humanVerificationToken(),
                 ...(author !== null && { author: author.handle }),
                 ...(hasImages && {
                     images: attachments.images,
@@ -757,6 +808,7 @@ export function CommitComposer({
                         author={author}
                         onAuthorChange={setAuthor}
                         stash={stash}
+                        guildHandle={guildHandle}
                         attachments={attachments}
                         linkCard={linkCard}
                         schedule={schedule}

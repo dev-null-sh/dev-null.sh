@@ -41,10 +41,12 @@ export type ComposerPreview = ReturnType<typeof useComposerPreview>;
  */
 export function useComposerPreview({
     body,
+    guildHandle,
     textareaRef,
     isSubmittable,
 }: {
     body: string;
+    guildHandle?: string;
     textareaRef: RefObject<HTMLTextAreaElement | null>;
     isSubmittable: boolean;
 }) {
@@ -52,7 +54,7 @@ export function useComposerPreview({
     const [resolved, setResolved] = useState<Resolved | null>(null);
     const previewId = useId();
     const request = useHttp<
-        { body: string },
+        { body: string; guild_handle?: string },
         {
             segments: BodySegment[];
             mentions: Mentions | [];
@@ -71,7 +73,10 @@ export function useComposerPreview({
             return;
         }
 
-        request.transform(() => ({ body: draft }));
+        request.transform(() => ({
+            body: body.trim(),
+            ...(guildHandle && { guild_handle: guildHandle }),
+        }));
 
         try {
             const response = await request.submit(

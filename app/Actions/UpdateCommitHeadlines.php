@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Enums\CommitStatus;
+use App\Events\HeadlinesUpdated;
 use App\Models\Commit;
 use App\Models\Headline;
 use Illuminate\Support\Facades\DB;
@@ -30,6 +31,8 @@ final readonly class UpdateCommitHeadlines
                 return null;
             }
 
+            $previousNames = collect();
+
             if ($reclassify) {
                 $previousNames = $current->headlines()->pluck('name');
                 Headline::query()->whereIn('name', $previousNames->diff($names)->merge(collect($names)->diff($previousNames)))
@@ -46,6 +49,10 @@ final readonly class UpdateCommitHeadlines
             }
 
             $current->update(['headlines_classified_at' => now()]);
+
+            if ($names !== [] || $previousNames->isNotEmpty()) {
+                event(new HeadlinesUpdated());
+            }
 
             return $created;
         });

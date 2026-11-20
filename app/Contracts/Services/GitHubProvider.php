@@ -16,6 +16,7 @@ use Carbon\CarbonImmutable;
  * @phpstan-type SearchResults array{incomplete: bool, total: int, items: list<array<string, mixed>>}
  * @phpstan-type Issue array{number: int, title: string, url: string}
  * @phpstan-type RateLimit array{remaining: int, limit: int, resets_at: CarbonImmutable}
+ * @phpstan-type Sponsor array{login: string, github_id: string, amount_in_cents: int}
  */
 interface GitHubProvider
 {
@@ -61,6 +62,14 @@ interface GitHubProvider
      * Whether the user the token is for has a GitHub Sponsors listing. Null when GitHub can't say.
      */
     public function hasSponsorsListing(string $token): ?bool;
+
+    /**
+     * Up to a hundred public sponsors of the organization, the most paid in total first, as the organization's own token
+     * sees them.
+     *
+     * @return list<Sponsor>
+     */
+    public function publicSponsors(string $organization): array;
 
     /**
      * The IDs of the accounts the user follows, up to the given number of pages, the people apart from the

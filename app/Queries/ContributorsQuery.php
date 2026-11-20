@@ -61,6 +61,15 @@ final readonly class ContributorsQuery
     }
 
     /**
+     * How many commits the user's GitHub account has in the repository, as GitHub counts them, from the same list the
+     * About page shows. Zero when it has none, or GitHub didn't answer.
+     */
+    public function commits(User $user): int
+    {
+        return array_column($this->accounts() ?? [], 'commits', 'github_id')[$user->github_id] ?? 0;
+    }
+
+    /**
      * The GitHub accounts behind the contributors. A failed read is kept for a minute, so an outage doesn't send every
      * visitor to GitHub.
      *

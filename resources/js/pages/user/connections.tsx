@@ -1,5 +1,6 @@
 import { Head, InfiniteScroll, Link, router, usePage } from '@inertiajs/react';
 import { ArrowLeft } from 'lucide-react';
+import { useState } from 'react';
 import type { CSSProperties } from 'react';
 import UserFollowersController from '@/actions/App/Http/Controllers/UserFollowersController';
 import UserFollowersYouKnowController from '@/actions/App/Http/Controllers/UserFollowersYouKnowController';
@@ -13,8 +14,11 @@ import { PageTabs } from '@/components/page-tabs';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { UserAvatar } from '@/components/user-avatar';
+import { useRealtime } from '@/hooks/use-realtime';
 import AppLayout from '@/layouts/app-layout';
+import { reloadInBackground } from '@/lib/background-poll';
 import { laneColor } from '@/lib/utils';
+import { windowDigest } from '@/lib/window-digest';
 import { show } from '@/routes/user';
 import type { CursorPaginated, Organization, User } from '@/types';
 
@@ -66,6 +70,84 @@ export default function Connections({
 }) {
     const { auth } = usePage().props;
     const title = titles[type];
+    // Follows changing while the list is open are offered as a refresh, keeping the pages loaded until then.
+    const [hasChanged, setHasChanged] = useState(false);
+
+    useRealtime(
+        { name: `profiles.${user.id}`, type: 'public' },
+        ['profile'],
+        (_event, payload) => {
+            if (
+                typeof payload === 'object' &&
+                payload !== null &&
+                'connections' in payload
+            ) {
+                setHasChanged(true);
+            }
+        },
+        // Joining the channel, at first or again, may follow changes nobody heard: the people loaded are compared
+        // with who the list holds now, as far as it was loaded, and a refresh is offered only if they differ.
+        () => {
+            const loaded = {
+                users: users.data.map((connection) => connection.id),
+                organizations: (organizations?.data ?? []).map(
+                    (organization) => organization.id,
+                ),
+            };
+
+            void reloadInBackground({
+                only: ['loadedDigest'],
+                data: {
+                    loaded: {
+                        users: loaded.users.length,
+                        organizations: loaded.organizations.length,
+                    },
+                },
+                preserveUrl: true,
+                onSuccess: (page) => {
+                    const expected = page.props.loadedDigest as
+                        | Partial<Record<keyof typeof loaded, string>>
+                        | undefined;
+
+                    void Promise.all(
+                        (Object.keys(loaded) as (keyof typeof loaded)[])
+                            .filter((list) => expected?.[list] !== undefined)
+                            .map(
+                                async (list) =>
+                                    (await windowDigest(loaded[list])) !==
+                                    expected?.[list],
+                            ),
+                    ).then((changes) => {
+                        if (expected === undefined || changes.some(Boolean)) {
+                            setHasChanged(true);
+                        }
+                    });
+                },
+            });
+        },
+    );
+
+    // The refreshed list takes the place of the one shown, rather than moving the people already there: it is
+    // drawn anew in the same render that brings it.
+    const [refreshedFrom, setRefreshedFrom] = useState<typeof users | null>(
+        null,
+    );
+    const [listed, setListed] = useState(0);
+
+    if (refreshedFrom !== null && users !== refreshedFrom) {
+        setRefreshedFrom(null);
+        setListed(listed + 1);
+    }
+
+    const refresh = () => {
+        setRefreshedFrom(users);
+        router.reload({
+            only: ['users', 'organizations'],
+            reset: ['users', 'organizations'],
+            onSuccess: () => setHasChanged(false),
+            onError: () => setRefreshedFrom(null),
+        });
+    };
     const knowsFollowers = auth.user !== null && auth.user.id !== user.id;
     const emptyMessages: Record<ConnectionType, string> = {
         followers: `Nobody is following @${user.handle} yet.`,
@@ -94,6 +176,15 @@ export default function Connections({
                     <p className="shrink-0 font-mono text-[13px] text-muted-foreground">
                         @{user.handle}
                     </p>
+                    {hasChanged && (
+                        <button
+                            type="button"
+                            onClick={refresh}
+                            className="ml-auto shrink-0 text-sm font-medium text-primary hover:underline focus-visible:underline"
+                        >
+                            Refresh the list
+                        </button>
+                    )}
                 </div>
                 <PageTabs
                     label="Connections"
@@ -166,7 +257,7 @@ export default function Connections({
                             )
                         }
                     >
-                        <ul className="divide-y">
+                        <ul key={listed} className="divide-y">
                             {organizations.data.map((organization) => (
                                 <li
                                     key={organization.id}
@@ -236,7 +327,7 @@ export default function Connections({
                             People
                         </h2>
                     )}
-                    <ul className="divide-y">
+                    <ul key={listed} className="divide-y">
                         {users.data.map((person) => (
                             <li
                                 key={person.id}

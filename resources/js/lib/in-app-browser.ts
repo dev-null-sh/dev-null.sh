@@ -21,8 +21,8 @@ const APPS: [RegExp, string][] = [
  * add `wv` on Android. Apps that open links in Safari's own view look like Safari and aren't told apart.
  */
 export function inAppBrowser(userAgent: string): InAppBrowser | null {
-    // The iOS app POC signs in with GitHub in the system's sheet, signed in like Safari (temporary)...
-    if (/DevNullCapacitorPOC\//.test(userAgent)) {
+    // Our own lite mobile app has no other browser to send people to
+    if (/DevNullLite\//.test(userAgent)) {
         return null;
     }
 

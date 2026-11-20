@@ -32,18 +32,25 @@ import { LocalTime } from '@/components/local-time';
 import { MembersLink } from '@/components/members-link';
 import { PageTabs } from '@/components/page-tabs';
 import { PinCommitButton } from '@/components/pin-commit-button';
+import { ProfileGuilds } from '@/components/profile-guilds';
 import { ProfileLiveButton } from '@/components/profile-live-button';
 import { ProfilePicture } from '@/components/profile-picture';
 import { ProfileReadme } from '@/components/profile-readme';
 import { ProfileShareButton } from '@/components/profile-share-button';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
+import {
+    UserModerationHistory,
+    type UserModerationHistory as UserModerationHistoryData,
+} from '@/components/user-moderation-history';
 import type { UserModeration } from '@/components/user-moderation-menu';
 import {
     UserModerationMenu,
     UserModerationStatus,
 } from '@/components/user-moderation-menu';
 import { useIsMuting, UserSafetyMenu } from '@/components/user-safety-menu';
+import { useLiveStream } from '@/hooks/use-live-stream';
+import { useProfileCommits } from '@/hooks/use-profile-commits';
 import { refreshSharedState, useSharedState } from '@/hooks/use-shared-state';
 import AppLayout from '@/layouts/app-layout';
 import { commitStateKey } from '@/lib/commit-state';
@@ -65,6 +72,7 @@ function pluralize(count: number, singular: string, plural: string) {
 
 export default function Show({
     user,
+    profileGuilds,
     bioProfiles,
     pasteisReceived,
     isFollowing,
@@ -73,6 +81,7 @@ export default function Show({
     followersYouKnow,
     canPush,
     moderation,
+    moderationHistory,
     activity,
     streaks,
     achievements,
@@ -82,6 +91,7 @@ export default function Show({
     readme,
 }: {
     user: Profile;
+    profileGuilds: string[] | null;
     bioProfiles: Record<string, string>;
     pasteisReceived: number | null;
     isFollowing: boolean;
@@ -90,6 +100,7 @@ export default function Show({
     followersYouKnow: FollowersYouKnowPreview | null;
     canPush: boolean;
     moderation: UserModeration | null;
+    moderationHistory: UserModerationHistoryData | null;
     activity: Activity;
     streaks: Streaks;
     achievements: Achievements;
@@ -101,6 +112,7 @@ export default function Show({
     const { auth } = usePage().props;
     const isCurrentUser = auth.user?.id === user.id;
     const lane = laneColor(user.lane);
+    const stream = useLiveStream(user);
     const [highlightedPeriod, setHighlightedPeriod] = useState<string | null>(
         null,
     );
@@ -111,6 +123,7 @@ export default function Show({
     const [isHeaderVisible, setIsHeaderVisible] = useState(false);
     const [isFollowingNow] = useIsFollowing(user, isFollowing);
     const [isMutingNow] = useIsMuting(user, isMuting);
+    const shownCommits = useProfileCommits(user.id, commits, pinnedCommit);
     const followersCount =
         user.followers_count + Number(isFollowingNow) - Number(isFollowing);
     const [pasteisCount] = useSharedState(
@@ -224,17 +237,17 @@ export default function Show({
                     }
                     data-test="profile-avatar"
                 >
-                    {user.live ? (
+                    {stream ? (
                         <LiveStreamTrigger
                             user={user}
                             showProfile={false}
                             className="flex"
                         >
                             <a
-                                href={user.live.url}
+                                href={stream.url}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                aria-label={`Watch ${user.name} live on ${user.live.url.includes('twitch.tv') ? 'Twitch' : 'YouTube'}`}
+                                aria-label={`Watch ${user.name} live on ${stream.url.includes('twitch.tv') ? 'Twitch' : 'YouTube'}`}
                                 className="relative flex rounded-full"
                                 data-test="profile-live-avatar"
                             >
@@ -449,7 +462,7 @@ export default function Show({
                     </li>
                 </ul>
 
-                <dl className="mt-4 flex gap-5 text-sm">
+                <dl className="mt-4 flex flex-wrap gap-x-5 gap-y-1 text-sm">
                     {[
                         {
                             count: user.commits_count,
@@ -504,7 +517,21 @@ export default function Show({
                             </div>
                         );
                     })}
+                    {profileGuilds !== null && (
+                        <div>
+                            <dt className="sr-only">Guild memberships</dt>
+                            <dd>
+                                <ProfileGuilds
+                                    handles={profileGuilds}
+                                    handle={user.handle}
+                                />
+                            </dd>
+                        </div>
+                    )}
                 </dl>
+                {moderationHistory && (isCurrentUser || moderation) && (
+                    <UserModerationHistory history={moderationHistory} />
+                )}
                 {followersYouKnow && (
                     <FollowersYouKnow user={user} preview={followersYouKnow} />
                 )}
@@ -589,7 +616,7 @@ export default function Show({
                 ) : (
                     <CommitFeed
                         key={`${user.id}:${tab}`}
-                        commits={commits}
+                        commits={tab === 'commits' ? shownCommits : commits}
                         pinnedCommit={tab === 'commits' ? pinnedCommit : null}
                         threadActions={
                             isCurrentUser && tab === 'commits'

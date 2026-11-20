@@ -6,6 +6,9 @@ namespace App\Actions;
 
 use App\Contracts\Services\GitHubProvider;
 use App\Dto\GitHubProfile;
+use App\Enums\UserUpdate;
+use App\Events\ProfilesUpdated;
+use App\Events\UsersUpdated;
 use App\Jobs\LookUpUserOrganizations;
 use App\Models\User;
 use App\Queries\GitHubReadmeQuery;
@@ -51,6 +54,9 @@ final readonly class UpdateUserProfile
 
                 // The email is left alone: the public API only has the public one, sign-in also knows the private one.
                 $user->update(['company' => $profile->company]);
+
+                event(new UsersUpdated([$user->id], UserUpdate::Account));
+                event(new ProfilesUpdated([$user->id]));
             });
 
             LookUpUserOrganizations::dispatchFor($user);

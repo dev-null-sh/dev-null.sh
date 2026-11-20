@@ -21,8 +21,12 @@ import CommitLinkPreviewController from '@/actions/App/Http/Controllers/CommitLi
 import CommitReplyController from '@/actions/App/Http/Controllers/CommitReplyController';
 import { ActionTooltip } from '@/components/action-tooltip';
 import { AuthorAvatar } from '@/components/author-avatar';
-import { AuthorSwitcher } from '@/components/author-switcher';
+import { AuthorSwitcher, useAuthor } from '@/components/author-switcher';
 import { BodyCounter } from '@/components/body-counter';
+import {
+    ColorSwatchHint,
+    useColorSwatchHint,
+} from '@/components/color-swatch-hint';
 import { FoldedCommitBody } from '@/components/commit-body';
 import {
     ImageDropOverlay,
@@ -56,6 +60,7 @@ import { HiddenLinkPreviewContext } from '@/components/hidden-link-preview-conte
 import InputError from '@/components/input-error';
 import { LinkCardPicker } from '@/components/link-card-picker';
 import { LinkPreview } from '@/components/link-preview';
+import { LinkTopicFooter } from '@/components/link-topic-footer';
 import { MentionTextarea } from '@/components/mention-textarea';
 import { OrganizationAvatar } from '@/components/organization-avatar';
 import { ReplyRecipientPicker } from '@/components/reply-recipient-picker';
@@ -81,6 +86,7 @@ import { useLeaving } from '@/hooks/use-leaving';
 import { useLinkCard } from '@/hooks/use-link-card';
 import { useNow } from '@/hooks/use-now';
 import { useOwnsCommit } from '@/hooks/use-owns-commit';
+import { idsOf } from '@/hooks/use-realtime';
 import { useSharedState } from '@/hooks/use-shared-state';
 import { moveCaretToEnd, useHasStash, useStash } from '@/hooks/use-stash';
 import { useUser } from '@/hooks/use-user';
@@ -91,9 +97,19 @@ import {
     maxRawBodyLength,
     minBodyLength,
 } from '@/lib/commit';
-import { commitStateKey } from '@/lib/commit-state';
+import { changesSince, readAt } from '@/lib/commit-changes';
+import { changeCountLocally, commitStateKey } from '@/lib/commit-state';
 import { hasModKey } from '@/lib/keyboard';
 import { exactCountTitle, formatCount } from '@/lib/numbers';
+import {
+    atMostAtOnce,
+    coalesce,
+    visitsSettled,
+    commitChannel,
+    listen,
+    userChannel,
+} from '@/lib/realtime';
+import { reconcileReplies } from '@/lib/thread-replies';
 import {
     characterCount,
     cn,
@@ -109,9 +125,16 @@ import type {
     CursorPaginated,
     DeletedFlash,
     FlashToast,
-    OrganizationAuthor,
     ThreadCommit,
 } from '@/types';
+
+// Every thread on a page reads again when the viewer mutes or blocks someone: after the visit that did, and two at a
+// time, so the page's own requests don't wait behind them.
+const relationshipReads = atMostAtOnce(2);
+const afterVisits =
+    typeof router?.on === 'function'
+        ? visitsSettled((event, listener) => router.on(event, listener))
+        : () => Promise.resolve();
 
 const maxIndentDepth = 3;
 
@@ -184,17 +207,19 @@ type Thread = {
 };
 
 async function fetchReplies(
-    commit: Pick<ThreadCommit, 'id'>,
+    commit: Pick<ThreadCommit, 'id'> & { inLog?: boolean },
     cursor: string | null,
     newest: boolean,
     limit: number,
     except?: string,
+    signal?: AbortSignal,
 ): Promise<CursorPaginated<ThreadCommit>> {
     const response = await fetch(
         CommitReplyController.index(commit, {
             query: {
                 cursor,
                 newest: newest ? 1 : 0,
+                in_log: commit.inLog ? 1 : 0,
                 limit,
                 ...(except ? { except } : {}),
             },
@@ -204,6 +229,7 @@ async function fetchReplies(
                 Accept: 'application/json',
                 'X-Requested-With': 'XMLHttpRequest',
             },
+            signal,
         },
     );
 
@@ -215,22 +241,25 @@ async function fetchReplies(
 }
 
 async function fetchRepliesAfter(
-    commit: Pick<ThreadCommit, 'id'>,
+    commit: Pick<ThreadCommit, 'id'> & { inLog?: boolean },
     replies: ThreadCommit[],
     cursor: string | null,
     minimum: number,
     newest: boolean,
     except?: string,
+    signal?: AbortSignal,
 ): Promise<Pick<CursorPaginated<ThreadCommit>, 'data' | 'next_cursor'>> {
     let data = replies;
 
     while (cursor !== null && data.length < minimum) {
+        signal?.throwIfAborted();
         const next = await fetchReplies(
             commit,
             cursor,
             newest,
             Math.min(maxRepliesPerRequest, minimum - data.length),
             except,
+            signal,
         );
         data = [...data, ...next.data];
         cursor = next.next_cursor;
@@ -240,13 +269,21 @@ async function fetchRepliesAfter(
 }
 
 async function fetchRepliesUntil(
-    commit: Pick<ThreadCommit, 'id'>,
+    commit: Pick<ThreadCommit, 'id'> & { inLog?: boolean },
     minimum: number,
     perPage: number,
     newest: boolean,
     except?: string,
+    signal?: AbortSignal,
 ): Promise<Pick<CursorPaginated<ThreadCommit>, 'data' | 'next_cursor'>> {
-    const page = await fetchReplies(commit, null, newest, perPage, except);
+    const page = await fetchReplies(
+        commit,
+        null,
+        newest,
+        perPage,
+        except,
+        signal,
+    );
 
     return fetchRepliesAfter(
         commit,
@@ -255,7 +292,52 @@ async function fetchRepliesUntil(
         minimum,
         newest,
         except,
+        signal,
     );
+}
+
+/**
+ * Reads a thread again from its first reply as far as the last one it showed, and at most twice as many as it showed,
+ * so recovering what changed keeps the loaded range without loading everything that arrived after it.
+ */
+async function fetchRepliesThrough(
+    commit: Pick<ThreadCommit, 'id'> & { inLog?: boolean },
+    lastId: string | undefined,
+    depth: number,
+    perPage: number,
+    except?: string,
+    signal?: AbortSignal,
+): Promise<Pick<CursorPaginated<ThreadCommit>, 'data' | 'next_cursor'>> {
+    const first = await fetchReplies(
+        commit,
+        null,
+        false,
+        perPage,
+        except,
+        signal,
+    );
+    let data = first.data;
+    let cursor = first.next_cursor;
+
+    while (
+        cursor !== null &&
+        data.length < depth * 2 &&
+        (data.length < depth || !data.some((reply) => reply.id === lastId))
+    ) {
+        signal?.throwIfAborted();
+        const next = await fetchReplies(
+            commit,
+            cursor,
+            false,
+            Math.min(maxRepliesPerRequest, depth * 2 - data.length),
+            except,
+            signal,
+        );
+        data = [...data, ...next.data];
+        cursor = next.next_cursor;
+    }
+
+    return { data, next_cursor: cursor };
 }
 
 export function useThread(
@@ -274,7 +356,8 @@ export function useThread(
         (isDeleted(commit) ? undefined : (continuationId ?? undefined));
     const isPreview = preview !== undefined;
     const initial = preview ?? initialReplies;
-    const { repliesPerPage, continuation } = usePage().props;
+    const { repliesPerPage, continuation, now: serverNow } = usePage().props;
+    const inLog = usePage().component === 'log/show';
     const historyKey = `thread:${commit.id}:${except ?? ''}`;
     const remembered = router.restore<{
         replies: ThreadCommit[] | null;
@@ -315,6 +398,13 @@ export function useThread(
     );
     const [isLoading, setIsLoading] = useState(shouldLoadReplies);
     const replyRequest = useRef(0);
+    // Every read for this viewer, thread and excluded reply, from its first request to its last await: changing any of
+    // them, or leaving, aborts it, so no stage of it starts, lands or counts after that.
+    const lifetime = useRef<AbortController | null>(null);
+    const readsLifetime = () =>
+        (lifetime.current ??= new AbortController()).signal;
+    // When the replies shown were read, on the server's clock, to ask what changed since after missing updates.
+    const readSince = useRef(Math.min(serverNow - 5_000, readAt()));
     const [isReplying, setIsReplying] = useState(false);
 
     const [previousInitial, setPreviousInitial] = useState(initial);
@@ -332,6 +422,8 @@ export function useThread(
     }
 
     const applyPage = (loaded: ThreadCommit[], cursor: string | null) => {
+        // Read over however many requests, so dated from before the first of them could have started.
+        readSince.current = readAt() - 10_000;
         setThread((current) => ({
             ...current,
             replies: loaded,
@@ -343,7 +435,54 @@ export function useThread(
         }
     };
 
-    const reload = (extra = 0) => {
+    /**
+     * What the viewer may see among the loaded replies changed in a way no single reply's update tells, as when they
+     * mute, block or unmute someone, or more changed than could be named: what was loaded is read again, keeping its
+     * range, and anything after it waits for Load more.
+     */
+    const recover = async (
+        signal: AbortSignal = readsLifetime(),
+    ): Promise<void> => {
+        if (replies === null || signal.aborted) {
+            return;
+        }
+
+        if (isPreview) {
+            return reload(0, signal);
+        }
+
+        const request = ++replyRequest.current;
+        setIsLoading(true);
+
+        return fetchRepliesThrough(
+            { id: commit.id, inLog },
+            replies.at(-1)?.id,
+            Math.max(replies.length, repliesPerPage),
+            repliesPerPage,
+            except,
+            signal,
+        )
+            .then((page) => {
+                if (!signal.aborted && request === replyRequest.current) {
+                    applyPage(page.data, page.next_cursor);
+                }
+            })
+            .catch(() => undefined)
+            .finally(() => {
+                if (request === replyRequest.current) {
+                    setIsLoading(false);
+                }
+            });
+    };
+
+    const reload = async (
+        extra = 0,
+        signal: AbortSignal = readsLifetime(),
+    ): Promise<void> => {
+        if (signal.aborted) {
+            return;
+        }
+
         const minimum =
             replies === null || (isPreview && replies.length <= repliesPerPage)
                 ? repliesPerPage
@@ -354,9 +493,16 @@ export function useThread(
         const request = ++replyRequest.current;
         setIsLoading(true);
 
-        fetchRepliesUntil(commit, minimum, repliesPerPage, isPreview, except)
+        return fetchRepliesUntil(
+            { id: commit.id, inLog },
+            minimum,
+            repliesPerPage,
+            isPreview,
+            except,
+            signal,
+        )
             .then((page) => {
-                if (request === replyRequest.current) {
+                if (!signal.aborted && request === replyRequest.current) {
                     applyPage(page.data, page.next_cursor);
                 }
             })
@@ -374,18 +520,20 @@ export function useThread(
         }
 
         const request = ++replyRequest.current;
+        const signal = readsLifetime();
         setIsLoading(true);
 
         fetchRepliesAfter(
-            commit,
+            { id: commit.id, inLog },
             replies,
             nextCursor,
             minimum,
             isPreview,
             except,
+            signal,
         )
             .then((page) => {
-                if (request === replyRequest.current) {
+                if (!signal.aborted && request === replyRequest.current) {
                     applyPage(page.data, page.next_cursor);
                 }
             })
@@ -407,14 +555,16 @@ export function useThread(
 
         let isCurrent = true;
         const request = ++replyRequest.current;
+        const signal = readsLifetime();
         setIsLoading(true);
 
         fetchRepliesUntil(
-            { id: commitId },
+            { id: commitId, inLog },
             initialReplyLimit,
             repliesPerPage,
             isPreview,
             except,
+            signal,
         )
             .then((page) => {
                 if (isCurrent && request === replyRequest.current) {
@@ -435,6 +585,7 @@ export function useThread(
         commitId,
         shouldLoadReplies,
         isPreview,
+        inLog,
         except,
         repliesPerPage,
         initialReplyLimit,
@@ -442,7 +593,7 @@ export function useThread(
 
     const onExceptChanged = useEffectEvent(() => {
         if (replies !== null && !shouldLoadReplies) {
-            reload();
+            void reload();
         }
     });
 
@@ -451,7 +602,7 @@ export function useThread(
             replies !== null &&
             (initial === undefined || replies.length > repliesPerPage)
         ) {
-            reload();
+            void reload();
         }
     });
     const loadedInitial = useRef({ initial, count: commit.replies_count });
@@ -483,9 +634,211 @@ export function useThread(
             setCount(target.replies_count);
         }
         if (replies !== null) {
-            reload(replies.some((reply) => reply.id === restored.id) ? 0 : 1);
+            void reload(
+                replies.some((reply) => reply.id === restored.id) ? 0 : 1,
+            );
         }
     });
+
+    /**
+     * Reads again only the replies another client changed, so a long thread never reads all it loaded for each one.
+     * False while the thread is loading, whose response would override it, to try again after.
+     */
+    const reconcile = useEffectEvent(
+        async (ids: string[]): Promise<boolean> => {
+            if (replies === null) {
+                return true;
+            }
+
+            if (isLoading) {
+                return false;
+            }
+
+            const request = replyRequest.current;
+            const signal = readsLifetime();
+            const response = await fetch(
+                CommitReplyController.index(commit, {
+                    query: {
+                        ids,
+                        newest: isPreview ? 1 : 0,
+                        in_log: inLog ? 1 : 0,
+                        ...(except ? { except } : {}),
+                    },
+                }).url,
+                {
+                    headers: {
+                        Accept: 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    signal,
+                },
+            );
+
+            if (!response.ok) {
+                return true;
+            }
+
+            const page = (await response.json()) as {
+                data: ThreadCommit[];
+                parent: { replies_count: number };
+            };
+
+            if (signal.aborted || request !== replyRequest.current) {
+                return true;
+            }
+
+            setThread((current) => ({
+                ...current,
+                replies:
+                    current.replies === null
+                        ? null
+                        : reconcileReplies(
+                              current.replies,
+                              current.nextCursor !== null,
+                              ids,
+                              page.data,
+                              isPreview,
+                          ),
+            }));
+            setCount(page.parent.replies_count);
+
+            return true;
+        },
+    );
+    /**
+     * Whatever may have been missed while not listening, as when the thread was read before it started listening,
+     * came back from history or lost its connection: the replies changed since it read them, or everything it
+     * loaded when that can't be told.
+     */
+    const missedReplies = useEffectEvent(async (): Promise<string[] | null> => {
+        const signal = readsLifetime();
+        const since = readSince.current;
+        const startedAt = readAt();
+        const change = await changesSince(commit.id, since);
+
+        if (signal.aborted) {
+            return null;
+        }
+
+        if (change === null || change.truncated) {
+            readSince.current = startedAt;
+            void recover(signal);
+
+            return [];
+        }
+
+        readSince.current = startedAt;
+
+        return change.replies;
+    });
+    // Called when a read's turn comes, so it reads the range loaded by then, not the one loaded when it was asked for.
+    const recoverLoaded = useEffectEvent((signal: AbortSignal) => {
+        // The log refreshes compact previews together; only an expanded thread needs its own deeper read.
+        if (inLog && isPreview && (replies?.length ?? 0) <= repliesPerPage)
+            return;
+        return recover(signal);
+    });
+    const isLoaded = replies !== null;
+    const viewerId = usePage().props.auth.user?.id ?? null;
+
+    // A read started for another viewer, thread or excluded reply never lands: changing any of them, or leaving,
+    // retires every read on its way, keeping what is shown until the new one reads again.
+    useEffect(
+        () => () => {
+            lifetime.current?.abort();
+            lifetime.current = null;
+            ++replyRequest.current;
+            setIsLoading(false);
+        },
+        [viewerId, commitId, except],
+    );
+
+    useEffect(() => {
+        if (!isLoaded) {
+            return;
+        }
+
+        const channel = commitChannel(commitId);
+        const changed = new Set<string>();
+        let isListening = true;
+        const refresh = coalesce(async () => {
+            const ids = [...changed].slice(0, maxRepliesPerRequest);
+            ids.forEach((id) => changed.delete(id));
+
+            if (!(await reconcile(ids).catch(() => true))) {
+                ids.forEach((id) => changed.add(id));
+            }
+
+            if (changed.size > 0) {
+                refresh.request();
+            }
+        }, 250);
+        const stop = listen(
+            channel,
+            {
+                visibility: (payload) => {
+                    idsOf(payload)
+                        .filter((id) => id !== commitId)
+                        .forEach((id) => changed.add(id));
+
+                    if (changed.size > 0) {
+                        refresh.request();
+                    }
+                },
+            },
+            () =>
+                void missedReplies().then((ids) => {
+                    if (!isListening) {
+                        return;
+                    }
+
+                    ids?.forEach((id) => changed.add(id));
+
+                    if (changed.size > 0) {
+                        refresh.request();
+                    }
+                }),
+        );
+
+        // Muting, blocking or unmuting someone, or being blocked, changes which replies the viewer sees, including ones
+        // never loaded: the loaded range is read again. A full thread also does once it listens again, as a change
+        // missed meanwhile leaves no trace on its replies.
+        // Read again after the visit that changed who the viewer sees, and once a place among the reads of other
+        // threads frees up: changes heard meanwhile are one read, and none starts once this listener has stopped.
+        let isWaiting = false;
+        const recoverWhenFree = () => {
+            if (isWaiting) {
+                return;
+            }
+
+            isWaiting = true;
+            const signal = readsLifetime();
+            void afterVisits().then(() =>
+                relationshipReads(async () => {
+                    isWaiting = false;
+
+                    if (isListening && !signal.aborted) {
+                        await recoverLoaded(signal);
+                    }
+                }),
+            );
+        };
+        const stopRelationships =
+            viewerId === null
+                ? () => {}
+                : listen(
+                      userChannel(viewerId),
+                      { relationships: recoverWhenFree },
+                      isPreview && !inLog ? undefined : recoverWhenFree,
+                  );
+
+        return () => {
+            isListening = false;
+            stop();
+            stopRelationships();
+            refresh.cancel();
+        };
+    }, [commitId, isLoaded, viewerId, isPreview, inLog]);
 
     useEffect(
         () =>
@@ -519,7 +872,7 @@ export function useThread(
         onFolded: folding.onLeft,
         toggle: () => {
             if (!isOpen && replies === null) {
-                reload();
+                void reload();
             }
 
             setThread((current) => ({ ...current, isOpen: !current.isOpen }));
@@ -530,12 +883,13 @@ export function useThread(
         cancelReply: () => setIsReplying(false),
         onReplied: (parent) => {
             changedThreadIds.add(commit.id);
+            changeCountLocally('replies_count', commit.id);
             setIsReplying(false);
             setCount(parent.replies_count);
 
             if (parent.continuation_id === continuationId) {
                 setThread((current) => ({ ...current, isOpen: true }));
-                reload();
+                void reload();
 
                 return;
             }
@@ -548,8 +902,9 @@ export function useThread(
         },
         onDeleted: () => {
             changedThreadIds.add(commit.id);
+            changeCountLocally('replies_count', commit.id);
             setCount((current) => Math.max(current - 1, 0));
-            reload();
+            void reload();
         },
     };
 }
@@ -1320,6 +1675,14 @@ function CommitReply({
                                     reply.id,
                                 )}
                                 preview={reply.link_preview}
+                                source={{ commitId: reply.id }}
+                                footer={
+                                    reply.link_topic && (
+                                        <LinkTopicFooter
+                                            topic={reply.link_topic}
+                                        />
+                                    )
+                                }
                             />
                         )}
                     <ShowThreadLink thread={thread} />
@@ -1386,7 +1749,7 @@ function ReplyComposer({
     onReplied: (parent: RepliedParent) => void;
 }) {
     const { user } = useUser();
-    const [author, setAuthor] = useState<OrganizationAuthor | null>(null);
+    const { author, picked, setAuthor } = useAuthor();
     const commitNotFound = useCommitNotFound();
     const participants = Array.from(
         new Map(
@@ -1432,6 +1795,8 @@ function ReplyComposer({
             reply_recipients: string[];
             link_preview_url?: string;
             commit_rules_accepted?: boolean;
+            human_verification_token?: string;
+            author?: string;
         },
         CreatedReply
     >({
@@ -1452,6 +1817,12 @@ function ReplyComposer({
         isSubmittable: isReplyable,
     });
 
+    const colorHint = useColorSwatchHint({
+        body,
+        textareaRef,
+        updateBody,
+        hidden: preview.isPreviewing,
+    });
     const insertEmoji = useEmojiInsertion({
         body,
         updateBody,
@@ -1515,6 +1886,7 @@ function ReplyComposer({
                 )
                 .map(({ id }) => id),
             commit_rules_accepted: commitRules.hasAccepted(),
+            human_verification_token: commitRules.humanVerificationToken(),
             ...(linkCard.isChosen
                 ? { link_preview_url: linkCard.link ?? '' }
                 : {}),
@@ -1533,6 +1905,12 @@ function ReplyComposer({
                     router.flushAll();
                     updateCommitsCount(1);
                     onReplied(reply.parent);
+                },
+                onError: (errors) => {
+                    // Removed from the organization in the meantime: ask again who they can post as, so it's no longer offered.
+                    if (errors.author) {
+                        router.reload({ only: ['auth'] });
+                    }
                 },
                 onHttpException: (response) => {
                     const timeout = timeoutFrom(response.status, response.data);
@@ -1583,6 +1961,7 @@ function ReplyComposer({
                     autoFocus
                     value={body}
                     onValueChange={updateBody}
+                    aria-describedby={colorHint?.id}
                     onKeyDown={onKeyDown}
                     onImage={() => imageInputRef.current?.click()}
                     commandContext={{
@@ -1625,6 +2004,11 @@ function ReplyComposer({
                     />
                 )}
             </div>
+            <ColorSwatchHint
+                hint={colorHint}
+                disabled={processing}
+                className="px-1"
+            />
             <InputError
                 message={
                     errors.body ??
@@ -1632,7 +2016,8 @@ function ReplyComposer({
                     Object.entries(errors).find(([key]) =>
                         key.startsWith('reply_recipients.'),
                     )?.[1] ??
-                    errors.link_preview_url
+                    errors.link_preview_url ??
+                    errors.author
                 }
                 className="px-1"
             />
@@ -1655,7 +2040,12 @@ function ReplyComposer({
                         user={user}
                         author={author}
                         onChange={setAuthor}
-                        fallback={null}
+                        fallback={
+                            // Once they picked an organization they can no longer post as, show who posts now.
+                            picked !== null && (
+                                <UserAvatar user={user} className="size-6" />
+                            )
+                        }
                     >
                         {author === null ? (
                             <UserAvatar user={user} className="size-6" />

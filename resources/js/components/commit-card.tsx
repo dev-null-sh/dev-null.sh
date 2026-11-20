@@ -35,6 +35,8 @@ import {
 } from '@/components/graph-rail';
 import { HiddenLinkPreviewContext } from '@/components/hidden-link-preview-context';
 import { LinkPreview } from '@/components/link-preview';
+import { LinkTopicFooter } from '@/components/link-topic-footer';
+import { Hashtag } from '@/components/linkified-text';
 import { LiveStreamTrigger } from '@/components/live-stream-card';
 import { QuotedCommit } from '@/components/quoted-commit';
 import {
@@ -88,6 +90,7 @@ export function CommitCard({
     exceptReplyId,
     threadPosition,
     graphAfter,
+    showsParent = false,
 }: {
     commit: Commit;
     previousLane?: string;
@@ -112,6 +115,7 @@ export function CommitCard({
     hasRailTail?: boolean;
     exceptReplyId?: string;
     threadPosition?: ThreadPosition;
+    showsParent?: boolean;
 }) {
     const {
         props: { auth },
@@ -427,6 +431,31 @@ export function CommitCard({
                                 </span>
                             </div>
 
+                            {commit.joined_guild &&
+                                component === 'log/show' && (
+                                    <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+                                        because you joined{' '}
+                                        <Hashtag
+                                            hashtag={`#${commit.joined_guild}`}
+                                        />
+                                    </p>
+                                )}
+                            {commit.guild_handle &&
+                                !(
+                                    commit.joined_guild &&
+                                    component === 'log/show'
+                                ) &&
+                                component !== 'guild/show' &&
+                                component !== 'search/index' && (
+                                    <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+                                        posted in{' '}
+                                        <Hashtag
+                                            hashtag={`#${commit.guild_handle}`}
+                                            guild={commit.guild}
+                                        />{' '}
+                                        · not shown in general logs
+                                    </p>
+                                )}
                             {commit.parent && isDeleted(commit.parent) && (
                                 <p className="mt-0.5 flex w-fit items-center gap-1 font-mono text-xs text-muted-foreground">
                                     <CornerDownRight className="size-3" />
@@ -446,6 +475,14 @@ export function CommitCard({
                                     replying to @{commit.parent.author.handle}
                                 </Link>
                             )}
+                            {showsParent &&
+                                commit.parent &&
+                                !isDeleted(commit.parent) && (
+                                    <QuotedCommit
+                                        commit={commit.parent}
+                                        label="Replying to"
+                                    />
+                                )}
                             <div ref={bodyRef} style={translation.bodyStyle}>
                                 <FoldedCommitBody
                                     segments={translation.segments}
@@ -488,6 +525,14 @@ export function CommitCard({
                                             commit.id,
                                         )}
                                         preview={commit.link_preview}
+                                        source={{ commitId: commit.id }}
+                                        footer={
+                                            commit.link_topic && (
+                                                <LinkTopicFooter
+                                                    topic={commit.link_topic}
+                                                />
+                                            )
+                                        }
                                     />
                                 )}
                             {isFocused && (

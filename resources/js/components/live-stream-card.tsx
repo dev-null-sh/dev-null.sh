@@ -12,6 +12,7 @@ import {
     PopoverContent,
 } from '@/components/ui/popover';
 import { UserAvatar } from '@/components/user-avatar';
+import { useLiveStream } from '@/hooks/use-live-stream';
 import { hostname } from '@/lib/urls';
 import { cn } from '@/lib/utils';
 import { show } from '@/routes/user';
@@ -96,7 +97,7 @@ export function LiveStreamTrigger({
     className,
     children,
 }: {
-    user: Pick<User, 'name' | 'handle' | 'avatar_url' | 'live'>;
+    user: Pick<User, 'id' | 'name' | 'handle' | 'avatar_url' | 'live'>;
     hoverCard?: boolean;
     showProfile?: boolean;
     className?: string;
@@ -108,7 +109,7 @@ export function LiveStreamTrigger({
 
     useEffect(() => () => clearTimeout(timer.current), []);
 
-    const stream = user.live;
+    const stream = useLiveStream(user);
 
     if (!stream) {
         return <span className={className}>{children}</span>;

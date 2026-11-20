@@ -3,12 +3,18 @@
 declare(strict_types=1);
 
 use App\Contracts\Services\GitHubProvider;
+use App\Enums\Feature;
 use App\Enums\Log;
+use App\Enums\ModerationReason;
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Models\BanEvent;
 use App\Models\Commit;
+use App\Models\Guild;
 use App\Models\LinkPreview;
 use App\Models\Organization;
 use App\Models\User;
+use App\Models\UserTimeout;
+use App\Services\Features;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -49,6 +55,95 @@ it('renders a user profile', function (): void {
             ->where('commits.data.0.stars_count', 0)
             ->where('commits.data.0.starred', false)
             ->where('commits.data.1.body', 'Older'));
+});
+
+it('shows the guilds the profile owner joined rather than the viewers guilds or mute-only preferences', function (): void {
+    config(['app.admins' => ['admin']]);
+    $viewer = User::factory()->create(['handle' => 'admin']);
+    $user = User::factory()->create();
+    $rust = Guild::factory()->create(['handle' => 'rust']);
+    $laravel = Guild::factory()->create(['handle' => 'laravel']);
+    $left = Guild::factory()->create();
+    $viewersGuild = Guild::factory()->create();
+    $rust->members()->attach($user, ['joined_at' => now(), 'muted_at' => now()]);
+    $laravel->members()->attach($user, ['joined_at' => now()]);
+    $left->muters()->attach($user, ['muted_at' => now()]);
+    $viewersGuild->members()->attach($viewer, ['joined_at' => now()]);
+
+    $this->actingAs($viewer)->get(route('user.show', $user))
+        ->assertOk()
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
+            ->where('profileGuilds', ['laravel', 'rust']));
+
+    $rust->members()->detach($user);
+    $laravel->members()->detach($user);
+
+    $this->get(route('user.show', $user))
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
+            ->where('profileGuilds', []));
+});
+
+it('does not expose profile guild memberships without access to guilds', function (?string $viewerHandle, bool $enabled): void {
+    config(['app.admins' => ['admin']]);
+    resolve(Features::class)->update(Feature::Guilds, $enabled);
+    $user = User::factory()->create();
+    Guild::factory()->create()->members()->attach($user, ['joined_at' => now()]);
+
+    if ($viewerHandle !== null) {
+        $this->actingAs(User::factory()->create(['handle' => $viewerHandle]));
+    }
+
+    $this->get(route('user.show', $user))
+        ->assertOk()
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
+            ->where('profileGuilds', null));
+})->with([
+    'guest' => [null, true],
+    'outside preview' => ['member', true],
+    'disabled' => ['admin', false],
+]);
+
+it('shows the profile owner and site moderators the user moderation history', function (): void {
+    $user = User::factory()->create(['handle' => 'octocat']);
+    UserTimeout::factory()->create([
+        'github_id' => $user->github_id,
+        'reason' => ModerationReason::LowEffort,
+        'created_at' => now()->subDays(2),
+        'ends_at' => now()->subDay(),
+    ]);
+    BanEvent::query()->create([
+        'github_id' => $user->github_id,
+        'reason' => ModerationReason::Spam,
+    ]);
+    $inertiaHeaders = [
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request()),
+    ];
+
+    $this->actingAs($user);
+
+    $this->get(route('user.show', $user), $inertiaHeaders)
+        ->assertJsonPath('props.moderationHistory.timeoutsCount', 1)
+        ->assertJsonPath('props.moderationHistory.bansCount', 1)
+        ->assertJsonPath('props.moderationHistory.timeouts.0.reason', 'Low-effort posts')
+        ->assertJsonPath('props.moderationHistory.timeouts.0.duration', '1 day')
+        ->assertJsonPath('props.moderationHistory.bans.0.reason', 'Spam or self-promotion');
+
+    config(['app.admins' => ['admin']]);
+    $moderator = User::factory()->create(['handle' => 'admin']);
+
+    $this->actingAs($moderator);
+
+    $this->get(route('user.show', $user), $inertiaHeaders)
+        ->assertJsonPath('props.moderationHistory.timeoutsCount', 1)
+        ->assertJsonPath('props.moderationHistory.bansCount', 1);
+
+    $viewer = User::factory()->create();
+
+    $this->actingAs($viewer);
+
+    $this->get(route('user.show', $user), $inertiaHeaders)
+        ->assertJsonPath('props.moderationHistory', null);
 });
 
 it('says which accounts the bio and company mention are on dev/null', function (): void {
@@ -729,6 +824,7 @@ it('shows the github profile readme on the readme tab, without looking for commi
     Commit::factory()->for($user)->create();
 
     $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('contributors')->andReturn([]);
     $github->shouldReceive('login')->with($user->github_id)->andReturn('octocat');
     $github->shouldReceive('readme')->with('octocat')->andReturn('<div id="readme"><article class="markdown-body"><h2>Hi there</h2></article></div>');
 
@@ -743,6 +839,7 @@ it('tells the readme tab when github did not answer', function (): void {
     $user = User::factory()->create(['handle' => 'octocat']);
 
     $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('contributors')->andReturn([]);
     $github->shouldReceive('login')->andThrow(new ConnectionException('timed out'));
 
     $this->get(route('user.show', ['user' => $user, 'tab' => 'readme']))->assertOk()->assertInertia(fn ($page) => $page
@@ -751,6 +848,7 @@ it('tells the readme tab when github did not answer', function (): void {
 
 it('does not ask github for the readme on the other tabs', function (string $tab): void {
     $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('contributors')->andReturn([]);
     $github->shouldNotReceive('login', 'readme');
 
     $user = User::factory()->create(['handle' => 'octocat']);

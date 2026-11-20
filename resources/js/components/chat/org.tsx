@@ -35,7 +35,7 @@ import { cn, laneColor } from '@/lib/utils';
 import { show } from '@/routes/user';
 import type { Message, OrgMember, OrgRef, OrgRole, User } from '@/types';
 
-export const maxMembers = 100;
+export const maxMembers = 256;
 
 const searchDebounce = 150;
 
@@ -697,6 +697,11 @@ export function OrgPeopleDialog({
         try {
             if (mode.kind === 'create') {
                 const org = await createOrg(name, handles);
+
+                // Signed out or in as someone else meanwhile: nothing is left to show.
+                if (org === null) {
+                    return;
+                }
 
                 isCreated.current = true;
                 onDone(org);

@@ -27,9 +27,11 @@ import { SuggestedUserRow } from '@/components/who-to-follow';
 import { WordmarkText } from '@/components/wordmark-text';
 import { useClipboard } from '@/hooks/use-clipboard';
 import { useMediaQuery } from '@/hooks/use-media-query';
+import { useIsListening } from '@/hooks/use-realtime';
 import { useUser } from '@/hooks/use-user';
 import { useKeyLabels } from '@/lib/keyboard';
 import { formatCount } from '@/lib/numbers';
+import { userChannel } from '@/lib/realtime';
 import { cn, laneColor, organizationLaneColor } from '@/lib/utils';
 import type { Lane, Organization, SuggestedUser, User } from '@/types';
 
@@ -598,12 +600,24 @@ export default function Show({
     const [hasGivenUp, setHasGivenUp] = useState(false);
     const wasImporting = useRef(isImporting);
     // The import runs in a queued job right after signing in, so it usually lands while the first steps are open,
-    // before the follow step shows it...
-    const { stop } = usePoll(
+    // before the follow step shows it. It is heard about when it lands, even after the steps stopped waiting for it,
+    // and only polled for while that can't be heard.
+    const isHearingImport = useIsListening(
+        auth.user === null ? null : userChannel(auth.user.id),
+    );
+    const { start, stop } = usePoll(
         1500,
         { only: ['githubImport'] },
-        { autoStart: isImporting },
+        { autoStart: false },
     );
+
+    useEffect(() => {
+        if (isImporting && !isHearingImport && !hasGivenUp) {
+            start();
+        } else {
+            stop();
+        }
+    }, [isImporting, isHearingImport, hasGivenUp, start, stop]);
 
     useEffect(() => {
         if (!isImporting) {
@@ -619,10 +633,7 @@ export default function Show({
         }
 
         // A failed import leaves nothing to wait for: the suggestions are enough.
-        const timeout = setTimeout(() => {
-            stop();
-            setHasGivenUp(true);
-        }, 15_000);
+        const timeout = setTimeout(() => setHasGivenUp(true), 15_000);
 
         return () => clearTimeout(timeout);
     }, [isImporting, stop]);

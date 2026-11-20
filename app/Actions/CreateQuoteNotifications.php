@@ -6,6 +6,8 @@ namespace App\Actions;
 
 use App\Enums\CommitStatus;
 use App\Enums\NotificationType;
+use App\Enums\UserUpdate;
+use App\Events\UsersUpdated;
 use App\Models\Commit;
 use App\Models\Notification;
 use App\Queries\ProfileRecipientsQuery;
@@ -66,5 +68,7 @@ final readonly class CreateQuoteNotifications
             'created_at' => now(),
             'updated_at' => now(),
         ])->all());
+
+        event(new UsersUpdated($quotes->pluck('recipient_id')->all(), UserUpdate::Notifications));
     }
 }

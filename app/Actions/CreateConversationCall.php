@@ -6,6 +6,8 @@ namespace App\Actions;
 
 use App\Dto\Call;
 use App\Enums\OrgEvent;
+use App\Enums\UserUpdate;
+use App\Events\UsersUpdated;
 use App\Models\Conversation;
 use App\Models\User;
 use Illuminate\Support\Facades\Cache;
@@ -34,6 +36,9 @@ final readonly class CreateConversationCall
 
         // A few seconds longer than it rings, so the caller giving up still finds it, and the call is logged missed.
         Cache::put(self::key($callee), Crypt::encryptString(json_encode($call->toArray(), JSON_THROW_ON_ERROR)), self::SECONDS + 5);
+
+        // The offer itself stays behind the call endpoint: the callee's browsers only hear that it rings.
+        event(new UsersUpdated([$callee->id, $caller->id], UserUpdate::Calls));
 
         $this->events->handle($caller, Conversation::betweenOrFail($caller, $callee), OrgEvent::CallStarted);
     }

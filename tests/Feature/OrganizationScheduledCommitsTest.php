@@ -4,19 +4,16 @@ declare(strict_types=1);
 
 use App\Actions\DeleteOrganization;
 use App\Actions\DeleteOrganizationMember;
-use App\Enums\Feature;
 use App\Enums\OrganizationRole;
 use App\Models\Commit;
 use App\Models\Organization;
 use App\Models\ScheduledCommit;
 use App\Models\User;
-use App\Services\Features;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 
 beforeEach(function (): void {
     $this->travelTo(now()->setDate(2026, 10, 15)->setTime(12, 0));
-    resolve(Features::class)->update(Feature::OrganizationCommits, true);
     $this->organization = Organization::factory()->create(['handle' => 'Laravel']);
     $this->member = User::factory()->create(['commit_rules_accepted_at' => now()]);
     $this->organization->members()->attach($this->member->id, ['role' => OrganizationRole::Member]);
@@ -57,19 +54,10 @@ it('lets apps schedule a commit as the organization through the API, and says wh
     expect(ScheduledCommit::query()->oldest('scheduled_at')->pluck('author_id')->all())->toBe([$this->organization->id, null]);
 });
 
-it('lets no one schedule as an organization they are not a member of, or before administrators switch it on', function (): void {
+it('lets no one schedule as an organization they are not a member of', function (): void {
     $this->actingAs(User::factory()->create(['commit_rules_accepted_at' => now()]))
         ->post(route('scheduled-commit.store'), ['body' => 'Not mine to post', 'author' => 'laravel', 'scheduled_at' => now()->addHour()->toIso8601String()])
         ->assertSessionHasErrors(['author' => 'You can only post as an organization you are a member of.']);
-
-    resolve(Features::class)->update(Feature::OrganizationCommits, false);
-
-    $this->actingAs($this->member)
-        ->post(route('scheduled-commit.store'), ['body' => 'Not yet', 'author' => 'laravel', 'scheduled_at' => now()->addHour()->toIso8601String()])
-        ->assertSessionHasErrors(['author' => "Posting as an organization isn't available yet."]);
-    signedApiRequest(apiKeyPairFor($this->member), 'POST', route('api-scheduled-commit.store'), ['body' => 'Not yet', 'author' => 'laravel', 'scheduled_at' => now()->addHour()->toIso8601String()])
-        ->assertUnprocessable()
-        ->assertJsonValidationErrors('author');
 
     expect(ScheduledCommit::query()->exists())->toBeFalse();
 });
@@ -105,17 +93,6 @@ it('cancels a commit scheduled as the organization that a former member tries to
     $this->actingAs($this->member)
         ->post(route('scheduled-commit-submission.store', $scheduled))
         ->assertInertiaFlash('toast.message', 'This commit was already submitted or canceled. Refresh to see its status.');
-
-    expect($scheduled->refresh()->canceled_at)->not->toBeNull()
-        ->and(Commit::query()->exists())->toBeFalse();
-});
-
-it('cancels what was scheduled as an organization once posting as one is switched off', function (): void {
-    $scheduled = ScheduledCommit::factory()->for($this->member)->create(['author_id' => $this->organization->id, 'scheduled_at' => now()->addHour()]);
-    resolve(Features::class)->update(Feature::OrganizationCommits, false);
-
-    $this->travel(1)->hour();
-    $this->artisan('commits:submit-scheduled')->assertSuccessful();
 
     expect($scheduled->refresh()->canceled_at)->not->toBeNull()
         ->and(Commit::query()->exists())->toBeFalse();

@@ -7,6 +7,7 @@ namespace App\Queries;
 use App\Enums\Log;
 use App\Models\Commit;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Pagination\CursorPaginator;
 use Illuminate\Pagination\Paginator;
 
@@ -16,6 +17,23 @@ final readonly class LogCommitsQuery
      * @return CursorPaginator<int, Commit>
      */
     public function paginate(Log $log, ?User $user, ?Commit $through = null, string $cursor = ''): CursorPaginator
+    {
+        return resolve(GuildCommitsQuery::class)->snapshot($user, fn (): CursorPaginator => $this->page($log, $user, $through, $cursor));
+    }
+
+    /**
+     * @param  list<string>  $ids
+     * @return Collection<int, Commit>
+     */
+    public function refreshed(?User $user, array $ids): Collection
+    {
+        return resolve(GuildCommitsQuery::class)->snapshot($user, fn (): Collection => Commit::query()
+            ->whereKey($ids)->visibleTo($user)->withoutMutedAuthorsFor($user)->withoutMutedGuildsFor($user)
+            ->withVisibleReplyCount($user)->withReplyPreviews($user, inLog: true)->withCardDataFor($user)->get());
+    }
+
+    /** @return CursorPaginator<int, Commit> */
+    private function page(Log $log, ?User $user, ?Commit $through, string $cursor): CursorPaginator
     {
         $query = $log->query()->builder($user);
         if ($log->isRanked() || ! $through instanceof Commit) {

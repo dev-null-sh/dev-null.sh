@@ -1,5 +1,5 @@
 import { router, useHttp, usePage } from '@inertiajs/react';
-import { useRef } from 'react';
+import { useEffect, useEffectEvent, useRef } from 'react';
 import { toast } from 'sonner';
 import { store } from '@/actions/App/Http/Controllers/CommitPastelController';
 import { ActionTooltip } from '@/components/action-tooltip';
@@ -35,6 +35,23 @@ export function CommitPastelButton({
         `pasteis-allowance:${auth.user?.id}:${day}`,
         auth.pasteis?.day === day ? auth.pasteis.remaining : 10,
     );
+    // What is left to give is refreshed live when pastéis go out from another device. It only goes down within a day,
+    // so an older count never brings back what was spent since.
+    const liveRemaining =
+        auth.pasteis?.day === day ? auth.pasteis.remaining : null;
+
+    const spendElsewhere = useEffectEvent((left: number) => {
+        if (auth.user && !awarding.has(auth.user.id)) {
+            setRemaining((current) => Math.min(current, left));
+        }
+    });
+
+    useEffect(() => {
+        if (liveRemaining !== null) {
+            spendElsewhere(liveRemaining);
+        }
+    }, [liveRemaining]);
+
     const request = useHttp<
         Record<string, never>,
         {
