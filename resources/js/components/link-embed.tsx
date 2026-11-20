@@ -173,10 +173,13 @@ export function LinkEmbed({
     preview,
     embed,
     isStatic = false,
+    footer,
 }: {
     preview: LinkPreview;
     embed: Embed;
     isStatic?: boolean;
+    /** Shown inside the card, under the player. */
+    footer?: ReactNode;
 }) {
     const [isPlaying, setIsPlaying] = useState(false);
     const Icon = icons[embed.kind];
@@ -267,6 +270,7 @@ export function LinkEmbed({
                     </span>
                 </PlayTrigger>
             )}
+            {footer}
         </div>
     );
 }

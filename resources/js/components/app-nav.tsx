@@ -28,6 +28,7 @@ import AppLogo from '@/components/app-logo';
 import AppLogoIcon from '@/components/app-logo-icon';
 import { ChangelogDialog } from '@/components/changelog-dialog';
 import { GitHubIcon } from '@/components/github-icon';
+import { JoinedGuildsNav } from '@/components/joined-guilds-nav';
 import { LogoMenu } from '@/components/logo-menu';
 import { MobileMenuIcon } from '@/components/mobile-menu-icon';
 import { Button } from '@/components/ui/button';
@@ -432,6 +433,7 @@ export function AppNav({
                         </span>
                     </button>
                 </NavTooltip>
+                <JoinedGuildsNav iconsOnly={iconsOnly} />
             </nav>
 
             {auth.user === null ? (

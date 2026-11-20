@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Enums\UserUpdate;
+use App\Events\ProfilesUpdated;
 use App\Events\UsersUpdated;
 use App\Models\Guild;
 use App\Models\User;
@@ -25,6 +26,7 @@ final readonly class UpdateGuildMembership
                 ->whereNull('joined_at')->whereNull('muted_at')->delete();
             event(new UsersUpdated(DB::table('guild_preferences')->where('guild_id', $guild->id)->pluck('user_id')->push($user->id), UserUpdate::Guilds));
             event(new UsersUpdated([$user->id], UserUpdate::Relationships));
+            event(new ProfilesUpdated([$user->id]));
         });
     }
 }

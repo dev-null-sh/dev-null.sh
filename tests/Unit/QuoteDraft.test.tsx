@@ -26,6 +26,7 @@ const draft = {
 vi.doMock('react', () => ({
     ...React,
     useEffect: () => {},
+    useId: () => 'quote',
     useLayoutEffect: (effect: () => void | (() => void)) => effect(),
     useMemo: (factory: () => unknown) => factory(),
     useSyncExternalStore: (_subscribe: unknown, snapshot: () => unknown) =>
@@ -59,6 +60,8 @@ vi.doMock('../../resources/js/components/composer-preview', async () => ({
 }));
 
 const { Form } = await import('@inertiajs/react');
+const { ColorSwatchHint } =
+    await import('../../resources/js/components/color-swatch-hint');
 const { CommitQuoteButton } =
     await import('../../resources/js/components/commit-quote-button');
 const { ComposerMediaButton } = await import(
@@ -84,6 +87,12 @@ function elements(node: ReactNode): ReactElement<Record<string, unknown>>[] {
     }
 
     const element = node as ReactElement<Record<string, unknown>>;
+    if (element.type === ColorSwatchHint) {
+        const renderHint = element.type as (
+            props: typeof element.props,
+        ) => ReactNode;
+        return elements(renderHint(element.props));
+    }
 
     return [
         element,
@@ -93,9 +102,7 @@ function elements(node: ReactNode): ReactElement<Record<string, unknown>>[] {
     ];
 }
 
-test('quotes insert picked emoji over the selection and hide the picker in preview', () => {
-    draft.body = 'Shipping today';
-    draft.updateBody.mockClear();
+function renderQuoteFields(processing = false) {
     const commit = {
         id: 'quoted',
         author: { id: 'author', handle: 'author' },
@@ -111,18 +118,20 @@ test('quotes insert picked emoji over the selection and hide the picker in previ
     const renderComposer = composer.type as (
         props: typeof composer.props,
     ) => ReactElement;
-    const renderFields = (processing = false) => {
-        const form = elements(renderComposer(composer.props)).find(
-            (element) => element.type === Form,
-        )!;
-        const children = form.props.children as (props: {
-            processing: boolean;
-            errors: Record<string, string>;
-        }) => ReactNode;
+    const form = elements(renderComposer(composer.props)).find(
+        (element) => element.type === Form,
+    )!;
+    const children = form.props.children as (props: {
+        processing: boolean;
+        errors: Record<string, string>;
+    }) => ReactNode;
+    return elements(children({ processing, errors: {} }));
+}
 
-        return elements(children({ processing, errors: {} }));
-    };
-    const fields = renderFields();
+test('quotes insert picked emoji over the selection and hide the picker in preview', () => {
+    draft.body = 'Shipping today';
+    draft.updateBody.mockClear();
+    const fields = renderQuoteFields();
     const picker = fields.find((element) => element.type === EmojiPickerButton);
     assert.ok(picker);
     assert.equal(picker.props.disabled, false);
@@ -139,18 +148,64 @@ test('quotes insert picked emoji over the selection and hide the picker in previ
     (picker.props.onPick as (emoji: string) => void)('🚀');
     assert.deepEqual(draft.updateBody.mock.calls, [['Shipping 🚀']]);
     assert.equal(
-        renderFields(true).find((element) => element.type === EmojiPickerButton)
-            ?.props.disabled,
+        renderQuoteFields(true).find(
+            (element) => element.type === EmojiPickerButton,
+        )?.props.disabled,
         true,
     );
 
     isPreviewing = true;
     try {
         assert.equal(
-            renderFields().some(
+            renderQuoteFields().some(
                 (element) => element.type === EmojiPickerButton,
             ),
             false,
+        );
+    } finally {
+        isPreviewing = false;
+    }
+});
+
+test('quotes format the last ambiguous color and hide the hint in preview', () => {
+    draft.body = 'Keep #dead and try #CAFE.';
+    draft.updateBody.mockClear();
+    const fields = renderQuoteFields();
+    const action = fields.find(
+        (element) => element.props['data-test'] === 'use-color',
+    )!;
+    const textarea = fields.find(
+        (element) => element.type === MentionTextarea,
+    )!;
+    assert.equal(action.props.type, 'button');
+    assert.equal(action.props.disabled, false);
+    assert.match(String(textarea.props['aria-describedby']), /-color-hint/);
+    vi.stubGlobal('requestAnimationFrame', vi.fn());
+    try {
+        (action.props.onClick as () => void)();
+        assert.deepEqual(draft.updateBody.mock.calls, [
+            ['Keep #dead and try color(#CAFE).'],
+        ]);
+    } finally {
+        vi.unstubAllGlobals();
+    }
+
+    isPreviewing = true;
+    try {
+        const previewFields = renderQuoteFields();
+        assert.equal(
+            previewFields.find(
+                (element) => element.props['data-test'] === 'use-color',
+            )?.props.disabled,
+            true,
+        );
+        assert.doesNotMatch(
+            String(
+                previewFields.find(
+                    (element) => element.type === MentionTextarea,
+                )?.props['aria-describedby'],
+            ),
+            /-color-hint/,
         );
     } finally {
         isPreviewing = false;

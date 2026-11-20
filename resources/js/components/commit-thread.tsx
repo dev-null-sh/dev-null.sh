@@ -23,6 +23,10 @@ import { ActionTooltip } from '@/components/action-tooltip';
 import { AuthorAvatar } from '@/components/author-avatar';
 import { AuthorSwitcher, useAuthor } from '@/components/author-switcher';
 import { BodyCounter } from '@/components/body-counter';
+import {
+    ColorSwatchHint,
+    useColorSwatchHint,
+} from '@/components/color-swatch-hint';
 import { FoldedCommitBody } from '@/components/commit-body';
 import { CommitGif, GifAttachmentPreview } from '@/components/commit-gif';
 import {
@@ -57,6 +61,7 @@ import { HiddenLinkPreviewContext } from '@/components/hidden-link-preview-conte
 import InputError from '@/components/input-error';
 import { LinkCardPicker } from '@/components/link-card-picker';
 import { LinkPreview } from '@/components/link-preview';
+import { LinkTopicFooter } from '@/components/link-topic-footer';
 import { MentionTextarea } from '@/components/mention-textarea';
 import { OrganizationAvatar } from '@/components/organization-avatar';
 import { ReplyRecipientPicker } from '@/components/reply-recipient-picker';
@@ -1675,6 +1680,13 @@ function CommitReply({
                                 )}
                                 preview={reply.link_preview}
                                 source={{ commitId: reply.id }}
+                                footer={
+                                    reply.link_topic && (
+                                        <LinkTopicFooter
+                                            topic={reply.link_topic}
+                                        />
+                                    )
+                                }
                             />
                         )}
                     <ShowThreadLink thread={thread} />
@@ -1826,6 +1838,12 @@ function ReplyComposer({
         }
     }, [attachments.images.length, gif, updateGif]);
 
+    const colorHint = useColorSwatchHint({
+        body,
+        textareaRef,
+        updateBody,
+        hidden: preview.isPreviewing,
+    });
     const insertEmoji = useEmojiInsertion({
         body,
         updateBody,
@@ -1965,6 +1983,7 @@ function ReplyComposer({
                     autoFocus
                     value={body}
                     onValueChange={updateBody}
+                    aria-describedby={colorHint?.id}
                     onKeyDown={onKeyDown}
                     onPaste={attachments.onPaste}
                     onFocus={isRestored ? moveCaretToEnd : undefined}
@@ -2001,6 +2020,11 @@ function ReplyComposer({
             {preview.isPreviewing && gif !== null && (
                 <CommitGif gif={toCommitGif(gif)} />
             )}
+            <ColorSwatchHint
+                hint={colorHint}
+                disabled={processing}
+                className="px-1"
+            />
             <InputError
                 message={
                     errors.body ??

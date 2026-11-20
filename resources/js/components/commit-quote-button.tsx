@@ -6,6 +6,10 @@ import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import { ActionTooltip } from '@/components/action-tooltip';
 import { AuthorSwitcher, useAuthor } from '@/components/author-switcher';
 import { BodyCounter } from '@/components/body-counter';
+import {
+    ColorSwatchHint,
+    useColorSwatchHint,
+} from '@/components/color-swatch-hint';
 import { CommitGif, GifAttachmentPreview } from '@/components/commit-gif';
 import {
     ImageDropOverlay,
@@ -169,6 +173,12 @@ function QuoteComposer({
         body,
         textareaRef,
         isSubmittable: isQuotable,
+    });
+    const colorHint = useColorSwatchHint({
+        body,
+        textareaRef,
+        updateBody,
+        hidden: preview.isPreviewing,
     });
     const insertEmoji = useEmojiInsertion({
         body,
@@ -334,7 +344,11 @@ function QuoteComposer({
                                             ? true
                                             : undefined
                                     }
-                                    aria-describedby={`${id}-count`}
+                                    aria-describedby={
+                                        colorHint
+                                            ? `${id}-count ${colorHint.id}`
+                                            : `${id}-count`
+                                    }
                                     className={cn(
                                         'col-start-1 row-start-1 block field-sizing-content max-h-[40dvh] min-h-10 w-full resize-none overflow-x-hidden overflow-y-auto bg-transparent py-1.5 pr-9 text-[17px] leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:outline-none',
                                         { invisible: preview.isPreviewing },
@@ -364,6 +378,10 @@ function QuoteComposer({
                                 <CommitGif gif={toCommitGif(gif)} />
                             )}
 
+                            <ColorSwatchHint
+                                hint={colorHint}
+                                disabled={processing}
+                            />
                             <InputError
                                 message={
                                     errors.body ??

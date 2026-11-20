@@ -20,7 +20,9 @@ use App\Queries\CommitAncestorsQuery;
 use App\Queries\CommitContinuationQuery;
 use App\Queries\CommitPageQuery;
 use App\Queries\CommitRepliesQuery;
+use App\Queries\LinkCommitsQuery;
 use App\Queries\UserAchievementsQuery;
+use App\Services\LinkPages;
 use App\Services\PageMetadata;
 use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Http\RedirectResponse;
@@ -34,7 +36,7 @@ final readonly class CommitController
     /**
      * Commits are public, so guests and crawlers read the same page, with the commit's link preview and the replies shown under it as structured data.
      */
-    public function show(ShowCommitRequest $request, #[CurrentUser] ?User $currentUser, Profile $profile, Commit $commit, CommitPageQuery $page, CommitAncestorsQuery $ancestors, CommitContinuationQuery $continuation, CommitRepliesQuery $replies, PageMetadata $metadata): Response
+    public function show(ShowCommitRequest $request, #[CurrentUser] ?User $currentUser, Profile $profile, Commit $commit, CommitPageQuery $page, CommitAncestorsQuery $ancestors, CommitContinuationQuery $continuation, CommitRepliesQuery $replies, LinkCommitsQuery $linkCommits, LinkPages $linkPages, PageMetadata $metadata): Response
     {
         $focusedCommit = null;
         $getCommit = function () use (&$focusedCommit, $page, $commit, $currentUser): Commit {
@@ -61,6 +63,17 @@ final readonly class CommitController
             'ancestors' => fn (): array => ShownStreams::commits($ancestors->get($commit, $currentUser)),
             'continuation' => fn (): array => ShownStreams::continuation($getContinuation()),
             'replies' => fn (): ?CursorPaginator => $getContinuation()->commits->isEmpty() ? ShownStreams::page($getReplies()) : null,
+            'linkTopic' => Inertia::defer(function () use ($getCommit, $currentUser, $linkCommits, $linkPages): ?array {
+                $around = $getCommit()->trashed() ? null : $linkCommits->aroundCommit($getCommit(), $currentUser);
+
+                return $around === null ? null : [
+                    'url' => $around['link']->url,
+                    'page_url' => $linkPages->url($around['link']->url),
+                    'title' => $around['link']->title,
+                    'count' => $around['count'],
+                    'commits' => ShownStreams::commits($around['commits']),
+                ];
+            }),
         ])->withViewData(['preview' => $preview]);
     }
 

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Actions\DeleteUser;
+use App\Enums\Feature;
 use App\Enums\PushAccess;
 use App\Enums\UserUpdate;
 use App\Http\Requests\DeleteUserRequest;
@@ -14,6 +15,7 @@ use App\Models\User;
 use App\Queries\BioProfilesQuery;
 use App\Queries\FollowersYouKnowQuery;
 use App\Queries\GitHubReadmeQuery;
+use App\Queries\GuildsQuery;
 use App\Queries\PinnedCommitQuery;
 use App\Queries\PushAccessQuery;
 use App\Queries\UserAchievementsQuery;
@@ -21,6 +23,7 @@ use App\Queries\UserActivityQuery;
 use App\Queries\UserCommitsQuery;
 use App\Queries\UserModerationQuery;
 use App\Queries\UserStreakQuery;
+use App\Services\Features;
 use App\Services\PageMetadata;
 use Closure;
 use Illuminate\Broadcasting\Channel;
@@ -38,7 +41,7 @@ final readonly class UserController
     /**
      * Profiles are public, so guests and crawlers read the same page, with the profile's link preview.
      */
-    public function show(ShowUserRequest $request, #[CurrentUser] ?User $currentUser, User $user, UserActivityQuery $activity, UserStreakQuery $streaks, UserAchievementsQuery $achievements, PushAccessQuery $pushAccess, UserCommitsQuery $commits, PinnedCommitQuery $pinned, UserModerationQuery $moderation, FollowersYouKnowQuery $followersYouKnow, GitHubReadmeQuery $readme, BioProfilesQuery $bioProfiles, PageMetadata $metadata): Response
+    public function show(ShowUserRequest $request, #[CurrentUser] ?User $currentUser, User $user, UserActivityQuery $activity, UserStreakQuery $streaks, UserAchievementsQuery $achievements, PushAccessQuery $pushAccess, UserCommitsQuery $commits, PinnedCommitQuery $pinned, UserModerationQuery $moderation, FollowersYouKnowQuery $followersYouKnow, GitHubReadmeQuery $readme, BioProfilesQuery $bioProfiles, PageMetadata $metadata, GuildsQuery $guilds, Features $features): Response
     {
         $blockerId = $currentUser?->blockerIdWith($user);
 
@@ -67,6 +70,7 @@ final readonly class UserController
 
         return Inertia::render('user/show', [
             'user' => Inertia::live(fn (): ?array => ShownStreams::user($getCountedUser()), 'profile', $profile),
+            'profileGuilds' => Inertia::live(fn (): ?array => $currentUser instanceof User && $features->available(Feature::Guilds, $currentUser) ? $guilds->joinedHandles($user) : null, 'profile', $profile),
             'bioProfiles' => fn (): array => $bioProfiles->get($user),
             'pasteisReceived' => Inertia::live(fn (): ?int => $currentUser?->pasteis_mode ? $user->pasteis_received : null, 'profile', $profile),
             'isFollowing' => $relationship(fn (): bool => $currentUser?->isFollowing($user) ?? false),

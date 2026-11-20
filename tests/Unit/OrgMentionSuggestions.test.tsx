@@ -95,14 +95,15 @@ function handles(fields: Element[]) {
 
 beforeEach(() => {
     state = [undefined, { top: 0, left: 0 }];
+    effects = [];
     guilds = null;
     fetchMock.mockReset();
     vi.stubGlobal('fetch', fetchMock);
     vi.stubGlobal('document', { body: {} });
 });
 
-test('suggests loaded guilds and inserts the selected hashtag without fetching', () => {
-    guilds = ['rust', 'rustlang', 'laravel'].map(
+test('suggests loaded guilds and inserts a hex-shaped hashtag without fetching', () => {
+    guilds = ['dead', 'deadbeef', 'laravel'].map(
         (handle) =>
             ({
                 id: handle,
@@ -112,17 +113,17 @@ test('suggests loaded guilds and inserts the selected hashtag without fetching',
                 icon_url: null,
             }) as Guild,
     );
-    state[0] = { kind: 'guild', start: 6, query: 'RU' };
+    state[0] = { kind: 'guild', start: 6, query: 'DE' };
     cursor = 0;
     effects = [];
     const onValueChange = vi.fn();
     const fields = elements(
-        MentionTextarea({ value: 'Hello #RU', onValueChange }),
+        MentionTextarea({ value: 'Hello #DE', onValueChange }),
     );
     const options = fields.filter((element) => element.props.role === 'option');
     assert.deepEqual(
         options.map((option) => option.props.id),
-        ['mentions-guild-rust', 'mentions-guild-rustlang'],
+        ['mentions-guild-dead', 'mentions-guild-deadbeef'],
     );
     const textarea = fields.find((element) => element.type === 'textarea')!;
     const target = {
@@ -134,9 +135,9 @@ test('suggests loaded guilds and inserts the selected hashtag without fetching',
     vi.stubGlobal('requestAnimationFrame', (callback: () => void) =>
         callback(),
     );
-    (options[1].props.onClick as () => void)();
-    assert.deepEqual(onValueChange.mock.calls, [['Hello #rustlang ']]);
-    assert.deepEqual(target.setSelectionRange.mock.calls, [[16, 16]]);
+    (options[0].props.onClick as () => void)();
+    assert.deepEqual(onValueChange.mock.calls, [['Hello #dead ']]);
+    assert.deepEqual(target.setSelectionRange.mock.calls, [[12, 12]]);
     effects.slice(0, 2).forEach((effect) => effect());
     assert.equal(fetchMock.mock.calls.length, 0);
 });
@@ -149,6 +150,7 @@ test('does not suggest guilds inside code, URLs, partial handles or when preview
         'word#rust',
         '#rust ',
         '##rust',
+        'color(#dead',
     ]) {
         guilds = [{ id: 'rust', handle: 'rust', name: 'Rust' } as Guild];
         cursor = 0;

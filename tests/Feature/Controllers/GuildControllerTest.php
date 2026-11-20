@@ -5,7 +5,10 @@ declare(strict_types=1);
 use App\Actions\CreateCommit;
 use App\Actions\CreateGuild;
 use App\Actions\CreateGuildReport;
+use App\Actions\CreateGuildSubmissionApproval;
 use App\Actions\CreateScheduledCommit;
+use App\Actions\DeleteGuildModerator;
+use App\Actions\DeleteGuildSubmission;
 use App\Actions\DeleteUser;
 use App\Actions\UpdateGuild;
 use App\Actions\UpdateScheduledCommitSubmittedAt;
@@ -14,12 +17,14 @@ use App\Enums\CommitStatus;
 use App\Enums\Feature;
 use App\Enums\Log;
 use App\Enums\UserUpdate;
+use App\Events\ProfilesUpdated;
 use App\Events\UsersUpdated;
 use App\Exceptions\GuildModeratorRemoved;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\Commit;
 use App\Models\Guild;
 use App\Models\GuildReport;
+use App\Models\GuildSubmission;
 use App\Models\Organization;
 use App\Models\ScheduledCommit;
 use App\Models\User;
@@ -217,17 +222,19 @@ it('never transfers a claimed handle even when two creations pass validation', f
     $this->assertDatabaseCount('guilds', 1);
 });
 
-it('lets only the creator edit the icon and description and never the name handle or owner', function (): void {
+it('lets only the creator edit the display name icon and description and never the handle or owner', function (): void {
     $admin = User::factory()->create(['handle' => 'admin']);
     $other = User::factory()->create(['handle' => 'other-admin']);
-    $guild = Guild::factory()->create(['user_id' => $admin->id, 'name' => 'Job Board', 'handle' => 'jobs']);
-    $payload = ['description' => 'Remote jobs.', 'emoji' => '🌍', 'remove_icon' => false, 'name' => 'Changed', 'handle' => 'changed', 'user_id' => $other->id];
+    $guild = Guild::factory()->create(['user_id' => $admin->id, 'name' => 'jobs', 'handle' => 'jobs']);
+    $payload = ['description' => 'Remote jobs.', 'emoji' => '🌍', 'remove_icon' => false, 'name' => 'J.O.B.S', 'handle' => 'changed', 'user_id' => $other->id];
 
     $this->actingAs($other)->put(route('guild.update', 'jobs'), $payload)->assertNotFound();
     expect($guild->fresh()->description)->toBe($guild->description);
     $this->actingAs($admin)->put(route('guild.update', 'jobs'), $payload)->assertRedirectToRoute('guild.show', 'jobs');
-    expect($guild->fresh())->description->toBe('Remote jobs.')->emoji->toBe('🌍')->name->toBe('Job Board')->handle->toBe('jobs')->user_id->toBe($admin->id);
-    $this->putJson(route('guild.update', 'jobs'), ['description' => '', 'emoji' => 'invalid'])->assertUnprocessable()->assertJsonValidationErrors(['description', 'emoji', 'remove_icon']);
+    expect($guild->fresh())->description->toBe('Remote jobs.')->emoji->toBe('🌍')->name->toBe('J.O.B.S')->handle->toBe('jobs')->user_id->toBe($admin->id);
+    $this->putJson(route('guild.update', 'jobs'), [...$payload, 'name' => 'Job Board'])->assertUnprocessable()->assertJsonValidationErrors(['name' => "Guild display name doesn't match hashtag"]);
+    expect($guild->fresh()->name)->toBe('J.O.B.S');
+    $this->putJson(route('guild.update', 'jobs'), ['description' => '', 'emoji' => 'invalid'])->assertUnprocessable()->assertJsonValidationErrors(['name', 'description', 'emoji', 'remove_icon']);
 });
 
 it('reencodes uploaded icons serves them only to admins and replaces or removes them', function (): void {
@@ -243,9 +250,9 @@ it('reencodes uploaded icons serves them only to admins and replaces or removes 
     $this->get(route('guild-icon.show', 'jobs'))->assertOk()->assertHeader('Content-Type', 'image/webp');
     $this->get(route('guild.show', 'jobs'))->assertInertia(fn ($page) => $page->where('guilds.0.icon_url', route('guild-icon.show', ['guild' => 'jobs', 'v' => $guild->updated_at->getTimestampMs()])));
 
-    $this->put(route('guild.update', 'jobs'), ['description' => 'Hiring again.', 'emoji' => '💼', 'remove_icon' => false, 'images' => [UploadedFile::fake()->image('next.jpg')]])->assertRedirect();
+    $this->put(route('guild.update', 'jobs'), ['name' => 'Jobs', 'description' => 'Hiring again.', 'emoji' => '💼', 'remove_icon' => false, 'images' => [UploadedFile::fake()->image('next.jpg')]])->assertRedirect();
     expect($guild->fresh()->icon_path)->not->toBe($original);
-    $this->put(route('guild.update', 'jobs'), ['description' => 'Hiring again.', 'emoji' => '💻', 'remove_icon' => true])->assertRedirect();
+    $this->put(route('guild.update', 'jobs'), ['name' => 'Jobs', 'description' => 'Hiring again.', 'emoji' => '💻', 'remove_icon' => true])->assertRedirect();
     expect($guild->fresh()->icon_path)->toBeNull();
     $this->get(route('guild-icon.show', 'jobs'))->assertNotFound();
 });
@@ -261,7 +268,7 @@ it('preserves a guild when its moderator loses ownership after edit validation',
     });
 
     $this->actingAs($moderator)->put(route('guild.update', $guild->handle), [
-        'description' => 'A stale edit.', 'emoji' => '🌍', 'remove_icon' => true,
+        'name' => $guild->handle, 'description' => 'A stale edit.', 'emoji' => '🌍', 'remove_icon' => true,
     ])->assertSessionHasErrors(['description' => 'You no longer moderate this guild.']);
 
     expect($guild->fresh())->description->toBe($guild->description)->emoji->toBe($guild->emoji)
@@ -291,6 +298,16 @@ it('shows exact prose hashtags including older commits but excludes prefixes cod
         ->has('commits', 2)->where('commits.0.id', $new->id)->where('commits.1.id', $old->id)->where('hasMore', false));
 });
 
+it('includes hex-shaped hashtags on their guild board and excludes explicit swatches', function (): void {
+    $admin = User::factory()->create(['handle' => 'admin']);
+    $guild = Guild::factory()->create(['handle' => 'dead']);
+    $tagged = Commit::factory()->create(['body' => 'Join color(#dead)#DEAD']);
+    Commit::factory()->create(['body' => 'Try (COLOR(#dead)).']);
+
+    $this->actingAs($admin)->get(route('guild.show', $guild->handle))->assertOk()->assertInertia(fn ($page) => $page
+        ->has('commits', 1)->where('commits.0.id', $tagged->id));
+});
+
 it('merges board posts and exact hashtags newest first with thirty roots per page', function (): void {
     $admin = User::factory()->create(['handle' => 'admin']);
     $guild = Guild::factory()->create(['handle' => 'café_dev']);
@@ -312,6 +329,39 @@ it('merges board posts and exact hashtags newest first with thirty roots per pag
         ->has('commits', 1)->where('commits.0.id', $old->id)->where('hasMore', false)->where('page', 2)
         ->where('commits.0.reply_preview.data.0.id', $reply->id));
     $this->getJson(route('guild.show', ['guild' => 'café_dev', 'page' => 0]))->assertUnprocessable()->assertJsonValidationErrors('page');
+});
+
+it('reads the roots of a guild page once however many commits carry a hashtag', function (): void {
+    $admin = User::factory()->create(['handle' => 'admin']);
+    $guild = Guild::factory()->create(['handle' => 'rust']);
+    $post = Commit::factory()->for($guild)->create(['body' => 'Direct to the board']);
+    Commit::factory()->count(250)->create(['body' => 'Reading #php today']);
+    DB::flushQueryLog();
+    DB::enableQueryLog();
+
+    $this->actingAs($admin)->get(route('guild.show', 'rust'))->assertOk()->assertInertia(fn ($page) => $page
+        ->has('commits', 1)->where('commits.0.id', $post->id)->where('hasMore', false));
+
+    expect(collect(DB::getQueryLog())->filter(fn (array $query): bool => str_contains($query['query'], '"roots"')))->toHaveCount(1);
+
+    DB::disableQueryLog();
+});
+
+it('reads the roots of a guild page one more time for its pinned commit', function (): void {
+    $admin = User::factory()->create(['handle' => 'admin']);
+    $guild = Guild::factory()->create(['handle' => 'rust']);
+    $post = Commit::factory()->for($guild)->create(['body' => 'Direct to the board']);
+    DB::table('guilds')->where('id', $guild->id)->update(['pinned_commit_id' => $post->id]);
+    Commit::factory()->count(250)->create(['body' => 'Reading #php today']);
+    DB::flushQueryLog();
+    DB::enableQueryLog();
+
+    $this->actingAs($admin)->get(route('guild.show', 'rust'))->assertOk()->assertInertia(fn ($page) => $page
+        ->where('pinnedCommit.id', $post->id));
+
+    expect(collect(DB::getQueryLog())->filter(fn (array $query): bool => str_contains($query['query'], '"roots"')))->toHaveCount(2);
+
+    DB::disableQueryLog();
 });
 
 it('includes roots matched only by nested replies without exposing hidden roots or replies', function (): void {
@@ -721,19 +771,20 @@ it('limits how often a member changes a guild membership or a guild mute', funct
     ['guild-mute.update', ['muted' => true]],
 ]);
 
-it('announces a membership only to the members of the guild and to the person who changed it', function (bool $joined): void {
+it('announces a membership to its members and refreshes the changed persons profile', function (bool $joined): void {
     $admin = User::factory()->create(['handle' => 'admin']);
     $member = User::factory()->create();
     User::factory()->create();
     $guild = Guild::factory()->create();
     $guild->members()->attach($member, ['joined_at' => now()]);
-    Event::fake([UsersUpdated::class]);
+    Event::fake([UsersUpdated::class, ProfilesUpdated::class]);
 
     $this->actingAs($admin)->put(route('guild-membership.update', $guild), ['joined' => $joined])->assertRedirect();
 
     Event::assertDispatchedTimes(UsersUpdated::class, 2);
     Event::assertDispatched(UsersUpdated::class, fn (UsersUpdated $event): bool => $event->update === UserUpdate::Guilds && $event->userIds === [$member->id, $admin->id]);
     Event::assertDispatched(UsersUpdated::class, fn (UsersUpdated $event): bool => $event->update === UserUpdate::Relationships && $event->userIds === [$admin->id]);
+    Event::assertDispatched(ProfilesUpdated::class, fn (ProfilesUpdated $event): bool => $event->profileIds === [$admin->id]);
 })->with([true, false]);
 
 it('announces an edit of a guild only to its members and to its creator', function (): void {
@@ -744,7 +795,7 @@ it('announces an edit of a guild only to its members and to its creator', functi
     $guild->members()->attach($member, ['joined_at' => now()]);
     Event::fake([UsersUpdated::class]);
 
-    $this->actingAs($admin)->put(route('guild.update', $guild->handle), ['description' => 'Remote jobs.', 'emoji' => '💼', 'remove_icon' => false])->assertRedirect();
+    $this->actingAs($admin)->put(route('guild.update', $guild->handle), ['name' => $guild->handle, 'description' => 'Remote jobs.', 'emoji' => '💼', 'remove_icon' => false])->assertRedirect();
 
     Event::assertDispatchedTimes(UsersUpdated::class, 1);
     Event::assertDispatched(UsersUpdated::class, fn (UsersUpdated $event): bool => $event->update === UserUpdate::Guilds && $event->userIds === [$member->id, $admin->id]);
@@ -752,7 +803,10 @@ it('announces an edit of a guild only to its members and to its creator', functi
 
 it('lets a person create one hundred guilds and refuses the next one', function (): void {
     $admin = User::factory()->create(['handle' => 'admin']);
-    Guild::factory()->count(99)->create(['user_id' => $admin->id]);
+    Guild::factory()->count(98)->create(['user_id' => $admin->id]);
+    $existing = Guild::query()->where('user_id', $admin->id)->firstOrFail();
+    GuildSubmission::factory()->for($admin)->create(['handle' => $existing->handle]);
+    GuildSubmission::factory()->for($admin)->create();
     Guild::factory()->count(3)->create();
     $payload = ['description' => 'A public group.', 'emoji' => '💻'];
 
@@ -762,35 +816,260 @@ it('lets a person create one hundred guilds and refuses the next one', function 
     $this->assertDatabaseMissing('guilds', ['handle' => 'next']);
 });
 
-it('refuses a guild whose name description or icon the moderation flags', function (array $scores, bool $harmful): void {
+it('lets a person replace a pending creation at the guild limit', function (bool $flagged): void {
+    $admin = User::factory()->create(['handle' => 'admin']);
+    Guild::factory()->count(99)->create(['user_id' => $admin->id]);
+    $previous = GuildSubmission::factory()->for($admin)->create(['handle' => 'adhd']);
+    $moderation = $this->mock(ModerationProvider::class);
+    $moderation->shouldReceive('moderate')->andReturn($flagged ? ['harassment' => 0.7] : []);
+    $moderation->shouldReceive('isHarmful')->andReturn(false);
+
+    $this->actingAs($admin)->post(route('guild.store'), ['name' => 'ADHD', 'description' => 'A revised description.', 'emoji' => '🧠'])->assertSessionHasNoErrors()->assertRedirect();
+
+    $this->assertModelMissing($previous);
+    $this->assertDatabaseHas($flagged ? 'guild_submissions' : 'guilds', ['user_id' => $admin->id, 'handle' => 'adhd']);
+    expect(Guild::query()->where('user_id', $admin->id)->count() + GuildSubmission::query()->where('user_id', $admin->id)->count())->toBe(100);
+})->with([true, false]);
+
+it('explains when a guild hashtag is already taken', function (): void {
+    Guild::factory()->create(['handle' => 'adhd']);
+
+    $this->actingAs(User::factory()->create(['handle' => 'admin']))
+        ->postJson(route('guild.store'), ['name' => 'ADHD', 'description' => 'A public group.', 'emoji' => '🧠'])
+        ->assertUnprocessable()->assertJsonValidationErrors(['handle' => 'A guild already uses this hashtag. Choose a different display name.']);
+});
+
+it('includes public guild pill details on board permalinks even for guests', function (): void {
+    $guild = Guild::factory()->create(['handle' => 'adhd', 'name' => 'ADHD', 'emoji' => '🧠']);
+    $commit = Commit::factory()->create(['guild_id' => $guild->id]);
+
+    $this->get(route('commit.show', [$commit->author, $commit]))->assertOk()->assertInertia(fn ($page) => $page
+        ->where('commit.guild', ['handle' => 'adhd', 'name' => 'ADHD', 'emoji' => '🧠', 'icon_url' => null]));
+});
+
+it('classifies queued guild edits by both handle and owner without per-submission queries', function (): void {
+    $admin = User::factory()->create(['handle' => 'admin']);
+    Guild::factory()->create(['user_id' => $admin->id, 'handle' => 'owned']);
+    Guild::factory()->create(['handle' => 'taken']);
+    foreach (['owned', 'taken', 'new'] as $handle) {
+        GuildSubmission::factory()->for($admin)->create(['handle' => $handle]);
+    }
+
+    $this->actingAs($admin);
+    DB::enableQueryLog();
+
+    $response = $this->get(route('guild-report.index'), [
+        'X-Inertia-Version' => (string) resolve(HandleInertiaRequests::class)->version(request()),
+        'X-Inertia' => 'true', 'X-Inertia-Partial-Component' => 'moderation/guilds', 'X-Inertia-Partial-Data' => 'submissions',
+    ])->assertOk();
+
+    expect(collect($response->json('props.submissions'))->pluck('is_edit', 'handle')->all())->toBe(['owned' => true, 'taken' => false, 'new' => false]);
+    expect(collect(DB::getQueryLog())->filter(fn (array $query): bool => str_contains($query['query'], 'from "guilds"')))->toHaveCount(1);
+    DB::disableQueryLog();
+});
+
+it('holds a guild whose name description or icon the moderation flags for review until an admin approves it', function (array $scores, bool $harmful): void {
     Storage::fake();
     $moderation = $this->mock(ModerationProvider::class);
     $moderation->shouldReceive('moderate')->once()
-        ->withArgs(fn (string $text, array $icons): bool => $text === "Jobs\n\nHiring." && count($icons) === 1 && str_starts_with($icons[0], 'data:image/webp;base64,'))
+        ->withArgs(fn (string $text, array $icons): bool => $text === "ADHD\n\nYou absolute mess." && count($icons) === 1 && str_starts_with($icons[0], 'data:image/webp;base64,'))
         ->andReturn($scores);
-    $moderation->shouldReceive('isHarmful')->with("Jobs\n\nHiring.")->andReturn($harmful);
+    $moderation->shouldReceive('isHarmful')->with("ADHD\n\nYou absolute mess.")->andReturn($harmful);
+    $creator = User::factory()->create(['handle' => 'admin']);
+    Event::fake([UsersUpdated::class]);
 
-    $this->actingAs(User::factory()->create(['handle' => 'admin']))->postJson(route('guild.store'), [
-        'name' => 'Jobs', 'description' => 'Hiring.', 'emoji' => '💼', 'images' => [UploadedFile::fake()->image('icon.png', 80, 60)],
-    ])->assertUnprocessable()->assertJsonValidationErrors(['description' => 'This guild cannot be published. Change its name, its description or its icon.']);
+    $this->actingAs($creator)->from(route('guild.index'))->post(route('guild.store'), [
+        'name' => 'ADHD', 'description' => 'You absolute mess.', 'emoji' => '🧠', 'images' => [UploadedFile::fake()->image('icon.png', 80, 60)],
+    ])->assertRedirectToRoute('guild.index')
+        ->assertInertiaFlash('toast', ['type' => 'success', 'message' => 'Your guild is waiting for review. It goes live once an admin approves it.']);
 
     $this->assertDatabaseCount('guilds', 0);
-    expect(Storage::allFiles())->toBe([]);
+    $submission = GuildSubmission::query()->sole();
+    expect($submission)->user_id->toBe($creator->id)->handle->toBe('adhd')->name->toBe('ADHD')->description->toBe('You absolute mess.')
+        ->and(DB::table('guild_submissions')->value('description'))->not->toBe('You absolute mess.')
+        ->and(Storage::allFiles())->toBe([$submission->icon_path]);
+    Event::assertDispatched(UsersUpdated::class, fn (UsersUpdated $event): bool => $event->update === UserUpdate::Moderation && in_array($creator->id, $event->userIds, true));
+
+    $this->get(route('guild-report.index'))->assertOk()->assertInertia(fn ($page) => $page->where('submissions', [[
+        'id' => $submission->id, 'handle' => 'adhd', 'name' => 'ADHD', 'description' => 'You absolute mess.', 'emoji' => '🧠',
+        'icon_url' => route('guild-submission-icon.show', $submission), 'remove_icon' => false, 'author' => 'admin', 'is_edit' => false,
+    ]]));
+    $this->get(route('guild-submission-icon.show', $submission))->assertOk()->assertHeader('Content-Type', 'image/webp');
+
+    $this->post(route('guild-submission-approval.store', $submission))->assertRedirect();
+
+    $guild = Guild::query()->sole();
+    expect($guild)->handle->toBe('adhd')->name->toBe('ADHD')->description->toBe('You absolute mess.')->emoji->toBe('🧠')
+        ->user_id->toBe($creator->id)->icon_path->toBe($submission->icon_path);
+    $this->assertModelMissing($submission);
+    $this->assertDatabaseHas('guild_preferences', ['guild_id' => $guild->id, 'user_id' => $creator->id]);
+    Storage::assertExists($guild->icon_path);
+    $this->get(route('guild-report.index'))->assertInertia(fn ($page) => $page->where('submissions', []));
+
+    resolve(DeleteGuildSubmission::class)->handle($submission);
+    resolve(CreateGuildSubmissionApproval::class)->handle($submission);
+    Storage::assertExists($guild->icon_path);
 })->with([
-    'a flagged category' => [['sexual' => 0.4], false],
+    'a flagged category' => [['harassment' => 0.88], false],
     'harmful text' => [[], true],
 ]);
 
-it('refuses an edit of a guild that the moderation flags and keeps the guild as it was', function (): void {
+it('keeps a guild as it was while a flagged edit waits and applies the edit once approved', function (): void {
+    Storage::fake();
+    $admin = User::factory()->create(['handle' => 'admin']);
+    $guild = Guild::factory()->create(['user_id' => $admin->id, 'handle' => 'jobs', 'name' => 'Jobs', 'description' => 'Hiring.', 'emoji' => '💻', 'icon_path' => 'guild-icons/original.webp']);
+    Storage::put($guild->icon_path, 'original');
+    $moderation = $this->mock(ModerationProvider::class);
+    $moderation->shouldReceive('moderate')->andReturn(['harassment' => 0.7]);
+
+    $this->actingAs($admin)->put(route('guild.update', 'jobs'), ['name' => 'JOBS', 'description' => 'Flagged words.', 'emoji' => '💼', 'remove_icon' => false, 'images' => [UploadedFile::fake()->image('first.png')]])
+        ->assertRedirectToRoute('guild.show', 'jobs')
+        ->assertInertiaFlash('toast', ['type' => 'success', 'message' => 'Your changes are waiting for review. They go live once an admin approves them.']);
+    expect($guild->fresh())->name->toBe('Jobs')->description->toBe('Hiring.')->emoji->toBe('💻')->icon_path->toBe('guild-icons/original.webp');
+    $first = GuildSubmission::query()->sole()->icon_path;
+    $this->put(route('guild.update', 'jobs'), ['name' => 'J.O.B.S', 'description' => 'Other flagged words.', 'emoji' => '🌍', 'remove_icon' => true])->assertRedirect();
+
+    expect($guild->fresh())->name->toBe('Jobs')->description->toBe('Hiring.')->emoji->toBe('💻')->icon_path->toBe('guild-icons/original.webp');
+    $submission = GuildSubmission::query()->sole();
+    expect($submission)->name->toBe('J.O.B.S')->icon_path->toBeNull()->remove_icon->toBeTrue();
+    Storage::assertMissing($first);
+    $this->get(route('guild-report.index'))->assertInertia(fn ($page) => $page->where('submissions.0.is_edit', true)->where('submissions.0.icon_url', null)->where('submissions.0.remove_icon', true));
+    $this->get(route('guild-submission-icon.show', $submission))->assertNotFound();
+
+    $this->post(route('guild-submission-approval.store', $submission))->assertRedirect();
+
+    expect($guild->fresh())->name->toBe('J.O.B.S')->description->toBe('Other flagged words.')->emoji->toBe('🌍')->icon_path->toBeNull()->user_id->toBe($admin->id);
+    $this->assertModelMissing($submission);
+    Storage::assertMissing('guild-icons/original.webp');
+});
+
+it('leaves a replacement submission and its icon pending when a stale review targets its predecessor', function (string $action): void {
+    Storage::fake();
+    $admin = User::factory()->create(['handle' => 'admin']);
+    $first = GuildSubmission::factory()->for($admin)->create([
+        'handle' => 'jobs', 'name' => 'Jobs', 'description' => 'Previously reviewed words.', 'icon_path' => 'guild-icons/previous.webp',
+    ]);
+    Storage::put($first->icon_path, 'old image');
+    $this->mock(ModerationProvider::class)->shouldReceive('moderate')->andReturn(['harassment' => 0.7]);
+    $this->actingAs($admin)->post(route('guild.store'), [
+        'name' => 'JOBS', 'description' => 'Replacement flagged words.', 'emoji' => '💼', 'images' => [UploadedFile::fake()->image('replacement.png')],
+    ])->assertRedirect();
+    $replacement = GuildSubmission::query()->sole();
+
+    resolve($action)->handle($first);
+
+    $route = $action === CreateGuildSubmissionApproval::class ? 'guild-submission-approval.store' : 'guild-submission.destroy';
+    $this->from(route('guild-report.index'))->call($action === CreateGuildSubmissionApproval::class ? 'POST' : 'DELETE', route($route, $first))->assertRedirectToRoute('guild-report.index');
+
+    $this->assertDatabaseCount('guilds', 0);
+    $this->assertModelMissing($first);
+    $this->assertModelExists($replacement);
+    expect($replacement->fresh())->name->toBe('JOBS')->description->toBe('Replacement flagged words.');
+    Storage::assertExists($replacement->icon_path);
+    Storage::assertMissing($first->icon_path);
+})->with(['approval' => CreateGuildSubmissionApproval::class, 'rejection' => DeleteGuildSubmission::class]);
+
+it('ignores a bound guild review after its author deletes their account', function (string $action): void {
+    $author = User::factory()->create();
+    $submission = GuildSubmission::factory()->for($author)->create();
+    resolve(DeleteUser::class)->handle($author);
+
+    resolve($action)->handle($submission);
+
+    $this->assertModelMissing($submission);
+    $this->assertDatabaseCount('guilds', 0);
+})->with(['approval' => CreateGuildSubmissionApproval::class, 'rejection' => DeleteGuildSubmission::class]);
+
+it('discards a rejected submission and its icon without touching the guild', function (): void {
+    Storage::fake();
     $admin = User::factory()->create(['handle' => 'admin']);
     $guild = Guild::factory()->create(['user_id' => $admin->id, 'handle' => 'jobs', 'name' => 'Jobs', 'description' => 'Hiring.']);
-    $moderation = $this->mock(ModerationProvider::class);
-    $moderation->shouldReceive('moderate')->once()->with("Jobs\n\nFlagged words.", [])->andReturn(['harassment' => 0.7]);
+    $this->mock(ModerationProvider::class)->shouldReceive('moderate')->andReturn(['harassment' => 0.7]);
+    $this->actingAs($admin)->put(route('guild.update', 'jobs'), ['name' => 'Jobs', 'description' => 'Flagged words.', 'emoji' => '💼', 'remove_icon' => false, 'images' => [UploadedFile::fake()->image('icon.png')]])->assertRedirect();
+    $submission = GuildSubmission::query()->sole();
+    Event::fake([UsersUpdated::class]);
 
-    $this->actingAs($admin)->putJson(route('guild.update', 'jobs'), ['description' => 'Flagged words.', 'emoji' => '💼', 'remove_icon' => false])
-        ->assertUnprocessable()->assertJsonValidationErrors('description');
+    $this->delete(route('guild-submission.destroy', $submission))->assertRedirect();
 
-    expect($guild->fresh()->description)->toBe('Hiring.');
+    $this->assertModelMissing($submission);
+    expect($guild->fresh()->description)->toBe('Hiring.')->and(Storage::allFiles())->toBe([]);
+    Event::assertDispatched(UsersUpdated::class, fn (UsersUpdated $event): bool => $event->update === UserUpdate::Moderation);
+});
+
+it('replaces a pending submission with a clean save and never publishes the superseded content', function (bool $editing): void {
+    Storage::fake();
+    $admin = User::factory()->create(['handle' => 'admin']);
+
+    if ($editing) {
+        Guild::factory()->create(['user_id' => $admin->id, 'handle' => 'jobs', 'name' => 'Jobs']);
+    }
+
+    $submission = GuildSubmission::factory()->for($admin)->create([
+        'handle' => 'jobs', 'name' => 'J.O.B.S', 'description' => 'Superseded submission.', 'icon_path' => 'guild-icons/superseded.webp',
+    ]);
+    Storage::put($submission->icon_path, 'old image');
+    $payload = ['name' => 'JOBS', 'description' => 'Current description.', 'emoji' => '💼', 'remove_icon' => false];
+
+    $response = $editing
+        ? $this->actingAs($admin)->put(route('guild.update', 'jobs'), $payload)
+        : $this->actingAs($admin)->post(route('guild.store'), $payload);
+
+    $response->assertRedirectToRoute('guild.show', 'jobs');
+    $this->assertModelMissing($submission);
+    Storage::assertMissing($submission->icon_path);
+    resolve(CreateGuildSubmissionApproval::class)->handle($submission);
+    expect(Guild::query()->sole())->name->toBe('JOBS')->description->toBe('Current description.')->emoji->toBe('💼');
+})->with(['new guild' => false, 'guild edit' => true]);
+
+it('publishes nothing for a submission whose hashtag changed hands while it waited', function (bool $removed): void {
+    Storage::fake();
+    $author = User::factory()->create();
+    $guild = Guild::factory()->create(['user_id' => $author->id, 'handle' => 'jobs', 'name' => 'Jobs', 'description' => 'Hiring.']);
+    $submission = GuildSubmission::factory()->for($author)->create(['handle' => 'jobs', 'name' => 'JOBS', 'icon_path' => 'guild-icons/pending.webp']);
+    Storage::put($submission->icon_path, 'image');
+    $removed
+        ? resolve(DeleteGuildModerator::class)->handle($guild)
+        : $guild->update(['user_id' => User::factory()->create()->id]);
+
+    $this->actingAs(User::factory()->create(['handle' => 'admin']))->post(route('guild-submission-approval.store', $submission))->assertRedirect();
+
+    expect($guild->fresh())->name->toBe('Jobs')->description->toBe('Hiring.')->user_id->not->toBe($author->id)->icon_path->toBeNull();
+    $this->assertModelMissing($submission);
+    Storage::assertMissing('guild-icons/pending.webp');
+})->with(['removed moderator' => true, 'claimed by someone else' => false]);
+
+it('leaves reviewing guild submissions to admins with the preview', function (bool $disabled): void {
+    Storage::fake();
+    $admin = User::factory()->create(['handle' => 'admin']);
+    $user = $disabled ? $admin : User::factory()->create(['handle' => 'ordinary']);
+    $submission = GuildSubmission::factory()->create(['icon_path' => 'guild-icons/pending.webp']);
+    Storage::put($submission->icon_path, 'image');
+    $this->actingAs($admin)->get(route('guild-submission-icon.show', $submission))->assertOk()->assertStreamedContent('image');
+    if ($disabled) {
+        $this->actingAs($user)->put(route('feature.update', Feature::Guilds), ['enabled' => false])->assertRedirect();
+    }
+
+    $this->actingAs($user)->get(route('guild-submission-icon.show', $submission))->assertNotFound();
+    $this->post(route('guild-submission-approval.store', $submission))->assertNotFound();
+    $this->delete(route('guild-submission.destroy', $submission))->assertNotFound();
+    $this->post(route('guild-submission-approval.store', fake()->uuid()))->assertNotFound();
+    $this->delete(route('guild-submission.destroy', fake()->uuid()))->assertNotFound();
+    $this->assertModelExists($submission);
+    $this->assertDatabaseCount('guilds', 0);
+})->with([false, true]);
+
+it('finishes streaming an authorized icon even if its submission is rejected before the response is sent', function (): void {
+    Storage::fake();
+    $admin = User::factory()->create(['handle' => 'admin']);
+    $submission = GuildSubmission::factory()->create(['icon_path' => 'guild-icons/pending.webp']);
+    $this->actingAs($admin)->get(route('guild-submission-icon.show', $submission))->assertNotFound();
+    Storage::put($submission->icon_path, 'image');
+
+    $response = $this->actingAs($admin)->get(route('guild-submission-icon.show', $submission))->assertOk();
+    resolve(DeleteGuildSubmission::class)->handle($submission);
+
+    Storage::assertMissing($submission->icon_path);
+    $response->assertStreamedContent('image')->assertHeader('Cache-Control', 'no-store, private');
 });
 
 it('sends nothing to the moderation when the guild details are invalid', function (): void {

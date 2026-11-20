@@ -780,20 +780,48 @@ for (const link of [
     });
 }
 
-test('shows a hex color with a swatch of it', () => {
+test('gives a bare hex-shaped hashtag its guild or search link and renders an explicit swatch', () => {
+    const content = (
+        <LinkifiedText text="#dead color(#dead) #ff8a4c #000" mentions={null} />
+    );
+    const auth = { user: { id: 'viewer' }, pasteis: null };
+    const html = renderPage(content, {
+        auth,
+        guilds: [{ handle: 'dead', name: 'Dead', emoji: '💻', icon_url: null }],
+    });
+
+    assert.equal((html.match(/href="\/guilds\/dead"/g) ?? []).length, 1);
+    assert.match(html, /href="\/search\?q=%23ff8a4c"/);
+    assert.equal((html.match(/data-test="color"/g) ?? []).length, 2);
+    assert.match(html, /background-color:#dead"><\/span>#dead<\/span>/);
+    assert.match(html, /background-color:#000/);
+
+    const withoutGuild = renderPage(content, { auth, guilds: [] });
+    assert.equal(
+        (withoutGuild.match(/href="\/search\?q=%23dead"/g) ?? []).length,
+        1,
+    );
+});
+
+test('shows the hex value and swatch without the color markup', () => {
     const html = renderToStaticMarkup(
-        <LinkifiedText text="Brand orange is #ff8a4c." mentions={null} />,
+        <LinkifiedText
+            text="Brand orange is COLOR(#FF8A4C)."
+            mentions={null}
+        />,
     );
 
     assert.ok(html.includes('data-test="color"'));
-    assert.ok(html.includes('background-color:#ff8a4c'));
-    assert.equal(html.replace(/<[^>]*>/g, ''), 'Brand orange is #ff8a4c.');
+    assert.ok(html.includes('background-color:#FF8A4C'));
+    assert.equal(html.replace(/<[^>]*>/g, ''), 'Brand orange is #FF8A4C.');
 });
 
 test('shows no swatch for a color in code when given a whole body', () => {
     const html = renderToStaticMarkup(
         <LinkifiedText
-            text={'see `#fff` and\n```\n#abc\n```\nthen #ff8a4c'}
+            text={
+                'see `color(#fff)` and\n```\ncolor(#abc)\n```\nthen color(#ff8a4c)'
+            }
             mentions={null}
         />,
     );
@@ -805,7 +833,7 @@ test('shows no swatch for a color in code when given a whole body', () => {
 test('shows swatches next to links, mentions and wordmarks', () => {
     const html = renderToStaticMarkup(
         <LinkifiedText
-            text="#fff on /dev/null by @Alice at https://example.com/#abc, then #abc"
+            text="#000 on /dev/null by @Alice at https://example.com/#abc, then color(#abc)"
             mentions={{ alice: '019a2b3c-4d5e-7f60-8a9b-0c1d2e3f4a5b' }}
         />,
     );
@@ -821,10 +849,10 @@ test('shows a swatch for a color that starts a quoted line at the start of a who
             <LinkifiedText text={text} mentions={null} startsText />,
         ).match(/data-test="color"/g)?.length ?? 0;
 
-    assert.equal(colors('>#fff'), 1);
-    assert.equal(colors('line\n>#fff'), 1);
-    assert.equal(colors('>>#fff'), 0);
-    assert.equal(colors('`x`>#fff'), 0);
+    assert.equal(colors('>#0ff'), 1);
+    assert.equal(colors('line\n>#0ff'), 1);
+    assert.equal(colors('>>#0ff'), 0);
+    assert.equal(colors('`x`>#0ff'), 0);
 });
 
 test('styles every standalone brand mention in UI copy without changing its text', () => {
@@ -929,7 +957,7 @@ for (const kind of ['direct', 'org'] as const) {
 
 test('gives the text on each side of a color its own key', () => {
     const element = LinkifiedText({
-        text: 'Brand #ff8a4c, white',
+        text: 'Brand color(#ff8a4c), white',
         mentions: {},
     }) as ReactElement<{ children: unknown }>;
     const parts = [element.props.children].flat(Infinity) as ReactElement[];

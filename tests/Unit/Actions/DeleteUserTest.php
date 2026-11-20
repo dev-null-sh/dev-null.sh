@@ -24,6 +24,7 @@ use App\Models\ConversationParticipant;
 use App\Models\Device;
 use App\Models\Guild;
 use App\Models\GuildReport;
+use App\Models\GuildSubmission;
 use App\Models\LinkPreview;
 use App\Models\Message;
 use App\Models\MessageImage;
@@ -486,21 +487,36 @@ it('erases browser push subscriptions with the account', function (): void {
 
 it('pauses moderated guilds and preserves other peoples posts memberships and scheduled posts', function (): void {
     Storage::fake();
+    config(['app.admins' => ['admin']]);
     $user = User::factory()->create();
     $guild = Guild::factory()->create(['user_id' => $user->id, 'handle' => 'jobs', 'icon_path' => 'guild-icons/example.webp']);
     Storage::disk()->put($guild->icon_path, 'image');
     $other = Guild::factory()->create();
     $commit = Commit::factory()->create(['body' => 'Hiring #jobs']);
     $board = Commit::factory()->for($user)->for($guild)->create(['body' => 'A board post']);
+    $guild->update(['pinned_commit_id' => $board->id]);
+    $other->update(['pinned_commit_id' => $board->id]);
     $member = User::factory()->create();
     $otherBoard = Commit::factory()->for($member)->for($guild)->create();
     $scheduled = ScheduledCommit::factory()->for($member)->for($guild)->create();
     $other->members()->attach($user, ['joined_at' => now(), 'muted_at' => now()]);
     $guild->members()->attach($member, ['joined_at' => now(), 'muted_at' => now()]);
+    $submission = GuildSubmission::factory()->for($user)->create(['icon_path' => 'guild-icons/pending.webp']);
+    Storage::disk()->put('guild-icons/pending.webp', 'image');
+    $otherSubmission = GuildSubmission::factory()->for($member)->create(['icon_path' => 'guild-icons/other.webp']);
+    Storage::disk()->put($otherSubmission->icon_path, 'other image');
+    $admin = User::factory()->create(['handle' => 'admin']);
+    Event::fake([UsersUpdated::class]);
 
     resolve(DeleteUser::class)->handle($user);
 
-    expect($guild->fresh()->user_id)->toBeNull();
+    Event::assertDispatched(UsersUpdated::class, fn (UsersUpdated $event): bool => $event->update === UserUpdate::Moderation && $event->userIds === [$admin->id]);
+    $this->assertModelMissing($submission);
+    $this->assertModelExists($otherSubmission);
+    Storage::disk()->assertExists($otherSubmission->icon_path);
+    Storage::disk()->assertMissing('guild-icons/pending.webp');
+    expect($guild->fresh())->user_id->toBeNull()->pinned_commit_id->toBeNull();
+    expect($other->fresh()->pinned_commit_id)->toBeNull();
     $this->assertModelMissing($board);
     expect($otherBoard->fresh()->guild_id)->toBe($guild->id);
     expect($scheduled->fresh())->guild_id->toBe($guild->id)->canceled_at->toBeNull();

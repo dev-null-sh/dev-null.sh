@@ -20,6 +20,7 @@ use App\Models\CommitImage;
 use App\Models\CommitReport;
 use App\Models\Device;
 use App\Models\Guild;
+use App\Models\GuildSubmission;
 use App\Models\Message;
 use App\Models\MessageVoice;
 use App\Models\Notification;
@@ -151,6 +152,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
         'organizations' => [],
         'followed_organizations' => [],
         'guilds' => [],
+        'guild_submissions' => [],
         'guild_preferences' => [],
         'pending_follows' => [],
         'guild_reports' => [],
@@ -742,9 +744,12 @@ it('exports subscription metadata without delivery endpoints', function (): void
 
 it('exports only the users guilds without internal paths or identifiers', function (): void {
     $user = User::factory()->create();
-    Guild::factory()->create(['user_id' => $user->id, 'handle' => 'jobs', 'name' => 'Job Board', 'description' => 'Hiring.', 'emoji' => '💼', 'icon_path' => 'guild-icons/private-path.webp']);
+    $pin = Commit::factory()->create(['body' => '#jobs']);
+    Guild::factory()->create(['user_id' => $user->id, 'handle' => 'jobs', 'name' => 'Job Board', 'description' => 'Hiring.', 'emoji' => '💼', 'icon_path' => 'guild-icons/private-path.webp', 'pinned_commit_id' => $pin->id]);
     Guild::factory()->create(['user_id' => $user->id, 'handle' => 'rust']);
     Guild::factory()->create(['name' => 'Someone else']);
+    GuildSubmission::factory()->for($user)->create(['handle' => 'adhd', 'name' => 'ADHD', 'description' => 'Waiting for review.', 'icon_path' => 'guild-icons/pending-path.webp']);
+    GuildSubmission::factory()->create(['name' => 'Someone elses submission']);
 
     $response = $this->actingAs($user)->get(route('export'))->assertOk();
     $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
@@ -753,10 +758,15 @@ it('exports only the users guilds without internal paths or identifiers', functi
         ->and($data['guilds'][0])->toBe([
             'handle' => 'jobs', 'name' => 'Job Board', 'description' => 'Hiring.', 'emoji' => '💼',
             'icon' => route('guild-icon.show', 'jobs'),
+            'pinned_commit_id' => $pin->id,
             'created_at' => now()->toIso8601String(), 'updated_at' => now()->toIso8601String(),
         ])
         ->and($data['guilds'][1]['icon'])->toBeNull()
-        ->and($response->streamedContent())->not->toContain('guild-icons/private-path.webp', 'Someone else');
+        ->and($data['guild_submissions'])->toBe([[
+            'handle' => 'adhd', 'name' => 'ADHD', 'description' => 'Waiting for review.', 'emoji' => '💻', 'has_icon' => true,
+            'created_at' => now()->toIso8601String(),
+        ]])
+        ->and($response->streamedContent())->not->toContain('guild-icons/private-path.webp', 'guild-icons/pending-path.webp', 'Someone else');
 });
 
 it('exports only the users guild reports and moderator removals', function (): void {
@@ -772,6 +782,6 @@ it('exports only the users guild reports and moderator removals', function (): v
     $data = json_decode($this->actingAs($user)->get(route('export'))->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
 
     expect($data['guild_reports'])->toBe([['handle' => 'jobs', 'details' => 'My private report.', 'created_at' => now()->toIso8601String()]])
-        ->and($data['guild_preferences'])->toBe([['handle' => 'jobs', 'joined_at' => now()->toDateTimeString(), 'muted_at' => now()->toDateTimeString()]])
+        ->and($data['guild_preferences'])->toBe([['handle' => 'jobs', 'joined_at' => now()->toDateTimeString(), 'muted_at' => now()->toDateTimeString(), 'read_at' => null]])
         ->and(array_column($data['guild_moderator_removals'], 'handle'))->toBe(['rust']);
 });
