@@ -32,6 +32,8 @@ use App\Http\Controllers\Api\CurrentUserController;
 use App\Http\Controllers\Api\DeviceController;
 use App\Http\Controllers\Api\DevicePushTokenController;
 use App\Http\Controllers\Api\GuildController;
+use App\Http\Controllers\Api\GuildMembershipController;
+use App\Http\Controllers\Api\GuildMuteController;
 use App\Http\Controllers\Api\HeadlineController;
 use App\Http\Controllers\Api\IssueController;
 use App\Http\Controllers\Api\IssueSuggestionController;
@@ -236,8 +238,10 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             ->whereUuid('headline')
             ->name('api-headline.show');
 
-        // Guilds: the directory the web's Guilds page lists...
+        // Guilds: the directory the web's Guilds page lists, a guild's board and its members...
         Route::get('guilds', [GuildController::class, 'index'])->name('api-guild.index');
+        Route::get('guilds/{guild:handle}', [GuildController::class, 'show'])->name('api-guild.show');
+        Route::get('guilds/{guild:handle}/members', [GuildMembershipController::class, 'index'])->name('api-guild-membership.index');
 
         // Composer suggestions: people to mention and /dev/null issues to reference, as the web's composer suggests them...
         Route::get('search/mentions', [MentionSuggestionController::class, 'index'])
@@ -353,6 +357,22 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         Route::post('organizations/{handle}/claim', [OrganizationAdminController::class, 'store'])
             ->middleware('throttle:10,1,organization-claims:')
             ->name('api-organization-admin.store');
+
+        // Guild Membership: joining or leaving a guild, as the web's Join button does...
+        Route::post('guilds/{guild:handle}/membership', [GuildMembershipController::class, 'store'])
+            ->middleware('throttle:follows')
+            ->name('api-guild-membership.store');
+        Route::delete('guilds/{guild:handle}/membership', [GuildMembershipController::class, 'destroy'])
+            ->middleware('throttle:follows')
+            ->name('api-guild-membership.destroy');
+
+        // Guild Mute: hiding a guild's commits from logs and search, as the web's Mute button does...
+        Route::post('guilds/{guild:handle}/mute', [GuildMuteController::class, 'store'])
+            ->middleware('throttle:follows')
+            ->name('api-guild-mute.store');
+        Route::delete('guilds/{guild:handle}/mute', [GuildMuteController::class, 'destroy'])
+            ->middleware('throttle:follows')
+            ->name('api-guild-mute.destroy');
 
         // Who to Follow...
         Route::get('me/suggested-users', [SuggestedUserController::class, 'index'])->name('api-suggested-user.index');
