@@ -18,9 +18,11 @@ final readonly class UpdateGuildMembership
         DB::transaction(function () use ($user, $guild, $joined): void {
             User::query()->whereKey($user->id)->lockForUpdate()->firstOrFail();
             Guild::query()->whereKey($guild->id)->sharedLock()->firstOrFail();
+            // A repeated join keeps when the user joined, so the members list keeps its order...
+            $joinedAt = DB::table('guild_preferences')->where('user_id', $user->id)->where('guild_id', $guild->id)->value('joined_at');
             DB::table('guild_preferences')->updateOrInsert(
                 ['user_id' => $user->id, 'guild_id' => $guild->id],
-                ['joined_at' => $joined ? now() : null, ...($joined ? ['muted_at' => null] : [])],
+                ['joined_at' => $joined ? ($joinedAt ?? now()) : null, ...($joined ? ['muted_at' => null] : [])],
             );
             DB::table('guild_preferences')->where('user_id', $user->id)->where('guild_id', $guild->id)
                 ->whereNull('joined_at')->whereNull('muted_at')->delete();
