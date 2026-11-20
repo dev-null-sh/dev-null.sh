@@ -15,7 +15,7 @@ final readonly class CommitStarCountsQuery
      * can see.
      *
      * @param  list<string>  $ids
-     * @return Collection<int, array{id: string, stars_count: int, starred: bool, pasteis_count: int, replies_count: int}>
+     * @return Collection<int, array{id: string, stars_count: int, starred: bool, pasteis_count: int, pasteis_diamond_count: int, pasteis_frosted_count: int, replies_count: int}>
      */
     public function get(User $viewer, array $ids): Collection
     {
@@ -32,6 +32,8 @@ final readonly class CommitStarCountsQuery
                 'stars_count' => $commit->stars_count,
                 'starred' => $commit->starred,
                 'pasteis_count' => $commit->pasteis_count,
+                'pasteis_diamond_count' => $commit->pasteis_diamond_count,
+                'pasteis_frosted_count' => $commit->pasteis_frosted_count,
                 'replies_count' => $commit->replies_count,
             ]);
     }

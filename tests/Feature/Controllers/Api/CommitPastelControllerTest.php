@@ -144,3 +144,15 @@ it('keeps the pastéis minute limit apart from the other signed-in limits', func
     signedApiRequest($this->keyPair, 'POST', route('api-issue.store'))->assertUnprocessable();
     signedApiRequest($this->keyPair, 'POST', route('api-organization-admin.store', 'nobody-here'))->assertNotFound();
 });
+
+it('shares the weekly Diamond quota and keeps ordinary gifts available on the signed API', function (): void {
+    $commit = Commit::factory()->create();
+    signedApiRequest($this->keyPair, 'POST', route('api-commit-pastel.store', $commit), ['variant' => 'diamond'])
+        ->assertOk()->assertJsonPath('data.pasteis_diamond_count', 1)->assertJsonPath('diamond_pasteis_remaining', 0)->assertJsonPath('pasteis_remaining', 10);
+    signedApiRequest($this->keyPair, 'POST', route('api-commit-pastel.store', $commit), ['variant' => 'diamond'])
+        ->assertUnprocessable()->assertJsonPath('code', 'pasteis_exhausted');
+    signedApiRequest($this->keyPair, 'POST', route('api-commit-pastel.store', $commit))
+        ->assertOk()->assertJsonPath('data.pasteis_count', 2)->assertJsonPath('pasteis_remaining', 9);
+    signedApiRequest($this->keyPair, 'POST', route('api-commit-pastel.store', $commit), ['variant' => 'frosted'])
+        ->assertUnprocessable();
+});

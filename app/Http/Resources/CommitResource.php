@@ -89,6 +89,8 @@ final class CommitResource extends JsonResource
             'is_pinned' => $this->author?->user?->pinned_commit_id === $this->id,
             'starred' => $this->whenHas('starred'),
             'pasteis_count' => $this->pasteis_count,
+            'pasteis_diamond_count' => $this->pasteis_diamond_count,
+            'pasteis_frosted_count' => $this->pasteis_frosted_count,
             'deleted_at' => null,
             'parent' => $this->whenLoaded('parent', fn (Commit $parent): self => self::make($parent)),
             'quoted_commit_id' => $this->quoted_commit_id,

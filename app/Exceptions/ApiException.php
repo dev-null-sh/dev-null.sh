@@ -58,9 +58,9 @@ final class ApiException extends HttpException
     /**
      * The user gave every pastel they get today. The web's own words, which say when they come back.
      */
-    public static function pasteisExhausted(): self
+    public static function pasteisExhausted(bool $diamond = false): self
     {
-        return new self(ApiErrorCode::PasteisExhausted, __('you ran out of pastéis. wait until tomorrow.'));
+        return new self(ApiErrorCode::PasteisExhausted, $diamond ? __('You already gave your Diamond this week. Your next one arrives on Monday at 00:00 UTC.') : __('you ran out of pastéis. wait until tomorrow.'));
     }
 
     /**

@@ -46,7 +46,7 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Storage;
 
 it('may delete a user', function (): void {
-    $user = User::factory()->create(['translation_language' => 'ja', 'automatic_translation' => false]);
+    $user = User::factory()->create(['translation_language' => 'ja', 'automatic_translation' => false, 'pasteis_diamond_received' => 1, 'pasteis_frosted_received' => 2, 'diamond_pastel_given_at' => now()]);
     $action = resolve(DeleteUser::class);
 
     $action->handle($user);

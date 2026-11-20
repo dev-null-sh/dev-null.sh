@@ -72,6 +72,10 @@ final readonly class UserController
             'user' => Inertia::live(fn (): ?array => ShownStreams::user($getCountedUser()), 'profile', $profile),
             'profileGuilds' => Inertia::live(fn (): ?array => $currentUser instanceof User && $features->available(Feature::Guilds, $currentUser) ? $guilds->joinedHandles($user) : null, 'profile', $profile),
             'bioProfiles' => fn (): array => $bioProfiles->get($user),
+            'pasteisCollection' => Inertia::live(fn (): ?array => $currentUser?->pasteis_mode ? [
+                'diamond' => $user->pasteis_diamond_received,
+                'frosted' => $user->pasteis_frosted_received,
+            ] : null, 'profile', $profile),
             'pasteisReceived' => Inertia::live(fn (): ?int => $currentUser?->pasteis_mode ? $user->pasteis_received : null, 'profile', $profile),
             'isFollowing' => $relationship(fn (): bool => $currentUser?->isFollowing($user) ?? false),
             'followsYou' => $relationship(fn (): bool => $currentUser instanceof User && $user->isFollowing($currentUser)),

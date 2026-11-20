@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api;
 
 use App\Actions\CreateCommitPastel;
+use App\Enums\PastelVariant;
 use App\Exceptions\ApiException;
 use App\Http\Requests\CreateApiCommitPastelRequest;
 use App\Http\Resources\CommitResource;
@@ -23,14 +24,16 @@ final readonly class CommitPastelController
      */
     public function store(CreateApiCommitPastelRequest $request, #[CurrentUser] User $user, Commit $commit, CreateCommitPastel $action, CommitPageQuery $page): CommitResource|JsonResponse
     {
-        if (! $action->handle($user, $commit)) {
-            return ApiException::pasteisExhausted()->render();
+        if (! $action->handle($user, $commit, $request->variant())) {
+            return ApiException::pasteisExhausted($request->variant() === PastelVariant::Diamond)->render();
         }
 
         $commit = $page->get($commit, $user);
 
         return CommitResource::make($commit)->additional([
             'pasteis_remaining' => $user->refresh()->pasteisRemaining(),
+            'diamond_pasteis_remaining' => $user->diamondPasteisRemaining(),
+            'diamond_pasteis_resets_at' => now()->startOfWeek(1)->addWeek()->toIso8601ZuluString(),
             'pasteis_resets_at' => today()->addDay()->toIso8601ZuluString(),
             'author_pasteis_received' => $commit->user?->pasteis_received,
         ]);

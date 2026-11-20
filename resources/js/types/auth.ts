@@ -68,7 +68,12 @@ export type Auth = {
         requests: boolean;
         everyone: boolean;
     } | null;
-    pasteis: { remaining: number; day: string } | null;
+    pasteis: {
+        remaining: number;
+        day: string;
+        diamond_remaining?: number;
+        diamond_resets_at?: string;
+    } | null;
 };
 
 export type SuggestedUser = User & {

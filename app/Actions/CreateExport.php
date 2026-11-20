@@ -86,7 +86,7 @@ final readonly class CreateExport
     public function handle(User $user): array
     {
         return [
-            'schema_version' => 9,
+            'schema_version' => 10,
             'exported_at' => now()->toIso8601String(),
             'profile' => [
                 'github_id' => $user->github_id,
@@ -107,6 +107,9 @@ final readonly class CreateExport
                 'lane_color' => $user->lane_color,
                 'pasteis_mode' => $user->pasteis_mode,
                 'pasteis_received' => $user->pasteis_received,
+                'pasteis_diamond_received' => $user->pasteis_diamond_received,
+                'pasteis_frosted_received' => $user->pasteis_frosted_received,
+                'diamond_pastel_given_at' => $user->diamond_pastel_given_at?->toIso8601String(),
                 'pasteis_given_today' => $user->pasteis_given_today,
                 'pasteis_given_on' => $user->pasteis_given_on?->toDateString(),
                 'remotes_enabled' => $user->remotes_enabled,
@@ -233,7 +236,7 @@ final readonly class CreateExport
     {
         $commits = $user->commits()
             ->withTrashed()
-            ->select(['id', 'parent_id', 'quoted_commit_id', 'guild_id', 'body', 'status', 'pasteis_count', 'created_at', 'updated_at', 'deleted_at'])
+            ->select(['id', 'parent_id', 'quoted_commit_id', 'guild_id', 'body', 'status', 'pasteis_count', 'pasteis_diamond_count', 'pasteis_frosted_count', 'created_at', 'updated_at', 'deleted_at'])
             ->with(['images:id,commit_id', 'guild'])
             ->lazyById(500);
 
@@ -252,6 +255,8 @@ final readonly class CreateExport
                     'cached_translations' => $cached[$translations->key($commit)],
                     'status' => $commit->status->value,
                     'pasteis_count' => $commit->pasteis_count,
+                    'pasteis_diamond_count' => $commit->pasteis_diamond_count,
+                    'pasteis_frosted_count' => $commit->pasteis_frosted_count,
                     'images' => $commit->images->map(fn (CommitImage $image): string => $image->url())->all(),
                     'created_at' => $commit->created_at->toIso8601String(),
                     'updated_at' => $commit->updated_at->toIso8601String(),

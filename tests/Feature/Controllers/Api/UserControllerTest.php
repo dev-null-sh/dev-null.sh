@@ -162,6 +162,7 @@ it('shows a signed request the profile as the web shows it to its user', functio
             'is_following' => true,
             'follows_you' => false,
             'is_muting' => false,
+            'pasteis_collection' => null,
             'pasteis_received' => 7,
             'activity' => resolve(UserActivityQuery::class)->get($user, $viewer),
             'streaks' => ['longest' => 1, 'current' => 1],

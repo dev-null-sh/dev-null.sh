@@ -294,6 +294,8 @@ it('shows a signed request the commit as its page shows it to its user', functio
         'id' => '019a2b3c-4d5e-7f60-8a9b-0c1d2e3f4a5b',
         'body' => 'Ask @nunomaduro about `@Override`',
         'pasteis_count' => 4,
+        'pasteis_diamond_count' => 0,
+        'pasteis_frosted_count' => 0,
     ]);
     $image = CommitImage::factory()->for($commit)->create();
     Commit::factory()->for($commit, 'parent')->create();
@@ -348,6 +350,8 @@ it('shows a signed request the commit as its page shows it to its user', functio
                 'is_pinned' => false,
                 'starred' => true,
                 'pasteis_count' => 4,
+                'pasteis_diamond_count' => 0,
+                'pasteis_frosted_count' => 0,
                 'deleted_at' => null,
                 'quoted_commit_id' => null,
                 'quoted_commit' => null,
@@ -373,6 +377,8 @@ it('shows a signed request the commit as its page shows it to its user', functio
                 'is_pinned' => false,
                 'starred' => false,
                 'pasteis_count' => 0,
+                'pasteis_diamond_count' => 0,
+                'pasteis_frosted_count' => 0,
                 'deleted_at' => null,
                 'quoted_commit_id' => null,
                 'quoted_commit' => null,
