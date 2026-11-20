@@ -43,7 +43,7 @@ final readonly class GuildController
         try {
             $guild = $action->handle($user, $request->string('handle')->value(), $request->string('name')->value(), $request->string('description')->value(), $request->string('emoji')->value(), $icon, $request->isFlagged());
         } catch (GuildModeratorRemoved) {
-            return back()->withErrors(['handle' => 'You cannot reclaim a guild you were removed from.']);
+            return back()->withErrors(['handle' => CreateGuildRequest::RECLAIM_REFUSED]);
         }
 
         if ($guild instanceof GuildSubmission) {
