@@ -108,6 +108,36 @@ it('lists replies 50 at a time with a cursor to the next page', function (): voi
         ->assertJsonPath('data.0.body', 'Reply 50');
 });
 
+it('lists as many replies a page as asked for, and keeps that limit on the next page', function (): void {
+    $parent = Commit::factory()->create();
+
+    Commit::factory()->for($parent, 'parent')->count(12)
+        ->state(new Sequence(fn (Sequence $sequence): array => [
+            'body' => "Reply {$sequence->index}",
+            'created_at' => now()->subMinutes(100 - $sequence->index),
+        ]))
+        ->create();
+
+    $first = signedApiRequest($this->keyPair, 'GET', route('api-commit-reply.index', [$parent, 'limit' => 10]));
+
+    $first->assertOk()
+        ->assertJsonCount(10, 'data')
+        ->assertJsonPath('data.9.body', 'Reply 9')
+        ->assertJsonPath('meta.per_page', 10);
+
+    signedApiRequest($this->keyPair, 'GET', (string) $first->json('links.next'))
+        ->assertOk()
+        ->assertJsonPath('data.*.body', ['Reply 10', 'Reply 11']);
+});
+
+it('lists at most 50 replies a page', function (mixed $limit): void {
+    $parent = Commit::factory()->create();
+
+    signedApiRequest($this->keyPair, 'GET', route('api-commit-reply.index', [$parent, 'limit' => $limit]))
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('limit');
+})->with([0, 51, 'ten']);
+
 it('continues the cursor of a reply preview newest first, as the web does', function (): void {
     $parent = Commit::factory()->create();
     $oldest = Commit::factory()->for($parent, 'parent')->create(['created_at' => now()->subMinutes(3)]);
