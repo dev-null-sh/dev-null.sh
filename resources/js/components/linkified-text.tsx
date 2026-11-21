@@ -1,4 +1,5 @@
 import { Link, usePage } from '@inertiajs/react';
+import { Root as TooltipRoot } from '@radix-ui/react-tooltip';
 import { Fragment } from 'react';
 import type { ReactNode, SVGAttributes } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
@@ -12,10 +13,12 @@ import { CodebergIcon } from '@/components/codeberg-icon';
 import { GitHubIcon } from '@/components/github-icon';
 import { GitLabIcon } from '@/components/gitlab-icon';
 import { GuildIcon } from '@/components/guild-icon';
+import { TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { UserPreview } from '@/components/user-preview';
 import { typedProse, withoutCode } from '@/lib/code';
 import type { Color } from '@/lib/colors';
 import { colorsIn } from '@/lib/colors';
+import flagNames from '@/lib/flag-names.json';
 import { hashtagPattern } from '@/lib/hashtags';
 import { mentionPattern } from '@/lib/mentions';
 import { pasteisParts } from '@/lib/pasteis';
@@ -34,6 +37,11 @@ import type { Guild } from '@/types/guild';
 // A link to a commit on dev/null itself, nothing after its id, so it can show as the author and the commit's hash.
 const commitLinkPattern =
     /^https?:\/\/(?:www\.)?dev-null\.sh\/@([A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38})\/commits\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
+const hashtagPattern =
+    /(?<![\p{L}\p{M}\p{N}_&/#>-])#\p{L}[\p{L}\p{M}\p{N}_]*/gu;
+const flagPattern = /\p{Regional_Indicator}{2}/gu;
+// Current flag names from https://en.wikipedia.org/wiki/Regional_indicator_symbol
+const flagNamesByEmoji = new Map(Object.entries(flagNames));
 const gitHubHostPattern = /^(?:www\.)?github\.com$/i;
 const gitHubOwnerPattern =
     /^[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}$/;
@@ -702,11 +710,13 @@ export function Hashtag({
     );
 }
 
+type RenderProse = (text: string, offset: number) => ReactNode[];
+
 function withHashtags(
     text: string,
     offset: number,
     hashtags: RegExpExecArray[],
-    pasteisMode: boolean,
+    renderProse: RenderProse,
 ): ReactNode[] {
     const parts: ReactNode[] = [];
     let position = 0;
@@ -719,20 +729,14 @@ function withHashtags(
         }
 
         parts.push(
-            ...withWordmarks(
-                text.slice(position, index),
-                offset + position,
-                pasteisMode,
-            ),
+            ...renderProse(text.slice(position, index), offset + position),
             <Hashtag key={`hashtag-${hashtag.index}`} hashtag={hashtag[0]} />,
         );
 
         position = index + hashtag[0].length;
     }
 
-    parts.push(
-        ...withWordmarks(text.slice(position), offset + position, pasteisMode),
-    );
+    parts.push(...renderProse(text.slice(position), offset + position));
 
     return parts;
 }
@@ -745,7 +749,7 @@ function withColors(
     offset: number,
     colors: Color[],
     hashtags: RegExpExecArray[],
-    pasteisMode: boolean,
+    renderProse: RenderProse,
 ): ReactNode[] {
     const parts: ReactNode[] = [];
     let position = 0;
@@ -762,7 +766,7 @@ function withColors(
                 text.slice(position, index),
                 offset + position,
                 hashtags,
-                pasteisMode,
+                renderProse,
             ),
             <span
                 key={`color-${color.index}`}
@@ -786,7 +790,7 @@ function withColors(
             text.slice(position),
             offset + position,
             hashtags,
-            pasteisMode,
+            renderProse,
         ),
     );
 
@@ -800,7 +804,7 @@ function withMentions(
     organizationMentions: Commit['organization_mentions'],
     colors: Color[],
     hashtags: RegExpExecArray[],
-    pasteisMode: boolean,
+    renderProse: RenderProse,
     isStatic: boolean,
     linksEveryMention: boolean,
 ): ReactNode[] {
@@ -824,7 +828,7 @@ function withMentions(
                 offset + position,
                 colors,
                 hashtags,
-                pasteisMode,
+                renderProse,
             ),
             isStatic ? (
                 match[0]
@@ -879,7 +883,7 @@ function withMentions(
             offset + position,
             colors,
             hashtags,
-            pasteisMode,
+            renderProse,
         ),
     );
 
@@ -909,6 +913,49 @@ export function LinkifiedText({
     const prose = withoutCode(text);
     const colors = colorsIn(prose, startsText);
     const hashtags = isStatic ? [] : [...prose.matchAll(hashtagPattern)];
+    const renderProse: RenderProse = (text, offset) => {
+        const parts: ReactNode[] = [];
+        let position = 0;
+
+        const slice = prose.slice(offset, offset + text.length);
+
+        for (const flag of slice.matchAll(flagPattern)) {
+            const name = flagNamesByEmoji.get(flag[0]);
+
+            if (name === undefined) {
+                continue;
+            }
+
+            parts.push(
+                ...withWordmarks(
+                    text.slice(position, flag.index),
+                    offset + position,
+                    pasteisMode,
+                ),
+                // Keep the narrow inline trigger mounted so one pointer entry opens the tooltip.
+                <TooltipRoot key={`flag-${offset + flag.index}`}>
+                    <TooltipTrigger asChild>
+                        <span role="img" aria-label={name}>
+                            {flag[0]}
+                        </span>
+                    </TooltipTrigger>
+                    <TooltipContent>{name}</TooltipContent>
+                </TooltipRoot>,
+            );
+
+            position = flag.index + flag[0].length;
+        }
+
+        parts.push(
+            ...withWordmarks(
+                text.slice(position),
+                offset + position,
+                pasteisMode,
+            ),
+        );
+
+        return parts;
+    };
     let position = 0;
 
     for (const match of text.matchAll(urlPattern)) {
@@ -930,7 +977,7 @@ export function LinkifiedText({
                 organizationMentions,
                 colors,
                 hashtags,
-                pasteisMode,
+                renderProse,
                 isStatic,
                 linksEveryMention,
             ),
@@ -977,7 +1024,7 @@ export function LinkifiedText({
             organizationMentions,
             colors,
             hashtags,
-            pasteisMode,
+            renderProse,
             isStatic,
             linksEveryMention,
         ),

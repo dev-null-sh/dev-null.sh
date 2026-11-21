@@ -12,6 +12,7 @@ import {
     LinkifiedText,
     typedLinks,
 } from '../../resources/js/components/linkified-text';
+import { TooltipProvider } from '../../resources/js/components/ui/tooltip';
 import { WordmarkText } from '../../resources/js/components/wordmark-text';
 import { bodySegments } from '../../resources/js/lib/code';
 import { bodyCharacterCount } from '../../resources/js/lib/commit';
@@ -103,6 +104,72 @@ function renderPage(
         />,
     );
 }
+
+test('labels each flag in commit prose, including flags from shortcodes', () => {
+    const markup = renderPage(
+        <TooltipProvider>
+            <CommitBody
+                segments={bodySegments(
+                    '🇦🇹🇩🇪 :us: 🇨🇩 🇦 🇿🇿 🚀 `🇺🇸` https://example.com/🇺🇸',
+                )}
+                mentions={null}
+            />
+        </TooltipProvider>,
+    );
+
+    assert.deepEqual(
+        [
+            ...markup.matchAll(
+                /<span role="img" aria-label="([^"]+)"[^>]*>([^<]+)<\/span>/g,
+            ),
+        ].map(([, name, flag]) => [flag, name]),
+        [
+            ['🇦🇹', 'Austria'],
+            ['🇩🇪', 'Germany'],
+            ['🇺🇸', 'United States'],
+            ['🇨🇩', 'Congo-Kinshasa'],
+        ],
+    );
+    assert.doesNotMatch(markup, /<span[^>]*\btabindex=/i);
+    assert.match(markup, / 🇦 🇿🇿 🚀 <code[^>]*>🇺🇸<\/code>/);
+    assert.match(markup, /href="https:\/\/example.com\/🇺🇸"/);
+});
+
+test('keeps Pastéis mode and escaped words working next to flags', () => {
+    const content = (
+        <TooltipProvider>
+            <CommitBody
+                segments={bodySegments(
+                    '🇦🇹pastel🇩🇪pastéis 🇺🇸\\pastel `pastel` /dev/null #ff0000 https://example.com/pastel',
+                )}
+                mentions={null}
+            />
+        </TooltipProvider>
+    );
+    const enabled = renderPage(content, {
+        auth: { user: null, pasteis: { remaining: 1, day: '2026-11-18' } },
+    });
+    const disabled = renderPage(content);
+    const pastelIcon =
+        /<img[^>]*src="\/pastel-de-nata\.svg"[^>]*alt="([^"]+)"[^>]*>/g;
+
+    assert.deepEqual(
+        [...enabled.matchAll(pastelIcon)].map(([, word]) => word),
+        ['pastel', 'pastéis'],
+    );
+    assert.match(enabled, /🇺🇸<\/span>pastel <code[^>]*>pastel<\/code>/);
+    assert.doesNotMatch(disabled, pastelIcon);
+    assert.match(disabled, /🇦🇹<\/span>pastel.*🇩🇪<\/span>pastéis/);
+
+    for (const markup of [enabled, disabled]) {
+        assert.match(markup, /aria-label="Austria"/);
+        assert.match(markup, /aria-label="Germany"/);
+        assert.match(markup, /aria-label="United States"/);
+        assert.match(markup, /title="\/dev\/null"/);
+        assert.match(markup, /data-test="color"/);
+        assert.match(markup, /href="https:\/\/example.com\/pastel"/);
+    }
+});
 
 test('renders only matching prose hashtags as guilds when the preview is available', () => {
     const content = (
