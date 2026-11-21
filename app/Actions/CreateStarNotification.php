@@ -24,7 +24,7 @@ final readonly class CreateStarNotification
 
     /**
      * A star notifies the commit's author, every member of it for an organization's, once while it holds:
-     * unstarring removes the notification.
+     * unstarring removes the notification. Nobody hears from people they mute.
      */
     public function handle(User $stargazer, Commit $commit): void
     {
@@ -32,6 +32,7 @@ final readonly class CreateStarNotification
         $recipients = DB::query()->fromSub($this->recipients->builder(), 'recipients')
             ->where('profile_id', $commit->author_id)
             ->where('user_id', '<>', $stargazer->id)
+            ->whereNotIn('user_id', $stargazer->mutedBy()->newPivotQuery()->select('muter_id'))
             ->get(['user_id', 'organization_id']);
 
         Notification::query()->insertOrIgnore($recipients->map(fn (object $recipient): array => [
