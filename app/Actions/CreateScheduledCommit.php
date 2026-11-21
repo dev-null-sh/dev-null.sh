@@ -8,10 +8,12 @@ use App\Dto\NewPoll;
 use App\Enums\UserUpdate;
 use App\Events\UsersUpdated;
 use App\Exceptions\GuildPaused;
+use App\Exceptions\ScheduledCommitLimitReached;
 use App\Models\Guild;
 use App\Models\Organization;
 use App\Models\ScheduledCommit;
 use App\Models\User;
+use App\Rules\ScheduledCommitLimit;
 use App\Services\Urls;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\UploadedFile;
@@ -28,14 +30,25 @@ final readonly class CreateScheduledCommit
      * Images are processed and stored now, but stay private until they are attached to the commit at the due time.
      * The link preview is of the first URL in the body when true, of the given URL when a string, or none when false.
      *
+     * The request checks the cap on scheduled commits, but commits scheduled at the same moment each see the others
+     * missing. So the user is locked and the cap counted again here, before any image is stored.
+     *
      * @param  list<UploadedFile>  $images
      * @param  array<int, string|null>  $imageDescriptions
+     *
+     * @throws ScheduledCommitLimitReached
      */
     public function handle(User $user, string $body, CarbonImmutable $scheduledAt, array $images = [], array $imageDescriptions = [], ?NewPoll $poll = null, bool|string $linkPreview = true, ?Organization $organization = null, ?Guild $guild = null): ScheduledCommit
     {
         $body = mb_trim($body);
 
         return DB::transaction(function () use ($user, $organization, $body, $poll, $images, $imageDescriptions, $linkPreview, $scheduledAt, $guild): ScheduledCommit {
+            User::query()->whereKey($user->id)->lockForUpdate()->first();
+
+            if (ScheduledCommitLimit::outstanding($user) >= ScheduledCommitLimit::MAX) {
+                throw new ScheduledCommitLimitReached;
+            }
+
             if ($guild instanceof Guild && Guild::query()->whereKey($guild->id)->sharedLock()->firstOrFail()->user_id === null) {
                 throw new GuildPaused;
             }

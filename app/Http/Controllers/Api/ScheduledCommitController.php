@@ -8,6 +8,7 @@ use App\Actions\CreateScheduledCommit;
 use App\Actions\DeleteScheduledCommit;
 use App\Exceptions\ApiException;
 use App\Exceptions\GuildPaused;
+use App\Exceptions\ScheduledCommitLimitReached;
 use App\Http\Requests\CreateApiScheduledCommitRequest;
 use App\Http\Requests\DeleteApiScheduledCommitRequest;
 use App\Http\Resources\ScheduledCommitResource;
@@ -32,7 +33,8 @@ final readonly class ScheduledCommitController
 
     /**
      * Only the user sees a scheduled commit until it is submitted. A board post to a guild that lost its moderator
-     * meanwhile is a guild_paused error.
+     * meanwhile is a guild_paused error, and one that commits scheduled at the same moment left no room for is a
+     * scheduled_commit_limit_reached error.
      */
     public function store(CreateApiScheduledCommitRequest $request, #[CurrentUser] User $user, CreateScheduledCommit $action): JsonResponse
     {
@@ -40,6 +42,8 @@ final readonly class ScheduledCommitController
             $scheduled = $action->handle($user, $request->string('body')->value(), CarbonImmutable::parse($request->string('scheduled_at')->value())->utc(), $request->images(), $request->imageDescriptions(), $request->poll(), $request->linkPreview(), $request->organization(), guild: $request->guild());
         } catch (GuildPaused) {
             return ApiException::guildPaused()->render();
+        } catch (ScheduledCommitLimitReached) {
+            return ApiException::scheduledCommitLimitReached()->render();
         }
 
         return ScheduledCommitResource::make($scheduled)

@@ -6,6 +6,7 @@ namespace App\Exceptions;
 
 use App\Enums\ApiErrorCode;
 use App\Models\User;
+use App\Rules\ScheduledCommitLimit;
 use Illuminate\Http\JsonResponse;
 use JsonSerializable;
 use Symfony\Component\HttpKernel\Exception\HttpException;
@@ -101,6 +102,14 @@ final class ApiException extends HttpException
     public static function guildPaused(): self
     {
         return new self(ApiErrorCode::GuildPaused, __('This guild is paused until it has a moderator.'));
+    }
+
+    /**
+     * Commits scheduled at the same moment filled the queue after this one was validated, as the web says it.
+     */
+    public static function scheduledCommitLimitReached(): self
+    {
+        return new self(ApiErrorCode::ScheduledCommitLimitReached, __(ScheduledCommitLimit::MESSAGE));
     }
 
     public function render(): JsonResponse

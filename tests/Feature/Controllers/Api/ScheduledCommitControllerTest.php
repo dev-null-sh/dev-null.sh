@@ -266,3 +266,23 @@ it('refuses to schedule a board post when the guild is paused after validation',
 
     $this->assertDatabaseCount('scheduled_commits', 0);
 });
+
+it('keeps the cap when commits scheduled at the same moment all passed the check', function (): void {
+    ScheduledCommit::factory()->for($this->user)->count(9)->create();
+    // Another request schedules the tenth after this one's check saw nine...
+    $this->app->beforeResolving(CreateScheduledCommit::class, function (): void {
+        ScheduledCommit::factory()->for($this->user)->create();
+    });
+
+    signedApiRequest($this->keyPair, 'POST', route('api-scheduled-commit.store'), [
+        'body' => 'One too many.',
+        'scheduled_at' => now()->addHour()->toIso8601String(),
+    ])
+        ->assertUnprocessable()
+        ->assertExactJson([
+            'message' => 'You can have up to 10 scheduled commits. Cancel one before scheduling another.',
+            'code' => 'scheduled_commit_limit_reached',
+        ]);
+
+    expect(ScheduledCommit::query()->where('user_id', $this->user->id)->count())->toBe(10);
+});
