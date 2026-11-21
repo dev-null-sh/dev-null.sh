@@ -82,6 +82,7 @@ use App\Http\Controllers\Api\UserLaneController;
 use App\Http\Controllers\Api\UserLiveController;
 use App\Http\Controllers\Api\UserModerationHistoryController;
 use App\Http\Controllers\Api\UserMuteController;
+use App\Http\Controllers\Api\UserNotificationTypesController;
 use App\Http\Controllers\Api\UserPasteisModeController;
 use App\Http\Controllers\Api\UserProfileController;
 use App\Http\Controllers\Api\UserPushPreferencesController;
@@ -214,6 +215,9 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         Route::put('me/push-token', [DevicePushTokenController::class, 'update'])->name('api-device-push-token.update');
         Route::delete('me/push-token', [DevicePushTokenController::class, 'destroy'])->name('api-device-push-token.destroy');
         Route::put('me/push-preferences', [UserPushPreferencesController::class, 'update'])->name('api-user-push-preferences.update');
+
+        // Which kinds of notifications the user sees, and the unread count counts, as the web's notifications page saves them...
+        Route::put('me/notification-types', [UserNotificationTypesController::class, 'update'])->name('api-user-notification-types.update');
 
         // Who follows whom, for members like on the web, so scrapers can't walk the graph...
         Route::get('users/{user:handle}/followers', [UserFollowersController::class, 'index'])

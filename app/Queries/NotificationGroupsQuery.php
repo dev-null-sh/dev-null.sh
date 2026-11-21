@@ -92,9 +92,12 @@ final readonly class NotificationGroupsQuery
     /**
      * Whether two unread notifications share a group only depends on what happened between them, so grouping from the
      * oldest unread one onward counts the same groups as grouping the whole history, which every page would pay for.
+     * Only the kinds the user chose to see count, unless another filter is given.
      */
-    public function unreadCount(User $user, string $type = 'all'): int
+    public function unreadCount(User $user, ?string $type = null): int
     {
+        $type ??= $user->notificationTypes();
+
         if ($type === 'none') {
             return 0;
         }
