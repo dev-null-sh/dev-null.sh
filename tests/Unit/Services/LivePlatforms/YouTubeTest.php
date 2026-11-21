@@ -17,6 +17,7 @@ it('accepts links to a single video', function (string $url): void {
     'live' => 'https://www.youtube.com/live/dQw4w9WgXcQ?si=share',
     'short link' => 'https://youtu.be/dQw4w9WgXcQ',
     'embed' => 'https://www.youtube.com/embed/dQw4w9WgXcQ',
+    'plain http' => 'http://youtube.com/watch?v=dQw4w9WgXcQ',
 ]);
 
 it('rejects links that are not a single YouTube video', function (string $url): void {
@@ -26,6 +27,10 @@ it('rejects links that are not a single YouTube video', function (string $url): 
     'twitch' => 'https://www.twitch.tv/octocat',
     'other site' => 'https://example.com/live',
     'not a link' => 'youtube',
+    'javascript scheme' => 'javascript://youtube.com/watch?v=dQw4w9WgXcQ',
+    'ftp scheme' => 'ftp://youtube.com/watch?v=dQw4w9WgXcQ',
+    'look-alike domain' => 'https://youtube.com.evil.com/watch?v=dQw4w9WgXcQ',
+    'userinfo points elsewhere' => 'https://youtube.com@evil.com/watch?v=dQw4w9WgXcQ',
 ]);
 
 it('accepts links while embeds are turned off', function (): void {
