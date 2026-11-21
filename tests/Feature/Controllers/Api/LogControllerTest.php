@@ -51,6 +51,8 @@ it('lists the latest commits of everyone, newest first', function (): void {
         'id' => $older->id,
         'short_hash' => mb_substr(str_replace('-', '', $older->id), -7),
         'body' => 'It was DNS.',
+        'guild_handle' => null,
+        'guild' => null,
         'parent_id' => null,
         'html_url' => route('commit.show', [$author, $older]),
         'created_at' => now()->subMinute()->toIso8601ZuluString(),
@@ -232,6 +234,29 @@ it('lists commits 20 at a time with a cursor to the next page', function (): voi
         ->assertJsonPath('data.1.body', 'Commit 21')
         ->assertJsonPath('meta.next_cursor', null);
 });
+
+it('shows as many reply previews as the client asks for, newest first', function (): void {
+    $commit = Commit::factory()->create(['created_at' => now()->subHour()]);
+    $replies = Commit::factory()->for($commit, 'parent')->count(4)
+        ->state(new Sequence(fn (Sequence $sequence): array => ['created_at' => now()->subMinutes(10 - $sequence->index)]))
+        ->create();
+
+    $response = signedApiRequest($this->keyPair, 'GET', route('api-log.show', ['latest', 'replies_per_page' => 3]));
+
+    $response->assertOk()
+        ->assertJsonPath('data.0.reply_preview.data.*.id', [$replies[3]->id, $replies[2]->id, $replies[1]->id]);
+
+    expect($response->json('data.0.reply_preview.next_cursor'))->toBeString();
+});
+
+it('shows one reply preview when the client asks for a count the web does not offer', function (string $count): void {
+    $commit = Commit::factory()->create(['created_at' => now()->subHour()]);
+    Commit::factory()->for($commit, 'parent')->count(4)->create();
+
+    $response = signedApiRequest($this->keyPair, 'GET', route('api-log.show', ['latest', 'replies_per_page' => $count]));
+
+    $response->assertOk()->assertJsonCount(1, 'data.0.reply_preview.data');
+})->with(['7', '3abc']);
 
 it('does not query each commit or author', function (): void {
     Queue::fake([DetectCommitLanguage::class]);

@@ -2,10 +2,14 @@
 
 declare(strict_types=1);
 
+use App\Enums\Feature;
 use App\Models\Commit;
+use App\Models\Guild;
+use App\Models\LinkPreview;
 use App\Models\Organization;
 use App\Models\Poll;
 use App\Models\User;
+use App\Services\Features;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
@@ -80,6 +84,16 @@ it('scopes commits to pending ones', function (): void {
     Commit::factory()->rejected()->create();
 
     expect(Commit::query()->pending()->sole()->is($pending))->toBeTrue();
+});
+
+it('scopes commits to the pending ones the ai checked or gave up on', function (): void {
+    Commit::factory()->pending()->create(['created_at' => now()->subMinutes(Commit::CHECKING_MINUTES - 1)]);
+    $givenUpOn = Commit::factory()->pending()->create(['created_at' => now()->subMinutes(Commit::CHECKING_MINUTES)]);
+    $checked = Commit::factory()->pending()->checkedByAi()->create();
+    Commit::factory()->checkedByAi()->create();
+
+    expect(Commit::query()->awaitingModerator()->pluck('id')->sort()->values()->all())
+        ->toBe(collect([$givenUpOn->id, $checked->id])->sort()->values()->all());
 });
 
 it('scopes commits to top-level ones', function (): void {
@@ -226,4 +240,35 @@ it('has no next commit of a thread whose author the viewer muted', function (): 
 
     expect($commit->continuation_id)->toBeNull()
         ->and($commit->replies_count)->toBe(0);
+});
+
+it('rejects muted guild commits from the topic of each link without a scan of the commits', function (): void {
+    resolve(Features::class)->update(Feature::Guilds, true, adminOnly: false);
+    $viewer = User::factory()->create();
+    $guild = Guild::factory()->create(['handle' => 'rust']);
+    DB::table('guild_preferences')->insert(['guild_id' => $guild->id, 'user_id' => $viewer->id, 'muted_at' => now()]);
+    [$firstLink, $secondLink] = LinkPreview::factory()->fetched()->count(2)->create()->all();
+    Commit::factory()->create(['link_preview_id' => $firstLink->id, 'body' => 'Learning #rust today']);
+    Commit::factory()->for($guild)->create(['link_preview_id' => $secondLink->id, 'body' => 'A board post']);
+    $first = Commit::factory()->create(['link_preview_id' => $firstLink->id, 'body' => 'A first card']);
+    $second = Commit::factory()->create(['link_preview_id' => $secondLink->id, 'body' => 'A second card']);
+    DB::flushQueryLog();
+    DB::enableQueryLog();
+
+    $cards = Commit::query()->whereKey([$first->id, $second->id])->withCardDataFor($viewer)->get()->keyBy('id');
+
+    $scans = collect(DB::getQueryLog())->filter(fn (array $query): bool => str_contains($query['query'], 'select "id", "body", "guild_id"'));
+
+    expect($cards[$first->id]->linkPreview->commits->modelKeys())->toBe([$first->id])
+        ->and($cards[$second->id]->linkPreview->commits->modelKeys())->toBe([$second->id])
+        ->and($scans)->toBeEmpty();
+
+    DB::disableQueryLog();
+});
+
+it('covers the link topic counts with one index on the commits', function (): void {
+    $indexes = collect(DB::select("select indexname, indexdef from pg_indexes where tablename = 'commits' and indexdef like '%(link_preview_id)%'"));
+
+    expect($indexes->pluck('indexname')->all())->toBe(['commits_link_preview_id_covering_index'])
+        ->and($indexes->first()->indexdef)->toContain('(link_preview_id) INCLUDE (status, user_id, author_id, deleted_at)');
 });
