@@ -33,7 +33,6 @@ export const activityWindows: Record<ActivityScale, string> = {
     day: 'in the last 24 hours',
     week: 'in the last 7 days',
     month: 'in the last 30 days',
-    quarter: 'in the last 3 months',
     half: 'in the last 6 months',
     year: 'in the last year',
 };
@@ -42,7 +41,7 @@ export const activityWindows: Record<ActivityScale, string> = {
  * The scales drawn as a grid of weeks, one column per week, rather than a strip.
  */
 export function isWeekGrid(scale: ActivityScale): boolean {
-    return scale === 'quarter' || scale === 'half' || scale === 'year';
+    return scale === 'half' || scale === 'year';
 }
 
 function levelColor(level: number): string {

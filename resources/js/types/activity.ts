@@ -2,7 +2,6 @@ export type ActivityScale =
     | 'day'
     | 'week'
     | 'month'
-    | 'quarter'
     | 'half'
     | 'year';
 

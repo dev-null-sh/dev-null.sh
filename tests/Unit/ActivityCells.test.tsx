@@ -91,13 +91,13 @@ test('labels the cells with the summary and paints them in the given color', () 
     assert.match(html, /--lane:var\(--muted-foreground\)/);
 });
 
-test('summarizes the quarter and half windows, counting zero instead of saying none yet', () => {
+test('summarizes the half-year window, counting zero instead of saying none yet', () => {
     assert.equal(
         activitySummary(
-            { scale: 'quarter', buckets: [{ date: '2026-10-15', count: 3 }] },
+            { scale: 'half', buckets: [{ date: '2026-10-15', count: 3 }] },
             ['commit', 'commits'],
         ),
-        '3 commits in the last 3 months',
+        '3 commits in the last 6 months',
     );
     assert.equal(
         activitySummary({ scale: 'half', buckets: [] }, ['commit', 'commits']),
@@ -105,9 +105,8 @@ test('summarizes the quarter and half windows, counting zero instead of saying n
     );
 });
 
-test('draws quarter, half and year as week grids with one column per week', () => {
+test('draws half and year as week grids with one column per week', () => {
     for (const [scale, weeks] of [
-        ['quarter', 13],
         ['half', 26],
         ['year', 53],
     ] as const) {
