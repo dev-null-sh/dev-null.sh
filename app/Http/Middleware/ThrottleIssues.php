@@ -8,7 +8,9 @@ use App\Enums\ApiErrorCode;
 use App\Exceptions\ApiException;
 use App\Models\User;
 use Closure;
+use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\RateLimiter;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -22,6 +24,9 @@ final readonly class ThrottleIssues
      * One budget of issues a day, however they are opened. Only issues GitHub opened count, so a rejected draft or a
      * GitHub outage costs nothing.
      *
+     * Asking GitHub takes a while, and issues sent at the same moment would all find room left before any of them was
+     * counted. So each one takes its place first, one at a time, and gives it back unless GitHub opened it.
+     *
      * @param  Closure(Request): (Response)  $next
      */
     public function handle(Request $request, Closure $next): Response
@@ -31,17 +36,35 @@ final readonly class ThrottleIssues
 
         $key = "issues:{$user->id}";
 
-        if (RateLimiter::tooManyAttempts($key, self::PER_DAY)) {
+        try {
+            $count = Cache::lock("{$key}:counting", 10)->block(5, fn (): int => RateLimiter::increment($key, self::DECAY_SECONDS));
+        } catch (LockTimeoutException) {
+            return $this->tooMany($request, max(1, RateLimiter::availableIn($key)));
+        }
+
+        if ($count > self::PER_DAY) {
+            $this->giveBack($key);
+
             return $this->tooMany($request, RateLimiter::availableIn($key));
         }
 
         $response = $next($request);
 
-        if ($response->getStatusCode() === Response::HTTP_CREATED) {
-            RateLimiter::hit($key, self::DECAY_SECONDS);
+        if ($response->getStatusCode() !== Response::HTTP_CREATED) {
+            $this->giveBack($key);
         }
 
         return $response;
+    }
+
+    /**
+     * An empty budget is forgotten, so the day still starts with the first issue GitHub opened.
+     */
+    private function giveBack(string $key): void
+    {
+        if (RateLimiter::increment($key, self::DECAY_SECONDS, -1) <= 0) {
+            RateLimiter::clear($key);
+        }
     }
 
     private function tooMany(Request $request, int $retryAfter): Response
