@@ -88,7 +88,9 @@ final readonly class CreateCommit
                 'author_id' => $organization->id ?? $user->id,
                 'guild_id' => $guild?->id,
                 'body' => $this->emojiShortcodes->replace($body),
-                'mentions' => [...$replyRecipients, ...$mentions],
+                // Keyed by handle, which PHP makes an integer for a handle of digits, like "123", so a spread would
+                // renumber it and link the mention to someone else...
+                'mentions' => array_replace($replyRecipients, $mentions),
                 'parent_id' => $parent?->id,
                 'root_id' => $parent?->threadRootId(),
                 'status' => $user->isAdmin() || $hasGoodReputation ? CommitStatus::Approved : CommitStatus::Pending,

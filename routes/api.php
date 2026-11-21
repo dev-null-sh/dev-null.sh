@@ -134,6 +134,15 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             ->name('api-organization-commit.index');
         Route::get('organizations/{handle}/mentions', [OrganizationMentionController::class, 'index'])
             ->name('api-organization-mention.index');
+
+        // Mentioned profiles: the user or organization a commit's or message's mention captured, by the id it carries,
+        // as the web's mention links open them, so they still lead there once they rename...
+        Route::get('mentions/{user}', [UserController::class, 'show'])
+            ->whereUuid('user')
+            ->name('api-mentioned-user.show');
+        Route::get('mentions/organizations/{organization}', [OrganizationController::class, 'show'])
+            ->whereUuid('organization')
+            ->name('api-mentioned-organization.show');
     });
 
     // Signing in: the app redeems the code it got on the web, signed with a key that isn't approved yet...
