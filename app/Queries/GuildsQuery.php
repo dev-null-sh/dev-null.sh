@@ -39,7 +39,9 @@ final readonly class GuildsQuery
             ->when($term !== '', fn (Builder $query): Builder => $query->where(fn (Builder $query): Builder => $query
                 ->whereRaw('TRANSLATE(LOWER(handle COLLATE "pg_c_utf8"), \'ς\', \'σ\') LIKE TRANSLATE(LOWER(? COLLATE "pg_c_utf8"), \'ς\', \'σ\') ESCAPE \'!\'', ["%{$escaped}%"])
                 ->orWhereRaw('TRANSLATE(LOWER(name COLLATE "pg_c_utf8"), \'ς\', \'σ\') LIKE TRANSLATE(LOWER(? COLLATE "pg_c_utf8"), \'ς\', \'σ\') ESCAPE \'!\'', ["%{$escaped}%"])
-                ->orWhereRaw('TRANSLATE(LOWER(description COLLATE "pg_c_utf8"), \'ς\', \'σ\') LIKE TRANSLATE(LOWER(? COLLATE "pg_c_utf8"), \'ς\', \'σ\') ESCAPE \'!\'', ["%{$escaped}%"])))
+                ->orWhereRaw('TRANSLATE(LOWER(description COLLATE "pg_c_utf8"), \'ς\', \'σ\') LIKE TRANSLATE(LOWER(? COLLATE "pg_c_utf8"), \'ς\', \'σ\') ESCAPE \'!\'', ["%{$escaped}%"])
+                ->orWhereHas('aliases', fn (Builder $query): Builder => $query
+                    ->whereRaw('TRANSLATE(LOWER(guild_aliases.handle COLLATE "pg_c_utf8"), \'ς\', \'σ\') LIKE TRANSLATE(LOWER(? COLLATE "pg_c_utf8"), \'ς\', \'σ\') ESCAPE \'!\'', ["%{$escaped}%"]))))
             ->orderByDesc('members_count')->orderBy('handle')
             ->paginate(24, page: $page);
     }
@@ -51,7 +53,7 @@ final readonly class GuildsQuery
      */
     private function withPreferencesOf(User $user): Builder
     {
-        return Guild::query()->withCount('members')->withExists([
+        return Guild::query()->with('aliases')->withCount('members')->withExists([
             'members as is_joined' => fn (Builder $query): Builder => $query->whereKey($user->id),
             'muters as is_muted' => fn (Builder $query): Builder => $query->whereKey($user->id),
         ]);
