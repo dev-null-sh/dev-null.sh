@@ -421,7 +421,9 @@ function WeekGrid({
                 .slice(1, 3)
                 .some((week) => monthOf(week.date) !== monthOf(day.date));
 
-        return changesMonth && !nextLabelIsClose
+        const isLastWeek = index === weekStarts.length - 1;
+
+        return changesMonth && !nextLabelIsClose && !isLastWeek
             ? monthNames[monthOf(day.date)]
             : null;
     });

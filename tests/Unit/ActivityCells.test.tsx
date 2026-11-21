@@ -132,3 +132,20 @@ test('draws quarter, half and year as week grids with one column per week', () =
         assert.match(html, /grid-rows-7/);
     }
 });
+
+test('leaves the last week unlabelled when it starts a month, so the label cannot spill past the grid', () => {
+    const buckets = Array.from({ length: 26 * 7 }, (_, day) => ({
+        date: new Date(Date.UTC(2026, 4, 10 + day)).toISOString().slice(0, 10),
+        count: 1,
+    }));
+    const html = renderToString(
+        <ActivityCells
+            activity={{ scale: 'half', buckets }}
+            color="red"
+            noun={['commit', 'commits']}
+        />,
+    );
+
+    assert.match(html, /whitespace-nowrap">Oct</);
+    assert.doesNotMatch(html, /whitespace-nowrap">Nov</);
+});
