@@ -12,12 +12,14 @@ use App\Http\Requests\CreateGuildRequest;
 use App\Http\Requests\ListGuildsRequest;
 use App\Http\Requests\ShowGuildRequest;
 use App\Http\Requests\UpdateGuildRequest;
+use App\Http\Resources\GuildBadgeResource;
 use App\Http\Resources\GuildResource;
 use App\Http\Resources\ShownStreams;
 use App\Models\Guild;
 use App\Models\GuildSubmission;
 use App\Models\User;
 use App\Queries\GuildCommitsQuery;
+use App\Queries\GuildMentionsQuery;
 use App\Queries\GuildsQuery;
 use App\Queries\JoinedGuildsQuery;
 use Illuminate\Broadcasting\PrivateChannel;
@@ -60,19 +62,23 @@ final readonly class GuildController
         return to_route('guild.show', $guild->handle);
     }
 
-    public function show(ShowGuildRequest $request, Guild $guild, #[CurrentUser] User $user, GuildCommitsQuery $query, JoinedGuildsQuery $joinedGuilds, GuildsQuery $guilds): Response
+    public function show(ShowGuildRequest $request, Guild $guild, #[CurrentUser] User $user, GuildCommitsQuery $query, JoinedGuildsQuery $joinedGuilds, GuildsQuery $guilds, GuildMentionsQuery $guildMentions): Response
     {
         $commits = $query->get($guild, $user, $request->integer('page', 1));
+        $pinned = $query->pinned($guild, $user);
+        $mentions = (object) collect($guildMentions->forCommits([$pinned, ...$commits->items()], $user))
+            ->map(fn (Guild $mentioned): array => GuildBadgeResource::make($mentioned)->resolve($request))->all();
 
         return Inertia::render('guild/show', [
             'handle' => $guild->handle,
             'readFrom' => $joinedGuilds->readFrom($guild, $user),
             'guild' => Inertia::live(fn (): array => ['id' => $guild->id, ...GuildResource::make($guilds->get($user, [$guild->handle])->firstOrFail())->resolve($request)], UserUpdate::Guilds->value, new PrivateChannel($user)),
             'canModerate' => $guild->user_id === $user->id,
-            'pinnedCommit' => ShownStreams::commit($query->pinned($guild, $user)),
+            'pinnedCommit' => ShownStreams::commit($pinned, false),
             'commits' => $commits->currentPage() > 1
-                ? Inertia::merge(ShownStreams::commits($commits))->matchOn('id')
-                : ShownStreams::commits($commits),
+                ? Inertia::merge(ShownStreams::commits($commits, false))->matchOn('id')
+                : ShownStreams::commits($commits, false),
+            'guildMentions' => $commits->currentPage() > 1 ? Inertia::merge($mentions) : $mentions,
             'page' => $commits->currentPage(),
             'hasMore' => $commits->hasMorePages(),
         ])->withViewData(['robots' => 'noindex, follow']);

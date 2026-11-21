@@ -12,6 +12,7 @@ import { GraphCanvas } from '@/components/graph-canvas';
 import { RailSegment } from '@/components/graph-rail';
 import { GuildDialog } from '@/components/guild-dialog';
 import { GuildIcon } from '@/components/guild-icon';
+import { GuildMentionsContext } from '@/components/guild-mentions-context';
 import {
     GuildRemovalButton,
     GuildReportButton,
@@ -26,7 +27,7 @@ import { WordmarkText } from '@/components/wordmark-text';
 import AppLayout from '@/layouts/app-layout';
 import { firstReadCommit } from '@/lib/guild-read-marker';
 import type { Commit } from '@/types';
-import type { Guild, JoinedGuild } from '@/types/guild';
+import type { Guild, GuildMentions, JoinedGuild } from '@/types/guild';
 
 export default function Show({
     handle,
@@ -35,6 +36,7 @@ export default function Show({
     canModerate,
     pinnedCommit,
     commits,
+    guildMentions,
     page,
     hasMore,
 }: {
@@ -44,6 +46,7 @@ export default function Show({
     canModerate: boolean;
     pinnedCommit: Commit | null;
     commits: Commit[];
+    guildMentions: GuildMentions;
     page: number;
     hasMore: boolean;
 }) {
@@ -177,7 +180,7 @@ export default function Show({
     }
 
     return (
-        <>
+        <GuildMentionsContext value={guildMentions}>
             <Head title={`${guild.name} · Guild`} />
             <header className="border-b px-4 py-6 sm:px-6">
                 <div className="flex items-start gap-3">
@@ -252,6 +255,7 @@ export default function Show({
                                       {
                                           only: [
                                               'commits',
+                                              'guildMentions',
                                               'page',
                                               'hasMore',
                                               'pinnedCommit',
@@ -360,6 +364,7 @@ export default function Show({
                                 {
                                     only: [
                                         'commits',
+                                        'guildMentions',
                                         'page',
                                         'hasMore',
                                         'pinnedCommit',
@@ -383,7 +388,7 @@ export default function Show({
                     </Button>
                 </nav>
             )}
-        </>
+        </GuildMentionsContext>
     );
 }
 

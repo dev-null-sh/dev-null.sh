@@ -151,6 +151,7 @@ test('promotes a separate pin without changing loaded chronological rows and res
                 canModerate: true,
                 commits,
                 pinnedCommit,
+                guildMentions: {},
                 page: 2,
                 hasMore: true,
             }),
@@ -194,6 +195,7 @@ test('clears the missed commits of a joined guild when its board opens', () => {
         canModerate: false,
         commits: [],
         pinnedCommit: null,
+        guildMentions: {},
         page: 1,
         hasMore: false,
     });
@@ -232,6 +234,7 @@ test('changes only the pin optimistically and prevents pin and load-more request
                 canModerate: true,
                 commits: [commit],
                 pinnedCommit: null,
+                guildMentions: {},
                 page: 20,
                 hasMore: true,
             }),
@@ -269,6 +272,7 @@ test('changes only the pin optimistically and prevents pin and load-more request
     (loadButton().props.onClick as () => void)();
     assert.deepEqual(get.mock.calls[0][2]?.only, [
         'commits',
+        'guildMentions',
         'page',
         'hasMore',
         'pinnedCommit',

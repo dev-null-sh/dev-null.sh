@@ -26,6 +26,7 @@ use App\Models\Guild;
 use App\Models\GuildReport;
 use App\Models\GuildSubmission;
 use App\Models\Organization;
+use App\Models\Poll;
 use App\Models\ScheduledCommit;
 use App\Models\User;
 use App\Queries\LogCommitsQuery;
@@ -362,6 +363,26 @@ it('reads the roots of a guild page one more time for its pinned commit', functi
     expect(collect(DB::getQueryLog())->filter(fn (array $query): bool => str_contains($query['query'], '"roots"')))->toHaveCount(2);
 
     DB::disableQueryLog();
+});
+
+it('sends one guild badge map for every shown text on the board and none inside the commits', function (): void {
+    $admin = User::factory()->create(['handle' => 'admin']);
+    $guild = Guild::factory()->create(['handle' => 'rust']);
+    foreach (['php', 'laravel', 'go', 'zig', 'secret', 'unused'] as $handle) {
+        Guild::factory()->create(['handle' => $handle]);
+    }
+
+    $quote = Commit::factory()->create(['body' => 'Quoted #laravel']);
+    $post = Commit::factory()->for($guild)->for($quote, 'quotedCommit')->create(['body' => 'Board #php']);
+    Poll::factory()->for($post)->withOptions('#zig', 'Other')->create();
+    Commit::factory()->for($post, 'parent')->create(['body' => 'Reply #go']);
+    Commit::factory()->for($post, 'parent')->create(['body' => 'Deleted #secret'])->delete();
+    DB::table('guilds')->where('id', $guild->id)->update(['pinned_commit_id' => $post->id]);
+
+    $this->actingAs($admin)->get(route('guild.show', 'rust'))->assertOk()->assertInertia(fn ($page) => $page
+        ->where('pinnedCommit.id', $post->id)->has('commits', 1)
+        ->has('guildMentions', 4)->where('guildMentions.php.handle', 'php')->has('guildMentions.laravel')->has('guildMentions.zig')->has('guildMentions.go')
+        ->missing('commits.0.guild_mentions')->missing('pinnedCommit.guild_mentions'));
 });
 
 it('includes roots matched only by nested replies without exposing hidden roots or replies', function (): void {
