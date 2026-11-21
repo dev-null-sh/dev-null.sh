@@ -13,11 +13,15 @@ use Illuminate\Support\Facades\DB;
 final readonly class CreateUserBlock
 {
     /**
-     * Blocking works both ways, so it also ends the follows in both directions.
+     * Blocking works both ways, so it also ends the follows in both directions. Both users are locked, as a follow
+     * between them does, so a follow sent at the same moment lands either before the block, which ends it, or after,
+     * which sees it.
      */
     public function handle(User $user, User $blocked): void
     {
         DB::transaction(function () use ($user, $blocked): void {
+            User::query()->whereKey([$user->id, $blocked->id])->orderBy('id')->lockForUpdate()->get();
+
             $user->blocking()->syncWithoutDetaching([$blocked->id]);
 
             $user->following()->detach($blocked->id);
