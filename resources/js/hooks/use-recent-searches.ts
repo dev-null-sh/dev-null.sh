@@ -1,16 +1,29 @@
-import { useSyncExternalStore } from 'react';
+import { useCallback, useSyncExternalStore } from 'react';
 import { readStorage, writeStorage } from '@/lib/storage';
 
-const listeners = new Set<() => void>();
+const listeners = new Map<string | null, Set<() => void>>();
 const keyFor = (userId: string): string => `recent-searches:${userId}`;
 
-function subscribe(listener: () => void) {
-    listeners.add(listener);
-    window.addEventListener('storage', listener);
+function subscribe(userId: string | null, listener: () => void) {
+    const userListeners = listeners.get(userId) ?? new Set();
+    userListeners.add(listener);
+    listeners.set(userId, userListeners);
+    const onStorage = (event: StorageEvent) => {
+        if (
+            event.key === null ||
+            (userId !== null && event.key === keyFor(userId))
+        ) {
+            listener();
+        }
+    };
+    window.addEventListener('storage', onStorage);
 
     return () => {
-        listeners.delete(listener);
-        window.removeEventListener('storage', listener);
+        userListeners.delete(listener);
+        if (userListeners.size === 0) {
+            listeners.delete(userId);
+        }
+        window.removeEventListener('storage', onStorage);
     };
 }
 
@@ -43,17 +56,21 @@ export function rememberSearch(userId: string | null, query: string): void {
         ),
     ].slice(0, 3);
     writeStorage(keyFor(userId), JSON.stringify(recent));
-    listeners.forEach((listener) => listener());
+    listeners.get(userId)?.forEach((listener) => listener());
 }
 
 export function clearRecentSearches(userId: string): void {
     writeStorage(keyFor(userId), '');
-    listeners.forEach((listener) => listener());
+    listeners.get(userId)?.forEach((listener) => listener());
 }
 
 export function useRecentSearches(userId: string | null): string[] {
+    const subscribeToUser = useCallback(
+        (listener: () => void) => subscribe(userId, listener),
+        [userId],
+    );
     const stored = useSyncExternalStore(
-        subscribe,
+        subscribeToUser,
         () => (userId === null ? '' : readStorage(keyFor(userId))),
         () => '',
     );
