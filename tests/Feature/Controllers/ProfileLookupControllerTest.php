@@ -119,7 +119,7 @@ it('looks a handle up for a member, which the page then shows pending', function
     expect(Cache::has('github-profiles:looking-up:octocat'))->toBeFalse();
 });
 
-it('looks up only handles GitHub could have that nobody here has, and not again those it has no account for', function (string $handle): void {
+it('looks up only handles GitHub could have that nobody here has, and not again those it has no account for', function (string|array $handle): void {
     Queue::fake();
     Profile::factory()->create(['handle' => 'taken']);
     Cache::put('github-profiles:not-found:nobody', 'missing', 60);
@@ -129,7 +129,7 @@ it('looks up only handles GitHub could have that nobody here has, and not again 
         ->assertSessionHasErrors('handle');
 
     Queue::assertNothingPushed();
-})->with(['taken, whatever the case' => 'Taken', 'no GitHub account, whatever the case' => 'Nobody', 'an underscore' => 'oct_cat', 'empty' => '']);
+})->with(['taken, whatever the case' => 'Taken', 'no GitHub account, whatever the case' => 'Nobody', 'an underscore' => 'oct_cat', 'empty' => '', 'not a string' => [['octocat']]]);
 
 it('lets only members look handles up', function (): void {
     Queue::fake();
