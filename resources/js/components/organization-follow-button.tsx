@@ -1,3 +1,4 @@
+import type { VisitOptions } from '@inertiajs/core';
 import { router, usePage } from '@inertiajs/react';
 import { ChevronDown } from 'lucide-react';
 import type { ComponentProps } from 'react';
@@ -28,11 +29,11 @@ type FollowedOrganization = Pick<Organization, 'handle'> & { id: string };
  * following people. Each follow waits for the one before it to answer, so a double click can't follow and then
  * unfollow.
  */
-function useOrganizationFollow(
+export function useOrganizationFollow(
     organization: FollowedOrganization,
     initialIsFollowing: boolean,
-    only: string[],
-    onToggled: () => void,
+    options: Pick<VisitOptions, 'only' | 'headers'>,
+    onToggled: () => void = () => undefined,
 ) {
     const { isFollowing, callbacks } = useFollow(
         organization,
@@ -45,7 +46,7 @@ function useOrganizationFollow(
                 ? OrganizationFollowController.destroy(organization)
                 : OrganizationFollowController.store(organization),
             {
-                only,
+                ...options,
                 preserveState: true,
                 preserveScroll: true,
                 async: true,
@@ -90,7 +91,7 @@ export function OrganizationFollowButton({
     const { isFollowing, toggle } = useOrganizationFollow(
         organization,
         initialIsFollowing,
-        only,
+        { only },
         () =>
             requestAnimationFrame(() => {
                 if (document.activeElement === document.body) {
