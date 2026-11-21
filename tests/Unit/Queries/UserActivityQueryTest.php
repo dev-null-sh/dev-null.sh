@@ -25,9 +25,7 @@ it('picks the smallest scale that fits all of the visible activity', function (s
     'start of the last 7 days' => ['2026-10-09 00:00:00', ActivityScale::Week],
     'just before the last 7 days' => ['2026-10-08 23:59:59', ActivityScale::Month],
     'start of the last 30 days' => ['2026-09-16 00:00:00', ActivityScale::Month],
-    'just before the last 30 days' => ['2026-09-15 23:59:59', ActivityScale::Quarter],
-    'start of the last 13 weeks' => ['2026-07-19 00:00:00', ActivityScale::Quarter],
-    'just before the last 13 weeks' => ['2026-07-18 23:59:59', ActivityScale::Half],
+    'just before the last 30 days' => ['2026-09-15 23:59:59', ActivityScale::Half],
     'start of the last 26 weeks' => ['2026-04-19 00:00:00', ActivityScale::Half],
     'just before the last 26 weeks' => ['2026-04-18 23:59:59', ActivityScale::Year],
     'years ago' => ['2024-01-01 00:00:00', ActivityScale::Year],
@@ -45,7 +43,7 @@ it('picks the scale from the account creation when there are no visible commits'
     'just now' => ['2026-10-15 12:30:00', ActivityScale::Day],
     'three days ago' => ['2026-10-12 09:00:00', ActivityScale::Week],
     'two weeks ago' => ['2026-10-01 09:00:00', ActivityScale::Month],
-    'two months ago' => ['2026-08-15 09:00:00', ActivityScale::Quarter],
+    'two months ago' => ['2026-08-15 09:00:00', ActivityScale::Half],
     'four months ago' => ['2026-06-15 09:00:00', ActivityScale::Half],
     'two years ago' => ['2024-10-15 09:00:00', ActivityScale::Year],
 ]);
@@ -91,22 +89,20 @@ it('counts the commits of each day of the last 7 days', function (): void {
         ]);
 });
 
-it('counts the commits of each day of the weeks since the first one', function (string $since, ActivityScale $scale, string $first, int $days): void {
+it('counts the commits of each day of the last 26 weeks', function (): void {
     $user = User::factory()->create();
 
-    Commit::factory()->for($user)->create(['created_at' => $since]);
+    Commit::factory()->for($user)->create(['created_at' => '2026-06-15 09:00:00']);
     Commit::factory()->for($user)->count(2)->create();
 
     $activity = resolve(UserActivityQuery::class)->get($user, $user);
 
-    expect($activity['scale'])->toBe($scale)
-        ->and($activity['buckets'])->toHaveCount($days)
-        ->and($activity['buckets'][0]['date'])->toBe($first)
+    expect($activity['scale'])->toBe(ActivityScale::Half)
+        ->and($activity['buckets'])->toHaveCount(180)
+        ->and($activity['buckets'][0])->toBe(['date' => '2026-04-19', 'count' => 0])
+        ->and($activity['buckets'][57])->toBe(['date' => '2026-06-15', 'count' => 1])
         ->and(end($activity['buckets']))->toBe(['date' => '2026-10-15', 'count' => 2]);
-})->with([
-    'quarter' => ['2026-08-15 09:00:00', ActivityScale::Quarter, '2026-07-19', 89],
-    'half' => ['2026-06-15 09:00:00', ActivityScale::Half, '2026-04-19', 180],
-]);
+});
 
 it('counts the commits of each day of the last 30 days', function (): void {
     $user = User::factory()->create();
