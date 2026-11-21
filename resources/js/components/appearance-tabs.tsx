@@ -6,8 +6,10 @@ import { useAppearance } from '@/hooks/use-appearance';
 import { withViewTransition } from '@/lib/utils';
 
 export default function AppearanceToggleTab({
+    iconOnly,
     className,
 }: {
+    iconOnly?: boolean;
     className?: string;
 }) {
     const { appearance, updateAppearance } = useAppearance();
@@ -27,6 +29,7 @@ export default function AppearanceToggleTab({
             onChange={(value) =>
                 void withViewTransition(() => updateAppearance(value), 'theme')
             }
+            iconOnly={iconOnly}
             className={className}
         />
     );

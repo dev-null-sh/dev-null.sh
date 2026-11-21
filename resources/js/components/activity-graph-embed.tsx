@@ -108,7 +108,7 @@ export default function ActivityGraphEmbed({
             <div className="mt-5 overflow-hidden rounded-lg border bg-background p-3 sm:p-4">
                 <img
                     src={previewUrl}
-                    alt={`Commit activity graph of @${user.username}`}
+                    alt={`Commit activity graph of @${user.handle}`}
                     width={754}
                     height={196}
                     className="h-auto w-full"
@@ -126,6 +126,7 @@ export default function ActivityGraphEmbed({
                         variant="ghost"
                         size="sm"
                         onClick={copySnippet}
+                        className="min-w-38 justify-end"
                         data-test="copy-embed-button"
                     >
                         <CopyIcon />

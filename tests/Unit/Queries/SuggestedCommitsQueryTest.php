@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Models\Commit;
+use App\Models\Guild;
 use App\Models\User;
 use App\Queries\SuggestedCommitsQuery;
 
@@ -18,8 +19,24 @@ it('suggests the latest commit of each other user', function (): void {
     $commits = resolve(SuggestedCommitsQuery::class)->get($user);
 
     expect($commits->pluck('id')->all())->toBe([$latest->id, $other->id])
-        ->and($commits->first()->relationLoaded('user'))->toBeTrue();
+        ->and($commits->first()->relationLoaded('author'))->toBeTrue();
 });
+
+it('suggests an author personal commit instead of their newer guild commit', function (bool $joined): void {
+    $user = User::factory()->create();
+    $author = User::factory()->create();
+    $guild = Guild::factory()->create();
+    if ($joined) {
+        $guild->members()->attach($user, ['joined_at' => now()]);
+    }
+
+    $personal = Commit::factory()->for($author)->create(['created_at' => now()->subMinute()]);
+    Commit::factory()->for($author)->for($guild)->create();
+
+    $commits = resolve(SuggestedCommitsQuery::class)->get($user);
+
+    expect($commits->pluck('id')->all())->toBe([$personal->id]);
+})->with(['unjoined guild' => false, 'joined guild' => true]);
 
 it('only suggests approved commits', function (): void {
     $user = User::factory()->create();

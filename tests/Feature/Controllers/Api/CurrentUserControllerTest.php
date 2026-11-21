@@ -2,16 +2,18 @@
 
 declare(strict_types=1);
 
+use App\Enums\OrganizationRole;
 use App\Models\Commit;
 use App\Models\Device;
 use App\Models\Notification;
+use App\Models\Organization;
 use App\Models\User;
 
 it('returns the signed-in user with their unread notifications and their pastéis', function (): void {
     $this->travelTo(now()->setDate(2026, 10, 17)->setTime(9, 15));
 
     $user = User::factory()->create([
-        'username' => 'octocat',
+        'handle' => 'octocat',
         'name' => 'The Octocat',
         'avatar_url' => 'https://avatars.githubusercontent.com/u/583231',
         'bio' => 'I am the Octocat.',
@@ -37,7 +39,7 @@ it('returns the signed-in user with their unread notifications and their pastéi
         ->assertExactJson([
             'data' => [
                 'id' => $user->id,
-                'username' => 'octocat',
+                'handle' => 'octocat',
                 'name' => 'The Octocat',
                 'avatar_url' => 'https://avatars.githubusercontent.com/u/583231',
                 'bio' => 'I am the Octocat.',
@@ -48,6 +50,7 @@ it('returns the signed-in user with their unread notifications and their pastéi
                 'html_url' => route('user.show', $user),
                 'feed_url' => route('user-feed.show', $user),
                 'created_at' => now()->toIso8601ZuluString(),
+                'live' => null,
                 'commits_count' => 1,
                 'followers_count' => 3,
                 'following_count' => 2,
@@ -60,6 +63,9 @@ it('returns the signed-in user with their unread notifications and their pastéi
                 'automatic_lane' => $user->automaticLane(),
                 'sponsors_url' => null,
                 'github_synced_at' => null,
+                'terms_version' => config('legal.terms_version'),
+                'terms_accepted_at' => null,
+                'terms_accepted' => false,
                 'remotes' => [
                     'from' => 'following',
                     'pull_receipts' => true,
@@ -67,6 +73,7 @@ it('returns the signed-in user with their unread notifications and their pastéi
                     'everyone' => false,
                     'unread_count' => 0,
                 ],
+                'organizations' => [],
             ],
             'unread_notifications_count' => 1,
         ]);
@@ -75,7 +82,7 @@ it('returns the signed-in user with their unread notifications and their pastéi
 it('returns what the web shows only the user on their profile settings', function (): void {
     $user = User::factory()->create([
         'id' => '3a788e93-4cf7-4819-9377-94be2f329563',
-        'username' => 'octocat',
+        'handle' => 'octocat',
         'preferred_lane' => 1,
         'has_sponsors_listing' => true,
         'github_synced_at' => '2026-10-01 09:30:00',
@@ -92,6 +99,40 @@ it('returns what the web shows only the user on their profile settings', functio
         ->assertJsonPath('data.github_synced_at', '2026-10-01T09:30:00Z');
 });
 
+it("returns the organizations the user can post as, oldest membership first, like the web's Post as menu", function (): void {
+    $user = User::factory()->create();
+    $keyPair = apiKeyPairFor($user);
+    $laravel = Organization::factory()->create(['handle' => 'laravel', 'name' => 'Laravel']);
+    $pest = Organization::factory()->create(['handle' => 'pestphp']);
+
+    $pest->members()->attach($user->id, ['role' => OrganizationRole::Member]);
+    $this->travel(-1)->days();
+    $laravel->members()->attach($user->id, ['role' => OrganizationRole::Admin]);
+    $this->travelBack();
+    Organization::factory()->create()->members()->attach(User::factory()->create()->id, ['role' => OrganizationRole::Admin]);
+
+    $response = signedApiRequest($keyPair, 'GET', route('api-current-user.show'));
+
+    $response->assertOk()
+        ->assertJsonPath('data.organizations.0', [
+            'type' => 'organization',
+            'id' => $laravel->id,
+            'role' => 'admin',
+            'handle' => 'laravel',
+            'name' => 'Laravel',
+            'avatar_url' => $laravel->avatar_url,
+            'bio' => $laravel->bio,
+            'location' => $laravel->location,
+            'website' => $laravel->website,
+            'github_url' => 'https://github.com/laravel',
+            'html_url' => route('user.show', ['user' => 'laravel']),
+            'lane' => null,
+        ])
+        ->assertJsonPath('data.organizations.1.handle', 'pestphp')
+        ->assertJsonPath('data.organizations.1.role', 'member')
+        ->assertJsonCount(2, 'data.organizations');
+});
+
 it('keeps those to the signed-in user, even on their own profile', function (): void {
     $user = User::factory()->create(['preferred_lane' => 1]);
     $keyPair = apiKeyPairFor($user);
@@ -103,7 +144,8 @@ it('keeps those to the signed-in user, even on their own profile', function (): 
         ->assertJsonMissingPath('data.preferred_lane')
         ->assertJsonMissingPath('data.automatic_lane')
         ->assertJsonMissingPath('data.sponsors_url')
-        ->assertJsonMissingPath('data.github_synced_at');
+        ->assertJsonMissingPath('data.github_synced_at')
+        ->assertJsonMissingPath('data.organizations');
 });
 
 it('counts unread notifications in groups, like the web', function (): void {
@@ -119,7 +161,7 @@ it('counts unread notifications in groups, like the web', function (): void {
         ->assertJsonPath('unread_notifications_count', 1);
 });
 
-it('counts unread messages and requests the way the nav on the web does', function (): void {
+it('counts unread conversations and requests the way the nav on the web does', function (): void {
     config(['remotes.requests' => true]);
 
     $user = User::factory()->create();
@@ -135,7 +177,7 @@ it('counts unread messages and requests the way the nav on the web does', functi
     signedApiRequest($keyPair, 'GET', route('api-current-user.show'))
         ->assertOk()
         ->assertJsonPath('data.remotes.requests', true)
-        ->assertJsonPath('data.remotes.unread_count', 3);
+        ->assertJsonPath('data.remotes.unread_count', 2);
 });
 
 it('says nothing about Remotes while the user has them off', function (): void {

@@ -12,21 +12,32 @@ import {
 } from 'react';
 import { flushSync } from 'react-dom';
 import {
-    drawnStretch,
+    bridgeDuration,
     entranceDelay,
+    entranceDraw,
     graphEdges,
+    isFolding,
     isOnScreen,
     leavingOf,
     nodeIdentity,
+    nodeStartsIn,
     sameNodes,
     scopedNodeId,
 } from '@/lib/graph';
-import type { GraphEdge, GraphNode, LeavingRow } from '@/lib/graph';
+import type {
+    Draw,
+    GraphEdge,
+    GraphNode,
+    LeavingRow,
+    NodeAnimation,
+    Overhang,
+    Point,
+} from '@/lib/graph';
 import { cn } from '@/lib/utils';
 
 export type GraphNodeSpec = Pick<
     GraphNode,
-    'id' | 'lane' | 'after' | 'parent' | 'dashed' | 'dimmed'
+    'id' | 'lane' | 'after' | 'parent' | 'dashed' | 'dimmed' | 'isLeaving'
 > & {
     /** How far the node's ring reaches beyond its box, like a box-shadow ring. */
     ring?: number;
@@ -37,25 +48,28 @@ type Registry = {
     unregister: (id: string) => void;
     /** Dims a node's lines or brings them back, without measuring anything again. */
     dim: (id: string, isDimmed: boolean) => void;
+    /** Whether the canvas has drawn already, read without rendering anything again when it first does. */
+    hasDrawn: () => boolean;
 };
 
 const GraphContext = createContext<Registry | null>(null);
 
+/** The width of every line, which the rail pieces share so the canvas takes over from them unseen. */
+export const graphStrokeWidth = 2;
+
+/** The length of each dash and of each gap of a dashed line, shared with the rail pieces too. */
+export const graphDash = 4;
+
+const strokeWidth = graphStrokeWidth;
+
+const dash = `${graphDash} ${graphDash}`;
+
 /**
- * True once the canvas has measured its nodes. Until then, as on the server, the rail pieces stay, so the first paint
- * matches the server's and a page without JavaScript keeps its rail.
- */
-const GraphDrawingContext = createContext(false);
-
-const strokeWidth = 2;
-
-const dash = '4 4';
-
-/**
- * Whether the lines around a node are drawn by a graph canvas, in which case the node's own rail pieces stay out.
+ * Whether the lines around a node are drawn by a graph canvas, in which case the node's own rail pieces stay out, even
+ * on the server and before the canvas first measures: its lines show once it has.
  */
 export function useGraphOverlay(): boolean {
-    return useContext(GraphDrawingContext);
+    return useContext(GraphContext) !== null;
 }
 
 /**
@@ -151,10 +165,28 @@ export function useGraphNodeId(): (id: string) => string {
 }
 
 /**
- * Draws its children, which are rail lines, only when no graph canvas draws the lines instead.
+ * Draws its children, which are rail lines. In a graph canvas they stand in for its lines, from the server's HTML on,
+ * until it draws them: it then marks itself drawn and they hide in CSS, without rendering anything again.
  */
 export function WithoutGraph({ children }: { children: ReactNode }) {
-    return useGraphOverlay() ? null : children;
+    return useGraphOverlay() ? (
+        <span data-graph-rail>{children}</span>
+    ) : (
+        children
+    );
+}
+
+/**
+ * Whether what mounts now shows up after its canvas first drew, like a commit just posted to the feed, rather than
+ * being there when the page opens. Only then do fresh nodes and commits animate in, as their lines do.
+ */
+export function useShowsUpLive(): boolean {
+    const registry = useContext(GraphContext);
+    const [showsUpLive] = useState(
+        () => registry === null || registry.hasDrawn(),
+    );
+
+    return showsUpLive;
 }
 
 /**
@@ -172,9 +204,7 @@ export function GraphAnchor({
     spec: GraphNodeSpec | null;
     isFresh?: boolean;
 }) {
-    const isInCanvas = useContext(GraphContext) !== null;
-    const isDrawing = useGraphOverlay();
-    const [showsUpLive] = useState(!isInCanvas || isDrawing);
+    const showsUpLive = useShowsUpLive();
 
     return (
         <span
@@ -193,6 +223,8 @@ type Size = { width: number; height: number };
 type Leaving = LeavingRow & Size & { x: number; y: number };
 
 const noLeaving: Leaving[] = [];
+
+const noFolding: ReadonlySet<string> = new Set();
 
 /**
  * A row marked `data-graph-leaving`, like a deleted card fading and collapsing: the part of it its clipping still
@@ -224,10 +256,121 @@ function leavingRow(
     };
 }
 
+/**
+ * Where a node's centre sits on screen once what scales it in is done, like the anchor of a grouped commit's dot, which
+ * the dot sits off the centre of. That anchor keeps its centre as it scales, and the node keeps its place within it in
+ * the layout: measuring the node as it shows mid-scale would cut its line out off its ring until the next measure.
+ */
+function layoutCentre(element: HTMLElement, container: Element): Point {
+    for (
+        let scaler = element.parentElement;
+        scaler !== null && scaler !== container;
+        scaler = scaler.parentElement
+    ) {
+        const isScaling = scaler
+            .getAnimations()
+            .some(
+                (animation) =>
+                    animation instanceof CSSAnimation &&
+                    animation.animationName === 'node-in' &&
+                    animation.playState !== 'finished',
+            );
+
+        if (!isScaling) {
+            continue;
+        }
+
+        let x = element.offsetWidth / 2;
+        let y = element.offsetHeight / 2;
+        let current: Element | null = element;
+
+        while (current instanceof HTMLElement && current !== scaler) {
+            x += current.offsetLeft;
+            y += current.offsetTop;
+            current = current.offsetParent;
+        }
+
+        if (current !== scaler) {
+            break;
+        }
+
+        // Offsets leave out translations, like the one shifting a grouped commit's dot up.
+        for (
+            let shifted: HTMLElement | null = element;
+            shifted !== null && shifted !== scaler;
+            shifted = shifted.parentElement
+        ) {
+            const shift = translationOf(shifted);
+            x += shift.x;
+            y += shift.y;
+        }
+
+        const rect = scaler.getBoundingClientRect();
+
+        return {
+            x: rect.left + rect.width / 2 - scaler.offsetWidth / 2 + x,
+            y: rect.top + rect.height / 2 - scaler.offsetHeight / 2 + y,
+        };
+    }
+
+    const rect = element.getBoundingClientRect();
+
+    return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+}
+
+/** How far an element's `translate` moves it, in px: a percentage is of its own size. */
+function translationOf(element: HTMLElement): Point {
+    const translate = getComputedStyle(element).translate;
+
+    if (translate === 'none') {
+        return { x: 0, y: 0 };
+    }
+
+    const [x = '0px', y = '0px'] = translate.split(' ');
+    const px = (value: string, size: number) =>
+        value.endsWith('%')
+            ? (Number.parseFloat(value) / 100) * size
+            : Number.parseFloat(value);
+
+    return { x: px(x, element.offsetWidth), y: px(y, element.offsetHeight) };
+}
+
 function snap(value: number): number {
     const ratio = window.devicePixelRatio || 1;
 
     return Math.round(value * ratio) / ratio;
+}
+
+/**
+ * What a node marks `data-graph-overhang` as hanging off it, like a LIVE badge over the bottom of an avatar's ring, grown
+ * by the ring the attribute gives, in px.
+ */
+function overhangsOf(element: HTMLElement, box: DOMRect): Overhang[] {
+    return [
+        ...element.querySelectorAll<HTMLElement>('[data-graph-overhang]'),
+    ].map((overhang) => {
+        const rect = overhang.getBoundingClientRect();
+        const ring = Number(overhang.dataset.graphOverhang) || 0;
+
+        return {
+            x: snap(rect.left - box.left - ring),
+            y: snap(rect.top - box.top - ring),
+            width: snap(rect.width + 2 * ring),
+            height: snap(rect.height + 2 * ring),
+            radius:
+                (Number.parseFloat(
+                    getComputedStyle(overhang).borderTopLeftRadius,
+                ) || 0) + ring,
+        };
+    });
+}
+
+function isOverhang(node: Node): boolean {
+    return (
+        node instanceof HTMLElement &&
+        (node.dataset.graphOverhang !== undefined ||
+            node.querySelector('[data-graph-overhang]') !== null)
+    );
 }
 
 /**
@@ -236,9 +379,8 @@ function snap(value: number): number {
 function runningAnimations(
     element: Element,
     container: Element | null,
-): { name: string; remaining: number; isWaiting: boolean }[] {
-    const running: { name: string; remaining: number; isWaiting: boolean }[] =
-        [];
+): NodeAnimation[] {
+    const running: NodeAnimation[] = [];
 
     for (
         let current: Element | null = element;
@@ -248,15 +390,18 @@ function runningAnimations(
         for (const animation of current.getAnimations()) {
             if (animation instanceof CSSAnimation) {
                 const currentTime = Number(animation.currentTime);
+                const delay = Number(animation.effect?.getTiming().delay ?? 0);
 
                 running.push({
                     name: animation.animationName,
                     remaining:
                         Number(animation.effect?.getComputedTiming().endTime) -
                         currentTime,
-                    isWaiting:
-                        currentTime <
-                        Number(animation.effect?.getTiming().delay ?? 0),
+                    isWaiting: currentTime < delay,
+                    startsIn: delay - currentTime,
+                    trails:
+                        current instanceof HTMLElement &&
+                        current.dataset.graphTrails !== undefined,
                 });
             }
         }
@@ -280,7 +425,8 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
     const [nodes, setNodes] = useState<GraphNode[]>([]);
     const [size, setSize] = useState<Size>({ width: 0, height: 0 });
     const [leaving, setLeaving] = useState(noLeaving);
-    const [isDrawing, setIsDrawing] = useState(false);
+    const [folding, setFolding] = useState<ReadonlySet<string>>(noFolding);
+    const hasDrawn = useRef(false);
 
     const clip = useCallback(() => {
         const box = containerRef.current?.getBoundingClientRect();
@@ -307,23 +453,32 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
             element,
             row: leavingRow(element, box, container),
         }));
+        const folds = [...container.querySelectorAll('[data-graph-folding]')];
+        const foldingIds = new Set<string>();
         const measured = [...entries.current.values()]
             .filter(({ element }) => element.isConnected)
             .map(({ element, spec }) => {
-                const rect = element.getBoundingClientRect();
+                const centre = layoutCentre(element, container);
+                const overhangs = overhangsOf(element, box);
                 rows.find((row) => row.element.contains(element))?.row.ids.add(
                     spec.id,
                 );
 
+                if (folds.some((fold) => fold.contains(element))) {
+                    foldingIds.add(spec.id);
+                }
+
                 return {
+                    ...(overhangs.length > 0 && { overhangs }),
                     id: spec.id,
                     lane: spec.lane,
                     after: spec.after,
                     parent: spec.parent,
                     dashed: spec.dashed,
+                    isLeaving: spec.isLeaving,
                     dimmed: dims.current.get(spec.id) ?? false,
-                    x: snap(rect.left - box.left + rect.width / 2),
-                    y: snap(rect.top - box.top + rect.height / 2),
+                    x: snap(centre.x - box.left),
+                    y: snap(centre.y - box.top),
                     // The layout width, as a node scaling in would otherwise keep the radius it had mid-animation.
                     radius: element.offsetWidth / 2 + (spec.ring ?? 0),
                 };
@@ -334,11 +489,21 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
                 ? current
                 : { width: box.width, height: box.height },
         );
-        setIsDrawing(true);
+        if (!hasDrawn.current) {
+            hasDrawn.current = true;
+            // Set on the element itself: the rail pieces hide in CSS as the lines show, in the same frame.
+            container.setAttribute('data-graph-drawn', '');
+        }
         setLeaving((current) =>
             rows.length === 0 && current.length === 0
                 ? current
                 : rows.map(({ row }) => row),
+        );
+        setFolding((current) =>
+            current.size === foldingIds.size &&
+            [...foldingIds].every((nodeId) => current.has(nodeId))
+                ? current
+                : foldingIds,
         );
         setNodes((current) =>
             sameNodes(current, measured) ? current : measured,
@@ -390,6 +555,7 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
                         : current,
                 );
             },
+            hasDrawn: () => hasDrawn.current,
         }),
         [measure],
     );
@@ -430,7 +596,8 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
 
         // Nodes also move without anything resizing, like cards trading places when the feed reorders. Other changes
         // inside a card, like an image done loading, move no node unless they resize the container, which the resize
-        // observer reports.
+        // observer reports. An overhang, like the LIVE badge as its user goes live, comes and goes out of the layout,
+        // so nothing resizes either.
         const mutations = new MutationObserver((records) => {
             const elements = [
                 ...[...entries.current.values()].map(({ element }) => element),
@@ -439,11 +606,17 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
             departed.current.clear();
 
             if (
-                records.some((record) =>
-                    [...record.addedNodes, ...record.removedNodes].some(
-                        (node) =>
+                records.some(
+                    ({ type, target, addedNodes, removedNodes }) =>
+                        // Replies folding away move nothing: their lines draw themselves out from where they are.
+                        type === 'attributes' ||
+                        [...addedNodes, ...removedNodes].some((node) =>
                             elements.some((element) => node.contains(element)),
-                    ),
+                        ) ||
+                        ([...addedNodes, ...removedNodes].some(isOverhang) &&
+                            elements.some((element) =>
+                                element.contains(target),
+                            )),
                 )
             ) {
                 measureNow();
@@ -461,6 +634,7 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
             mutations.observe(containerRef.current, {
                 childList: true,
                 subtree: true,
+                attributeFilter: ['data-graph-folding'],
             });
             containerRef.current.addEventListener('animationend', settle);
         }
@@ -493,155 +667,204 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
     }, [clip, measure, measureNow, read]);
 
     const edges = useMemo(() => graphEdges(nodes), [nodes]);
-    const delayOf = useCallback(
-        (edge: GraphEdge) =>
-            entranceDelay(
-                [edge.from, edge.to].flatMap((nodeId) => {
-                    const entry = entries.current.get(nodeId);
+    const timingOf = useCallback((edge: GraphEdge): Timing => {
+        const animationsOf = (nodeId: string) => {
+            const entry = entries.current.get(nodeId);
 
-                    return entry
-                        ? runningAnimations(entry.element, containerRef.current)
-                        : [];
-                }),
-            ),
-        [],
-    );
+            return entry
+                ? runningAnimations(entry.element, containerRef.current)
+                : [];
+        };
+        const atEnd = animationsOf(edge.to);
+
+        return {
+            delay: entranceDelay([...animationsOf(edge.from), ...atEnd]),
+            startsIn: nodeStartsIn(atEnd),
+        };
+    }, []);
     const canvasTop = useCallback(
         () => containerRef.current?.getBoundingClientRect().top ?? 0,
         [],
     );
-    const { entering, onDrawn } = useEnteringEdges(edges, delayOf, canvasTop);
+    const { entering, onDrawn } = useEnteringEdges(edges, timingOf, canvasTop);
+    // The same lines, where a trunk still drawing itself in leaves the replies it goes on below their dashed column.
+    const drawn = useMemo(
+        () =>
+            entering.size === 0
+                ? edges
+                : graphEdges(nodes, new Set(entering.keys())),
+        [edges, nodes, entering],
+    );
     const clipOf = (row: number) =>
         row === -1 ? undefined : `url(#${id}-leaving-${row})`;
 
     return (
         <GraphContext.Provider value={registry}>
-            <GraphDrawingContext.Provider value={isDrawing}>
-                <div ref={containerRef} className="relative">
-                    {children}
-                    <svg
-                        ref={canvasRef}
-                        aria-hidden
-                        className="pointer-events-none absolute inset-0 z-[5] overflow-visible"
-                        width={size.width}
-                        height={size.height}
-                        fill="none"
-                        data-test="graph-canvas"
-                    >
-                        <defs>
-                            <mask
-                                id={`${id}-nodes`}
-                                maskUnits="userSpaceOnUse"
-                                x={0}
-                                y={0}
+            <div ref={containerRef} className="relative">
+                {children}
+                <svg
+                    ref={canvasRef}
+                    aria-hidden
+                    className="pointer-events-none absolute inset-0 z-[5] overflow-visible"
+                    width={size.width}
+                    height={size.height}
+                    fill="none"
+                    data-test="graph-canvas"
+                >
+                    <defs>
+                        <mask
+                            id={`${id}-nodes`}
+                            maskUnits="userSpaceOnUse"
+                            x={0}
+                            y={0}
+                            width={size.width}
+                            height={size.height}
+                        >
+                            <rect
                                 width={size.width}
                                 height={size.height}
-                            >
+                                fill="white"
+                            />
+                            {nodes.map((node) => (
+                                <circle
+                                    key={node.id}
+                                    cx={node.x}
+                                    cy={node.y}
+                                    r={node.radius}
+                                    fill="black"
+                                    // A node on its way out scales out, and so does its cut-out, so the line
+                                    // running on through it shows as it goes.
+                                    className={
+                                        node.isLeaving
+                                            ? 'motion-safe:animate-node-out'
+                                            : undefined
+                                    }
+                                    style={
+                                        node.isLeaving
+                                            ? {
+                                                  transformBox: 'fill-box',
+                                                  transformOrigin: 'center',
+                                                  animationDuration: `${bridgeDuration}ms`,
+                                              }
+                                            : undefined
+                                    }
+                                    clipPath={clipOf(
+                                        leaving.findIndex((row) =>
+                                            row.ids.has(node.id),
+                                        ),
+                                    )}
+                                />
+                            ))}
+                            {nodes.flatMap((node) =>
+                                (node.overhangs ?? []).map(
+                                    (overhang, index) => (
+                                        <rect
+                                            key={`${node.id}-${index}`}
+                                            x={overhang.x}
+                                            y={overhang.y}
+                                            width={overhang.width}
+                                            height={overhang.height}
+                                            rx={overhang.radius}
+                                            fill="black"
+                                            clipPath={clipOf(
+                                                leaving.findIndex((row) =>
+                                                    row.ids.has(node.id),
+                                                ),
+                                            )}
+                                        />
+                                    ),
+                                ),
+                            )}
+                        </mask>
+                        {leaving.map((row, index) => (
+                            <clipPath key={index} id={`${id}-leaving-${index}`}>
                                 <rect
-                                    width={size.width}
-                                    height={size.height}
-                                    fill="white"
+                                    x={row.x}
+                                    y={row.y}
+                                    width={row.width}
+                                    height={row.height}
                                 />
-                                {nodes.map((node) => (
-                                    <circle
-                                        key={node.id}
-                                        cx={node.x}
-                                        cy={node.y}
-                                        r={node.radius}
-                                        fill="black"
-                                        clipPath={clipOf(
-                                            leaving.findIndex((row) =>
-                                                row.ids.has(node.id),
-                                            ),
-                                        )}
-                                    />
-                                ))}
-                            </mask>
-                            {leaving.map((row, index) => (
-                                <clipPath
-                                    key={index}
-                                    id={`${id}-leaving-${index}`}
-                                >
-                                    <rect
-                                        x={row.x}
-                                        y={row.y}
-                                        width={row.width}
-                                        height={row.height}
-                                    />
-                                </clipPath>
-                            ))}
-                            {edges.map((edge, index) => (
-                                <EdgeDefs
-                                    key={edge.id}
-                                    id={`${id}-${index}`}
-                                    edge={edge}
-                                    draw={entering.get(edge.id)}
-                                    onDrawn={onDrawn}
-                                />
-                            ))}
-                        </defs>
-                        <g mask={`url(#${id}-nodes)`}>
-                            {edges.map((edge, index) => {
-                                const left = leavingOf(edge, leaving);
+                            </clipPath>
+                        ))}
+                        {drawn.map((edge, index) => (
+                            <EdgeDefs
+                                key={edge.id}
+                                id={`${id}-${index}`}
+                                edge={edge}
+                                draw={entering.get(edge.id)}
+                                isFolding={isFolding(edge, folding)}
+                                onDrawn={onDrawn}
+                            />
+                        ))}
+                    </defs>
+                    <g mask={`url(#${id}-nodes)`}>
+                        {drawn.map((edge, index) => {
+                            const left = leavingOf(edge, leaving);
 
-                                return (
-                                    <path
-                                        key={edge.id}
-                                        d={edge.d}
-                                        style={{
-                                            stroke: edge.lane,
-                                            // Measured as the row collapses, which fades along: the line follows as is.
-                                            transition: left
-                                                ? 'none'
-                                                : undefined,
-                                        }}
-                                        opacity={
-                                            (edge.dimmed ? 0.6 : 1) *
-                                            (left?.opacity ?? 1)
-                                        }
-                                        clipPath={clipOf(left?.clip ?? -1)}
-                                        className="transition-opacity duration-200"
-                                        strokeWidth={strokeWidth}
-                                        strokeDasharray={
-                                            edge.dashed ? dash : undefined
-                                        }
-                                        mask={
-                                            entering.has(edge.id)
-                                                ? `url(#${id}-${index}-draw)`
-                                                : undefined
-                                        }
-                                        data-test={
-                                            edge.dashed
-                                                ? 'graph-edge-dashed'
-                                                : 'graph-edge'
-                                        }
-                                    />
-                                );
-                            })}
-                        </g>
-                    </svg>
-                </div>
-            </GraphDrawingContext.Provider>
+                            return (
+                                <path
+                                    key={edge.id}
+                                    d={edge.d}
+                                    style={{
+                                        stroke: edge.lane,
+                                        // Measured as the row collapses, which fades along: the line follows as is.
+                                        transition: left ? 'none' : undefined,
+                                    }}
+                                    opacity={
+                                        (edge.dimmed ? 0.6 : 1) *
+                                        (left?.opacity ?? 1)
+                                    }
+                                    clipPath={clipOf(left?.clip ?? -1)}
+                                    className="transition-opacity duration-200"
+                                    strokeWidth={strokeWidth}
+                                    strokeDasharray={
+                                        edge.dashed ? dash : undefined
+                                    }
+                                    strokeDashoffset={
+                                        edge.dashed && edge.dashOffset !== 0
+                                            ? edge.dashOffset
+                                            : undefined
+                                    }
+                                    mask={
+                                        isFolding(edge, folding)
+                                            ? `url(#${id}-${index}-undraw)`
+                                            : entering.has(edge.id)
+                                              ? `url(#${id}-${index}-draw)`
+                                              : undefined
+                                    }
+                                    data-test={
+                                        edge.dashed
+                                            ? 'graph-edge-dashed'
+                                            : 'graph-edge'
+                                    }
+                                />
+                            );
+                        })}
+                    </g>
+                </svg>
+            </div>
         </GraphContext.Provider>
     );
 }
-
-/** How a line draws itself in: after how long, and from how far along, in px, as the stretch before is already painted. */
-type Draw = { delay: number; from: number };
 
 function EdgeDefs({
     id,
     edge,
     draw,
+    isFolding = false,
     onDrawn,
 }: {
     id: string;
     edge: GraphEdge;
     /** Set while the line draws itself in, after its nodes have scaled in. */
     draw?: Draw;
+    /** Whether the line draws itself back out, as the replies it leads to fold away. */
+    isFolding?: boolean;
     onDrawn: (edgeId: string) => void;
 }) {
     const from = draw?.from ?? 0;
+    // Again when the line moves, like a card still collapsing above a reply waiting to scale in: the stretch kept is
+    // in px, the mask's in a share of the line.
     const startAt = useCallback(
         (path: SVGPathElement | null) => {
             const length = path?.getTotalLength() ?? 0;
@@ -651,8 +874,24 @@ function EdgeDefs({
                 String(length > 0 ? Math.max(0, 1 - from / length) : 1),
             );
         },
-        [from],
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [from, edge.d],
     );
+
+    if (isFolding) {
+        return (
+            <mask id={`${id}-undraw`} maskUnits="userSpaceOnUse">
+                <path
+                    d={edge.d}
+                    stroke="white"
+                    strokeWidth={strokeWidth * 4}
+                    pathLength={1}
+                    strokeDasharray="1 1"
+                    className="motion-safe:animate-graph-undraw"
+                />
+            </mask>
+        );
+    }
 
     if (draw === undefined) {
         return null;
@@ -667,7 +906,14 @@ function EdgeDefs({
                 strokeWidth={strokeWidth * 4}
                 pathLength={1}
                 strokeDasharray="1 1"
-                style={{ animationDelay: `${draw.delay}ms` }}
+                style={{
+                    animationDelay: `${draw.delay}ms`,
+                    // A bridge runs at an even pace, so it lands on its node right as it ends.
+                    ...(draw.duration !== null && {
+                        animationDuration: `${draw.duration}ms`,
+                        animationTimingFunction: 'linear',
+                    }),
+                }}
                 className="motion-safe:animate-graph-draw"
                 onAnimationEnd={() => onDrawn(edge.id)}
             />
@@ -679,9 +925,15 @@ function EdgeDefs({
  * Edges that show up on screen after the first measure draw themselves in, like a reply that was just loaded. Those
  * already there when the page renders stay still, and so do those showing up off screen.
  */
+/**
+ * When a new line can draw itself in, after the nodes at its ends scale in, and how long until the node at its end
+ * starts scaling in, when it waits to.
+ */
+type Timing = { delay: number; startsIn: number };
+
 function useEnteringEdges(
     edges: GraphEdge[],
-    delayOf: (edge: GraphEdge) => number,
+    timingOf: (edge: GraphEdge) => Timing,
     canvasTop: () => number,
 ): { entering: Map<string, Draw>; onDrawn: (edgeId: string) => void } {
     const known = useRef<GraphEdge[] | null>(null);
@@ -727,21 +979,13 @@ function useEnteringEdges(
             return new Map([
                 ...kept,
                 ...drawing.map((edge): [string, Draw] => {
-                    const delay = delayOf(edge);
+                    const { delay, startsIn } = timingOf(edge);
 
-                    // A line waiting for a node to scale in, like a reply just posted, draws in full once it has, so
-                    // no stretch of it runs over the node as it overshoots.
-                    return [
-                        edge.id,
-                        {
-                            delay,
-                            from: delay > 0 ? 0 : drawnStretch(edge, gone),
-                        },
-                    ];
+                    return [edge.id, entranceDraw(edge, gone, delay, startsIn)];
                 }),
             ]);
         });
-    }, [edges, delayOf, canvasTop]);
+    }, [edges, timingOf, canvasTop]);
 
     // A line done drawing drops its mask, which would otherwise cost a mask on every paint.
     const onDrawn = useCallback((edgeId: string) => {

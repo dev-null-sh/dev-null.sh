@@ -1,12 +1,12 @@
 import { Head, router } from '@inertiajs/react';
-import { useId, useState } from 'react';
+import { useId } from 'react';
 import { toast } from 'sonner';
 import FeatureController from '@/actions/App/Http/Controllers/FeatureController';
-import { Section } from '@/components/operations/section';
-import AppLayout from '@/layouts/app-layout';
+import { Panel } from '@/components/operations/section';
+import { SegmentedControl } from '@/components/segmented-control';
+import { usePicked } from '@/hooks/use-picked';
 import OperationsLayout from '@/layouts/operations/layout';
 import { formatCount } from '@/lib/numbers';
-import { cn } from '@/lib/utils';
 import type { Feature } from '@/types';
 
 const FEATURES: Record<
@@ -18,43 +18,46 @@ const FEATURES: Record<
         description:
             'The Translate control, cached translations, and background language detection. Off stops new detection jobs from being queued and skips any already waiting.',
     },
+    guilds: {
+        label: 'guilds',
+        description:
+            'Public guild pages, creation, editing, and inline hashtag chips. Choose who can use the preview.',
+    },
 };
 
 function FeatureRow({ feature }: { feature: Feature }) {
-    const [processing, setProcessing] = useState(false);
+    const { picked, pick } = usePicked<'off' | 'admins' | 'everyone'>();
     const labelId = useId();
     const descriptionId = useId();
     const { label, description } = FEATURES[feature.name];
+    const processing = picked !== null;
+    const audience =
+        picked ??
+        (!feature.enabled ? 'off' : feature.admin_only ? 'admins' : 'everyone');
 
-    const toggle = () => {
-        if (processing) {
+    const change = (next: 'off' | 'admins' | 'everyone') => {
+        if (processing || next === audience) {
             return;
         }
 
-        const enabled = !feature.enabled;
-
         router.put(
             FeatureController.update.url(feature.name),
-            { enabled },
+            { enabled: next !== 'off', admin_only: next === 'admins' },
             {
                 only: ['features'],
                 preserveState: true,
                 preserveScroll: true,
-                onStart: () => setProcessing(true),
-                onFinish: () => setProcessing(false),
+                onFinish: pick(next),
                 onSuccess: () =>
                     toast(
                         <span className="font-mono text-[13px]">
-                            {enabled
-                                ? `Switched ${label} on for everyone`
-                                : `Switched ${label} off for everyone`}
+                            {label}: {next}
                         </span>,
                     ),
                 onError: () =>
                     toast.error(
                         <span className="font-mono text-[13px]">
-                            fatal: could not switch {label}{' '}
-                            {enabled ? 'on' : 'off'}
+                            fatal: could not update {label}
                         </span>,
                     ),
             },
@@ -63,10 +66,10 @@ function FeatureRow({ feature }: { feature: Feature }) {
 
     return (
         <li
-            className="flex items-start justify-between gap-6 px-4 py-3"
+            className="flex flex-wrap items-start justify-between gap-3 px-4 py-3"
             data-test="feature"
         >
-            <div className="min-w-0 space-y-1">
+            <div className="min-w-0 flex-1 basis-64 space-y-1">
                 <p id={labelId} className="font-mono text-[13px] font-medium">
                     {label}
                 </p>
@@ -74,27 +77,23 @@ function FeatureRow({ feature }: { feature: Feature }) {
                     {description}
                 </p>
             </div>
-            <button
-                type="button"
-                role="switch"
-                aria-checked={feature.enabled}
-                aria-labelledby={labelId}
+            <fieldset
+                disabled={processing}
                 aria-describedby={descriptionId}
-                aria-disabled={processing}
-                onClick={toggle}
-                className={cn(
-                    'mt-0.5 inline-flex h-6 w-11 shrink-0 items-center rounded-full border border-transparent p-0.5 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
-                    feature.enabled ? 'bg-primary' : 'bg-muted-foreground/30',
-                )}
-                data-test={`feature-${feature.name}-switch`}
+                className="shrink-0"
             >
-                <span
-                    className={cn(
-                        'size-4.5 rounded-full bg-background shadow-sm transition-transform motion-reduce:transition-none',
-                        feature.enabled && 'translate-x-5',
-                    )}
+                <SegmentedControl
+                    label={`${label} availability`}
+                    name={`feature-${feature.name}`}
+                    options={[
+                        { value: 'off', label: 'Off' },
+                        { value: 'admins', label: 'Admins' },
+                        { value: 'everyone', label: 'Everyone' },
+                    ]}
+                    value={audience}
+                    onChange={change}
                 />
-            </button>
+            </fieldset>
         </li>
     );
 }
@@ -102,9 +101,10 @@ function FeatureRow({ feature }: { feature: Feature }) {
 export default function Index({ features }: { features: Feature[] }) {
     return (
         <>
-            <Head title="Feature switches" />
+            <Head title="Features" />
 
-            <Section
+            <Panel
+                className="max-w-3xl"
                 title="Features"
                 meta={`${formatCount(features.filter((feature) => !feature.enabled).length)} off`}
             >
@@ -113,9 +113,9 @@ export default function Index({ features }: { features: Feature[] }) {
                         <FeatureRow key={feature.name} feature={feature} />
                     ))}
                 </ul>
-            </Section>
+            </Panel>
         </>
     );
 }
 
-Index.layout = [AppLayout, OperationsLayout];
+Index.layout = OperationsLayout;

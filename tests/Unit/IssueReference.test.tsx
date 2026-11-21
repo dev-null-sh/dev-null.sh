@@ -3,31 +3,35 @@ import assert from 'node:assert/strict';
 import { test } from 'vite-plus/test';
 import { issueReferenceBeforeCaret } from '../../resources/js/lib/issue-reference';
 
-test('waits for a delimiter before automatically linking an exact number', () => {
+test('suggests only the exact number immediately before the caret', () => {
     assert.deepEqual(issueReferenceBeforeCaret('See #72', 7), {
         start: 4,
         query: '72',
-        complete: false,
     });
-    assert.deepEqual(issueReferenceBeforeCaret('See #722 ', 9), {
-        start: 4,
-        query: '722',
-        complete: true,
-    });
-    assert.deepEqual(issueReferenceBeforeCaret('See (#722).', 11), {
+    assert.deepEqual(issueReferenceBeforeCaret('See (#722).', 9), {
         start: 5,
         query: '722',
-        complete: true,
     });
 });
 
-test('keeps a completed reference while its lookup is pending and typing continues', () => {
-    const text = 'See #722 for details';
-    assert.deepEqual(issueReferenceBeforeCaret(text, text.length), {
-        start: 4,
-        query: '722',
-        complete: true,
-    });
+test('stops suggesting after a delimiter or continued prose', () => {
+    for (const ending of [
+        ' ',
+        '.',
+        ',',
+        '!',
+        '?',
+        ';',
+        ':',
+        ')',
+        ']',
+        '}',
+        '\n',
+        ' for details',
+    ]) {
+        const text = `See #722${ending}`;
+        assert.equal(issueReferenceBeforeCaret(text, text.length), null, text);
+    }
 });
 
 test('does not link code, colors, URL fragments, other repositories, or partial numbers', () => {
@@ -55,6 +59,30 @@ test('preserves offsets after code and non-ASCII text, and chooses the latest re
     assert.deepEqual(issueReferenceBeforeCaret(text, text.length), {
         start: 19,
         query: '456',
-        complete: false,
     });
+});
+
+test('does not look up digit-only colors as issues', () => {
+    for (const [text, caret] of [
+        ['#333333', 7],
+        ['See #99999999', 13],
+        ['Gray is #333333.', 15],
+        ['#333333`code`', 7],
+        ['#99999999`a b` done', 9],
+    ] as const) {
+        assert.equal(issueReferenceBeforeCaret(text, caret), null, text);
+    }
+
+    for (const [text, caret, query] of [
+        ['See #123', 8, '123'],
+        ['See (#333333', 12, '333333'],
+        ['#333333.com', 7, '333333'],
+        ['#333333`code', 7, '333333'],
+    ] as const) {
+        assert.equal(
+            issueReferenceBeforeCaret(text, caret)?.query,
+            query,
+            text,
+        );
+    }
 });

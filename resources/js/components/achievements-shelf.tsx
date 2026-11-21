@@ -4,9 +4,9 @@ import {
     BotOff,
     Box,
     ChevronRight,
-    Cookie,
     FileCode,
     Flame,
+    GitCommitHorizontal,
     GitMerge,
     Key,
     Server,
@@ -18,6 +18,9 @@ import {
 } from 'lucide-react';
 import type { CSSProperties } from 'react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { DragonBallIcon } from '@/components/dragon-ball-icon';
+import { MushroomCloudIcon } from '@/components/mushroom-cloud-icon';
+import { PastelDeNataIcon } from '@/components/pastel-de-nata-icon';
 import {
     Popover,
     PopoverContent,
@@ -28,6 +31,7 @@ import {
     TooltipContent,
     TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { WordmarkText } from '@/components/wordmark-text';
 import { dropConfetti } from '@/lib/confetti';
 import { formatCount, formatExactCount } from '@/lib/numbers';
 import { cn } from '@/lib/utils';
@@ -45,9 +49,12 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
     sparkles: Sparkles,
     'git-merge': GitMerge,
     key: Key,
-    cookie: Cookie,
+    'pastel-de-nata': PastelDeNataIcon,
     'bot-off': BotOff,
     bomb: Bomb,
+    'dragon-ball': DragonBallIcon,
+    'mushroom-cloud': MushroomCloudIcon,
+    'git-commit-horizontal': GitCommitHorizontal,
 };
 
 export function AchievementsShelf({
@@ -61,7 +68,7 @@ export function AchievementsShelf({
 }) {
     const unlockedBadges = achievements.badges.filter((b) => b.unlocked);
     const unlockedCount = unlockedBadges.length;
-    const [visibleCount, setVisibleCount] = useState(0);
+    const [visibleCount, setVisibleCount] = useState(unlockedCount);
     const [open, setOpen] = useState(false);
     const rowRef = useRef<HTMLButtonElement>(null);
     const moreRef = useRef<HTMLSpanElement>(null);
@@ -152,10 +159,6 @@ export function AchievementsShelf({
                     <Award className="size-4 text-foreground" />
                     <span className="font-medium text-foreground group-hover:underline">
                         Lv. {achievements.level} · {achievements.rank}
-                    </span>
-                    <span aria-hidden>·</span>
-                    <span title={`${formatExactCount(achievements.xp)} XP`}>
-                        {formatCount(achievements.xp)} XP
                     </span>
                 </button>
                 <button
@@ -368,7 +371,9 @@ export function AchievementsShelf({
                                                 : `(${badge.progress}/${badge.target})`}
                                         </p>
                                         <p className="mt-0.5 font-sans text-muted-foreground">
-                                            {badge.description}
+                                            <WordmarkText>
+                                                {badge.description}
+                                            </WordmarkText>
                                         </p>
                                     </TooltipContent>
                                 </Tooltip>

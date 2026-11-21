@@ -44,6 +44,8 @@ final readonly class ConversationMessageController
             $request->images(),
             $request->imageDescriptions(),
             $request->linkPreview(),
+            $request->voice(),
+            $request->voiceWaveform(),
         ));
     }
 }

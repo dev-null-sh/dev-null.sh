@@ -102,8 +102,8 @@ it('only draws approved commits that still exist', function (): void {
         ->and(activityGraphText($xpath))->toContain('1 commit in the last year');
 });
 
-it('labels the graph with the username, the commit total, and the streaks', function (): void {
-    $user = User::factory()->create(['username' => 'octocat']);
+it('labels the graph with the handle, the commit total, and the streaks', function (): void {
+    $user = User::factory()->create(['handle' => 'octocat']);
 
     Commit::factory()->for($user)->count(2)->create();
     Commit::factory()->for($user)->create(['created_at' => now()->subDay()]);
@@ -139,8 +139,8 @@ it('leaves out the current streak once it is broken', function (): void {
         ->not->toContain('current');
 });
 
-it('escapes the username', function (): void {
-    $user = User::factory()->create(['username' => '"><script>alert(1)</script>']);
+it('escapes the handle', function (): void {
+    $user = User::factory()->create(['handle' => '"><script>alert(1)</script>']);
 
     $svg = resolve(CreateUserActivityGraph::class)->handle($user, ActivityGraphTheme::Light);
 

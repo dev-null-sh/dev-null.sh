@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Actions\UpdateCommitHotScores;
+use App\Dto\ThreadEngagement;
 use App\Models\Commit;
 use App\Models\User;
 use App\Services\TheAlgorithm;
@@ -22,10 +23,10 @@ it('scores a commit by its stars and the other developers replying anywhere in i
     resolve(UpdateCommitHotScores::class)->handle([$commit->id]);
 
     expect($commit->fresh()->hot_score)
-        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, 2, 2), 1e-9);
+        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, new ThreadEngagement(stargazers: 2, quoters: 0, repliers: 2, repliersAnsweredByAuthor: 1)), 1e-9);
 });
 
-it('counts the developers starring the commit or any reply in its thread once each, and not again when they reply', function (): void {
+it('counts the developers starring the commit or any reply in its thread once each, also when they reply', function (): void {
     $commit = Commit::factory()->create();
     $replier = User::factory()->create();
     $reply = Commit::factory()->for($replier)->for($commit, 'parent')->create();
@@ -44,10 +45,10 @@ it('counts the developers starring the commit or any reply in its thread once ea
     resolve(UpdateCommitHotScores::class)->handle([$commit->id]);
 
     expect($commit->fresh()->hot_score)
-        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, 2, 1), 1e-9);
+        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, new ThreadEngagement(stargazers: 3, quoters: 0, repliers: 1, repliersAnsweredByAuthor: 0)), 1e-9);
 });
 
-it('counts the developers quoting the commit or any reply in its thread, as quotes show among the replies', function (): void {
+it('counts the developers quoting the commit or any reply in its thread once each, apart from their replies', function (): void {
     $commit = Commit::factory()->create();
     $replier = User::factory()->create();
     $reply = Commit::factory()->for($replier)->for($commit, 'parent')->create();
@@ -62,7 +63,7 @@ it('counts the developers quoting the commit or any reply in its thread, as quot
     resolve(UpdateCommitHotScores::class)->handle([$commit->id]);
 
     expect($commit->fresh()->hot_score)
-        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, 0, 3), 1e-9);
+        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, new ThreadEngagement(stargazers: 0, quoters: 3, repliers: 1, repliersAnsweredByAuthor: 0)), 1e-9);
 });
 
 it('rescores the thread of the commit a quote quotes', function (): void {
@@ -73,7 +74,7 @@ it('rescores the thread of the commit a quote quotes', function (): void {
     resolve(UpdateCommitHotScores::class)->handle([$quote->id]);
 
     expect($commit->fresh()->hot_score)
-        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, 0, 2), 1e-9);
+        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, new ThreadEngagement(stargazers: 0, quoters: 1, repliers: 1, repliersAnsweredByAuthor: 0)), 1e-9);
 });
 
 it('does not count quotes of replies others cannot see', function (): void {
@@ -84,7 +85,7 @@ it('does not count quotes of replies others cannot see', function (): void {
     resolve(UpdateCommitHotScores::class)->handle([$commit->id]);
 
     expect($commit->fresh()->hot_score)
-        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, 0, 0), 1e-9);
+        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, ThreadEngagement::none()), 1e-9);
 });
 
 it('scores many threads at once, each by its own engagement', function (): void {
@@ -96,9 +97,25 @@ it('scores many threads at once, each by its own engagement', function (): void 
 
     resolve(UpdateCommitHotScores::class)->handle([$quiet->id, $starred->id, $reply->id]);
 
-    expect($quiet->fresh()->hot_score)->toEqualWithDelta(resolve(TheAlgorithm::class)->score($quiet->created_at, 0, 0), 1e-9)
-        ->and($starred->fresh()->hot_score)->toEqualWithDelta(resolve(TheAlgorithm::class)->score($starred->created_at, 3, 0), 1e-9)
-        ->and($repliedTo->fresh()->hot_score)->toEqualWithDelta(resolve(TheAlgorithm::class)->score($repliedTo->created_at, 0, 1), 1e-9);
+    expect($quiet->fresh()->hot_score)->toEqualWithDelta(resolve(TheAlgorithm::class)->score($quiet->created_at, ThreadEngagement::none()), 1e-9)
+        ->and($starred->fresh()->hot_score)->toEqualWithDelta(resolve(TheAlgorithm::class)->score($starred->created_at, new ThreadEngagement(stargazers: 3, quoters: 0, repliers: 0, repliersAnsweredByAuthor: 0)), 1e-9)
+        ->and($repliedTo->fresh()->hot_score)->toEqualWithDelta(resolve(TheAlgorithm::class)->score($repliedTo->created_at, new ThreadEngagement(stargazers: 0, quoters: 0, repliers: 1, repliersAnsweredByAuthor: 0)), 1e-9);
+});
+
+it('counts the developers replying whom the author answers', function (): void {
+    $commit = Commit::factory()->create();
+    $answered = Commit::factory()->for($commit, 'parent')->create();
+    $unanswered = Commit::factory()->for($commit, 'parent')->create();
+    Commit::factory()->for($commit->user)->for($answered, 'parent')->create();
+    Commit::factory()->for($commit->user)->for($answered, 'parent')->create();
+    Commit::factory()->for($answered->user)->for($unanswered, 'parent')->create();
+    Commit::factory()->pending()->for($commit->user)->for($unanswered, 'parent')->create();
+    Commit::factory()->for($commit->user)->for($unanswered, 'parent')->create()->delete();
+
+    resolve(UpdateCommitHotScores::class)->handle([$commit->id]);
+
+    expect($commit->fresh()->hot_score)
+        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, new ThreadEngagement(stargazers: 0, quoters: 0, repliers: 2, repliersAnsweredByAuthor: 1)), 1e-9);
 });
 
 it('leaves deleted threads as they are', function (): void {

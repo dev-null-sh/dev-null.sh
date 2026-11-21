@@ -9,8 +9,8 @@ use App\Models\Notification;
 use App\Models\User;
 
 it('notifies everyone mentioned in approved commits', function (): void {
-    $nuno = User::factory()->create(['username' => 'nunomaduro']);
-    $taylor = User::factory()->create(['username' => 'TaylorOtwell']);
+    $nuno = User::factory()->create(['handle' => 'nunomaduro']);
+    $taylor = User::factory()->create(['handle' => 'TaylorOtwell']);
     $commit = Commit::factory()->create([
         'body' => 'Pairing with @NunoMaduro and @taylorotwell',
         'mentions' => ['nunomaduro' => $nuno->id, 'taylorotwell' => $taylor->id],
@@ -30,7 +30,7 @@ it('notifies everyone mentioned in approved commits', function (): void {
 });
 
 it('does not notify about commits that are not approved', function (): void {
-    $user = User::factory()->create(['username' => 'nunomaduro']);
+    $user = User::factory()->create(['handle' => 'nunomaduro']);
 
     $action = resolve(CreateMentionNotifications::class);
 
@@ -42,7 +42,7 @@ it('does not notify about commits that are not approved', function (): void {
     expect(Notification::query()->count())->toBe(0);
 });
 
-it('ignores usernames nobody has', function (): void {
+it('ignores handles nobody has', function (): void {
     $action = resolve(CreateMentionNotifications::class);
 
     $action->handle(Commit::factory()->create(['body' => 'Hi @nobody']));
@@ -51,7 +51,7 @@ it('ignores usernames nobody has', function (): void {
 });
 
 it('does not send mentions without an author identity', function (): void {
-    $user = User::factory()->create(['username' => 'nunomaduro']);
+    $user = User::factory()->create(['handle' => 'nunomaduro']);
     $commit = Commit::factory()->create([
         'user_id' => null,
         'body' => 'Hi @nunomaduro',
@@ -64,7 +64,7 @@ it('does not send mentions without an author identity', function (): void {
 });
 
 it('does not notify authors mentioning themselves', function (): void {
-    $user = User::factory()->create(['username' => 'nunomaduro']);
+    $user = User::factory()->create(['handle' => 'nunomaduro']);
 
     $action = resolve(CreateMentionNotifications::class);
 
@@ -74,8 +74,8 @@ it('does not notify authors mentioning themselves', function (): void {
 });
 
 it('leaves the parent author of a reply to the reply notification', function (): void {
-    $parent = Commit::factory()->for(User::factory()->state(['username' => 'nunomaduro']))->create();
-    $other = User::factory()->create(['username' => 'taylorotwell']);
+    $parent = Commit::factory()->for(User::factory()->state(['handle' => 'nunomaduro']))->create();
+    $other = User::factory()->create(['handle' => 'taylorotwell']);
     $reply = Commit::factory()->for($parent, 'parent')->create([
         'body' => '@nunomaduro @taylorotwell look',
         'mentions' => ['nunomaduro' => $parent->user_id, 'taylorotwell' => $other->id],
@@ -89,18 +89,18 @@ it('leaves the parent author of a reply to the reply notification', function ():
 });
 
 it('leaves the quoted author of a quote to the quote notification', function (bool $renamed): void {
-    $quoted = Commit::factory()->for(User::factory()->state(['username' => 'nunomaduro']))->create();
-    $other = User::factory()->create(['username' => 'taylorotwell']);
+    $quoted = Commit::factory()->for(User::factory()->state(['handle' => 'nunomaduro']))->create();
+    $other = User::factory()->create(['handle' => 'taylorotwell']);
     $quote = Commit::factory()->for($quoted, 'quotedCommit')->create([
         'body' => '@nunomaduro @taylorotwell look',
         'mentions' => ['nunomaduro' => $quoted->user_id, 'taylorotwell' => $other->id],
     ]);
 
     if ($renamed) {
-        $quoted->user->update(['username' => 'renamed']);
-        User::factory()->create(['username' => 'nunomaduro']);
-        $other->update(['username' => 'renamed-other']);
-        User::factory()->create(['username' => 'taylorotwell']);
+        $quoted->user->profile->update(['handle' => 'renamed']);
+        User::factory()->create(['handle' => 'nunomaduro']);
+        $other->profile->update(['handle' => 'renamed-other']);
+        User::factory()->create(['handle' => 'taylorotwell']);
     }
 
     $action = resolve(CreateMentionNotifications::class);
@@ -111,15 +111,15 @@ it('leaves the quoted author of a quote to the quote notification', function (bo
 })->with([false, true]);
 
 it('is idempotent', function (): void {
-    $user = User::factory()->create(['username' => 'nunomaduro']);
+    $user = User::factory()->create(['handle' => 'nunomaduro']);
     $commit = Commit::factory()->create(['body' => 'Hi @nunomaduro', 'mentions' => ['nunomaduro' => $user->id]]);
 
     $action = resolve(CreateMentionNotifications::class);
 
     $action->handle($commit);
 
-    $user->update(['username' => 'renamed']);
-    $replacement = User::factory()->create(['username' => 'nunomaduro']);
+    $user->profile->update(['handle' => 'renamed']);
+    $replacement = User::factory()->create(['handle' => 'nunomaduro']);
     $action->handle($commit);
 
     expect(Notification::query()->count())->toBeOne();
@@ -128,8 +128,8 @@ it('is idempotent', function (): void {
 });
 
 it('does not notify people who muted the author or are across a block', function (string $relation, bool $mentionedActs, bool $renamed): void {
-    $mentioned = User::factory()->create(['username' => 'nunomaduro']);
-    $other = User::factory()->create(['username' => 'taylorotwell']);
+    $mentioned = User::factory()->create(['handle' => 'nunomaduro']);
+    $other = User::factory()->create(['handle' => 'taylorotwell']);
     $silenced = Commit::factory()->create([
         'body' => 'Hi @nunomaduro',
         'mentions' => ['nunomaduro' => $mentioned->id],
@@ -143,8 +143,8 @@ it('does not notify people who muted the author or are across a block', function
     $actor->{$relation}()->attach($subject);
 
     if ($renamed) {
-        $mentioned->update(['username' => 'renamed']);
-        $replacement = User::factory()->create(['username' => 'nunomaduro']);
+        $mentioned->profile->update(['handle' => 'renamed']);
+        $replacement = User::factory()->create(['handle' => 'nunomaduro']);
     }
 
     resolve(CreateMentionNotifications::class)->handle($silenced, $notified);
@@ -162,7 +162,7 @@ it('does not notify people who muted the author or are across a block', function
 ])->with([false, true]);
 
 it('still notifies a mentioned user when only the author muted them', function (): void {
-    $mentioned = User::factory()->create(['username' => 'nunomaduro']);
+    $mentioned = User::factory()->create(['handle' => 'nunomaduro']);
     $commit = Commit::factory()->create([
         'body' => 'Hi @nunomaduro',
         'mentions' => ['nunomaduro' => $mentioned->id],

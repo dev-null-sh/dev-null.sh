@@ -8,7 +8,8 @@ import type { Commit } from '../../resources/js/types';
 const image = new File(['restored'], 'draft.png', { type: 'image/png' });
 const updateImages = vi.fn();
 const drop = vi.fn();
-const user = { id: 'viewer', username: 'viewer' };
+const user = { id: 'viewer', handle: 'viewer' };
+let isPreviewing = false;
 const draft = {
     key: 'stash:viewer:quote',
     body: 'A restored quote',
@@ -22,6 +23,7 @@ const draft = {
 
 vi.doMock('react', () => ({
     ...React,
+    useId: () => 'quote',
     useLayoutEffect: (effect: () => void | (() => void)) => effect(),
     useMemo: (factory: () => unknown) => factory(),
     useSyncExternalStore: (_subscribe: unknown, snapshot: () => unknown) =>
@@ -34,7 +36,7 @@ vi.doMock('react', () => ({
 }));
 vi.doMock('@inertiajs/react', async () => ({
     ...(await vi.importActual('@inertiajs/react')),
-    usePage: () => ({ props: { auth: { user } } }),
+    usePage: () => ({ props: { auth: { organizations: [], user } } }),
 }));
 vi.doMock('../../resources/js/hooks/use-user', () => ({
     useUser: () => ({ user }),
@@ -44,14 +46,33 @@ vi.doMock('../../resources/js/hooks/use-stash', () => ({
     useHasStash: () => true,
     moveCaretToEnd: vi.fn(),
 }));
+vi.doMock('../../resources/js/components/composer-preview', async () => ({
+    ...(await vi.importActual(
+        '../../resources/js/components/composer-preview',
+    )),
+    useComposerPreview: () => ({
+        isPreviewing,
+        handleShortcut: () => false,
+    }),
+}));
 
 const { Form } = await import('@inertiajs/react');
+const { ColorSwatchHint } =
+    await import('../../resources/js/components/color-swatch-hint');
 const { CommitQuoteButton } =
     await import('../../resources/js/components/commit-quote-button');
 const { ImagePickerButton, ImagePickerPreviews } =
     await import('../../resources/js/components/commit-image-picker');
 const { StashLabel } =
     await import('../../resources/js/components/stash-label');
+const { LinkCardPicker } =
+    await import('../../resources/js/components/link-card-picker');
+const { EmojiPickerButton } =
+    await import('../../resources/js/components/emoji-picker');
+const { MentionTextarea } =
+    await import('../../resources/js/components/mention-textarea');
+const { default: InputError } =
+    await import('../../resources/js/components/input-error');
 
 function elements(node: ReactNode): ReactElement<Record<string, unknown>>[] {
     if (!React.isValidElement(node)) {
@@ -59,6 +80,12 @@ function elements(node: ReactNode): ReactElement<Record<string, unknown>>[] {
     }
 
     const element = node as ReactElement<Record<string, unknown>>;
+    if (element.type === ColorSwatchHint) {
+        const renderHint = element.type as (
+            props: typeof element.props,
+        ) => ReactNode;
+        return elements(renderHint(element.props));
+    }
 
     return [
         element,
@@ -68,12 +95,121 @@ function elements(node: ReactNode): ReactElement<Record<string, unknown>>[] {
     ];
 }
 
+function renderQuoteFields(processing = false) {
+    const commit = {
+        id: 'quoted',
+        author: { id: 'author', handle: 'author' },
+        status: 'approved',
+    } as Commit;
+    const button = CommitQuoteButton({ commit })!;
+    const dialog = React.Children.toArray(
+        button.props.children,
+    )[1] as ReactElement<{
+        children: ReactElement<{ commit: Commit; onClose: () => void }>;
+    }>;
+    const composer = dialog.props.children;
+    const renderComposer = composer.type as (
+        props: typeof composer.props,
+    ) => ReactElement;
+    const form = elements(renderComposer(composer.props)).find(
+        (element) => element.type === Form,
+    )!;
+    const children = form.props.children as (props: {
+        processing: boolean;
+        errors: Record<string, string>;
+    }) => ReactNode;
+    return elements(children({ processing, errors: {} }));
+}
+
+test('quotes insert picked emoji over the selection and hide the picker in preview', () => {
+    draft.body = 'Shipping today';
+    draft.updateBody.mockClear();
+    const fields = renderQuoteFields();
+    const picker = fields.find((element) => element.type === EmojiPickerButton);
+    assert.ok(picker);
+    assert.equal(picker.props.disabled, false);
+
+    const textarea = fields.find(
+        (element) => element.type === MentionTextarea,
+    )!;
+    const ref = textarea.props
+        .ref as React.RefObject<HTMLTextAreaElement | null>;
+    ref.current = {
+        selectionStart: 9,
+        selectionEnd: 14,
+    } as HTMLTextAreaElement;
+    (picker.props.onPick as (emoji: string) => void)('🚀');
+    assert.deepEqual(draft.updateBody.mock.calls, [['Shipping 🚀']]);
+    assert.equal(
+        renderQuoteFields(true).find(
+            (element) => element.type === EmojiPickerButton,
+        )?.props.disabled,
+        true,
+    );
+
+    isPreviewing = true;
+    try {
+        assert.equal(
+            renderQuoteFields().some(
+                (element) => element.type === EmojiPickerButton,
+            ),
+            false,
+        );
+    } finally {
+        isPreviewing = false;
+    }
+});
+
+test('quotes format the last ambiguous color and hide the hint in preview', () => {
+    draft.body = 'Keep #dead and try #CAFE.';
+    draft.updateBody.mockClear();
+    const fields = renderQuoteFields();
+    const action = fields.find(
+        (element) => element.props['data-test'] === 'use-color',
+    )!;
+    const textarea = fields.find(
+        (element) => element.type === MentionTextarea,
+    )!;
+    assert.equal(action.props.type, 'button');
+    assert.equal(action.props.disabled, false);
+    assert.match(String(textarea.props['aria-describedby']), /-color-hint/);
+    vi.stubGlobal('requestAnimationFrame', vi.fn());
+    try {
+        (action.props.onClick as () => void)();
+        assert.deepEqual(draft.updateBody.mock.calls, [
+            ['Keep #dead and try color(#CAFE).'],
+        ]);
+    } finally {
+        vi.unstubAllGlobals();
+    }
+
+    isPreviewing = true;
+    try {
+        const previewFields = renderQuoteFields();
+        assert.equal(
+            previewFields.find(
+                (element) => element.props['data-test'] === 'use-color',
+            )?.props.disabled,
+            true,
+        );
+        assert.doesNotMatch(
+            String(
+                previewFields.find(
+                    (element) => element.type === MentionTextarea,
+                )?.props['aria-describedby'],
+            ),
+            /-color-hint/,
+        );
+    } finally {
+        isPreviewing = false;
+    }
+});
+
 test('quotes submit restored images and clear the complete draft only on success or discard', async () => {
     draft.body = 'ghp_' + 'Ab3dEf6hIj9kLm2nOp5qRs8tUv1wXy4zABCD';
     const commit = {
         id: 'quoted',
-        user_id: 'author',
-        user: { username: 'author' },
+        author: { id: 'author', handle: 'author' },
         status: 'approved',
     } as Commit;
     const button = CommitQuoteButton({ commit })!;
@@ -99,6 +235,7 @@ test('quotes submit restored images and clear the complete draft only on success
             body: draft.body,
             quoted_commit_id: commit.id,
             commit_rules_accepted: true,
+            human_verification_token: '',
             images: [image],
             image_descriptions: ['A restored screenshot'],
         },
@@ -178,4 +315,99 @@ test('quotes submit restored images and clear the complete draft only on success
     } finally {
         vi.unstubAllGlobals();
     }
+});
+
+test('escape in the preview returns to writing without closing the quote', () => {
+    const commit = {
+        id: 'quoted',
+        author: { id: 'author', handle: 'author' },
+        status: 'approved',
+    } as Commit;
+    const button = CommitQuoteButton({ commit })!;
+    const dialog = React.Children.toArray(
+        button.props.children,
+    )[1] as ReactElement<{
+        children: ReactElement<{ commit: Commit; onClose: () => void }>;
+    }>;
+    const composer = dialog.props.children;
+    const renderComposer = composer.type as (
+        props: typeof composer.props,
+    ) => ReactElement<{ onEscapeKeyDown: (event: unknown) => void }>;
+    const { onEscapeKeyDown } = renderComposer(composer.props).props;
+
+    class FakeElement {
+        constructor(private readonly isInPreview: boolean) {}
+
+        closest(selector: string) {
+            return this.isInPreview && selector === '[data-composer-preview]'
+                ? this
+                : null;
+        }
+    }
+
+    vi.stubGlobal('Element', FakeElement);
+    vi.stubGlobal('document', { querySelector: () => null });
+    try {
+        const escapeFrom = (isInPreview: boolean) => {
+            const preventDefault = vi.fn();
+            onEscapeKeyDown({
+                target: new FakeElement(isInPreview),
+                preventDefault,
+            });
+
+            return preventDefault.mock.calls.length;
+        };
+
+        assert.equal(escapeFrom(true), 1);
+        assert.equal(escapeFrom(false), 0);
+    } finally {
+        vi.unstubAllGlobals();
+    }
+});
+
+test('quotes let the author pick which link gets the card', () => {
+    draft.body =
+        'Read https://laravel.com/docs first, then https://github.com/laravel/framework';
+    const commit = {
+        id: 'quoted',
+        author: { id: 'author', handle: 'author' },
+        status: 'approved',
+    } as Commit;
+    const button = CommitQuoteButton({ commit })!;
+    const dialog = React.Children.toArray(
+        button.props.children,
+    )[1] as ReactElement<{
+        children: ReactElement<{ commit: Commit; onClose: () => void }>;
+    }>;
+    const composer = dialog.props.children;
+    const renderComposer = composer.type as (
+        props: typeof composer.props,
+    ) => ReactElement;
+    const form = elements(renderComposer(composer.props)).find(
+        (element) => element.type === Form,
+    )!;
+    const renderFields = form.props.children as (props: {
+        processing: boolean;
+        errors: Record<string, string>;
+    }) => ReactNode;
+    const message = 'The link card must be one of the links in the body.';
+    const fields = elements(
+        renderFields({
+            processing: false,
+            errors: { link_preview_url: message },
+        }),
+    );
+
+    const picker = fields.find((element) => element.type === LinkCardPicker)!;
+    assert.deepEqual((picker.props.linkCard as { links: string[] }).links, [
+        'https://laravel.com/docs',
+        'https://github.com/laravel/framework',
+    ]);
+    assert.ok(
+        fields.some(
+            (element) =>
+                element.type === InputError &&
+                element.props.message === message,
+        ),
+    );
 });

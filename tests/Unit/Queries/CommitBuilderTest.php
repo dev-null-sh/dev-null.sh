@@ -2,9 +2,14 @@
 
 declare(strict_types=1);
 
+use App\Enums\Feature;
 use App\Models\Commit;
+use App\Models\Guild;
+use App\Models\LinkPreview;
+use App\Models\Organization;
 use App\Models\Poll;
 use App\Models\User;
+use App\Services\Features;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
@@ -23,9 +28,9 @@ it('keeps id projections lightweight when poll eager loading is disabled', funct
     DB::disableQueryLog();
 });
 
-it('loads commits with every column but the embedding, which stays stored', function (): void {
+it('loads commits with every column but the embedding, which stays stored, and the organizations they mention', function (): void {
     $commit = Commit::factory()->create(['embedding' => embeddingVector(0)]);
-    $columns = array_values(array_diff(Schema::getColumnListing('commits'), ['embedding']));
+    $columns = [...array_values(array_diff(Schema::getColumnListing('commits'), ['embedding'])), 'organization_mentions'];
 
     expect(array_keys(Commit::query()->findOrFail($commit->id)->getAttributes()))->toBe($columns)
         ->and(array_keys(Commit::query()->withStarsFor(null)->findOrFail($commit->id)->getAttributes()))->toBe([...$columns, 'stars_count', 'starred'])
@@ -66,7 +71,7 @@ it('loads the star count and whether the viewer starred', function (): void {
 
     $commits = Commit::query()->withStarsFor($viewer)->with('user')->get()->keyBy('id');
 
-    expect(DB::getQueryLog())->toHaveCount(2)
+    expect(DB::getQueryLog())->toHaveCount(3)
         ->and($commits[$starred->id]->stars_count)->toBe(2)
         ->and($commits[$starred->id]->starred)->toBeTrue()
         ->and($commits[$plain->id]->stars_count)->toBe(0)
@@ -79,6 +84,16 @@ it('scopes commits to pending ones', function (): void {
     Commit::factory()->rejected()->create();
 
     expect(Commit::query()->pending()->sole()->is($pending))->toBeTrue();
+});
+
+it('scopes commits to the pending ones the ai checked or gave up on', function (): void {
+    Commit::factory()->pending()->create(['created_at' => now()->subMinutes(Commit::CHECKING_MINUTES - 1)]);
+    $givenUpOn = Commit::factory()->pending()->create(['created_at' => now()->subMinutes(Commit::CHECKING_MINUTES)]);
+    $checked = Commit::factory()->pending()->checkedByAi()->create();
+    Commit::factory()->checkedByAi()->create();
+
+    expect(Commit::query()->awaitingModerator()->pluck('id')->sort()->values()->all())
+        ->toBe(collect([$givenUpOn->id, $checked->id])->sort()->values()->all());
 });
 
 it('scopes commits to top-level ones', function (): void {
@@ -137,6 +152,25 @@ it('hides commits across a block in either direction', function (): void {
         ->toBe(collect([$own->id, $visible->id])->sort()->values()->all())
         ->and(Commit::query()->visibleTo($blocked)->whereBelongsTo($user)->exists())->toBeFalse()
         ->and(Commit::query()->visibleTo($blocker)->whereBelongsTo($user)->exists())->toBeFalse();
+});
+
+it('hides and mutes commits by the profile they are from, not by who posted them', function (): void {
+    $viewer = User::factory()->create();
+    $poster = User::factory()->create();
+    $viewer->blocking()->attach($poster);
+    $viewer->muting()->attach($poster);
+    $fromOrganization = Commit::factory()->for($poster)->create(['author_id' => Organization::factory()->create()->id]);
+    Commit::factory()->for($poster)->create();
+
+    expect(Commit::query()->visibleTo($viewer)->withoutMutedAuthorsFor($viewer)->pluck('id')->all())->toBe([$fromOrganization->id]);
+});
+
+it('shows the pending commits someone posted for another profile to them', function (): void {
+    $poster = User::factory()->create();
+    $pending = Commit::factory()->for($poster)->pending()->create(['author_id' => Organization::factory()->create()->id]);
+
+    expect(Commit::query()->visibleTo($poster)->pluck('id')->all())->toBe([$pending->id])
+        ->and(Commit::query()->visibleTo(User::factory()->create())->exists())->toBeFalse();
 });
 
 it('scopes commits to those by people the user has not muted', function (): void {
@@ -206,4 +240,35 @@ it('has no next commit of a thread whose author the viewer muted', function (): 
 
     expect($commit->continuation_id)->toBeNull()
         ->and($commit->replies_count)->toBe(0);
+});
+
+it('rejects muted guild commits from the topic of each link without a scan of the commits', function (): void {
+    resolve(Features::class)->update(Feature::Guilds, true, adminOnly: false);
+    $viewer = User::factory()->create();
+    $guild = Guild::factory()->create(['handle' => 'rust']);
+    DB::table('guild_preferences')->insert(['guild_id' => $guild->id, 'user_id' => $viewer->id, 'muted_at' => now()]);
+    [$firstLink, $secondLink] = LinkPreview::factory()->fetched()->count(2)->create()->all();
+    Commit::factory()->create(['link_preview_id' => $firstLink->id, 'body' => 'Learning #rust today']);
+    Commit::factory()->for($guild)->create(['link_preview_id' => $secondLink->id, 'body' => 'A board post']);
+    $first = Commit::factory()->create(['link_preview_id' => $firstLink->id, 'body' => 'A first card']);
+    $second = Commit::factory()->create(['link_preview_id' => $secondLink->id, 'body' => 'A second card']);
+    DB::flushQueryLog();
+    DB::enableQueryLog();
+
+    $cards = Commit::query()->whereKey([$first->id, $second->id])->withCardDataFor($viewer)->get()->keyBy('id');
+
+    $scans = collect(DB::getQueryLog())->filter(fn (array $query): bool => str_contains($query['query'], 'select "id", "body", "guild_id"'));
+
+    expect($cards[$first->id]->linkPreview->commits->modelKeys())->toBe([$first->id])
+        ->and($cards[$second->id]->linkPreview->commits->modelKeys())->toBe([$second->id])
+        ->and($scans)->toBeEmpty();
+
+    DB::disableQueryLog();
+});
+
+it('covers the link topic counts with one index on the commits', function (): void {
+    $indexes = collect(DB::select("select indexname, indexdef from pg_indexes where tablename = 'commits' and indexdef like '%(link_preview_id)%'"));
+
+    expect($indexes->pluck('indexname')->all())->toBe(['commits_link_preview_id_covering_index'])
+        ->and($indexes->first()->indexdef)->toContain('(link_preview_id) INCLUDE (status, user_id, author_id, deleted_at)');
 });

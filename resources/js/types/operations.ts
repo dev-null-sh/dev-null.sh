@@ -36,8 +36,9 @@ export type Connectivity = {
 };
 
 export type Feature = {
-    name: 'translations';
+    name: 'translations' | 'guilds';
     enabled: boolean;
+    admin_only: boolean;
 };
 
 export type LinkPreviewHealth = {
@@ -57,20 +58,24 @@ export type GitHubRateLimit = {
     resets_at: string;
 };
 
-export type TrafficRow = {
-    name: string;
+export type TrafficTotals = {
     visitors: number;
     pageviews: number;
+    avg_duration: number;
+    bounce_rate: number;
 };
+
+export type TrafficRow = TrafficTotals & { name: string };
+
+/**
+ * The totals of a UTC day (`2026-10-31`), or of a UTC hour (`2026-10-31T13:00:00Z`) when the range is a single day.
+ */
+export type TrafficPoint = TrafficTotals & { date: string };
 
 export type Traffic = {
     current: number;
-    totals: {
-        visitors: number;
-        pageviews: number;
-        avg_duration: number;
-        bounce_rate: number;
-    };
+    totals: TrafficTotals;
+    timeline: TrafficPoint[];
     breakdowns: Record<
         'pages' | 'referrers' | 'countries' | 'devices' | 'browsers',
         TrafficRow[]
@@ -81,6 +86,18 @@ export type TrafficRange = {
     from: string;
     to: string;
 };
+
+export type TrafficFilter =
+    | 'page'
+    | 'referrer'
+    | 'country'
+    | 'device'
+    | 'browser';
+
+/**
+ * The value each filtered field must have: an empty one is a direct visit or an unknown value.
+ */
+export type TrafficFilters = Partial<Record<TrafficFilter, string>>;
 
 export type MetricsRange = TrafficRange & { all_time: boolean };
 
@@ -94,6 +111,13 @@ export type AcquisitionDay = {
     complete: boolean;
 };
 
+export type DeviceConversion = {
+    device: string;
+    visitors: number;
+    tapped: number;
+    converted: number;
+};
+
 export type ActivationDay = {
     date: string;
     activated: number;
@@ -105,6 +129,7 @@ export type Funnel = {
     visitors: number | null;
     signups: number;
     acquisition_by_day: AcquisitionDay[];
+    conversion_by_device: DeviceConversion[] | null;
     activated: number;
     activation_eligible: number;
     activation_by_day: ActivationDay[];
@@ -114,10 +139,58 @@ export type Funnel = {
     changes: Record<FunnelRate, number | null>;
 };
 
+export type RetentionDay = {
+    date: string;
+    eligible: number;
+    retained: number;
+    backfilled: boolean;
+};
+
+export type RetentionByDay = {
+    day_1: RetentionDay[];
+    day_7: RetentionDay[];
+};
+
+export type RetentionCell = {
+    day: number;
+    eligible: number;
+    retained: number;
+    backfilled: number;
+};
+
+export type RetentionCohort = {
+    week: string;
+    signups: number;
+    days: RetentionCell[];
+};
+
+export type RetentionCohorts = {
+    cohorts: RetentionCohort[];
+    curve: RetentionCell[];
+};
+
+export type AppUsageDay = {
+    date: string;
+    web_app: number;
+    native_mobile_app: number;
+    lite_mobile_app: number;
+    mac_app: number;
+    other_app: number;
+};
+
+export type AppUsage = {
+    days: AppUsageDay[];
+    recorded_since: string | null;
+};
+
 export type ActiveUserCount = {
     date: string;
     count: number;
-    returning: number;
+    regular: number;
+    back: number;
+    lost: number | null;
+    lost_complete: boolean;
+    backfilled: boolean;
     activated: number;
     not_activated: number;
     pending: number;
@@ -143,4 +216,122 @@ export type NewcomerFollows = {
     median_follows: number | null;
     follows: number;
     followed_back: number;
+};
+
+export type SignalStatus = 'ok' | 'warn' | 'fail';
+
+export type SignalArea =
+    | 'infrastructure'
+    | 'queues'
+    | 'moderation'
+    | 'growth'
+    | 'engagement';
+
+export type Signal = {
+    key: string;
+    area: SignalArea;
+    status: SignalStatus;
+    title: string;
+    detail: string;
+    href: string | null;
+};
+
+export type DailyPoint = {
+    date: string;
+    signups: number;
+    commits: number;
+    replies: number;
+    active_users: number;
+    stars: number;
+    follows: number;
+    failed_jobs: number;
+};
+
+export type ForecastMetric = 'active_users' | 'signups' | 'commits' | 'replies';
+
+export type ForecastSeries = {
+    metric: ForecastMetric;
+    method: 'flat' | 'linear' | 'seasonal';
+    trend: number;
+    today: number;
+    history: { date: string; value: number }[];
+    forecast: { date: string; value: number; lower: number; upper: number }[];
+};
+
+export type Milestone = {
+    metric: 'users' | 'commits';
+    current: number;
+    target: number;
+    eta: string | null;
+};
+
+export type MonthProjection = {
+    metric: 'signups' | 'commits';
+    month: string;
+    to_date: number;
+    projected: number;
+    lower: number;
+    upper: number;
+};
+
+export type OperationsEventLevel = 'info' | 'notice' | 'warning' | 'error';
+
+export type OperationsEventSource =
+    | 'signups'
+    | 'jobs'
+    | 'reports'
+    | 'moderation'
+    | 'bans'
+    | 'timeouts'
+    | 'features';
+
+export type OperationsEvent = {
+    id: string;
+    source: OperationsEventSource;
+    level: OperationsEventLevel;
+    at: string;
+    message: string;
+    detail: string | null;
+    actor: string | null;
+    href: string | null;
+};
+
+export type OperationsEventWindow = '1h' | '24h' | '7d' | '30d';
+
+export type OperationsEventFilters = {
+    window: OperationsEventWindow;
+    source: OperationsEventSource | null;
+    level: OperationsEventLevel | null;
+    search: string;
+};
+
+export type OperationsEventBucket = {
+    at: string;
+    info: number;
+    notice: number;
+    warning: number;
+    error: number;
+};
+
+export type FailureTrend = {
+    last_24h: number;
+    previous_24h: number;
+    hours: { at: string; count: number }[];
+    by_job: { name: string; count: number; last_failed_at: string }[];
+};
+
+export type ModerationBacklog = {
+    pending: number;
+    oldest_pending_age: number | null;
+    open_reports: number;
+    active_timeouts: number;
+};
+
+export type Runtime = {
+    environment: string;
+    php: string;
+    laravel: string;
+    database: string;
+    cache: string;
+    queue: string;
 };

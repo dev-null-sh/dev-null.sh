@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Contracts\Services\GitHubProvider;
 use App\Dto\SshPublicKey;
 use App\Jobs\UnfurlLink;
 use App\Models\SshKey;
@@ -90,7 +91,9 @@ it('commits with the key from the secret, signed so devnull accepts it', functio
 
     $user = User::factory()->create();
     SshKey::factory()->for($user)->withPublicKey($this->publicKey)->create();
-    fakeGitHubSshKeys($user, signingKeys: [$this->publicKey]);
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($user->github_id)->andReturn($user->handle);
+    $github->shouldReceive('sshKeys')->with($user->handle)->andReturn([$this->publicKey->toOpenSsh()]);
     Http::fake(['github.com/nunomaduro/pest/releases/*' => Http::response(status: 404)]);
     Queue::fake([UnfurlLink::class]);
 
@@ -132,7 +135,9 @@ it('attaches the images, one path per line, signed so devnull accepts them', fun
 
     $user = User::factory()->create();
     SshKey::factory()->for($user)->withPublicKey($this->publicKey)->create();
-    fakeGitHubSshKeys($user, signingKeys: [$this->publicKey]);
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($user->github_id)->andReturn($user->handle);
+    $github->shouldReceive('sshKeys')->with($user->handle)->andReturn([$this->publicKey->toOpenSsh()]);
     Storage::fake();
 
     $this->call('POST', route('cli-commit.store'), files: [

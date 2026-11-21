@@ -47,7 +47,7 @@ it('shows the user typing in an org', function (): void {
 
     signedApiRequest($this->keyPair, 'PUT', route('api-org-typing.update', $org))->assertNoContent();
 
-    $this->actingAs($nuno)->getJson(route('org-message.index', $org))->assertJsonPath('typing', [$this->user->username]);
+    $this->actingAs($nuno)->getJson(route('org-message.index', $org))->assertJsonPath('typing', [$this->user->handle]);
 });
 
 it('keeps people out of orgs they are not in', function (): void {

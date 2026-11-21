@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Middleware;
 
 use App\Actions\CreateCommitImages;
+use App\Services\NullBytes;
 use App\Services\SignedCommits;
 use Closure;
 use Illuminate\Http\Request;
@@ -19,7 +20,7 @@ use Symfony\Component\HttpFoundation\Response;
  */
 final readonly class AuthenticateSshSignature
 {
-    public function __construct(private SignedCommits $signedCommits)
+    public function __construct(private SignedCommits $signedCommits, private NullBytes $nullBytes)
     {
         //
     }
@@ -49,6 +50,9 @@ final readonly class AuthenticateSshSignature
             'body' => $commit['body'],
             'reply_to' => $commit['reply_to'],
         ]);
+
+        // The body comes out of the signed payload only now, after the global middleware took NUL bytes out of the inputs.
+        $this->nullBytes->strip($request);
 
         return $next($request);
     }

@@ -6,6 +6,7 @@ use App\Actions\CreateCommitRestoration;
 use App\Actions\DeleteCommit;
 use App\Actions\DeleteUser;
 use App\Actions\UpdateCommitHotScores;
+use App\Dto\ThreadEngagement;
 use App\Models\Commit;
 use App\Services\TheAlgorithm;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -76,5 +77,5 @@ it('restores the thread score when a deleted reply returns', function (): void {
     resolve(CreateCommitRestoration::class)->handle($deleted);
 
     expect($commit->fresh()->hot_score)
-        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, 0, 1), 1e-9);
+        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, new ThreadEngagement(stargazers: 0, quoters: 0, repliers: 1, repliersAnsweredByAuthor: 0)), 1e-9);
 });

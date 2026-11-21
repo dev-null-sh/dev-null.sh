@@ -116,7 +116,7 @@ const {
 
 const commit = {
     id: 'image-post',
-    user: { username: 'author' },
+    author: { handle: 'author' },
 } as Commit;
 let stop: VoidFunction;
 

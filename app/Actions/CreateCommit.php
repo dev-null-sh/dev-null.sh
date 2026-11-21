@@ -5,15 +5,28 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Dto\NewPoll;
+use App\Dto\ThreadEngagement;
 use App\Enums\CommitStatus;
+use App\Enums\CommitUpdate;
+use App\Enums\UserUpdate;
+use App\Events\CommitsUpdated;
+use App\Events\ProfilesUpdated;
+use App\Events\UsersUpdated;
+use App\Exceptions\GuildPaused;
 use App\Jobs\CheckUserLevel;
 use App\Jobs\EmbedCommit;
+use App\Jobs\LinkCommitTopics;
 use App\Jobs\ModerateCommit;
+use App\Jobs\ProcessCommitHeadlines;
 use App\Jobs\ReplyAsTom;
 use App\Jobs\UnfurlLink;
 use App\Models\Commit;
+use App\Models\Guild;
 use App\Models\LinkPreview;
+use App\Models\Organization;
 use App\Models\User;
+use App\Queries\AdminsQuery;
+use App\Queries\MentionedOrganizationsQuery;
 use App\Queries\MentionedUsersQuery;
 use App\Queries\TomQuery;
 use App\Services\EmojiShortcodes;
@@ -28,14 +41,19 @@ final readonly class CreateCommit
         private CreateReplyNotifications $createReplyNotifications,
         private CreateQuoteNotifications $createQuoteNotifications,
         private CreateMentionNotifications $createMentionNotifications,
+        private CreateFirstCommitNotifications $createFirstCommitNotifications,
         private CreateCommitImages $createCommitImages,
+        private CreateLinkPreview $createLinkPreview,
         private CreateWorldReply $createWorldReply,
         private UpdateCommitHotScores $updateCommitHotScores,
         private TheAlgorithm $theAlgorithm,
         private EmojiShortcodes $emojiShortcodes,
         private Urls $urls,
         private MentionedUsersQuery $mentionedUsers,
+        private MentionedOrganizationsQuery $mentionedOrganizations,
+        private CreateCommitTopics $createCommitTopics,
         private TomQuery $tomQuery,
+        private AdminsQuery $admins,
     ) {
         //
     }
@@ -45,8 +63,9 @@ final readonly class CreateCommit
      *
      * @param  list<UploadedFile>  $images
      * @param  array<int, string|null>  $imageDescriptions
+     * @param  array<string, string>  $replyRecipients
      */
-    public function handle(User $user, string $body, ?Commit $parent = null, ?Commit $quotedCommit = null, array $images = [], array $imageDescriptions = [], bool|string $linkPreview = true, ?NewPoll $poll = null): Commit
+    public function handle(User $user, string $body, ?Commit $parent = null, ?Commit $quotedCommit = null, array $images = [], array $imageDescriptions = [], bool|string $linkPreview = true, ?NewPoll $poll = null, array $replyRecipients = [], ?Organization $organization = null, ?Guild $guild = null): Commit
     {
         $url = match ($linkPreview) {
             true => $this->urls->first($body),
@@ -54,23 +73,32 @@ final readonly class CreateCommit
             default => $linkPreview,
         };
 
-        return DB::transaction(function () use ($user, $body, $parent, $quotedCommit, $images, $imageDescriptions, $url, $poll): Commit {
-            $linkPreview = $this->linkPreviewFor($url);
+        return DB::transaction(function () use ($user, $body, $parent, $quotedCommit, $images, $imageDescriptions, $url, $poll, $replyRecipients, $organization, $guild): Commit {
+            if ($guild instanceof Guild && Guild::query()->whereKey($guild->id)->sharedLock()->firstOrFail()->user_id === null) {
+                throw new GuildPaused;
+            }
+
+            $linkPreview = $url === null ? null : $this->createLinkPreview->handle($url);
             $createdAt = now();
             $hasGoodReputation = $user->hasGoodReputation();
+            $mentions = $this->mentionedUsers->get($body);
 
-            $commit = $user->commits()->create([
+            $commit = Commit::query()->create([
+                'user_id' => $user->id,
+                'author_id' => $organization->id ?? $user->id,
+                'guild_id' => $guild?->id,
                 'body' => $this->emojiShortcodes->replace($body),
-                'mentions' => $this->mentionedUsers->get($body),
+                'mentions' => [...$replyRecipients, ...$mentions],
                 'parent_id' => $parent?->id,
                 'root_id' => $parent?->threadRootId(),
                 'status' => $user->isAdmin() || $hasGoodReputation ? CommitStatus::Approved : CommitStatus::Pending,
                 'link_preview_id' => $linkPreview?->id,
                 'quoted_commit_id' => $quotedCommit?->id,
-                'hot_score' => $this->theAlgorithm->score($createdAt, 0, 0),
+                'hot_score' => $this->theAlgorithm->score($createdAt, ThreadEngagement::none()),
                 'created_at' => $createdAt,
             ]);
 
+            $this->createCommitTopics->handle($commit, $this->mentionedOrganizations->get($body, $mentions));
             $this->createCommitImages->handle($commit, $images, $imageDescriptions);
 
             if ($poll instanceof NewPoll) {
@@ -84,6 +112,11 @@ final readonly class CreateCommit
             $this->createReplyNotifications->handle($commit);
             $this->createQuoteNotifications->handle($commit);
             $this->createMentionNotifications->handle($commit);
+
+            // Only a person's first commit is announced to their followers, never an organization's.
+            if (! $organization instanceof Organization) {
+                $this->createFirstCommitNotifications->handle($commit);
+            }
 
             if ($linkPreview instanceof LinkPreview && $linkPreview->fetched_at === null) {
                 dispatch(new UnfurlLink($linkPreview));
@@ -101,9 +134,12 @@ final readonly class CreateCommit
                 }
             }
 
-            if ($commit->status === CommitStatus::Approved) {
+            if ($commit->status === CommitStatus::Approved && ! $organization instanceof Organization) {
                 dispatch(new CheckUserLevel($user))->afterCommit();
             }
+
+            LinkCommitTopics::dispatchFor($commit);
+            ProcessCommitHeadlines::dispatchFor($commit);
 
             if ($commit->status === CommitStatus::Pending && ! $hasGoodReputation) {
                 dispatch(new ModerateCommit($commit))->afterCommit();
@@ -112,6 +148,12 @@ final readonly class CreateCommit
             if ($commit->body !== '') {
                 dispatch(new EmbedCommit($commit))->afterCommit();
             }
+
+            $commit->status === CommitStatus::Approved
+                ? event(new CommitsUpdated([$commit], CommitUpdate::Visibility))
+                : event(new UsersUpdated($this->admins->ids(), UserUpdate::Moderation, ['commits' => [$commit->id]]));
+            event(new UsersUpdated([$user->id], UserUpdate::Commits));
+            event(new ProfilesUpdated([$commit->author_id]));
 
             return $commit;
         });
@@ -132,20 +174,5 @@ final readonly class CreateCommit
             $newPoll->options,
             array_keys($newPoll->options),
         ));
-    }
-
-    /**
-     * Commits that link to the same URL share one preview, so a page is fetched once however often it is linked.
-     */
-    private function linkPreviewFor(?string $url): ?LinkPreview
-    {
-        if ($url === null) {
-            return null;
-        }
-
-        return LinkPreview::query()->firstOrCreate(
-            ['url_hash' => hash('sha256', $url)],
-            ['url' => $url],
-        );
     }
 }

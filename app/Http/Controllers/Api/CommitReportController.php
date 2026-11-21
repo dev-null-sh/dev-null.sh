@@ -18,7 +18,7 @@ final readonly class CommitReportController
      */
     public function store(CreateApiCommitReportRequest $request, #[CurrentUser] User $user, Commit $commit, CreateCommitReport $action): Response
     {
-        $action->handle($user, $commit, $request->string('reason')->value(), $request->filled('details') ? $request->string('details')->value() : null);
+        $action->handle($user, $commit, $request->string('reason')->value(), $request->filled('details') ? $request->string('details')->value() : null, $request->images(), $request->imageDescriptions());
 
         return response()->noContent();
     }

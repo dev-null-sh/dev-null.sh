@@ -127,9 +127,24 @@ final readonly class Urls
     }
 
     /**
-     * Shortens a URL for display, like X does: without its scheme or "www.", with the whole host, and with at most 20
-     * characters after it, the last of which is an ellipsis when it's cut. A cut never splits a percent-encoded
-     * character. Keep the rule in sync with resources/js/lib/urls.ts.
+     * A URL with its percent-encoded non-ASCII characters shown as themselves, as browsers show them: "/%C3%89t%C3%A9"
+     * reads "/Été". Escapes of ASCII characters stay, since they may change what the URL means, and so do those of
+     * invisible, control and spacing characters, which could disguise it. Keep the rule in sync with
+     * resources/js/lib/urls.ts.
+     */
+    public function readable(string $url): string
+    {
+        return (string) preg_replace_callback('/(?:%[89A-F][0-9A-F])+/i', function (array $matches): string {
+            $decoded = rawurldecode($matches[0]);
+
+            return mb_check_encoding($decoded, 'UTF-8') && preg_match('/[\p{C}\p{Z}]/u', $decoded) === 0 ? $decoded : $matches[0];
+        }, $url);
+    }
+
+    /**
+     * Shortens a URL for display, like X does: without its scheme, "www." or a slash that is its whole path, with the
+     * whole host, and with at most 20 characters after it, the last of which is an ellipsis when it's cut. A cut never
+     * splits a percent-encoded character. Keep the rule in sync with resources/js/lib/urls.ts.
      */
     public function shorten(string $url): string
     {
@@ -138,7 +153,7 @@ final readonly class Urls
         $path = mb_substr($url, mb_strlen($host));
 
         if (mb_strlen($path) <= self::MAX_SHORTENED_PATH_LENGTH) {
-            return $url;
+            return $path === '/' ? $host : $url;
         }
 
         $kept = (string) preg_replace('/%[0-9A-Fa-f]?$/', '', mb_substr($path, 0, self::MAX_SHORTENED_PATH_LENGTH - 1));

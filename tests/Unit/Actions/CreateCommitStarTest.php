@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Actions\CreateCommitStar;
+use App\Dto\ThreadEngagement;
 use App\Models\Commit;
 use App\Models\User;
 use App\Services\TheAlgorithm;
@@ -92,5 +93,5 @@ it('lifts the commit', function (): void {
     resolve(CreateCommitStar::class)->handle(User::factory()->create(), $commit);
 
     expect($commit->fresh()->hot_score)
-        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, 1, 0), 1e-9);
+        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, new ThreadEngagement(stargazers: 1, quoters: 0, repliers: 0, repliersAnsweredByAuthor: 0)), 1e-9);
 });

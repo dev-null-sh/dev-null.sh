@@ -28,21 +28,28 @@ import type { RemotesFrom } from '@/types';
  */
 export function RemoteSettingsMenu() {
     const { auth } = usePage().props;
+    const remotes = auth.remotes;
     const fromDescription = useId();
     const pullsDescription = useId();
 
-    if (auth.remotes === null) {
+    if (remotes === null) {
         return null;
     }
 
-    const { pull_receipts: pullReceipts, requests, everyone } = auth.remotes;
-    const from: RemotesFrom = everyone ? auth.remotes.from : 'following';
+    const { pull_receipts: pullReceipts, requests, everyone } = remotes;
+    const from: RemotesFrom = everyone ? remotes.from : 'following';
 
     const save = (preferences: { from: RemotesFrom; pull_receipts: boolean }) =>
         router.put(update.url(), preferences, {
             preserveScroll: true,
             preserveState: true,
             only: ['auth'],
+            optimistic: (props) => ({
+                auth: {
+                    ...props.auth,
+                    remotes: { ...remotes, ...preferences },
+                },
+            }),
             onError: () =>
                 toast.error('Could not save your remote settings. Try again.'),
         });

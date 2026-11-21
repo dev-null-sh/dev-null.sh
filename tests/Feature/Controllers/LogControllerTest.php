@@ -16,6 +16,7 @@ use Illuminate\Database\Eloquent\Factories\Sequence;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
+use Illuminate\Testing\TestResponse;
 
 it('renders own commits and commits of followed users newest first', function (): void {
     $user = User::factory()->create();
@@ -37,10 +38,10 @@ it('renders own commits and commits of followed users newest first', function ()
             ->where('log', 'following')
             ->has('commits.data', 2)
             ->where('commits.data.0.body', 'Followed')
-            ->where('commits.data.0.user.id', $followed->id)
+            ->where('commits.data.0.author.id', $followed->id)
             ->where('commits.data.0.stars_count', 0)
             ->where('commits.data.0.starred', false)
-            ->missing('commits.data.0.user.email')
+            ->missing('commits.data.0.author.email')
             ->where('commits.data.1.body', 'Mine'));
 });
 
@@ -57,9 +58,9 @@ it('renders each author with their effective lane', function (): void {
 
     $response->assertOk()
         ->assertInertia(fn ($page) => $page
-            ->where('commits.data.0.user.lane', 2)
-            ->where('commits.data.1.user.lane', 5)
-            ->missing('commits.data.1.user.preferred_lane'));
+            ->where('commits.data.0.author.lane', 2)
+            ->where('commits.data.1.author.lane', 5)
+            ->missing('commits.data.1.author.preferred_lane'));
 });
 
 it('renders commits of everyone newest first', function (): void {
@@ -189,6 +190,18 @@ it('remembers the last visited log', function (Log $log): void {
     expect($user->refresh()->log)->toBe($log);
 })->with(Log::cases());
 
+it('does not remember a log that is only prefetched', function (): void {
+    $user = User::factory()->create(['log' => Log::Latest]);
+
+    $this->actingAs($user)->withHeaders([
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request()),
+        'Purpose' => 'prefetch',
+    ])->get(route('log.show', Log::Following))->assertOk();
+
+    expect($user->refresh()->log)->toBe(Log::Latest);
+});
+
 it('does not update the user when the log is unchanged', function (): void {
     $user = User::factory()->create(['log' => Log::Trending]);
     $updatedAt = $user->updated_at;
@@ -230,6 +243,12 @@ it('sends guests to sign in with GitHub for the following log', function (): voi
     $this->get(route('log.show', Log::Following), ['X-Inertia' => 'true', 'X-Inertia-Version' => (string) resolve(HandleInertiaRequests::class)->version(request())])
         ->assertStatus(409)
         ->assertHeader('X-Inertia-Location', route('login'));
+});
+
+it('keeps the reload a deploy forces apart from the page in the browser cache', function (): void {
+    $this->get(route('log.show', Log::Latest), ['X-Inertia' => 'true', 'X-Inertia-Version' => 'before-the-deploy'])
+        ->assertConflict()
+        ->assertHeader('Vary', 'X-Inertia');
 });
 
 it('does not count newer commits on the trending log', function (?bool $signedIn): void {
@@ -371,8 +390,8 @@ it('suggests recent commits from other developers when following nobody', functi
         ->assertInertia(fn ($page) => $page
             ->has('suggestions', 2)
             ->where('suggestions.0.body', 'Newer')
-            ->where('suggestions.0.user.id', $author->id)
-            ->where('suggestions.1.user.id', fn (string $id): bool => $id !== $author->id && $id !== $user->id));
+            ->where('suggestions.0.author.id', $author->id)
+            ->where('suggestions.1.author.id', fn (string $id): bool => $id !== $author->id && $id !== $user->id));
 });
 
 it('does not suggest commits when following someone', function (): void {
@@ -485,7 +504,7 @@ it('includes the link previews of commits', function (Log $log): void {
 
 it('includes the quoted commits with their authors', function (Log $log): void {
     $user = User::factory()->create();
-    $quoted = Commit::factory()->for(User::factory()->state(['username' => 'octocat']))->create(['body' => 'The quoted commit', 'created_at' => now()->subHour()]);
+    $quoted = Commit::factory()->for(User::factory()->state(['handle' => 'octocat']))->create(['body' => 'The quoted commit', 'created_at' => now()->subDay()]);
     $hidden = Commit::factory()->create(['body' => 'A rejected quoted commit']);
     $deleted = Commit::factory()->create(['body' => 'A deleted quoted commit']);
     Commit::factory()->for($user)->for($quoted, 'quotedCommit')->create(['created_at' => now()->subMinutes(3)]);
@@ -504,7 +523,7 @@ it('includes the quoted commits with their authors', function (Log $log): void {
             ->where('commits.data.1.quoted_commit_id', $hidden->id)
             ->where('commits.data.1.quoted_commit', null)
             ->where('commits.data.2.quoted_commit.body', 'The quoted commit')
-            ->where('commits.data.2.quoted_commit.user.username', 'octocat'))
+            ->where('commits.data.2.quoted_commit.author.handle', 'octocat'))
         ->assertDontSee('A rejected quoted commit')
         ->assertDontSee('A deleted quoted commit');
 })->with(Log::cases());
@@ -612,7 +631,7 @@ it('does not suggest users to follow once they are hidden', function (): void {
 it('leaves the commit just committed to its rank on the ranked log', function (): void {
     config(['app.admins' => ['nunomaduro']]);
 
-    $user = User::factory()->create(['username' => 'nunomaduro']);
+    $user = User::factory()->create(['handle' => 'nunomaduro']);
     Commit::factory()->count(20)->create(['hot_score' => 1e12]);
 
     $response = $this->actingAs($user)
@@ -629,7 +648,7 @@ it('leaves the commit just committed to its rank on the ranked log', function ()
 it('puts the commit just committed on top of the latest log', function (): void {
     config(['app.admins' => ['nunomaduro']]);
 
-    $user = User::factory()->create(['username' => 'nunomaduro']);
+    $user = User::factory()->create(['handle' => 'nunomaduro']);
     Commit::factory()->count(20)->create(['created_at' => now()->subHour()]);
 
     $response = $this->actingAs($user)
@@ -725,6 +744,41 @@ it('retains the loaded Following range when a follow request supplies its bounda
         ->assertJsonPath('scrollProps.commits.reset', true);
 });
 
+it('retains the loaded Latest range when new commits arrive on top of it', function (): void {
+    $viewer = User::factory()->create();
+    $loaded = Commit::factory()->for($viewer)->count(30)->sequence(
+        fn (Sequence $sequence): array => ['created_at' => now()->subHour()->subMinutes($sequence->index)],
+    )->create();
+    $arrived = Commit::factory()->count(3)->sequence(
+        fn (Sequence $sequence): array => ['created_at' => now()->subMinutes($sequence->index)],
+    )->create();
+
+    $this->actingAs($viewer)->get(route('log.show', Log::Latest), [
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) resolve(HandleInertiaRequests::class)->version(request()),
+        'X-Inertia-Partial-Component' => 'log/show',
+        'X-Inertia-Partial-Data' => 'commits',
+        'X-Inertia-Reset' => 'commits',
+        'X-Log-Through' => $loaded[24]->id,
+    ])->assertOk()
+        ->assertJsonCount(28, 'props.commits.data')
+        ->assertJsonPath('props.commits.data.0.id', $arrived[0]->id)
+        ->assertJsonPath('props.commits.data.27.id', $loaded[24]->id);
+});
+
+it('does not hold a ranked log to a loaded range', function (): void {
+    $viewer = User::factory()->create();
+    $loaded = Commit::factory()->for($viewer)->count(30)->create();
+
+    $this->actingAs($viewer)->get(route('log.show', Log::Trending), [
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) resolve(HandleInertiaRequests::class)->version(request()),
+        'X-Inertia-Partial-Component' => 'log/show',
+        'X-Inertia-Partial-Data' => 'commits',
+        'X-Log-Through' => $loaded[24]->id,
+    ])->assertOk()->assertJsonCount(20, 'props.commits.data');
+});
+
 it('ignores a missing or inaccessible range boundary', function (string $boundary): void {
     $viewer = User::factory()->create();
     $loaded = Commit::factory()->for($viewer)->count(25)->create();
@@ -744,5 +798,161 @@ it('rejects an invalid range boundary', function (): void {
     $this->actingAs(User::factory()->create())
         ->withHeader('X-Log-Through', 'invalid')
         ->getJson(route('log.show', Log::Following))
+        ->assertUnprocessable()->assertJsonValidationErrors('through');
+});
+
+it('polls only the count while loaded commits provide their authors', function (): void {
+    $viewer = User::factory()->create();
+    $older = Commit::factory()->create(['created_at' => now()->subMinute()]);
+    $author = User::factory()->create();
+    Commit::factory()->count(2)->for($author)->create();
+    Commit::factory()->for($viewer)->create();
+
+    $this->actingAs($viewer)->get(route('log.show', [Log::Latest, 'since' => $older->id]), [
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) resolve(HandleInertiaRequests::class)->version(request()),
+        'X-Inertia-Partial-Component' => 'log/show',
+        'X-Inertia-Partial-Data' => 'newCommitsCount',
+    ])->assertOk()
+        ->assertJsonPath('props.newCommitsCount', 2)
+        ->assertJsonMissingPath('props.newCommitAuthors');
+});
+
+it('resets the pending count when reloading without a since cursor', function (): void {
+    $this->actingAs(User::factory()->create())->get(route('log.show', Log::Latest), [
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) resolve(HandleInertiaRequests::class)->version(request()),
+        'X-Inertia-Partial-Component' => 'log/show',
+        'X-Inertia-Partial-Data' => 'newCommitsCount',
+    ])->assertOk()
+        ->assertJsonPath('props.newCommitsCount', 0)
+        ->assertJsonMissingPath('props.newCommitAuthors');
+});
+
+it('reconciles pending arrivals even when no newer commits exist', function (Log $log): void {
+    $viewer = User::factory()->create();
+    $author = User::factory()->create();
+    $viewer->following()->attach($author);
+    $pending = Commit::factory()->for($author)->count(4)->create();
+    $pending[0]->delete();
+    $response = $this->actingAs($viewer)->get(route('log.show', [
+        $log, 'since' => $pending[3]->id, 'pending' => $pending->modelKeys(),
+    ]), [
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) resolve(HandleInertiaRequests::class)->version(request()),
+        'X-Inertia-Partial-Component' => 'log/show',
+        'X-Inertia-Partial-Data' => 'newCommitsCount,removedCommitIds',
+    ]);
+    $response->assertOk()->assertJsonPath('props.newCommitsCount', 0)
+        ->assertJsonPath('props.removedCommitIds', [$pending[0]->id])
+        ->assertJsonMissingPath('props.commits');
+})->with([Log::Following, Log::Latest]);
+
+it('rejects malformed pending commit identifiers', function (array $pending, string $field): void {
+    $this->actingAs(User::factory()->create())->getJson(route('log.show', [Log::Latest, ...$pending]))
+        ->assertUnprocessable()->assertJsonValidationErrors($field);
+})->with([
+    [['pending' => 'bad'], 'pending'],
+    [['pending' => ['bad']], 'pending.0'],
+]);
+
+/**
+ * @param  array<string, mixed>  $query
+ * @param  array<string, string>  $headers
+ */
+function probeLog(Log $log, string $props, array $query, array $headers = []): TestResponse
+{
+    return test()->get(route('log.show', [$log, ...$query]), [
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) resolve(HandleInertiaRequests::class)->version(request()),
+        'X-Inertia-Partial-Component' => 'log/show',
+        'X-Inertia-Partial-Data' => $props,
+        ...$headers,
+    ])->assertOk();
+}
+
+it('counts the first commits of a log that showed none yet', function (): void {
+    $this->actingAs(User::factory()->create());
+    Commit::factory()->count(2)->create();
+
+    probeLog(Log::Latest, 'newCommitsCount', ['everything' => 1])->assertJsonPath('props.newCommitsCount', 2);
+    probeLog(Log::Latest, 'newCommitsCount', [])->assertJsonPath('props.newCommitsCount', 0);
+});
+
+it('finds the older commits approved since that belong among the ones loaded, but not newer or unseen ones', function (): void {
+    $this->actingAs(User::factory()->create());
+    $oldest = Commit::factory()->create(['created_at' => now()->subHours(3)]);
+    $approvedOlder = Commit::factory()->create(['created_at' => now()->subHours(2)]);
+    $tooOld = Commit::factory()->create(['created_at' => now()->subHours(5)]);
+    $pending = Commit::factory()->pending()->create(['created_at' => now()->subHour()]);
+
+    probeLog(Log::Latest, 'arrivedCommitIds', ['arrived' => [$approvedOlder->id, $tooOld->id, $pending->id]], ['X-Log-Through' => $oldest->id])
+        ->assertJsonPath('props.arrivedCommitIds', [$approvedOlder->id]);
+    probeLog(Log::Trending, 'arrivedCommitIds', ['arrived' => [$approvedOlder->id]], ['X-Log-Through' => $oldest->id])
+        ->assertJsonPath('props.arrivedCommitIds', []);
+});
+
+it('tells the trending log which loaded commits are gone without ranking it again', function (): void {
+    $this->actingAs(User::factory()->create());
+    $stays = Commit::factory()->create(['created_at' => now()->subMonths(2)]);
+    $deleted = Commit::factory()->create();
+    $deleted->delete();
+
+    probeLog(Log::Trending, 'removedCommitIds', ['pending' => [$stays->id, $deleted->id]])
+        ->assertJsonPath('props.removedCommitIds', [$deleted->id]);
+});
+
+it('names which commits sit between the oldest and newest loaded, so a page can tell its window changed even at the same size', function (): void {
+    $this->actingAs(User::factory()->create());
+    $oldest = Commit::factory()->create(['created_at' => now()->subHours(3)]);
+    $middle = Commit::factory()->create(['created_at' => now()->subHours(2)]);
+    $newest = Commit::factory()->create(['created_at' => now()->subHour()]);
+    Commit::factory()->create();
+    $older = Commit::factory()->pending()->create(['created_at' => now()->subMinutes(150)]);
+    $window = fn (): mixed => probeLog(Log::Latest, 'windowDigest', ['since' => $newest->id], ['X-Log-Through' => $oldest->id])->json('props.windowDigest');
+    $digestOf = function (Commit ...$commits): string {
+        $ids = array_map(fn (Commit $commit): string => $commit->id, $commits);
+        sort($ids, SORT_STRING);
+
+        return hash('sha256', implode(',', $ids));
+    };
+
+    expect($window())->toBe($digestOf($oldest, $middle, $newest));
+
+    $middle->delete();
+    $older->update(['status' => CommitStatus::Approved]);
+
+    expect($window())->toBe($digestOf($oldest, $older, $newest))
+        ->not->toBe($digestOf($oldest, $middle, $newest))
+        ->and(probeLog(Log::Trending, 'windowDigest', ['since' => $newest->id], ['X-Log-Through' => $oldest->id])->json('props.windowDigest'))->toBeNull();
+});
+
+it('keeps the loaded window anchored on the oldest commit still visible when older ones were hidden or erased since', function (string $change): void {
+    $viewer = User::factory()->create();
+    $author = User::factory()->create();
+    $this->actingAs($viewer);
+    $loaded = collect(range(1, 5))->map(fn (int $hours): Commit => Commit::factory()->create(['created_at' => now()->subHours($hours)]))->all();
+    $oldest = Commit::factory()->for($author)->create(['created_at' => now()->subHours(6)]);
+    Commit::factory()->create(['created_at' => now()->subHours(7)]);
+
+    match ($change) {
+        'blocked' => $viewer->blocking()->attach($author),
+        'blocked by' => $author->blocking()->attach($viewer),
+        'erased' => $oldest->forceDelete(),
+    };
+    $through = ['X-Log-Through' => implode(',', [$oldest->id, $loaded[4]->id, $loaded[3]->id])];
+    $sorted = collect($loaded)->pluck('id')->sort()->values()->all();
+
+    expect(probeLog(Log::Latest, 'windowDigest', ['since' => $loaded[0]->id], $through)->json('props.windowDigest'))
+        ->toBe(hash('sha256', implode(',', $sorted)))
+        ->and(array_slice(probeLog(Log::Latest, 'commits', [], $through)->json('props.commits.data.*.id'), 0, 5))
+        ->toBe(collect($loaded)->pluck('id')->all())
+        ->and(probeLog(Log::Latest, 'commits', [], $through)->json('props.commits.data.*.id'))->not->toContain($oldest->id);
+})->with(['blocked', 'blocked by', 'erased']);
+
+it('reads no more than twenty range boundaries', function (): void {
+    $this->actingAs(User::factory()->create())
+        ->withHeader('X-Log-Through', implode(',', array_map(fn (): string => (string) Str::uuid(), range(1, 21))))
+        ->getJson(route('log.show', Log::Latest))
         ->assertUnprocessable()->assertJsonValidationErrors('through');
 });

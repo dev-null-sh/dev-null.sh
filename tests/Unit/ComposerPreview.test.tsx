@@ -3,13 +3,14 @@ import assert from 'node:assert/strict';
 import { App } from '@inertiajs/react';
 import type { ComponentProps, KeyboardEvent, ReactElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { test } from 'vite-plus/test';
+import { test, vi } from 'vite-plus/test';
 import { CommitBody } from '../../resources/js/components/commit-body';
 import { CommitComposer } from '../../resources/js/components/commit-composer';
 import { revokeObjectUrls } from '../../resources/js/components/commit-image-picker';
 import {
     ComposerPollPreview,
     ComposerPreviewBody,
+    PreviewToggle,
     useComposerPreview,
     type ComposerPreview,
 } from '../../resources/js/components/composer-preview';
@@ -35,7 +36,7 @@ function renderPage(
                     version: null,
                     props: {
                         errors: {},
-                        auth: {
+                        auth: { organizations: [],
                             user: null,
                             pasteis: pasteisMode
                                 ? { remaining: 0, day: '2026-10-16' }
@@ -144,11 +145,11 @@ function renderComposer(body: string, isInDialog = false): string {
                         version: null,
                         props: {
                             errors: {},
-                            auth: {
+                            auth: { organizations: [],
                                 user: {
                                     id: 'preview-user',
                                     name: 'Preview User',
-                                    username: 'previewuser',
+                                    handle: 'previewuser',
                                     lane: 0,
                                 },
                                 log: {},
@@ -312,6 +313,73 @@ for (const [body, expected] of [
     });
 }
 
+for (const fence of [
+    '``` php\ttitle="app/Models/User.php" \t',
+    '```php filename="app/Models/User.php"',
+    '``` title="app/Models/User.php"',
+]) {
+    for (const isStatic of [false, true]) {
+        test(`labels the code block of "${fence}" with its filename in ${isStatic ? 'excerpts' : 'commits'}`, () => {
+            const markup = renderPage(
+                <CommitBody
+                    segments={bodySegments(`${fence}\n$name;\n\`\`\``)}
+                    mentions={null}
+                    isStatic={isStatic}
+                />,
+            );
+
+            assert.match(
+                markup,
+                /<span[^>]*title="app\/Models\/User\.php"[^>]*>app\/Models\/User\.php<\/span>/,
+            );
+            assert.ok(!markup.includes('>php<'));
+        });
+    }
+}
+
+for (const [fence, language, filename] of [
+    ['``` php\ttitle="app/Models/User.php" \t', 'php', 'app/Models/User.php'],
+    ['```php filename="app/Models/User.php"', 'php', 'app/Models/User.php'],
+    ['```php filename="a.php" title="b.php"', 'php', 'b.php'],
+    ['```php title="" filename="a.php"', 'php', 'a.php'],
+    ['```php title="a.php" title="b.php"', 'php', 'a.php'],
+    ['```php title="My Model.php"', 'php', 'My Model.php'],
+    [
+        '```php {1, 3} showLineNumbers title="app.php" tab="Pest 4"',
+        'php',
+        'app.php',
+    ],
+    ['```php app/Models/User.php', 'php', null],
+    ['```php {1,3}', 'php', null],
+    ['```php tab=Pest', 'php', null],
+    ['```php title=""', 'php', null],
+    ['```php title="app.php', 'php', null],
+    ['```php caption="see title="app.php"', 'php', null],
+    ['```php {1 title="app.php"}', 'php', null],
+    ['```php{1,3} title="app.php"', 'php', 'app.php'],
+    ["```php title='app.php'", 'php', 'app.php'],
+    ["```php filename='app.php'", 'php', 'app.php'],
+    ['```php title="it\'s.php"', 'php', "it's.php"],
+    ['```php title=\'"a".php\'', 'php', '"a".php'],
+    ["```php title=''", 'php', null],
+    ["```php title='app.php", 'php', null],
+    ["``` title='app.php'", null, 'app.php'],
+    ['```php{1,3}', 'php', null],
+    ['``` title="app.php"', null, 'app.php'],
+    ['```title="app.php"', null, 'app.php'],
+    ['```{1,3}', null, null],
+    ['``` {1,3} title="app.php"', null, 'app.php'],
+    ['```php\u00a0title="app.php"', 'php\u00a0title="app.php"', null],
+    ['```php', 'php', null],
+    ['```', null, null],
+] as const) {
+    test(`reads the language and filename of "${fence}" like the server`, () => {
+        assert.deepEqual(bodySegments(`${fence}\n$name;\n\`\`\``), [
+            { type: 'block', language, filename, html: '$name;' },
+        ]);
+    });
+}
+
 test('links the mentions the server found in the preview', () => {
     const preview = previewFor({
         body: 'Pairing with @alice and @nobody-here',
@@ -333,7 +401,7 @@ test('links the mentions the server found in the preview', () => {
     assert.ok(markup.includes('@nobody-here'));
 });
 
-test('shows mentions as text until the server has found them', () => {
+test('links mentions by handle until the server has found them', () => {
     const preview = previewFor({
         body: 'Pairing with @alice',
         isSubmittable: true,
@@ -343,7 +411,7 @@ test('shows mentions as text until the server has found them', () => {
     );
 
     assert.equal(preview.mentions, null);
-    assert.ok(markup.includes('Pairing with @alice'));
+    assert.match(markup, /Pairing with <a[^>]*href="\/@alice"[^>]*>@alice<\/a>/);
     assert.ok(!markup.includes('data-test="mention"'));
 });
 
@@ -421,7 +489,7 @@ for (const pasteisMode of [false, true]) {
             }
         });
 
-        test(`preserves code, URLs, usernames and larger words with mode ${pasteisMode ? 'on' : 'off'} in ${isStatic ? 'excerpts' : 'commits'}`, () => {
+        test(`preserves code, URLs, handles and larger words with mode ${pasteisMode ? 'on' : 'off'} in ${isStatic ? 'excerpts' : 'commits'}`, () => {
             const preview = previewFor({
                 body: 'pastel https://pasteis.com/pastel @pastel pastels pastelaria épastel pastelé pastel_1\n`pasteis`\n```text\npastéis\n```',
                 isSubmittable: true,
@@ -459,3 +527,37 @@ for (const pasteisMode of [false, true]) {
         });
     }
 }
+
+test('clicking Preview moves focus into the preview, where Escape returns to writing', () => {
+    const preview = previewFor({ isSubmittable: true });
+    const focus = vi.fn();
+    const getElementById = vi.fn(() => ({ focus }));
+    vi.stubGlobal('requestAnimationFrame', (callback: () => void) =>
+        callback(),
+    );
+    vi.stubGlobal('document', { getElementById });
+
+    try {
+        const toggles: ReactElement<{
+            children: ReactElement<{ onClick: () => void }>;
+        }>[] = [];
+
+        function Toggle() {
+            toggles.push(
+                PreviewToggle({ preview }) as (typeof toggles)[number],
+            );
+
+            return null;
+        }
+
+        renderToStaticMarkup(<Toggle />);
+        const tooltip = toggles[0];
+        assert.ok(tooltip);
+        tooltip.props.children.props.onClick();
+
+        assert.deepEqual(getElementById.mock.calls, [[preview.previewId]]);
+        assert.equal(focus.mock.calls.length, 1);
+    } finally {
+        vi.unstubAllGlobals();
+    }
+});

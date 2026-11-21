@@ -13,7 +13,7 @@ it('may forget every failed job', function (): void {
     failedJob();
     failedJob();
 
-    $response = $this->actingAs(User::factory()->create(['username' => 'admin']))
+    $response = $this->actingAs(User::factory()->create(['handle' => 'admin']))
         ->fromRoute('operations.show')
         ->delete(route('failed-jobs.destroy'));
 

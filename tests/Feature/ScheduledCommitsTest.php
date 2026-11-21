@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Actions\CreateGuild;
 use App\Actions\CreateScheduledCommit;
 use App\Actions\DeleteScheduledCommit;
 use App\Actions\DeleteUser;
@@ -12,10 +13,12 @@ use App\Http\Middleware\HandleInertiaRequests;
 use App\Jobs\UnfurlLink;
 use App\Models\Commit;
 use App\Models\CommitImage;
+use App\Models\Guild;
 use App\Models\Notification;
 use App\Models\Poll;
 use App\Models\ScheduledCommit;
 use App\Models\User;
+use App\Models\UserTimeout;
 use App\Queries\UserActivityQuery;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\UploadedFile;
@@ -23,6 +26,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 beforeEach(function (): void {
     $this->travelTo(now()->setDate(2026, 10, 15)->setTime(12, 0));
@@ -30,7 +34,7 @@ beforeEach(function (): void {
 });
 
 it('schedules a poll that opens with its commit at the due time', function (bool $admin): void {
-    $user = User::factory()->create(['username' => $admin ? 'admin' : 'someone']);
+    $user = User::factory()->create(['handle' => $admin ? 'admin' : 'someone']);
     $this->actingAs($user)->post(route('scheduled-commit.store'), [
         'body' => 'Tabs or spaces?',
         'scheduled_at' => now()->addHour()->toIso8601String(),
@@ -85,7 +89,7 @@ it('erases the stored images when the scheduled commit fails to save', function 
     Storage::fake();
 
     expect(fn (): ScheduledCommit => resolve(CreateScheduledCommit::class)->handle(
-        User::factory()->make(['id' => 999_999]),
+        User::factory()->make(['id' => (string) Str::uuid7()]),
         'Shipped the new dashboard.',
         now()->addHour()->toImmutable(),
         [UploadedFile::fake()->image('wide.png', 300, 200)],
@@ -155,6 +159,7 @@ it('requires authentication for every scheduled endpoint', function (): void {
     $this->get(route('scheduled-commit.index'))->assertRedirectToRoute('home');
     $this->post(route('scheduled-commit.store'), [])->assertRedirectToRoute('home');
     $this->delete(route('scheduled-commit.destroy', $scheduled))->assertRedirectToRoute('home');
+    $this->post(route('scheduled-commit-submission.store', $scheduled))->assertRedirectToRoute('home');
 });
 
 it('rejects invalid times and bodies', function (array $payload, string $field): void {
@@ -215,6 +220,7 @@ it('limits outstanding submissions per author and frees a slot on cancellation',
 
 it('shares the existing commit rate limit', function (): void {
     $user = User::factory()->create();
+    $scheduled = ScheduledCommit::factory()->for($user)->create();
     for ($i = 0; $i < 10; $i++) {
         $this->actingAs($user)->post(route('commit.store'), ['body' => 'An ordinary commit.']);
     }
@@ -222,12 +228,15 @@ it('shares the existing commit rate limit', function (): void {
     $this->post(route('scheduled-commit.store'), [
         'body' => 'Must be throttled.', 'scheduled_at' => now()->addDay()->toIso8601String(),
     ])->assertRedirect();
-    expect(ScheduledCommit::query()->count())->toBe(0);
+    $this->post(route('scheduled-commit-submission.store', $scheduled))->assertRedirect()
+        ->assertInertiaFlash('toast.type', 'error')->assertInertiaFlashMissing('submitted');
+    expect(ScheduledCommit::query()->count())->toBe(1)
+        ->and($scheduled->fresh()->submitted_at)->toBeNull();
 });
 
 it('keeps schedules out of logs profiles activity previews and moderation until due', function (): void {
     $user = User::factory()->create();
-    $admin = User::factory()->create(['username' => 'admin']);
+    $admin = User::factory()->create(['handle' => 'admin']);
     $scheduled = ScheduledCommit::factory()->for($user)->create(['body' => 'Private future parser release.']);
 
     foreach ([$user, $admin, User::factory()->create()] as $viewer) {
@@ -243,6 +252,7 @@ it('keeps schedules out of logs profiles activity previews and moderation until 
 
     $this->travelTo($scheduled->scheduled_at);
     $this->artisan('commits:submit-scheduled')->assertSuccessful();
+    Commit::query()->sole()->update(['ai_decision' => CommitStatus::Rejected]);
     $this->get(route('moderation.show'))->assertInertia(fn ($page) => $page->has('commits.data', 1)->where('hasUnmoderatedCommits', true));
 });
 
@@ -265,12 +275,12 @@ it('only lists the current authors schedules and forbids canceling another autho
         ->component('scheduled-commits/index')->has('scheduledCommits.data', 1)->where('scheduledCommits.data.0.id', $mine->id))
         ->assertDontSee($other->body);
     $this->delete(route('scheduled-commit.destroy', $other))->assertForbidden();
-    $this->actingAs(User::factory()->create(['username' => 'admin']))->delete(route('scheduled-commit.destroy', $mine))->assertForbidden();
+    $this->actingAs(User::factory()->create(['handle' => 'admin']))->delete(route('scheduled-commit.destroy', $mine))->assertForbidden();
     expect($other->fresh()->canceled_at)->toBeNull();
 });
 
 it('keeps scheduled content private in the public API and feed until approved delivery', function (bool $admin): void {
-    $user = User::factory()->create(['username' => $admin ? 'admin' : 'octocat']);
+    $user = User::factory()->create(['handle' => $admin ? 'admin' : 'octocat']);
     $scheduled = ScheduledCommit::factory()->for($user)->create(['body' => 'Private future release :rocket:']);
 
     $this->getJson(route('api-user-commit.index', $user))->assertOk()->assertJsonCount(0, 'data');
@@ -298,7 +308,7 @@ it('submits once at the due time using the authors current approval privileges',
     $user = User::factory()->create();
     $scheduled = ScheduledCommit::factory()->for($user)->create();
     if ($admin) {
-        $user->update(['username' => 'admin']);
+        $user->profile->update(['handle' => 'admin']);
     }
 
     $action = resolve(UpdateScheduledCommitSubmittedAt::class);
@@ -460,6 +470,29 @@ it('bounds each scheduler run and drains remaining due items on the next run', f
     expect(Commit::query()->count())->toBe(101);
 });
 
+it('skips paused guilds before limiting the batch and drains their posts after resuming', function (): void {
+    $user = User::factory()->create();
+    $paused = Guild::factory()->create(['user_id' => null]);
+    $active = Guild::factory()->create(['user_id' => $user->id]);
+    ScheduledCommit::factory()->for($user)->for($paused)->count(100)->create(['scheduled_at' => now()->subHour()]);
+    $regular = ScheduledCommit::factory()->for($user)->create(['scheduled_at' => now()]);
+    $board = ScheduledCommit::factory()->for($user)->for($active)->create(['scheduled_at' => now()]);
+
+    $this->artisan('commits:submit-scheduled')->assertSuccessful();
+
+    expect(Commit::query()->count())->toBe(2);
+    expect($regular->fresh()->commit->guild_id)->toBeNull();
+    expect($board->fresh()->commit->guild_id)->toBe($active->id);
+    expect(ScheduledCommit::query()->where('guild_id', $paused->id)->whereNull('submitted_at')->count())->toBe(100);
+
+    resolve(CreateGuild::class)->handle($user, $paused->handle, $paused->name, $paused->description, $paused->emoji, null);
+    $this->artisan('commits:submit-scheduled')->assertSuccessful();
+
+    expect(Commit::query()->count())->toBe(102);
+    expect(Commit::query()->where('guild_id', $paused->id)->count())->toBe(100);
+    expect(ScheduledCommit::query()->whereNull('submitted_at')->count())->toBe(0);
+});
+
 it('deletes scheduled content with the account and handles stale delivery attempts', function (): void {
     $scheduled = ScheduledCommit::factory()->create(['scheduled_at' => now()]);
     resolve(DeleteUser::class)->handle($scheduled->user);
@@ -493,4 +526,60 @@ it('does not load the schedule when the page only polls the unread count', funct
         ->assertJsonMissingPath('props.scheduledCommits');
 
     expect(collect(DB::getQueryLog())->filter(fn (array $query): bool => str_contains($query['query'], 'scheduled_commits')))->toBeEmpty();
+});
+
+it('commits a scheduled item now, before its time, through the usual review', function (): void {
+    $scheduled = ScheduledCommit::factory()->create(['scheduled_at' => now()->addDay(), 'body' => 'Shipping early']);
+
+    $this->actingAs($scheduled->user)->post(route('scheduled-commit-submission.store', $scheduled))->assertRedirect()
+        ->assertInertiaFlash('toast.type', 'success')->assertInertiaFlash('submitted', $scheduled->id);
+
+    $commit = Commit::query()->sole();
+    expect($commit->body)->toBe('Shipping early')
+        ->and($commit->status)->toBe(CommitStatus::Pending)
+        ->and($scheduled->fresh()->commit_id)->toBe($commit->id)
+        ->and($scheduled->fresh()->submitted_at->equalTo(now()))->toBeTrue();
+
+    $this->post(route('scheduled-commit-submission.store', $scheduled))->assertRedirect()
+        ->assertInertiaFlash('toast.type', 'info');
+    $this->travel(1)->day();
+    $this->artisan('commits:submit-scheduled')->assertSuccessful();
+    expect(Commit::query()->count())->toBe(1);
+});
+
+it('does not commit now a canceled item or another authors item', function (): void {
+    $canceled = ScheduledCommit::factory()->create();
+    resolve(DeleteScheduledCommit::class)->handle($canceled->user, $canceled);
+    $other = ScheduledCommit::factory()->create();
+
+    $this->actingAs($canceled->user)->post(route('scheduled-commit-submission.store', $canceled))->assertRedirect()
+        ->assertInertiaFlash('toast.type', 'info')->assertInertiaFlashMissing('submitted');
+    $this->post(route('scheduled-commit-submission.store', $other))->assertForbidden();
+    $this->actingAs(User::factory()->create(['handle' => 'admin']))->post(route('scheduled-commit-submission.store', $other))->assertForbidden();
+
+    expect(Commit::query()->count())->toBe(0)
+        ->and($other->fresh()->submitted_at)->toBeNull();
+});
+
+it('does not commit now while the author is in timeout', function (): void {
+    $scheduled = ScheduledCommit::factory()->create();
+    UserTimeout::factory()->for($scheduled->user)->create();
+
+    $this->actingAs($scheduled->user)->post(route('scheduled-commit-submission.store', $scheduled))->assertRedirect()
+        ->assertInertiaFlash('timeout')->assertInertiaFlashMissing('submitted');
+
+    expect(Commit::query()->count())->toBe(0)
+        ->and(resolve(UpdateScheduledCommitSubmittedAt::class)->handle($scheduled->id, early: true))->toBeFalse();
+});
+
+it('says the guild is paused when committing now a board post to a paused guild, and keeps it queued', function (): void {
+    $guild = Guild::factory()->create(['user_id' => null]);
+    $scheduled = ScheduledCommit::factory()->for($guild)->create(['scheduled_at' => now()->addDay()]);
+
+    $this->actingAs($scheduled->user)->post(route('scheduled-commit-submission.store', $scheduled))->assertRedirect()
+        ->assertInertiaFlash('toast', ['type' => 'error', 'message' => 'This guild is paused until it has a moderator.'])
+        ->assertInertiaFlashMissing('submitted');
+
+    expect(Commit::query()->count())->toBe(0)
+        ->and($scheduled->fresh())->submitted_at->toBeNull()->canceled_at->toBeNull();
 });

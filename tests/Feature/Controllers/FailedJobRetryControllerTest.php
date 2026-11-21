@@ -12,7 +12,7 @@ beforeEach(function (): void {
 it('may retry a failed job', function (): void {
     $uuid = failedJob(queue: 'previews');
 
-    $response = $this->actingAs(User::factory()->create(['username' => 'admin']))
+    $response = $this->actingAs(User::factory()->create(['handle' => 'admin']))
         ->fromRoute('operations.show')
         ->post(route('failed-job-retry.store', $uuid));
 

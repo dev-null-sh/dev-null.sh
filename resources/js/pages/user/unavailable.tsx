@@ -1,4 +1,4 @@
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
 import { Ban } from 'lucide-react';
 import UserBlockController from '@/actions/App/Http/Controllers/UserBlockController';
 import { EmptyFeed } from '@/components/commit-feed';
@@ -10,18 +10,18 @@ import { edit as editSafety } from '@/routes/safety';
 import type { User } from '@/types';
 
 export default function Unavailable({
-    username,
+    handle,
     blockedUser,
 }: {
-    username: string;
+    handle: string;
     blockedUser: User | null;
 }) {
     return (
         <>
-            <Head title={`@${username}`} />
+            <Head title={`@${handle}`} />
 
             <div className="sticky top-0 z-10 flex h-14 items-center border-b bg-card px-4">
-                <p className="truncate font-mono text-sm">@{username}</p>
+                <p className="truncate font-mono text-sm">@{handle}</p>
             </div>
 
             <div className="px-6 py-16 text-center sm:px-12">
@@ -32,7 +32,7 @@ export default function Unavailable({
                             className="mx-auto mb-5 size-16 text-xl grayscale"
                             pixels={160}
                         />
-                        <EmptyFeed command={`fatal: @${username} is blocked`}>
+                        <EmptyFeed command={`fatal: @${handle} is blocked`}>
                             <p>
                                 You blocked {blockedUser.name}. Neither of you
                                 can message, follow, reply to, or star the
@@ -45,15 +45,20 @@ export default function Unavailable({
                                             blockedUser,
                                         )}
                                         as="button"
-                                        onSuccess={clearMentionSuggestionsCache}
+                                        onSuccess={() => {
+                                            clearMentionSuggestionsCache();
+                                            router.reload({
+                                                only: ['hotTopics'],
+                                            });
+                                        }}
                                         data-test="unblock-button"
                                     >
                                         <Ban />
-                                        Unblock @{username}
+                                        Unblock @{handle}
                                     </Link>
                                 </Button>
                                 <Button variant="ghost" asChild>
-                                    <Link href={editSafety()}>
+                                    <Link href={editSafety()} prefetch>
                                         Muted and blocked people
                                     </Link>
                                 </Button>
@@ -61,7 +66,7 @@ export default function Unavailable({
                         </EmptyFeed>
                     </>
                 ) : (
-                    <EmptyFeed command={`fatal: @${username} is unavailable`}>
+                    <EmptyFeed command={`fatal: @${handle} is unavailable`}>
                         This profile isn't available.
                     </EmptyFeed>
                 )}

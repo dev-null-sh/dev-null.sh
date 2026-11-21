@@ -3,21 +3,28 @@
 declare(strict_types=1);
 
 use App\Actions\UpdateUserProfile;
+use App\Contracts\Services\GitHubProvider;
+use App\Jobs\LookUpUserOrganizations;
 use App\Models\SshKey;
 use App\Models\User;
-use Illuminate\Http\Client\Request;
-use Illuminate\Support\Facades\Http;
+use App\Queries\GitHubReadmeQuery;
+use GuzzleHttp\Psr7\Response as Psr7Response;
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\RequestException;
+use Illuminate\Http\Client\Response;
+use Illuminate\Support\Facades\Queue;
 use Tests\Support\SshKeyPair;
 
 it('mirrors the github profile of the user', function (): void {
     $user = User::factory()->create([
         'github_id' => '583231',
-        'username' => 'old-username',
+        'handle' => 'old-handle',
         'email' => 'private@example.com',
         'has_sponsors_listing' => true,
     ]);
 
-    fakeGitHubAccount($user, [
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('account')->with($user->github_id)->andReturn([
         'login' => 'octocat',
         'name' => 'The Octocat',
         'email' => null,
@@ -27,12 +34,14 @@ it('mirrors the github profile of the user', function (): void {
         'location' => 'San Francisco',
         'blog' => 'github.blog',
     ]);
+    $github->shouldReceive('login')->with($user->github_id)->andReturn('octocat');
+    $github->shouldReceive('sshKeys')->with('octocat')->andReturn([]);
 
     $synced = resolve(UpdateUserProfile::class)->handle($user);
 
     expect($synced)->toBeTrue()
         ->and($user->refresh())
-        ->username->toBe('octocat')
+        ->handle->toBe('octocat')
         ->name->toBe('The Octocat')
         ->avatar_url->toBe('https://avatars.githubusercontent.com/u/583231?v=4')
         ->bio->toBe('I am the Octocat.')
@@ -44,10 +53,29 @@ it('mirrors the github profile of the user', function (): void {
         ->github_synced_at->toDateTimeString()->toBe(now()->toDateTimeString());
 });
 
+it('queues a lookup of the organizations the synced bio mentions', function (bool $mentions): void {
+    Queue::fake();
+
+    $user = User::factory()->create(['github_id' => '583231']);
+
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('account')->with($user->github_id)->andReturn(['login' => 'octocat', 'bio' => $mentions ? 'Building @laravel' : 'Building things', 'company' => null]);
+    $github->shouldReceive('login')->with($user->github_id)->andReturn('octocat');
+    $github->shouldReceive('sshKeys')->with('octocat')->andReturn([]);
+
+    resolve(UpdateUserProfile::class)->handle($user);
+
+    $mentions
+        ? Queue::assertPushed(LookUpUserOrganizations::class, fn (LookUpUserOrganizations $job): bool => $job->user->is($user))
+        : Queue::assertNotPushed(LookUpUserOrganizations::class);
+})->with(['a mention' => true, 'no mention' => false]);
+
 it('clears profile fields removed on github', function (): void {
     $user = User::factory()->create();
 
-    fakeGitHubAccount($user, [
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('account')->with($user->github_id)->andReturn([
+        'login' => 'octocat',
         'name' => null,
         'avatar_url' => '',
         'bio' => null,
@@ -55,6 +83,8 @@ it('clears profile fields removed on github', function (): void {
         'location' => '  ',
         'blog' => '',
     ]);
+    $github->shouldReceive('login')->with($user->github_id)->andReturn('octocat');
+    $github->shouldReceive('sshKeys')->with('octocat')->andReturn([]);
 
     resolve(UpdateUserProfile::class)->handle($user);
 
@@ -72,10 +102,10 @@ it('mirrors the ssh keys of the user', function (): void {
     $removed = SshKey::factory()->for($user)->create();
     $publicKey = SshKeyPair::generate()->publicKey;
 
-    Http::fake([
-        'api.github.com/user/583231' => Http::response(['id' => 583231, 'login' => 'octocat']),
-    ]);
-    fakeGitHubSshKeys(User::factory()->make(['github_id' => '583231', 'username' => 'octocat']), [$publicKey]);
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('account')->with('583231')->andReturn(['id' => 583231, 'login' => 'octocat']);
+    $github->shouldReceive('login')->with($user->github_id)->andReturn('octocat');
+    $github->shouldReceive('sshKeys')->with('octocat')->andReturn([$publicKey->toOpenSsh()]);
 
     resolve(UpdateUserProfile::class)->handle($user);
 
@@ -83,81 +113,121 @@ it('mirrors the ssh keys of the user', function (): void {
         ->and($user->sshKeys()->sole()->fingerprint)->toBe($publicKey->fingerprint());
 });
 
-it('looks the account up by its github id, so a renamed username cannot be claimed', function (): void {
-    $user = User::factory()->create(['github_id' => '583231', 'username' => 'old-username']);
+it('reads the readme from github again, so an edited one shows after syncing', function (): void {
+    $user = User::factory()->create();
 
-    fakeGitHubAccount($user, ['login' => 'octocat']);
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('account')->with($user->github_id)->andReturn(['login' => 'octocat']);
+    $github->shouldReceive('login')->with($user->github_id)->andReturn('octocat');
+    $github->shouldReceive('sshKeys')->with('octocat')->andReturn([]);
+    $github->shouldReceive('readme')->with('octocat')->andReturn('<p>Old</p>', '<p>New</p>');
+
+    expect(resolve(GitHubReadmeQuery::class)->get($user))->toBe('<p>Old</p>');
 
     resolve(UpdateUserProfile::class)->handle($user);
 
-    Http::assertSent(fn (Request $request): bool => $request->url() === 'https://api.github.com/user/583231');
-    Http::assertNotSent(fn (Request $request): bool => str_contains($request->url(), 'old-username'));
+    expect(resolve(GitHubReadmeQuery::class)->get($user))->toBe('<p>New</p>');
 });
 
-it('leaves the profile and ssh keys untouched when github fails', function (int $status): void {
-    $user = User::factory()->create(['username' => 'old-username', 'bio' => 'Old bio']);
+it('keeps the cached readme when the sync fails', function (): void {
+    $user = User::factory()->create();
+
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($user->github_id)->andReturn('octocat');
+    $github->shouldReceive('account')->with($user->github_id)->andThrow(new ConnectionException());
+    $github->shouldReceive('readme')->with('octocat')->andReturn('<p>Old</p>', '<p>New</p>');
+
+    expect(resolve(GitHubReadmeQuery::class)->get($user))->toBe('<p>Old</p>');
+
+    resolve(UpdateUserProfile::class)->handle($user);
+
+    expect(resolve(GitHubReadmeQuery::class)->get($user))->toBe('<p>Old</p>');
+});
+
+it('looks the account up by its github id, so a renamed handle cannot be claimed', function (): void {
+    $user = User::factory()->create(['github_id' => '583231', 'handle' => 'old-handle']);
+
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('account')->with($user->github_id)->andReturn(['login' => 'octocat']);
+    $github->shouldReceive('login')->with($user->github_id)->andReturn('octocat');
+    $github->shouldReceive('sshKeys')->with('octocat')->andReturn([]);
+
+    resolve(UpdateUserProfile::class)->handle($user);
+
+    $github->shouldHaveReceived('account')->with('583231');
+    $github->shouldNotHaveReceived('accountByLogin');
+    $github->shouldNotHaveReceived('sshKeys', ['old-handle']);
+});
+
+it('leaves the profile and ssh keys untouched when github fails', function (bool $gone): void {
+    $user = User::factory()->create(['handle' => 'old-handle', 'bio' => 'Old bio']);
     $sshKey = SshKey::factory()->for($user)->create();
 
-    Http::fake([
-        "api.github.com/user/{$user->github_id}" => Http::response(['message' => 'Error'], $status),
-    ]);
+    $github = $this->mock(GitHubProvider::class);
+    $gone
+        ? $github->shouldReceive('account')->with($user->github_id)->andReturnNull()
+        : $github->shouldReceive('account')->with($user->github_id)->andThrow(new RequestException(new Response(new Psr7Response(500))));
 
     $synced = resolve(UpdateUserProfile::class)->handle($user);
 
     expect($synced)->toBeFalse()
         ->and($user->refresh())
-        ->username->toBe('old-username')
+        ->handle->toBe('old-handle')
         ->bio->toBe('Old bio')
         ->github_synced_at->toBeNull()
         ->and($sshKey->fresh())->not->toBeNull();
-})->with([403, 404, 500]);
+})->with(['a gone account' => true, 'an error' => false]);
 
 it('leaves the profile untouched when the ssh keys fail to sync', function (): void {
-    $stale = User::factory()->create(['github_id' => '1', 'username' => 'octocat']);
-    $user = User::factory()->create(['github_id' => '583231', 'username' => 'old-username']);
+    $stale = User::factory()->create(['github_id' => '1', 'handle' => 'octocat']);
+    $user = User::factory()->create(['github_id' => '583231', 'handle' => 'old-handle']);
 
-    Http::fake([
-        'api.github.com/user/583231' => Http::response(['id' => 583231, 'login' => 'octocat']),
-        'api.github.com/users/octocat/keys*' => Http::response(['message' => 'Server Error'], 500),
-    ]);
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('account')->with('583231')->andReturn(['id' => 583231, 'login' => 'octocat']);
+    $github->shouldReceive('login')->with('583231')->andReturn('octocat');
+    $github->shouldReceive('sshKeys')->with('octocat')->andThrow(new ConnectionException());
 
     $synced = resolve(UpdateUserProfile::class)->handle($user);
 
     expect($synced)->toBeFalse()
         ->and($user->refresh())
-        ->username->toBe('old-username')
+        ->handle->toBe('old-handle')
         ->github_synced_at->toBeNull()
-        ->and($stale->refresh()->username)->toBe('octocat');
+        ->and($stale->refresh()->handle)->toBe('octocat');
 });
 
 it('fails when github cannot be reached', function (): void {
-    $user = User::factory()->create(['username' => 'old-username']);
+    $user = User::factory()->create(['handle' => 'old-handle']);
 
-    Http::fake(fn () => Http::failedConnection());
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('account')->with($user->github_id)->andThrow(new ConnectionException());
 
     $synced = resolve(UpdateUserProfile::class)->handle($user);
 
     expect($synced)->toBeFalse()
-        ->and($user->refresh()->username)->toBe('old-username');
+        ->and($user->refresh()->handle)->toBe('old-handle');
 });
 
-it('frees the stale username when syncing a renamed github account', function (string $staleUsername): void {
-    $stale = User::factory()->create(['github_id' => '1', 'username' => $staleUsername, 'bio' => 'Renamed away']);
-    $user = User::factory()->create(['github_id' => '583231', 'username' => 'old-username', 'email' => 'private@example.com']);
+it('frees the stale handle when syncing a renamed github account', function (string $staleUsername): void {
+    $stale = User::factory()->create(['github_id' => '1', 'handle' => $staleUsername, 'bio' => 'Renamed away']);
+    $user = User::factory()->create(['github_id' => '583231', 'handle' => 'old-handle', 'email' => 'private@example.com']);
 
-    fakeGitHubAccount($user, ['login' => 'octocat']);
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('account')->with($user->github_id)->andReturn(['login' => 'octocat']);
+    $github->shouldReceive('login')->with($user->github_id)->andReturn('octocat');
+    $github->shouldReceive('sshKeys')->with('octocat')->andReturn([]);
 
     $synced = resolve(UpdateUserProfile::class)->handle($user);
 
     expect($synced)->toBeTrue()
         ->and($user->refresh())
-        ->username->toBe('octocat')
+        ->handle->toBe('octocat')
         ->github_id->toBe('583231')
         ->email->toBe('private@example.com')
         ->github_synced_at->toDateTimeString()->toBe(now()->toDateTimeString());
 
     expect($stale->refresh())
-        ->username->toBe('_renamed-1')
+        ->handle->toBe('_renamed-1')
         ->github_id->toBe('1')
         ->bio->toBe('Renamed away')
         ->and(User::query()->count())->toBe(2);

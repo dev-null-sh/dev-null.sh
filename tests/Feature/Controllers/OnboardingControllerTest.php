@@ -2,9 +2,11 @@
 
 declare(strict_types=1);
 
+use App\Actions\CreateTomFriendship;
 use App\Enums\Log;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\Commit;
+use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 
@@ -70,6 +72,66 @@ it('leaves the suggestions out of partial reloads that do not ask for them', fun
         ->assertJsonMissingPath('props.suggestions');
 
     expect(collect(DB::getQueryLog())->filter(fn (array $query): bool => str_contains($query['query'], 'as "followed_by_following_count"')))->toBeEmpty();
+});
+
+it('waits for the GitHub import to have run', function (): void {
+    $user = User::factory()->notOnboarded()->create(['github_follows_imported_at' => null]);
+
+    $response = $this->actingAs($user)
+        ->get(route('onboarding.show'));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page->where('githubImport', null));
+});
+
+it('shows the follows the GitHub import brought over', function (): void {
+    $this->travelTo(now()->startOfSecond());
+
+    $user = User::factory()->notOnboarded()->create(['github_follows_imported_at' => now()]);
+    // Tom's friendship is made at sign-up too, right before the import...
+    resolve(CreateTomFriendship::class)->handle($user);
+    $followed = User::factory()->count(9)->create();
+    $followers = User::factory()->count(2)->create();
+    $user->following()->attach($followed->modelKeys(), ['created_at' => now()->subSeconds(3), 'updated_at' => now()]);
+    $user->followers()->attach($followers->modelKeys(), ['created_at' => now()->subSeconds(3), 'updated_at' => now()]);
+    $organizations = Organization::factory()->count(2)->create();
+    $user->followedOrganizations()->attach($organizations->modelKeys(), ['created_at' => now()->subSeconds(3)]);
+
+    // Followed after the import, from the onboarding itself...
+    $this->travel(1)->minute();
+    $user->following()->attach(User::factory()->create(), ['created_at' => now(), 'updated_at' => now()]);
+    $user->followedOrganizations()->attach(Organization::factory()->create(), ['created_at' => now()]);
+
+    $response = $this->actingAs($user)
+        ->get(route('onboarding.show'));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->has('githubImport.following', 5)
+            ->where('githubImport.following', fn ($users): bool => collect($users)->pluck('id')->diff($followed->modelKeys())->isEmpty())
+            ->where('githubImport.followingCount', 9)
+            ->where('githubImport.organizations', fn ($imported): bool => collect($imported)->pluck('handle')->sort()->values()->all() === $organizations->pluck('handle')->sort()->values()->all())
+            ->where('githubImport.organizations.0.lane', null)
+            ->where('githubImport.organizationsCount', 2)
+            ->where('githubImport.followers', fn ($users): bool => collect($users)->pluck('id')->sort()->values()->all() === collect($followers->modelKeys())->sort()->values()->all())
+            ->where('githubImport.followersCount', 2)
+            ->where('githubImport.pendingCount', 0));
+});
+
+it('shows the organizations imported after the people, for users who signed up before organizations could be followed', function (): void {
+    $this->travelTo(now()->startOfSecond());
+
+    $user = User::factory()->notOnboarded()->create(['github_follows_imported_at' => now()->subDay(), 'github_organization_follows_imported_at' => now()]);
+    $organization = Organization::factory()->create();
+    $user->followedOrganizations()->attach($organization, ['created_at' => now()->subSeconds(3)]);
+
+    $response = $this->actingAs($user)
+        ->get(route('onboarding.show'));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('githubImport.organizations.0.handle', $organization->handle)
+            ->where('githubImport.organizationsCount', 1));
 });
 
 it('is not found once the user has onboarded', function (): void {

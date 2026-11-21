@@ -16,19 +16,23 @@ export function ImageViewer({
     onView,
     onClose,
     downloadUrl,
+    downloadFilename,
     className,
     styles,
     toolbarButtons = [],
+    showZoomButton = true,
     controls,
 }: {
-    images: ShownImage[];
+    images: (ShownImage & { alt?: string })[];
     index: number | null;
     onView: (index: number) => void;
     onClose: () => void;
-    downloadUrl: (image: ShownImage) => string;
+    downloadUrl?: (image: ShownImage) => string;
+    downloadFilename?: (image: ShownImage, index: number) => string;
     className?: string;
     styles?: LightboxProps['styles'];
     toolbarButtons?: ReactNode[];
+    showZoomButton?: boolean;
     controls?: () => ReactNode;
 }) {
     const [captionedImageId, setCaptionedImageId] = useState<string | null>(
@@ -38,7 +42,7 @@ export function ImageViewer({
     const isOpen = index !== null;
 
     useEffect(() => {
-        if (!isOpen) {
+        if (!isOpen || typeof document === 'undefined') {
             return;
         }
 
@@ -68,18 +72,32 @@ export function ImageViewer({
         () =>
             images.map((image, imageIndex, all) => ({
                 src: image.url,
-                alt: commitImageAlt(image, imageIndex, all.length),
+                alt: image.alt ?? commitImageAlt(image, imageIndex, all.length),
                 width: image.width,
                 height: image.height,
-                download: {
-                    url: downloadUrl(image),
-                    filename: `${image.id}.webp`,
-                },
+                ...(downloadUrl && {
+                    download: {
+                        url: downloadUrl(image),
+                        filename:
+                            downloadFilename?.(image, imageIndex) ??
+                            `${image.id}.webp`,
+                    },
+                }),
             })),
-        [images, downloadUrl],
+        [images, downloadUrl, downloadFilename],
     );
 
     const hasMultipleImages = slides.length > 1;
+
+    const plugins = useMemo(() => {
+        const list = hasMultipleImages ? [Counter, Zoom] : [Zoom];
+
+        if (downloadUrl) {
+            list.push(Download);
+        }
+
+        return list;
+    }, [hasMultipleImages, downloadUrl]);
 
     return (
         <Lightbox
@@ -94,9 +112,7 @@ export function ImageViewer({
                     }
                 },
             }}
-            plugins={
-                hasMultipleImages ? [Counter, Zoom, Download] : [Zoom, Download]
-            }
+            plugins={plugins}
             className={className}
             styles={{
                 ...styles,
@@ -115,6 +131,7 @@ export function ImageViewer({
             }}
             toolbar={{ buttons: [...toolbarButtons, 'close'] }}
             render={{
+                ...(!showZoomButton && { buttonZoom: () => null }),
                 ...(!hasMultipleImages && {
                     buttonPrev: () => null,
                     buttonNext: () => null,

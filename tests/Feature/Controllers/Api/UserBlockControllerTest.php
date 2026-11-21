@@ -11,7 +11,7 @@ beforeEach(function (): void {
 });
 
 it('may block a user, which ends the follows both ways, and answers with them and that they are blocked', function (): void {
-    $user = User::factory()->create(['username' => 'octocat']);
+    $user = User::factory()->create(['handle' => 'octocat']);
 
     $this->user->following()->attach($user);
     $user->following()->attach($this->user);
@@ -20,7 +20,7 @@ it('may block a user, which ends the follows both ways, and answers with them an
 
     $response->assertOk()
         ->assertJsonPath('data.id', $user->id)
-        ->assertJsonPath('data.username', 'octocat')
+        ->assertJsonPath('data.handle', 'octocat')
         ->assertJsonPath('data.lane', $user->lane())
         ->assertJsonPath('is_blocking', true);
 
@@ -84,7 +84,7 @@ it('may unblock a user who was not blocked', function (): void {
         ->assertJsonPath('is_blocking', false);
 });
 
-it('returns not found for unknown usernames', function (string $method): void {
+it('returns not found for unknown handles', function (string $method): void {
     signedApiRequest($this->keyPair, $method, 'api/v1/users/missing/block')->assertNotFound();
 })->with(['POST', 'DELETE']);
 
@@ -102,7 +102,7 @@ it('lists the people the user blocks, last blocked first, as Settings → Safety
     signedApiRequest($this->keyPair, 'GET', route('api-user-block.index'))
         ->assertOk()
         ->assertJsonPath('data.*.id', [$second->id, $first->id])
-        ->assertJsonPath('data.0.username', $second->username)
+        ->assertJsonPath('data.0.handle', $second->handle)
         ->assertJsonPath('data.0.name', $second->name)
         ->assertJsonPath('data.0.avatar_url', $second->avatar_url)
         ->assertJsonPath('data.0.lane', $second->lane())

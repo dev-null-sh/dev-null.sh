@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Actions\CreateCommitStar;
 use App\Actions\DeleteCommitStar;
+use App\Dto\ThreadEngagement;
 use App\Models\Commit;
 use App\Models\User;
 use App\Services\TheAlgorithm;
@@ -81,5 +82,5 @@ it('lowers the commit back', function (): void {
     resolve(DeleteCommitStar::class)->handle($user, $commit);
 
     expect($commit->fresh()->hot_score)
-        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, 0, 0), 1e-9);
+        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, ThreadEngagement::none()), 1e-9);
 });

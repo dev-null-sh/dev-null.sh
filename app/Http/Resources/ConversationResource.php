@@ -14,7 +14,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * A row of the web's inbox: the partner, or an org's name and members, the last message, how many messages from
  * others the user hasn't pulled yet (`ahead`), the id of the newest message from others, read or not and never an
  * org event (`last_incoming_message_id`), how far the partner has pulled when both of them share pulls, whether the
- * user stashed it, and until when they muted it.
+ * user stashed or pinned it, and until when they muted it.
  *
  * @phpstan-import-type ConversationSummary from ConversationsQuery
  */

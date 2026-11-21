@@ -84,7 +84,7 @@ it('stops serving it once the user can no longer see the message', function (): 
 
     $this->get($url)->assertOk();
 
-    $this->actingAs($this->nuno)->deleteJson(route('org-member.destroy', ['org' => $org, 'member' => $this->user->username]))->assertNoContent();
+    $this->actingAs($this->nuno)->deleteJson(route('org-member.destroy', ['org' => $org, 'member' => $this->user->handle]))->assertNoContent();
 
     $this->get($url)->assertNotFound();
 });

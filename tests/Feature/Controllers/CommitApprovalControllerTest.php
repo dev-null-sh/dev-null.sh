@@ -11,7 +11,7 @@ beforeEach(function (): void {
 });
 
 it('may approve a commit', function (): void {
-    $admin = User::factory()->create(['username' => 'admin']);
+    $admin = User::factory()->create(['handle' => 'admin']);
     $commit = Commit::factory()->pending()->create();
 
     $response = $this->actingAs($admin)
@@ -24,7 +24,7 @@ it('may approve a commit', function (): void {
 });
 
 it('may not approve a deleted commit', function (): void {
-    $admin = User::factory()->create(['username' => 'admin']);
+    $admin = User::factory()->create(['handle' => 'admin']);
     $commit = Commit::factory()->pending()->create();
     $commit->delete();
 

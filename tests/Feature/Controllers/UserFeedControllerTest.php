@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Models\Commit;
 use App\Models\CommitImage;
+use App\Models\Guild;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Testing\TestResponse;
@@ -23,7 +24,7 @@ function atomFeed(TestResponse $response): SimpleXMLElement
 
 it('serves the public top-level commits of a user as an atom feed', function (): void {
     $user = User::factory()->create([
-        'username' => 'octocat',
+        'handle' => 'octocat',
         'name' => 'The Octocat',
         'bio' => 'I am the Octocat.',
     ]);
@@ -34,6 +35,7 @@ it('serves the public top-level commits of a user as an atom feed', function ():
         'created_at' => now()->subDay(),
     ]);
     $newer = Commit::factory()->for($user)->create(['body' => 'Second commit']);
+    Commit::factory()->for($user)->for(Guild::factory())->create(['body' => 'Only on the guild board']);
     Commit::factory()->for($user)->for($older, 'parent')->create(['body' => 'A reply']);
     Commit::factory()->for($user)->pending()->create(['body' => 'Pending commit']);
     Commit::factory()->for($user)->rejected()->create(['body' => 'Rejected commit']);
@@ -44,6 +46,7 @@ it('serves the public top-level commits of a user as an atom feed', function ():
 
     $response->assertOk()
         ->assertHeader('Content-Type', 'application/atom+xml; charset=UTF-8')
+        ->assertDontSee('Only on the guild board')
         ->assertDontSee('A reply')
         ->assertDontSee('Pending commit')
         ->assertDontSee('Rejected commit')
@@ -74,7 +77,7 @@ it('serves the public top-level commits of a user as an atom feed', function ():
 });
 
 it('attaches the images of commits as enclosures', function (): void {
-    $user = User::factory()->create(['username' => 'octocat']);
+    $user = User::factory()->create(['handle' => 'octocat']);
     $commit = Commit::factory()->for($user)->create();
     $second = CommitImage::factory()->for($commit)->create(['position' => 1]);
     $first = CommitImage::factory()->for($commit)->create(['position' => 0]);
@@ -91,7 +94,7 @@ it('attaches the images of commits as enclosures', function (): void {
 });
 
 it('renders the feed without a query per commit', function (): void {
-    $user = User::factory()->create(['username' => 'octocat']);
+    $user = User::factory()->create(['handle' => 'octocat']);
 
     $create = fn (int $count) => Commit::factory()->for($user)->count($count)
         ->has(CommitImage::factory()->count(2)->sequence(['position' => 0], ['position' => 1]), 'images')
@@ -115,7 +118,7 @@ it('renders the feed without a query per commit', function (): void {
 });
 
 it('lets readers cache the feed and revalidate it', function (): void {
-    Commit::factory()->for(User::factory()->create(['username' => 'octocat']))->create();
+    Commit::factory()->for(User::factory()->create(['handle' => 'octocat']))->create();
 
     $response = $this->get('/@octocat/feed.atom');
 
@@ -128,7 +131,7 @@ it('lets readers cache the feed and revalidate it', function (): void {
 });
 
 it('limits the feed to the latest 50 commits', function (): void {
-    $user = User::factory()->create(['username' => 'octocat']);
+    $user = User::factory()->create(['handle' => 'octocat']);
 
     $commits = Commit::factory()->for($user)->count(51)->sequence(
         fn ($sequence): array => ['created_at' => now()->subMinutes($sequence->index)],
@@ -141,7 +144,7 @@ it('limits the feed to the latest 50 commits', function (): void {
 });
 
 it('titles entries with the start of long commits', function (): void {
-    $user = User::factory()->create(['username' => 'octocat']);
+    $user = User::factory()->create(['handle' => 'octocat']);
     $body = "Spent the afternoon reading the Atom spec\n\nso feed readers can follow devnull profiles without signing in.";
 
     Commit::factory()->for($user)->create(['body' => $body]);
@@ -154,7 +157,7 @@ it('titles entries with the start of long commits', function (): void {
 
 it('escapes commits and profiles into valid xml', function (): void {
     $user = User::factory()->create([
-        'username' => 'octocat',
+        'handle' => 'octocat',
         'name' => 'Tom & "Jerry" <script>',
         'bio' => null,
     ]);
@@ -175,7 +178,7 @@ it('escapes commits and profiles into valid xml', function (): void {
 
 it('updates the feed timestamp when the profile changes', function (): void {
     $user = User::factory()->create([
-        'username' => 'octocat',
+        'handle' => 'octocat',
         'created_at' => now()->subWeek(),
         'updated_at' => now()->subWeek(),
     ]);
@@ -185,7 +188,7 @@ it('updates the feed timestamp when the profile changes', function (): void {
 
     expect((string) $before->updated)->toBe(now()->subDay()->toAtomString());
 
-    $user->update(['bio' => 'Updated profile']);
+    $user->profile->update(['bio' => 'Updated profile']);
 
     $after = atomFeed($this->get('/@octocat/feed.atom'));
 
@@ -195,7 +198,7 @@ it('updates the feed timestamp when the profile changes', function (): void {
 
 it('serves an empty feed for users without public commits', function (): void {
     $user = User::factory()->create([
-        'username' => 'octocat',
+        'handle' => 'octocat',
         'created_at' => now()->subYear(),
         'updated_at' => now()->subYear(),
     ]);
@@ -208,6 +211,12 @@ it('serves an empty feed for users without public commits', function (): void {
         ->and((string) $feed->updated)->toBe(now()->subYear()->toAtomString());
 });
 
-it('returns not found for unknown usernames', function (): void {
+it('returns not found for unknown handles', function (): void {
     $this->get('/@missing/feed.atom')->assertNotFound();
+});
+
+it('serves the feed of a user whatever the case of the handle', function (): void {
+    User::factory()->create(['handle' => 'OctoCat']);
+
+    $this->get('/@octocat/feed.atom')->assertOk();
 });

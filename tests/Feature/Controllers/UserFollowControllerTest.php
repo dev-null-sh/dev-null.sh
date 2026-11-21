@@ -164,7 +164,7 @@ it('removes unfollowed commits and restores suggestions after the last unfollow'
         ->assertJsonPath('props.auth.user.following_count', 0)
         ->assertJsonPath('props.commits.data', [])
         ->assertJsonCount(1, 'props.suggestions')
-        ->assertJsonPath('props.suggestions.0.user.id', $author->id)
+        ->assertJsonPath('props.suggestions.0.author.id', $author->id)
         ->assertJsonPath('scrollProps.commits.reset', true)
         ->assertJsonMissingPath('mergeProps');
 

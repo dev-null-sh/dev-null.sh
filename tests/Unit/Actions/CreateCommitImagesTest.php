@@ -5,6 +5,8 @@ declare(strict_types=1);
 use App\Actions\CreateCommitImages;
 use App\Models\Commit;
 use App\Models\CommitImage;
+use Illuminate\Contracts\Filesystem\Factory as FilesystemFactory;
+use Illuminate\Filesystem\FilesystemAdapter;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
@@ -34,6 +36,28 @@ it('stores images of a commit as webp in order', function (): void {
         expect($image->path)->toStartWith('commit-images/')->toEndWith('.webp')
             ->and(getimagesizefromstring((string) Storage::disk()->get($image->path))['mime'] ?? null)->toBe('image/webp');
     });
+});
+
+it('fails when an image cannot be stored', function (): void {
+    $disk = Mockery::mock(FilesystemAdapter::class);
+    $disk->shouldReceive('put')->once()->andReturnFalse();
+
+    $storage = Mockery::mock(FilesystemFactory::class);
+    $storage->shouldReceive('disk')->once()->with(null)->andReturn($disk);
+    $originalStorage = app()->make(FilesystemFactory::class);
+    app()->instance(FilesystemFactory::class, $storage);
+
+    $commit = Commit::factory()->create();
+
+    try {
+        expect(fn () => resolve(CreateCommitImages::class)->handle($commit, [
+            UploadedFile::fake()->image('evidence.png'),
+        ]))->toThrow(RuntimeException::class, 'Unable to store image.');
+    } finally {
+        app()->instance(FilesystemFactory::class, $originalStorage);
+    }
+
+    expect($commit->images()->count())->toBe(0);
 });
 
 it('drops anything smuggled alongside the pixels', function (): void {

@@ -4,16 +4,20 @@ declare(strict_types=1);
 
 namespace App\Http\Resources;
 
+use App\Models\Organization;
 use App\Models\User;
 use App\Queries\ConversationsQuery;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
- * The signed-in user: their public profile, plus what only they see on the web's profile settings. That is the lane
- * or custom color they chose (`null` for Automatic) and the one Automatic gives them, their GitHub Sponsors page, and when their profile
- * was last mirrored from GitHub. Their Remotes are `null` while turned off, as the web hides them, and otherwise say who
- * can push to them, whether they share pulls, what the site lets them choose, and the unread count the web's nav shows.
+ * The signed-in user: their public profile, plus what only they see on the web's profile settings. That is the lane or
+ * custom color they chose (`null` for Automatic) and the one Automatic gives them, their GitHub Sponsors page, and when
+ * their profile was last mirrored from GitHub. The version of the terms in force, when they accepted, and whether it
+ * was this version, so the app knows to ask. Their Remotes are `null` while turned off, as the web hides them, and
+ * otherwise say who can push to them, whether they share pulls, what the site lets them choose, and the unread count
+ * the web's nav shows. The organizations they are a member of, with their role in each, oldest membership first, which
+ * the web's Post as menu needs.
  *
  * @mixin User
  */
@@ -34,8 +38,11 @@ final class CurrentUserResource extends JsonResource
             'pasteis_received' => $this->pasteis_received,
             'preferred_lane' => $this->preferredLane(),
             'automatic_lane' => $this->automaticLane(),
-            'sponsors_url' => $this->has_sponsors_listing ? "https://github.com/sponsors/{$this->username}" : null,
+            'sponsors_url' => $this->has_sponsors_listing ? "https://github.com/sponsors/{$this->handle}" : null,
             'github_synced_at' => $this->github_synced_at?->toIso8601ZuluString(),
+            'terms_version' => config('legal.terms_version'),
+            'terms_accepted_at' => $this->terms_accepted_at?->toIso8601ZuluString(),
+            'terms_accepted' => $this->hasAcceptedCurrentTerms(),
             'remotes' => $this->remotes_enabled && $user instanceof User ? [
                 'from' => $this->remotes_from,
                 'pull_receipts' => $this->pull_receipts,
@@ -43,6 +50,17 @@ final class CurrentUserResource extends JsonResource
                 'everyone' => (bool) config('remotes.everyone'),
                 'unread_count' => resolve(ConversationsQuery::class)->unreadCount($user),
             ] : null,
+            'organizations' => $this->organizations()
+                ->oldest('organization_members.created_at')
+                ->oldest('organization_members.organization_id')
+                ->get()
+                ->map(fn (Organization $organization): array => [
+                    'type' => 'organization',
+                    'id' => $organization->id,
+                    'role' => data_get($organization, 'pivot.role'),
+                    ...OrganizationResource::make($organization)->toArray($request),
+                ])
+                ->all(),
         ];
     }
 }

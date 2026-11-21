@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Requests;
 
 use App\Models\User;
+use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Http\FormRequest;
 
 final class ShowModerationRequest extends FormRequest
@@ -18,10 +19,35 @@ final class ShowModerationRequest extends FormRequest
     }
 
     /**
-     * @return array{}
+     * @return array<string, list<string>>
      */
     public function rules(): array
     {
-        return [];
+        return [
+            'since' => ['nullable', 'integer', 'min:0'],
+            'loaded' => ['sometimes', 'array', 'list', 'max:100'],
+            'loaded.*' => ['required', 'uuid', 'distinct'],
+        ];
+    }
+
+    /**
+     * The commits the queue showed, to tell which of them were decided since.
+     *
+     * @return list<string>
+     */
+    public function loaded(): array
+    {
+        /** @var list<string> $ids */
+        $ids = $this->validated('loaded', []);
+
+        return $ids;
+    }
+
+    /**
+     * When the queue last read what it shows, in milliseconds, never later than now.
+     */
+    public function since(): CarbonImmutable
+    {
+        return CarbonImmutable::createFromTimestampMs(min($this->integer('since'), now()->getTimestampMs()));
     }
 }

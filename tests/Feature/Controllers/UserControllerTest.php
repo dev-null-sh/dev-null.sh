@@ -2,17 +2,26 @@
 
 declare(strict_types=1);
 
+use App\Contracts\Services\GitHubProvider;
+use App\Enums\Feature;
 use App\Enums\Log;
+use App\Enums\ModerationReason;
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Models\BanEvent;
 use App\Models\Commit;
+use App\Models\Guild;
 use App\Models\LinkPreview;
+use App\Models\Organization;
 use App\Models\User;
+use App\Models\UserTimeout;
+use App\Services\Features;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Inertia\Testing\AssertableInertia;
 
 it('renders a user profile', function (): void {
-    $user = User::factory()->create(['username' => 'octocat', 'preferred_lane' => 4]);
+    $user = User::factory()->create(['handle' => 'octocat', 'preferred_lane' => 4]);
     $viewer = User::factory()->create();
 
     $user->followers()->attach($viewer);
@@ -29,7 +38,7 @@ it('renders a user profile', function (): void {
         ->assertInertia(fn ($page) => $page
             ->component('user/show')
             ->where('user.id', $user->id)
-            ->where('user.username', 'octocat')
+            ->where('user.handle', 'octocat')
             ->where('user.lane', 4)
             ->where('user.commits_count', 2)
             ->where('user.followers_count', 1)
@@ -42,15 +51,130 @@ it('renders a user profile', function (): void {
             ->has('achievements')
             ->has('commits.data', 2)
             ->where('commits.data.0.body', 'Newer')
-            ->where('commits.data.0.user.username', 'octocat')
+            ->where('commits.data.0.author.handle', 'octocat')
             ->where('commits.data.0.stars_count', 0)
             ->where('commits.data.0.starred', false)
             ->where('commits.data.1.body', 'Older'));
 });
 
+it('shows the guilds the profile owner joined rather than the viewers guilds or mute-only preferences', function (): void {
+    config(['app.admins' => ['admin']]);
+    $viewer = User::factory()->create(['handle' => 'admin']);
+    $user = User::factory()->create();
+    $rust = Guild::factory()->create(['handle' => 'rust']);
+    $laravel = Guild::factory()->create(['handle' => 'laravel']);
+    $left = Guild::factory()->create();
+    $viewersGuild = Guild::factory()->create();
+    $rust->members()->attach($user, ['joined_at' => now(), 'muted_at' => now()]);
+    $laravel->members()->attach($user, ['joined_at' => now()]);
+    $left->muters()->attach($user, ['muted_at' => now()]);
+    $viewersGuild->members()->attach($viewer, ['joined_at' => now()]);
+
+    $this->actingAs($viewer)->get(route('user.show', $user))
+        ->assertOk()
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
+            ->where('profileGuilds', ['laravel', 'rust']));
+
+    $rust->members()->detach($user);
+    $laravel->members()->detach($user);
+
+    $this->get(route('user.show', $user))
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
+            ->where('profileGuilds', []));
+});
+
+it('does not expose profile guild memberships without access to guilds', function (?string $viewerHandle, bool $enabled): void {
+    config(['app.admins' => ['admin']]);
+    resolve(Features::class)->update(Feature::Guilds, $enabled);
+    $user = User::factory()->create();
+    Guild::factory()->create()->members()->attach($user, ['joined_at' => now()]);
+
+    if ($viewerHandle !== null) {
+        $this->actingAs(User::factory()->create(['handle' => $viewerHandle]));
+    }
+
+    $this->get(route('user.show', $user))
+        ->assertOk()
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
+            ->where('profileGuilds', null));
+})->with([
+    'guest' => [null, true],
+    'outside preview' => ['member', true],
+    'disabled' => ['admin', false],
+]);
+
+it('shows the profile owner and site moderators the user moderation history', function (): void {
+    $user = User::factory()->create(['handle' => 'octocat']);
+    UserTimeout::factory()->create([
+        'github_id' => $user->github_id,
+        'reason' => ModerationReason::LowEffort,
+        'created_at' => now()->subDays(2),
+        'ends_at' => now()->subDay(),
+    ]);
+    BanEvent::query()->create([
+        'github_id' => $user->github_id,
+        'reason' => ModerationReason::Spam,
+    ]);
+    $inertiaHeaders = [
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request()),
+    ];
+
+    $this->actingAs($user);
+
+    $this->get(route('user.show', $user), $inertiaHeaders)
+        ->assertJsonPath('props.moderationHistory.timeoutsCount', 1)
+        ->assertJsonPath('props.moderationHistory.bansCount', 1)
+        ->assertJsonPath('props.moderationHistory.timeouts.0.reason', 'Low-effort posts')
+        ->assertJsonPath('props.moderationHistory.timeouts.0.duration', '1 day')
+        ->assertJsonPath('props.moderationHistory.bans.0.reason', 'Spam or self-promotion');
+
+    config(['app.admins' => ['admin']]);
+    $moderator = User::factory()->create(['handle' => 'admin']);
+
+    $this->actingAs($moderator);
+
+    $this->get(route('user.show', $user), $inertiaHeaders)
+        ->assertJsonPath('props.moderationHistory.timeoutsCount', 1)
+        ->assertJsonPath('props.moderationHistory.bansCount', 1);
+
+    $viewer = User::factory()->create();
+
+    $this->actingAs($viewer);
+
+    $this->get(route('user.show', $user), $inertiaHeaders)
+        ->assertJsonPath('props.moderationHistory', null);
+});
+
+it('says which accounts the bio and company mention are on dev/null', function (): void {
+    Organization::factory()->create(['handle' => 'laravel']);
+    User::factory()->create(['handle' => 'TaylorOtwell']);
+    User::factory()->create(['handle' => 'octocat', 'bio' => 'Thanks @taylorotwell and @nobody', 'company' => '@laravel']);
+
+    $this->get('/@octocat')
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
+            ->where('bioProfiles', ['taylorotwell' => 'TaylorOtwell', 'laravel' => 'laravel']));
+});
+
+it('shares which accounts the bio of the signed-in user mentions are on dev/null', function (): void {
+    Organization::factory()->create(['handle' => 'laravel']);
+    $user = User::factory()->create(['bio' => 'Building @laravel']);
+
+    $this->actingAs($user)
+        ->get('/@laravel')
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
+            ->where('auth.bioProfiles', ['laravel' => 'laravel']));
+
+    auth()->logout();
+
+    $this->get('/@laravel')
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
+            ->where('auth.bioProfiles', []));
+});
+
 it('only lets guests see the local time of users who opted in', function (): void {
-    User::factory()->create(['username' => 'shared', 'timezone' => 'Europe/Berlin', 'show_local_time' => true]);
-    User::factory()->create(['username' => 'private', 'timezone' => 'Europe/Berlin']);
+    User::factory()->create(['handle' => 'shared', 'timezone' => 'Europe/Berlin', 'show_local_time' => true]);
+    User::factory()->create(['handle' => 'private', 'timezone' => 'Europe/Berlin']);
 
     $this->get('/@shared')
         ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
@@ -75,7 +199,7 @@ it('renders whether the user can be sponsored on github', function (): void {
 });
 
 it('does not count the user relations or activity when reloading only commits', function (string $tab): void {
-    $user = User::factory()->has(Commit::factory())->create(['username' => 'octocat']);
+    $user = User::factory()->has(Commit::factory())->create(['handle' => 'octocat']);
     Commit::factory()->for($user)->for(Commit::factory(), 'parent')->create();
 
     $response = $this->actingAs(User::factory()->create())
@@ -105,7 +229,7 @@ it('does not count the user relations or activity when reloading only commits', 
 })->with(['commits', 'replies']);
 
 it('does not count the profile of guests reloading only commits', function (): void {
-    User::factory()->has(Commit::factory())->create(['username' => 'octocat']);
+    User::factory()->has(Commit::factory())->create(['handle' => 'octocat']);
 
     DB::enableQueryLog();
 
@@ -128,7 +252,7 @@ it('does not count the profile of guests reloading only commits', function (): v
 });
 
 it('counts the profile of guests once for both the page and its link preview', function (): void {
-    $user = User::factory()->has(Commit::factory())->create(['username' => 'octocat']);
+    $user = User::factory()->has(Commit::factory())->create(['handle' => 'octocat']);
     $user->followers()->attach(User::factory()->create());
 
     DB::enableQueryLog();
@@ -149,7 +273,7 @@ it('counts the profile of guests once for both the page and its link preview', f
 it('renders the user commit activity for the last year', function (): void {
     $this->travelTo(now()->setDate(2026, 10, 15)->setTime(12, 0));
 
-    $user = User::factory()->create(['username' => 'octocat']);
+    $user = User::factory()->create(['handle' => 'octocat']);
 
     Commit::factory()->for($user)->count(2)->create();
     Commit::factory()->for($user)->create(['created_at' => now()->subDays(3)]);
@@ -171,7 +295,7 @@ it('renders the user commit activity for the last year', function (): void {
 it('renders the hourly commit activity of a user who only committed today', function (): void {
     $this->travelTo(now()->setDate(2026, 10, 15)->setTime(12, 0));
 
-    $user = User::factory()->create(['username' => 'octocat', 'created_at' => now()->subMonths(3)]);
+    $user = User::factory()->create(['handle' => 'octocat', 'created_at' => now()->subMonths(3)]);
 
     Commit::factory()->for($user)->count(2)->create();
     Commit::factory()->for($user)->create(['created_at' => now()->subHours(3)]);
@@ -188,7 +312,7 @@ it('renders the hourly commit activity of a user who only committed today', func
 });
 
 it('renders the user commit streaks alongside starred commits', function (): void {
-    $user = User::factory()->create(['username' => 'octocat']);
+    $user = User::factory()->create(['handle' => 'octocat']);
     $viewer = User::factory()->create();
 
     $commit = Commit::factory()->for($user)->create();
@@ -210,7 +334,7 @@ it('renders the user commit streaks alongside starred commits', function (): voi
 });
 
 it('does not compute the streaks when reloading only commits', function (string $tab): void {
-    $user = User::factory()->has(Commit::factory())->create(['username' => 'octocat']);
+    $user = User::factory()->has(Commit::factory())->create(['handle' => 'octocat']);
     Commit::factory()->for($user)->for(Commit::factory(), 'parent')->create();
 
     $response = $this->actingAs(User::factory()->create())
@@ -262,7 +386,7 @@ it('still shows the commits of a muted user on their profile', function (): void
 
 it('shows the blocker who they blocked, without any of their commits', function (): void {
     $viewer = User::factory()->create();
-    $user = User::factory()->has(Commit::factory())->create(['username' => 'octocat', 'pinned_commit_id' => null]);
+    $user = User::factory()->has(Commit::factory())->create(['handle' => 'octocat', 'pinned_commit_id' => null]);
 
     $viewer->blocking()->attach($user);
 
@@ -272,7 +396,7 @@ it('shows the blocker who they blocked, without any of their commits', function 
     $response->assertOk()
         ->assertInertia(fn ($page) => $page
             ->component('user/unavailable')
-            ->where('username', 'octocat')
+            ->where('handle', 'octocat')
             ->where('blockedUser.id', $user->id)
             ->where('blockedUser.lane', $user->lane())
             ->missing('blockedUser.email')
@@ -282,7 +406,7 @@ it('shows the blocker who they blocked, without any of their commits', function 
 
 it('shows a neutral unavailable profile to someone the user blocked', function (): void {
     $viewer = User::factory()->create();
-    $user = User::factory()->has(Commit::factory())->create(['username' => 'octocat', 'bio' => 'Private bio']);
+    $user = User::factory()->has(Commit::factory())->create(['handle' => 'octocat', 'bio' => 'Private bio']);
 
     $user->blocking()->attach($viewer);
 
@@ -292,7 +416,7 @@ it('shows a neutral unavailable profile to someone the user blocked', function (
     $response->assertOk()
         ->assertInertia(fn ($page) => $page
             ->component('user/unavailable')
-            ->where('username', 'octocat')
+            ->where('handle', 'octocat')
             ->where('blockedUser', null)
             ->missing('commits')
             ->missing('user'));
@@ -315,16 +439,9 @@ it('renders whether the user follows the viewer', function (): void {
             ->where('followsYou', true));
 });
 
-it('returns not found for unknown usernames', function (): void {
-    $response = $this->actingAs(User::factory()->create())
-        ->get('/@missing');
-
-    $response->assertNotFound();
-});
-
 it('shows guests the profile with its approved commits and a link preview', function (): void {
     $user = User::factory()->create([
-        'username' => 'octocat',
+        'handle' => 'octocat',
         'name' => 'The Octocat',
         'bio' => 'I am the Octocat.',
     ]);
@@ -363,7 +480,7 @@ it('shows guests the profile with its approved commits and a link preview', func
 });
 
 it('describes guests a profile without a bio', function (): void {
-    User::factory()->create(['username' => 'octocat', 'name' => 'octocat', 'bio' => null]);
+    User::factory()->create(['handle' => 'octocat', 'name' => 'octocat', 'bio' => null]);
 
     $this->get('/@octocat')
         ->assertOk()
@@ -373,7 +490,7 @@ it('describes guests a profile without a bio', function (): void {
 
 it('escapes the profile in the link preview', function (): void {
     User::factory()->create([
-        'username' => 'octocat',
+        'handle' => 'octocat',
         'name' => '"><script>alert(1)</script>',
         'bio' => '<img src=x onerror=alert(1)>',
     ]);
@@ -386,7 +503,7 @@ it('escapes the profile in the link preview', function (): void {
 });
 
 it('changes the link preview image version only when public profile data changes', function (): void {
-    $user = User::factory()->create(['username' => 'octocat']);
+    $user = User::factory()->create(['handle' => 'octocat']);
 
     $version = fn (): string => Str::betweenFirst($this->get('/@octocat')->getContent(), 'og.png?v=', '"');
 
@@ -403,7 +520,7 @@ it('changes the link preview image version only when public profile data changes
 });
 
 it('changes the link preview image version only when something drawn on it changes', function (): void {
-    $user = User::factory()->create(['username' => 'octocat', 'log' => Log::Following]);
+    $user = User::factory()->create(['handle' => 'octocat', 'log' => Log::Following]);
 
     $version = fn (): string => Str::betweenFirst($this->get('/@octocat')->getContent(), 'og.png?v=', '"');
 
@@ -414,13 +531,13 @@ it('changes the link preview image version only when something drawn on it chang
 
     expect($version())->toBe($initial);
 
-    $user->update(['name' => 'The Octocat']);
+    $user->profile->update(['name' => 'The Octocat']);
 
     expect($version())->not->toBe($initial);
 });
 
 it('returns guests to the profile after signing in', function (): void {
-    $user = User::factory()->create(['username' => 'octocat']);
+    $user = User::factory()->create(['handle' => 'octocat']);
 
     $this->get('/@octocat')->assertOk();
 
@@ -428,7 +545,7 @@ it('returns guests to the profile after signing in', function (): void {
 });
 
 it('does not return guests to a profile they only prefetched or partially reloaded', function (): void {
-    User::factory()->create(['username' => 'octocat']);
+    User::factory()->create(['handle' => 'octocat']);
 
     $this->get('/@octocat', ['Purpose' => 'prefetch'])->assertOk();
     $this->get('/@octocat', [
@@ -442,19 +559,19 @@ it('does not return guests to a profile they only prefetched or partially reload
 });
 
 it('does not change where signed-in users return to', function (): void {
-    User::factory()->create(['username' => 'octocat']);
+    User::factory()->create(['handle' => 'octocat']);
 
     $this->actingAs(User::factory()->create())->get('/@octocat')->assertOk();
 
     expect(session('url.intended'))->toBeNull();
 });
 
-it('returns not found for unknown usernames to guests', function (): void {
+it('returns not found for unknown handles to guests', function (): void {
     $this->get('/@missing')->assertNotFound();
 });
 
 it('keeps the default link preview for signed-in users', function (): void {
-    User::factory()->create(['username' => 'octocat', 'name' => 'The Octocat']);
+    User::factory()->create(['handle' => 'octocat', 'name' => 'The Octocat']);
 
     $this->actingAs(User::factory()->create())
         ->get('/@octocat')
@@ -499,7 +616,7 @@ it('keeps the replies other people left under the replies of a deleted account',
             ->where('ancestors.0.id', $root->id)
             ->where('ancestors.1.id', $reply->id)
             ->missing('ancestors.1.body')
-            ->missing('ancestors.1.user'));
+            ->missing('ancestors.1.author'));
 
     $this->actingAs($root->user)
         ->getJson(route('commit-reply.index', $root))
@@ -507,7 +624,7 @@ it('keeps the replies other people left under the replies of a deleted account',
         ->assertJsonCount(1, 'data')
         ->assertJsonPath('data.0.id', $reply->id)
         ->assertJsonPath('data.0.replies_count', 1)
-        ->assertJsonMissingPath('data.0.user');
+        ->assertJsonMissingPath('data.0.author');
 
     $this->getJson(route('api-commit.show', $reply))->assertNotFound();
 
@@ -531,7 +648,7 @@ it('keeps the replies other people left under the replies of a deleted account',
 });
 
 it('hides pending and rejected commits from other users', function (): void {
-    $user = User::factory()->create(['username' => 'octocat']);
+    $user = User::factory()->create(['handle' => 'octocat']);
 
     Commit::factory()->for($user)->create(['body' => 'Approved']);
     Commit::factory()->for($user)->pending()->create();
@@ -549,7 +666,7 @@ it('hides pending and rejected commits from other users', function (): void {
 });
 
 it('shows own pending and rejected commits', function (): void {
-    $user = User::factory()->create(['username' => 'octocat']);
+    $user = User::factory()->create(['handle' => 'octocat']);
 
     Commit::factory()->for($user)->create();
     Commit::factory()->for($user)->pending()->create();
@@ -566,7 +683,7 @@ it('shows own pending and rejected commits', function (): void {
 });
 
 it('hides deleted commits from profiles', function (): void {
-    $user = User::factory()->create(['username' => 'octocat']);
+    $user = User::factory()->create(['handle' => 'octocat']);
 
     Commit::factory()->for($user)->create(['body' => 'Kept']);
     Commit::factory()->for($user)->create()->delete();
@@ -585,7 +702,7 @@ it('hides deleted commits from profiles', function (): void {
 });
 
 it('only shows top-level commits on profiles', function (): void {
-    $user = User::factory()->create(['username' => 'octocat']);
+    $user = User::factory()->create(['handle' => 'octocat']);
     $parent = Commit::factory()->for($user)->create(['body' => 'Root']);
     Commit::factory()->for($parent, 'parent')->create();
 
@@ -600,7 +717,7 @@ it('only shows top-level commits on profiles', function (): void {
 });
 
 it('leaves the next commit of the author thread out of the reply count on profiles', function (): void {
-    $user = User::factory()->create(['username' => 'octocat']);
+    $user = User::factory()->create(['handle' => 'octocat']);
     $parent = Commit::factory()->for($user)->create();
     $next = Commit::factory()->for($user)->for($parent, 'parent')->create();
     Commit::factory()->for($parent, 'parent')->create();
@@ -614,8 +731,8 @@ it('leaves the next commit of the author thread out of the reply count on profil
 });
 
 it('includes the quoted commits of the user commits', function (): void {
-    $user = User::factory()->create(['username' => 'octocat']);
-    $quoted = Commit::factory()->for(User::factory()->state(['username' => 'taylorotwell']))->create(['body' => 'The quoted commit']);
+    $user = User::factory()->create(['handle' => 'octocat']);
+    $quoted = Commit::factory()->for(User::factory()->state(['handle' => 'taylorotwell']))->create(['body' => 'The quoted commit']);
     Commit::factory()->for($user)->for($quoted, 'quotedCommit')->create();
 
     $response = $this->actingAs(User::factory()->create())
@@ -625,11 +742,11 @@ it('includes the quoted commits of the user commits', function (): void {
         ->assertInertia(fn ($page) => $page
             ->has('commits.data', 1)
             ->where('commits.data.0.quoted_commit.body', 'The quoted commit')
-            ->where('commits.data.0.quoted_commit.user.username', 'taylorotwell'));
+            ->where('commits.data.0.quoted_commit.author.handle', 'taylorotwell'));
 });
 
 it('includes the link previews of the user commits', function (): void {
-    $user = User::factory()->create(['username' => 'octocat']);
+    $user = User::factory()->create(['handle' => 'octocat']);
 
     $linkPreview = LinkPreview::factory()->fetched()->create(['title' => 'Octocat links']);
 
@@ -669,7 +786,7 @@ it('preloads only replies visible to the profile visitor', function (): void {
         ->where('commits.data.0.reply_preview.data.0.id', $ownPending->id)
         ->where('commits.data.0.reply_preview.data.1.id', $visible->id)
         ->where('commits.data.0.reply_preview.next_cursor', null)
-        ->missing('commits.data.0.reply_preview.data.0.user.email'));
+        ->missing('commits.data.0.reply_preview.data.0.author.email'));
 });
 
 it('offers a remote only when the viewer could push to the profile', function (string $case, bool $canPush): void {
@@ -701,3 +818,112 @@ it('offers guests and the profile owner no remote', function (): void {
     $this->actingAs($user)->get(route('user.show', $user))
         ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page->where('canPush', false));
 });
+
+it('shows the github profile readme on the readme tab, without looking for commits', function (): void {
+    $user = User::factory()->create(['handle' => 'octocat']);
+    Commit::factory()->for($user)->create();
+
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('contributors')->andReturn([]);
+    $github->shouldReceive('login')->with($user->github_id)->andReturn('octocat');
+    $github->shouldReceive('readme')->with('octocat')->andReturn('<div id="readme"><article class="markdown-body"><h2>Hi there</h2></article></div>');
+
+    $this->get(route('user.show', ['user' => $user, 'tab' => 'readme']))->assertOk()->assertInertia(fn ($page) => $page
+        ->where('tab', 'readme')
+        ->where('readme', '<div><article><h2>Hi there</h2></article></div>')
+        ->where('pinnedCommit', null)
+        ->where('commits.data', []));
+});
+
+it('tells the readme tab when github did not answer', function (): void {
+    $user = User::factory()->create(['handle' => 'octocat']);
+
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('contributors')->andReturn([]);
+    $github->shouldReceive('login')->andThrow(new ConnectionException('timed out'));
+
+    $this->get(route('user.show', ['user' => $user, 'tab' => 'readme']))->assertOk()->assertInertia(fn ($page) => $page
+        ->where('readme', false));
+});
+
+it('does not ask github for the readme on the other tabs', function (string $tab): void {
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('contributors')->andReturn([]);
+    $github->shouldNotReceive('login', 'readme');
+
+    $user = User::factory()->create(['handle' => 'octocat']);
+
+    $this->get(route('user.show', ['user' => $user, 'tab' => $tab]))->assertOk()->assertInertia(fn ($page) => $page
+        ->where('readme', null));
+})->with(['commits', 'replies']);
+
+it('names the followers the viewer knows, the most followed first', function (): void {
+    $viewer = User::factory()->create();
+    $user = User::factory()->create();
+    [$quiet, $popular, $middle, $fourth] = User::factory()->count(4)->create();
+    $user->followers()->attach([$quiet->id, $popular->id, $middle->id, $fourth->id, User::factory()->create()->id]);
+    $viewer->following()->attach([$quiet->id, $popular->id, $middle->id, $fourth->id]);
+    $popular->followers()->attach(User::factory()->count(3)->create());
+    $middle->followers()->attach(User::factory()->count(2)->create());
+    $fourth->followers()->attach(User::factory()->create());
+
+    $this->actingAs($viewer)
+        ->get(route('user.show', $user))
+        ->assertInertia(fn ($page) => $page
+            ->where('followersYouKnow.count', 4)
+            ->has('followersYouKnow.users', 3)
+            ->where('followersYouKnow.users.0.id', $popular->id)
+            ->where('followersYouKnow.users.1.id', $middle->id)
+            ->where('followersYouKnow.users.2.id', $fourth->id));
+});
+
+it('has no followers the viewer knows when they follow none of them', function (): void {
+    $viewer = User::factory()->create();
+    $user = User::factory()->create();
+    $user->followers()->attach(User::factory()->create());
+
+    $this->actingAs($viewer)
+        ->get(route('user.show', $user))
+        ->assertInertia(fn ($page) => $page
+            ->where('followersYouKnow.count', 0)
+            ->has('followersYouKnow.users', 0));
+});
+
+it('names no followers the viewer knows to guests or on their own profile', function (): void {
+    $user = User::factory()->create();
+
+    $this->get(route('user.show', $user))
+        ->assertInertia(fn ($page) => $page->where('followersYouKnow', null));
+
+    $this->actingAs($user)
+        ->get(route('user.show', $user))
+        ->assertInertia(fn ($page) => $page->where('followersYouKnow', null));
+});
+
+it('moves a profile for good to the handle in its own case, keeping the query string, for a day', function (): void {
+    User::factory()->create(['handle' => 'OctoCat']);
+
+    $this->get('/@octocat?tab=replies')
+        ->assertMovedPermanently()
+        ->assertRedirect('/@OctoCat?tab=replies')
+        ->assertHeader('Cache-Control', 'max-age=86400, private');
+
+    $this->get('/@OctoCat')->assertOk();
+});
+
+it('keeps the query string out of the handle it moves a profile to', function (): void {
+    User::factory()->create(['handle' => 'OctoCat']);
+
+    $this->get('/@octocat?user=evil')->assertRedirect('/@OctoCat?user=evil');
+    $this->get('/@octocat?tag=one&tag=two')->assertRedirect('/@OctoCat?tag=one&tag=two');
+    $this->get('/@octocat?user[]=a&user[]=b')->assertRedirect('/@OctoCat?user[]=a&user[]=b');
+});
+
+it('moves the people lists of a profile for good to the handle in its own case', function (string $list): void {
+    User::factory()->create(['handle' => 'OctoCat']);
+
+    $this->actingAs(User::factory()->create())
+        ->get("/@octocat/{$list}")
+        ->assertMovedPermanently()
+        ->assertRedirect("/@OctoCat/{$list}");
+})->with(['following', 'followers', 'mutuals']);

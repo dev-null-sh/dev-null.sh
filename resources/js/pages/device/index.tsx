@@ -2,10 +2,11 @@ import { Head, router } from '@inertiajs/react';
 import { useRef, useState } from 'react';
 import DeviceController from '@/actions/App/Http/Controllers/DeviceController';
 import { Button } from '@/components/ui/button';
+import { WordmarkText } from '@/components/wordmark-text';
 import { useNow } from '@/hooks/use-now';
 import AppLayout from '@/layouts/app-layout';
 import SettingsLayout from '@/layouts/settings/layout';
-import { cn, formatRelativeTime } from '@/lib/utils';
+import { cn, formatFullDateTime, formatRelativeTime } from '@/lib/utils';
 import type { Device } from '@/types';
 
 export default function Index({ devices }: { devices: Device[] }) {
@@ -39,9 +40,9 @@ export default function Index({ devices }: { devices: Device[] }) {
                         Approved devices
                     </h2>
                     <p className="mt-1 max-w-prose text-sm text-pretty text-muted-foreground">
-                        Each one can use /dev/null as you through the app, since
-                        you approved it here on the web. Revoke any you don't
-                        use or don't recognize.
+                        Each one can use <WordmarkText>/dev/null</WordmarkText>{' '}
+                        as you through the app, since you approved it here on
+                        the web. Revoke any you don't use or don't recognize.
                     </p>
                 </header>
 
@@ -51,8 +52,9 @@ export default function Index({ devices }: { devices: Device[] }) {
                             fatal: no devices approved yet
                         </p>
                         <p className="mx-auto mt-1 max-w-sm text-sm text-pretty text-muted-foreground">
-                            Sign in from the /dev/null app and approve it here
-                            to add one.
+                            Sign in from the{' '}
+                            <WordmarkText>/dev/null</WordmarkText> app and
+                            approve it here to add one.
                         </p>
                     </div>
                 ) : (
@@ -132,8 +134,15 @@ function DeviceRow({
             <div className="min-h-0 overflow-hidden">
                 <div className="flex items-center gap-3 px-4 py-3">
                     <div className="min-w-0 flex-1">
-                        <p className="truncate font-medium" title={device.name}>
-                            {device.name}
+                        {/* The app first, so two apps on one computer read apart, and it wraps rather than cut the device off. Apps that didn't say show the device alone... */}
+                        <p className="font-medium [overflow-wrap:anywhere]">
+                            {device.app_name ?? device.name}
+                            {device.app_name !== null && (
+                                <span className="font-normal text-muted-foreground">
+                                    {' '}
+                                    on {device.name}
+                                </span>
+                            )}
                         </p>
                         <p
                             className="truncate font-mono text-[13px] leading-5 text-muted-foreground"
@@ -234,7 +243,7 @@ function Time({ date, now }: { date: string; now: Date }) {
     return (
         <time
             dateTime={date}
-            title={new Date(date).toLocaleString()}
+            title={formatFullDateTime(date)}
             className="font-mono text-[13px] tabular-nums"
         >
             {relative === 'now'

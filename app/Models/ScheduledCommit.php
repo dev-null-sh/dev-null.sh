@@ -7,6 +7,7 @@ namespace App\Models;
 use Carbon\CarbonInterface;
 use Database\Factories\ScheduledCommitFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -15,6 +16,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 /**
  * @property-read string $id
  * @property-read string $user_id
+ * @property-read string|null $author_id
+ * @property-read string|null $guild_id
+ * @property-read Guild|null $guild
  * @property-read string|null $commit_id
  * @property-read string|null $body
  * @property-read array{options: list<string>, duration: int}|null $poll
@@ -24,15 +28,23 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property-read CarbonInterface|null $submitted_at
  * @property-read CarbonInterface|null $canceled_at
  * @property-read User $user
+ * @property-read Profile|null $author
  * @property-read Commit|null $commit
  */
-#[Fillable(['user_id', 'body', 'poll', 'images', 'link_preview_url', 'scheduled_at'])]
+#[Fillable(['user_id', 'author_id', 'guild_id', 'body', 'poll', 'images', 'link_preview_url', 'scheduled_at'])]
+#[Hidden(['guild_id', 'guild'])]
 final class ScheduledCommit extends Model
 {
     /** @use HasFactory<ScheduledCommitFactory> */
     use HasFactory;
 
     use HasUuids;
+
+    /** @return BelongsTo<Guild, $this> */
+    public function guild(): BelongsTo
+    {
+        return $this->belongsTo(Guild::class);
+    }
 
     /** @return array<string, string> */
     public function casts(): array
@@ -50,6 +62,16 @@ final class ScheduledCommit extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /**
+     * The organization it goes out as, or null when it goes out as its user.
+     *
+     * @return BelongsTo<Profile, $this>
+     */
+    public function author(): BelongsTo
+    {
+        return $this->belongsTo(Profile::class)->with(['user', 'organization']);
     }
 
     /** @return BelongsTo<Commit, $this> */

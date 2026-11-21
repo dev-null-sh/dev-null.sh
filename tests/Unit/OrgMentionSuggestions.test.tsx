@@ -4,11 +4,13 @@ import * as React from 'react';
 import type { ReactElement, ReactNode } from 'react';
 import { afterEach, beforeEach, test, vi } from 'vite-plus/test';
 import type { OrgMember, User } from '../../resources/js/types';
+import type { Guild } from '../../resources/js/types/guild';
 
 let state: unknown[];
 let cursor = 0;
 let effects: (() => unknown)[];
 const fetchMock = vi.fn();
+let guilds: Guild[] | null = null;
 
 vi.doMock('react', () => ({
     ...React,
@@ -32,7 +34,9 @@ vi.doMock('react-dom', () => ({
     createPortal: (children: unknown) => children,
 }));
 vi.doMock('@inertiajs/react', () => ({
-    usePage: () => ({ props: { repository: 'dev-null-sh/dev-null.sh' } }),
+    usePage: () => ({
+        props: { repository: 'dev-null-sh/dev-null.sh', guilds },
+    }),
 }));
 vi.doMock('../../resources/js/components/user-avatar', () => ({
     UserAvatar: () => null,
@@ -53,13 +57,13 @@ function elements(node: ReactNode): Element[] {
     ];
 }
 function member(
-    username: string,
-    name = username,
+    handle: string,
+    name = handle,
     followed = false,
     suggested = true,
 ): OrgMember {
     return {
-        user: { id: username, username, name, lane: 1 } as User,
+        user: { id: handle, handle, name, lane: 1 } as User,
         role: 'contributor',
         read_through_id: 0,
         is_followed: followed,
@@ -79,7 +83,7 @@ function render(members: OrgMember[] | undefined, query = '') {
         }),
     );
 }
-function usernames(fields: Element[]) {
+function handles(fields: Element[]) {
     return fields
         .filter(
             (element) => element.props['data-test'] === 'mention-suggestion',
@@ -91,15 +95,94 @@ function usernames(fields: Element[]) {
 
 beforeEach(() => {
     state = [undefined, { top: 0, left: 0 }];
+    effects = [];
+    guilds = null;
     fetchMock.mockReset();
     vi.stubGlobal('fetch', fetchMock);
     vi.stubGlobal('document', { body: {} });
 });
 
+test('suggests loaded guilds and inserts a hex-shaped hashtag without fetching', () => {
+    guilds = ['dead', 'deadbeef', 'laravel'].map(
+        (handle) =>
+            ({
+                id: handle,
+                handle,
+                name: handle,
+                emoji: '💻',
+                icon_url: null,
+            }) as Guild,
+    );
+    state[0] = { kind: 'guild', start: 6, query: 'DE' };
+    cursor = 0;
+    effects = [];
+    const onValueChange = vi.fn();
+    const fields = elements(
+        MentionTextarea({ value: 'Hello #DE', onValueChange }),
+    );
+    const options = fields.filter((element) => element.props.role === 'option');
+    assert.deepEqual(
+        options.map((option) => option.props.id),
+        ['mentions-guild-dead', 'mentions-guild-deadbeef'],
+    );
+    const textarea = fields.find((element) => element.type === 'textarea')!;
+    const target = {
+        selectionStart: 9,
+        focus: vi.fn(),
+        setSelectionRange: vi.fn(),
+    };
+    (textarea.props.ref as (element: unknown) => void)(target);
+    vi.stubGlobal('requestAnimationFrame', (callback: () => void) =>
+        callback(),
+    );
+    (options[0].props.onClick as () => void)();
+    assert.deepEqual(onValueChange.mock.calls, [['Hello #dead ']]);
+    assert.deepEqual(target.setSelectionRange.mock.calls, [[12, 12]]);
+    effects.slice(0, 2).forEach((effect) => effect());
+    assert.equal(fetchMock.mock.calls.length, 0);
+});
+
+test('does not suggest guilds inside code, URLs, partial handles or when preview data is absent', () => {
+    for (const value of [
+        '`#rust',
+        '```\n#rust',
+        'https://example.com/#rust',
+        'word#rust',
+        '#rust ',
+        '##rust',
+        'color(#dead',
+    ]) {
+        guilds = [{ id: 'rust', handle: 'rust', name: 'Rust' } as Guild];
+        cursor = 0;
+        state[0] = null;
+        const fields = elements(
+            MentionTextarea({ value, onValueChange: () => {} }),
+        );
+        const textarea = fields.find((element) => element.type === 'textarea')!;
+        (textarea.props.onSelect as (event: unknown) => void)({
+            currentTarget: {
+                value,
+                selectionStart: value.length,
+                selectionEnd: value.length,
+            },
+        });
+        assert.equal(state[0], null, value);
+    }
+    guilds = null;
+    cursor = 0;
+    const textarea = elements(
+        MentionTextarea({ value: '#rust', onValueChange: () => {} }),
+    ).find((element) => element.type === 'textarea')!;
+    (textarea.props.onSelect as (event: unknown) => void)({
+        currentTarget: { value: '#rust', selectionStart: 5, selectionEnd: 5 },
+    });
+    assert.equal(state[0], null);
+});
+
 test('suggests loaded org members immediately without scheduling a search request', () => {
     const fields = render([member('taylor'), member('jess', 'Jess', true)]);
 
-    assert.deepEqual(usernames(fields), ['jess', 'taylor']);
+    assert.deepEqual(handles(fields), ['jess', 'taylor']);
     assert.equal(effects[0](), undefined);
     assert.equal(fetchMock.mock.calls.length, 0);
 });
@@ -118,7 +201,7 @@ test('preserves matching tiers, followed priority, exclusions, and the six-resul
         member('irrelevant'),
     ];
 
-    assert.deepEqual(usernames(render(members, 'TAY')), [
+    assert.deepEqual(handles(render(members, 'TAY')), [
         'tay',
         'tay-f',
         'tay-a',
@@ -127,7 +210,7 @@ test('preserves matching tiers, followed priority, exclusions, and the six-resul
         'tay-z',
     ]);
     assert.deepEqual(
-        usernames(
+        handles(
             render(
                 [
                     member('contains', 'A Taylor'),
@@ -146,7 +229,7 @@ test('updates an open picker when members join or leave and keeps keyboard selec
     state[3] = 2;
     const fields = render([member('newcomer')]);
 
-    assert.deepEqual(usernames(fields), ['newcomer']);
+    assert.deepEqual(handles(fields), ['newcomer']);
     assert.equal(
         fields.find((element) => element.type === 'textarea')?.props[
             'aria-activedescendant'
@@ -159,7 +242,7 @@ test('updates an open picker when members join or leave and keeps keyboard selec
         ],
         true,
     );
-    assert.deepEqual(usernames(render([], 'tay')), []);
+    assert.deepEqual(handles(render([], 'tay')), []);
 });
 
 afterEach(() => {

@@ -6,19 +6,26 @@ export function PageTabs({
     label,
     tabs,
     preserveScroll = false,
+    preserveState = false,
     prefetch = true,
     only,
     reset,
 }: {
     label: string;
     preserveScroll?: boolean;
+    preserveState?: boolean;
     prefetch?: boolean;
     only?: InertiaLinkProps['only'];
     reset?: string[];
     tabs: {
         title: string;
+        /**
+         * Shown instead of the title on phones, where a long title would wrap.
+         */
+        shortTitle?: string;
         href: NonNullable<InertiaLinkProps['href']>;
         isActive: boolean;
+        onClick?: InertiaLinkProps['onClick'];
     }[];
 }) {
     const indicatorName = `tab-indicator-${label.toLowerCase().replaceAll(/[^a-z0-9]+/gu, '-')}`;
@@ -29,9 +36,11 @@ export function PageTabs({
                 <Link
                     key={tab.title}
                     href={tab.href}
+                    onClick={tab.onClick}
                     prefetch={prefetch}
                     viewTransition
                     preserveScroll={preserveScroll}
+                    preserveState={preserveState}
                     only={only}
                     // Link exposes custom headers for both visits and prefetches, but no reset option.
                     headers={
@@ -45,7 +54,20 @@ export function PageTabs({
                         { 'text-foreground': tab.isActive },
                     )}
                 >
-                    <span className="py-3.5">{tab.title}</span>
+                    <span className="py-3.5">
+                        {tab.shortTitle ? (
+                            <>
+                                <span className="sm:hidden">
+                                    {tab.shortTitle}
+                                </span>
+                                <span className="hidden sm:inline">
+                                    {tab.title}
+                                </span>
+                            </>
+                        ) : (
+                            tab.title
+                        )}
+                    </span>
                     {tab.isActive && (
                         <span
                             aria-hidden

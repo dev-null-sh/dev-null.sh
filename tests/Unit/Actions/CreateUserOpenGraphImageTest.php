@@ -7,16 +7,16 @@ use App\Models\User;
 use App\Services\OpenGraphCanvas;
 use Illuminate\Support\Facades\Cache;
 
-it('falls back to the username when the name has nothing Geist can draw', function (): void {
-    $user = User::factory()->create(['username' => 'octocat', 'name' => 'octocat', 'avatar_url' => null, 'bio' => null]);
+it('falls back to the handle when the name has nothing Geist can draw', function (): void {
+    $user = User::factory()->create(['handle' => 'octocat', 'name' => 'octocat', 'avatar_url' => null, 'bio' => null]);
     $action = resolve(CreateUserOpenGraphImage::class);
 
-    $withUsername = $action->handle($user);
+    $withHandle = $action->handle($user);
 
     Cache::flush();
-    $user->name = '🚀🔥';
+    $user->profile->name = '🚀🔥';
 
-    expect($action->handle($user))->toBe($withUsername);
+    expect($action->handle($user))->toBe($withHandle);
 });
 
 it('fits bios that would overflow the card', function (string $bio): void {

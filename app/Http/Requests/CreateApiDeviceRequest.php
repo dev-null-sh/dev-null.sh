@@ -51,15 +51,18 @@ final class CreateApiDeviceRequest extends FormRequest
     }
 
     /**
-     * The verifier is the one the app made its PKCE challenge from (RFC 7636).
+     * The verifier is the one the app made its PKCE challenge from (RFC 7636). An app that asked the person to accept the
+     * terms and privacy policy before sending them to sign in says they did. It links to the pages themselves rather
+     * than carrying a copy, so what they accepted is the version in force, which the time it's recorded stands for.
      *
-     * @return array<string, list<string>>
+     * @return array<string, list<mixed>>
      */
     public function rules(): array
     {
         return [
             'code' => ['required', 'string', 'max:255'],
             'code_verifier' => ['required', 'string', 'regex:/^[A-Za-z0-9._~-]{43,128}$/'],
+            'terms_accepted' => ['sometimes', 'boolean'],
         ];
     }
 

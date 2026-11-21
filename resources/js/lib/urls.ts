@@ -56,19 +56,37 @@ export function hrefFor(linkText: string): string | null {
         : href;
 }
 
-// Keep in sync with app/Services/Urls.php: like X, a URL shows without its scheme or "www.", with the whole host, and
-// with at most 20 characters after it, the last of which is an ellipsis when it's cut. A cut never splits a
-// percent-encoded character.
+/**
+ * A URL with its percent-encoded non-ASCII characters shown as themselves, as browsers show them: "/%C3%89t%C3%A9"
+ * reads "/Été". Escapes of ASCII characters stay, since they may change what the URL means, and so do those of
+ * invisible, control and spacing characters, which could disguise it. Keep in sync with app/Services/Urls.php.
+ */
+export function readableUrl(url: string): string {
+    return url.replace(/(?:%[89A-F][0-9A-F])+/giu, (escapes) => {
+        try {
+            const decoded = decodeURIComponent(escapes);
+
+            return /[\p{C}\p{Z}]/u.test(decoded) ? escapes : decoded;
+        } catch {
+            return escapes;
+        }
+    });
+}
+
+// Keep in sync with app/Services/Urls.php: like X, a URL shows without its scheme, "www." or a slash that is its whole
+// path, with the whole host, and with at most 20 characters after it, the last of which is an ellipsis when it's cut.
+// A cut never splits a percent-encoded character.
 const maxShortenedPathLength = 20;
 
 export type ShortenedUrl = {
     hiddenStart: string;
     shown: string;
     hiddenEnd: string;
+    cut: boolean;
 };
 
 /**
- * Splits a URL into what is shown and what is hidden around it. The ellipsis is shown whenever the end is hidden.
+ * Splits a URL into what is shown and what is hidden around it. The ellipsis is shown whenever the URL is cut.
  */
 export function shortenUrl(url: string): ShortenedUrl {
     const hiddenStart =
@@ -78,7 +96,9 @@ export function shortenUrl(url: string): ShortenedUrl {
     const path = Array.from(rest.slice(host.length));
 
     if (path.length <= maxShortenedPathLength) {
-        return { hiddenStart, shown: rest, hiddenEnd: '' };
+        return rest === `${host}/`
+            ? { hiddenStart, shown: host, hiddenEnd: '/', cut: false }
+            : { hiddenStart, shown: rest, hiddenEnd: '', cut: false };
     }
 
     const kept = path
@@ -90,6 +110,7 @@ export function shortenUrl(url: string): ShortenedUrl {
         hiddenStart,
         shown: host + kept,
         hiddenEnd: rest.slice(host.length + kept.length),
+        cut: true,
     };
 }
 

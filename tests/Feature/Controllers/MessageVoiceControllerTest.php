@@ -71,7 +71,7 @@ it('keeps voice notes out of the history an org member cannot see', function ():
     $org = createOrg($mark, [$nuno]);
     $before = MessageVoice::factory()->for(pushToOrg($nuno, $org))->create();
     Storage::disk()->put($before->path, resolve(EncryptedFiles::class)->encrypt(voiceNoteWav()));
-    $this->actingAs($mark)->postJson(route('org-member.store', $org), ['members' => [$taylor->username], 'share_history' => false])->assertNoContent();
+    $this->actingAs($mark)->postJson(route('org-member.store', $org), ['members' => [$taylor->handle], 'share_history' => false])->assertNoContent();
     $after = MessageVoice::factory()->for(pushToOrg($nuno, $org))->create();
     Storage::disk()->put($after->path, resolve(EncryptedFiles::class)->encrypt(voiceNoteWav()));
 

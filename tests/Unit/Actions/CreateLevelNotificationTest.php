@@ -101,7 +101,7 @@ it('checks the level of an author whose commit is approved', function (): void {
 it('checks the level of an author whose commit is approved right away', function (): void {
     config(['app.admins' => ['nunomaduro'], 'queue.default' => 'sync']);
     Queue::fake()->except(CheckUserLevel::class);
-    $user = User::factory()->create(['username' => 'nunomaduro']);
+    $user = User::factory()->create(['handle' => 'nunomaduro']);
     Commit::factory()->for($user)->count(3)->create();
 
     resolve(CreateCommit::class)->handle($user, 'Shipped the level-up notification');

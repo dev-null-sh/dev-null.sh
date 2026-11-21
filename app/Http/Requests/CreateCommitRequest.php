@@ -6,12 +6,17 @@ namespace App\Http\Requests;
 
 use App\Actions\CreateCommitImages;
 use App\Dto\NewPoll;
+use App\Enums\Feature;
 use App\Enums\PollDuration;
 use App\Models\Commit;
+use App\Models\Guild;
+use App\Models\Organization;
 use App\Models\User;
 use App\Rules\CommitBodyLength;
+use App\Rules\OrganizationToPostAs;
 use App\Rules\VisibleCommit;
 use App\Services\CommitBodies;
+use App\Services\Features;
 use App\Services\Urls;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -42,6 +47,24 @@ final class CreateCommitRequest extends FormRequest
         if (is_string($request->input('body'))) {
             $request->merge(['body' => resolve(CommitBodies::class)->normalize($request->string('body')->value())]);
         }
+    }
+
+    /** @return array<string, list<string|In>> */
+    public static function guildRules(FormRequest $request): array
+    {
+        return [
+            'guild_handle' => ['sometimes', 'required', 'string', 'max:60', resolve(Features::class)->available(Feature::Guilds, $request->user())
+                ? 'exists:guilds,handle,user_id,NOT_NULL'
+                : Rule::in([])],
+        ];
+    }
+
+    /**
+     * The board the commit goes to, or null when it goes to no guild.
+     */
+    public static function guildOf(FormRequest $request): ?Guild
+    {
+        return $request->filled('guild_handle') ? Guild::query()->where('handle', $request->string('guild_handle')->value())->first() : null;
     }
 
     /**
@@ -88,8 +111,10 @@ final class CreateCommitRequest extends FormRequest
 
         return [
             'body' => self::bodyRules($this->hasFile('images')),
+            'author' => ['nullable', 'string', new OrganizationToPostAs($user)],
             'quoted_commit_id' => ['nullable', 'uuid', 'prohibits:parent_id', new VisibleCommit($user, 'That commit is no longer available to quote.')],
             'link_preview_url' => ['nullable', 'string', Rule::in(is_string($body) ? resolve(Urls::class)->all($body) : [])],
+            ...self::guildRules($this),
             ...$attachmentRules,
         ];
     }
@@ -172,5 +197,21 @@ final class CreateCommitRequest extends FormRequest
     public function prepareForValidation(): void
     {
         self::normalizeBody($this);
+    }
+
+    /**
+     * The organization the user posts as, or null when they post as themselves.
+     */
+    public function organization(): ?Organization
+    {
+        $user = $this->user();
+        assert($user instanceof User);
+
+        return OrganizationToPostAs::of($user, $this->input('author'));
+    }
+
+    public function guild(): ?Guild
+    {
+        return self::guildOf($this);
     }
 }

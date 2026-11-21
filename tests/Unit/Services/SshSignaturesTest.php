@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
+use App\Contracts\Services\GitHubProvider;
 use App\Dto\SshPublicKey;
 use App\Models\SshKey;
 use App\Models\User;
 use App\Services\SshSignatures;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Http;
 use Tests\Support\SshKeyPair;
 
 beforeEach(function (): void {
@@ -15,8 +15,6 @@ beforeEach(function (): void {
     $this->user = User::factory()->create();
 
     SshKey::factory()->for($this->user)->withPublicKey($this->keyPair->publicKey)->create();
-
-    fakeGitHubSshKeys($this->user, [$this->keyPair->publicKey]);
 });
 
 it('returns the key that signed the message', function (): void {
@@ -53,12 +51,20 @@ it('rejects malformed signatures', function (): void {
 });
 
 it('finds the user whose github account has the key', function (): void {
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($this->user->github_id)->andReturn($this->user->handle);
+    $github->shouldReceive('sshKeys')->with($this->user->handle)->andReturn([$this->keyPair->publicKey->toOpenSsh()]);
+
     $user = resolve(SshSignatures::class)->authenticate($this->keyPair->publicKey, (string) now()->getTimestamp(), bin2hex(random_bytes(16)));
 
     expect($user?->is($this->user))->toBeTrue();
 });
 
 it('accepts small clock differences', function (int $offset): void {
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($this->user->github_id)->andReturn($this->user->handle);
+    $github->shouldReceive('sshKeys')->with($this->user->handle)->andReturn([$this->keyPair->publicKey->toOpenSsh()]);
+
     $user = resolve(SshSignatures::class)->authenticate($this->keyPair->publicKey, (string) (now()->getTimestamp() + $offset), bin2hex(random_bytes(16)));
 
     expect($user?->is($this->user))->toBeTrue();
@@ -84,6 +90,10 @@ it('rejects malformed nonces', function (string $nonce): void {
 ]);
 
 it('spends the nonce once it finds the user', function (): void {
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($this->user->github_id)->andReturn($this->user->handle);
+    $github->shouldReceive('sshKeys')->with($this->user->handle)->andReturn([$this->keyPair->publicKey->toOpenSsh()]);
+
     $nonce = bin2hex(random_bytes(16));
     $sshSignatures = resolve(SshSignatures::class);
 
@@ -94,6 +104,10 @@ it('spends the nonce once it finds the user', function (): void {
 });
 
 it('keeps the nonces spent before a deploy spent, under the key the commit script always used', function (): void {
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($this->user->github_id)->andReturn($this->user->handle);
+    $github->shouldReceive('sshKeys')->with($this->user->handle)->andReturn([$this->keyPair->publicKey->toOpenSsh()]);
+
     $nonce = bin2hex(random_bytes(16));
 
     Cache::add("commit-nonce:{$nonce}", true, 660);
@@ -105,13 +119,17 @@ it('keeps the nonces spent before a deploy spent, under the key the commit scrip
 it('returns null for keys that are not on the github account of a user, without spending the nonce', function (): void {
     $keyPair = SshKeyPair::generate();
     $nonce = bin2hex(random_bytes(16));
+    $user = User::factory()->create();
+
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($user->github_id)->once()->andReturn($user->handle);
+    $github->shouldReceive('sshKeys')->with($user->handle)->once()->andReturn([$keyPair->publicKey->toOpenSsh()]);
+
     $sshSignatures = resolve(SshSignatures::class);
 
     expect($sshSignatures->authenticate($keyPair->publicKey, (string) now()->getTimestamp(), $nonce))->toBeNull();
 
-    $user = User::factory()->create();
     SshKey::factory()->for($user)->withPublicKey($keyPair->publicKey)->create();
-    fakeGitHubSshKeys($user, [$keyPair->publicKey]);
 
     expect($sshSignatures->authenticate($keyPair->publicKey, (string) now()->getTimestamp(), $nonce)?->is($user))->toBeTrue();
 });
@@ -121,22 +139,29 @@ it('returns null for keys removed from github since the last sync', function ():
     $user = User::factory()->create();
     $sshKey = SshKey::factory()->for($user)->withPublicKey($keyPair->publicKey)->create();
 
-    fakeGitHubSshKeys($user);
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($user->github_id)->andReturn($user->handle);
+    $github->shouldReceive('sshKeys')->with($user->handle)->andReturn([]);
 
     expect(resolve(SshSignatures::class)->authenticate($keyPair->publicKey, (string) now()->getTimestamp(), bin2hex(random_bytes(16))))->toBeNull()
         ->and($sshKey->fresh())->toBeNull();
 });
 
 it('checks github at most every 5 minutes', function (): void {
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($this->user->github_id)->andReturn($this->user->handle);
+    $github->shouldReceive('sshKeys')->with($this->user->handle)->once()->andReturn([$this->keyPair->publicKey->toOpenSsh()]);
+
     $sshSignatures = resolve(SshSignatures::class);
 
     $sshSignatures->authenticate($this->keyPair->publicKey, (string) now()->getTimestamp(), bin2hex(random_bytes(16)));
     $sshSignatures->authenticate($this->keyPair->publicKey, (string) now()->getTimestamp(), bin2hex(random_bytes(16)));
-
-    Http::assertSentCount(3);
 });
 
 it('checks the freshness of a signature whoever signed it, and spends its nonce', function (): void {
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldNotReceive('login');
+
     $nonce = bin2hex(random_bytes(16));
     $sshSignatures = resolve(SshSignatures::class);
 
@@ -144,8 +169,6 @@ it('checks the freshness of a signature whoever signed it, and spends its nonce'
 
     expect(fn () => $sshSignatures->checkFreshness((string) now()->getTimestamp(), $nonce))
         ->toThrow(InvalidArgumentException::class, 'This signature was already used.');
-
-    Http::assertNothingSent();
 });
 
 it('rejects a stale timestamp or a malformed nonce when checking freshness', function (string $timestamp, string $nonce, string $message): void {

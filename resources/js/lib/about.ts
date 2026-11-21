@@ -35,9 +35,13 @@ export type StoryPerson = {
     name: string;
 };
 
+/**
+ * Someone with a commit on production. The handle is theirs on /dev/null, or null when they aren't on it.
+ */
 export type StoryContributor = {
     login: string;
     commits: number;
+    handle: string | null;
 };
 
 export const storyBefore: StoryEvent[] = [
@@ -148,6 +152,12 @@ export const storyAfter: StoryEvent[] = [
     },
     {
         time: 'Oct 18',
+        title: 'Remotes',
+        body: 'Direct messages and group chats with the people you follow.',
+        kind: 'milestone',
+    },
+    {
+        time: 'Oct 18',
         title: '3,000 developers',
         body: 'And more than 300 pull requests sent to the repository.',
         kind: 'milestone',
@@ -199,6 +209,17 @@ export const storyAfter: StoryEvent[] = [
     },
     {
         time: 'Oct 20',
+        title: 'Jordi Boggiano joins',
+        body: 'The lead of Composer, the package manager PHP runs on.',
+        kind: 'person',
+        person: {
+            login: 'Seldaek',
+            name: 'Jordi Boggiano',
+            avatar: 'https://avatars.githubusercontent.com/u/183678?v=4',
+        },
+    },
+    {
+        time: 'Oct 20',
         title: 'Wes Bos joins',
         body: 'The teacher behind a generation of JavaScript courses.',
         kind: 'person',
@@ -244,6 +265,12 @@ export const storyAfter: StoryEvent[] = [
         kind: 'milestone',
     },
     {
+        time: 'Oct 21',
+        title: '“We’re back”',
+        body: 'Offline for the PHP security release the day after Product Hunt, and back that evening.',
+        kind: 'milestone',
+    },
+    {
         time: 'Oct 22',
         title: 'Quinn Slack joins',
         body: 'The CEO of Amp.',
@@ -265,71 +292,60 @@ export const storyAfter: StoryEvent[] = [
             avatar: 'https://avatars.githubusercontent.com/u/1185253?v=4',
         },
     },
-];
-
-/**
- * Everyone with a commit on production, most commits first. Bots and agents are left out.
- */
-export const storyContributors: StoryContributor[] = [
-    { login: 'xHeaven', commits: 217 },
-    { login: 'nunomaduro', commits: 189 },
-    { login: 'mnapoli', commits: 83 },
-    { login: 'brendt', commits: 49 },
-    { login: 'paulinevos', commits: 28 },
-    { login: 'jubianchi', commits: 24 },
-    { login: 'MrPunyapal', commits: 19 },
-    { login: 'simonhamp', commits: 19 },
-    { login: 'hbenabdallah', commits: 10 },
-    { login: 'sadiqk2', commits: 8 },
-    { login: 'SanderMuller', commits: 7 },
-    { login: 'fernandofreamunde', commits: 6 },
-    { login: 'camilleislasse', commits: 6 },
-    { login: 'HelgeSverre', commits: 5 },
-    { login: 'jjaybrown', commits: 5 },
-    { login: 'richardkeep', commits: 5 },
-    { login: 'vtlxx', commits: 5 },
-    { login: 'robelsust', commits: 4 },
-    { login: 'prateekbhujel', commits: 4 },
-    { login: 'MaximeGoncalves', commits: 3 },
-    { login: 'mathiasonea', commits: 3 },
-    { login: 'virtualtear', commits: 2 },
-    { login: 'sulimanbenhalim', commits: 2 },
-    { login: 'mon4ssi', commits: 2 },
-    { login: 'slovenianGooner', commits: 2 },
-    { login: 'hbenjacquet', commits: 2 },
-    { login: 'ashkesarmaa', commits: 2 },
-    { login: 'Akiyo974', commits: 2 },
-    { login: 'Chemaclass', commits: 2 },
-    { login: 'eznix86', commits: 2 },
-    { login: 'BENNIEV-ZA', commits: 2 },
-    { login: 'ahosker', commits: 2 },
-    { login: 'aaqidmasoodi', commits: 2 },
-    { login: 'kachelle', commits: 1 },
-    { login: 'lazarospsa', commits: 1 },
-    { login: 'Naimur404', commits: 1 },
-    { login: 'OpadaAlzaiede', commits: 1 },
-    { login: 'ondrejmirtes', commits: 1 },
-    { login: 'Heyosseus', commits: 1 },
-    { login: 'RobinMalfait', commits: 1 },
-    { login: 'rohitsasi720', commits: 1 },
-    { login: 'murrant', commits: 1 },
-    { login: 'tooinfinity', commits: 1 },
-    { login: 'utsavsomaiya', commits: 1 },
-    { login: 'vmitchell85', commits: 1 },
-    { login: 'anatolesns', commits: 1 },
-    { login: 'eramitgupta', commits: 1 },
-    { login: 'kadirtikil', commits: 1 },
-    { login: 'jigar-dhulla', commits: 1 },
-    { login: 'hosmelq', commits: 1 },
-    { login: 'hafeez-bw', commits: 1 },
-    { login: 'GTS-MEGHNI', commits: 1 },
-    { login: 'faissaloux', commits: 1 },
-    { login: 'fabpl', commits: 1 },
-    { login: 'Taldres', commits: 1 },
-    { login: 'danielh-official', commits: 1 },
-    { login: 'chrisgocode', commits: 1 },
-    { login: 'chiragparekh', commits: 1 },
-    { login: 'AmanuelLegese', commits: 1 },
-    { login: 'albertoarena', commits: 1 },
-    { login: 'alaminfirdows', commits: 1 },
+    {
+        time: 'Oct 22',
+        title: 'A GitHub organization',
+        body: 'The repository moves to dev-null-sh/dev-null.sh.',
+        kind: 'milestone',
+        href: 'https://github.com/dev-null-sh/dev-null.sh',
+    },
+    {
+        time: 'Oct 22',
+        title: 'Caleb Porzio joins',
+        body: 'The creator of Livewire and Alpine.js.',
+        kind: 'person',
+        person: {
+            login: 'calebporzio',
+            name: 'Caleb Porzio',
+            avatar: 'https://avatars.githubusercontent.com/u/3670578?v=4',
+        },
+    },
+    {
+        time: 'Oct 22',
+        title: '1,000 pull requests',
+        body: 'Sent to the repository in the first week.',
+        kind: 'milestone',
+    },
+    {
+        time: 'Oct 27',
+        title: 'Running on FrankenPHP',
+        body: 'The PHP app server written in Go, from Kévin Dunglas.',
+        kind: 'milestone',
+    },
+    {
+        time: 'Oct 28',
+        title: 'Organizations',
+        body: 'GitHub organizations get their own pages, @mentions, and followers.',
+        kind: 'milestone',
+    },
+    {
+        time: 'Oct 29',
+        title: 'Calls',
+        body: '“10 likes and i will ship calls.” One-to-one calls ship 40 minutes later, group calls that night.',
+        kind: 'milestone',
+    },
+    {
+        time: 'Nov 2',
+        title: '#1 Product of the Week',
+        body: 'And #3 Product of the Month on Product Hunt.',
+        kind: 'press',
+        href: 'https://www.producthunt.com/products/dev-null',
+    },
+    {
+        time: 'Nov 11',
+        title: 'Partners',
+        body: 'Companies can now sponsor /dev/null, to pay for the AI behind moderation, search, and translation.',
+        kind: 'milestone',
+        href: '/partners',
+    },
 ];

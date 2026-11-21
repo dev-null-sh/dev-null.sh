@@ -249,6 +249,16 @@ it('counts each prose link as at most 23 characters', function (string $body, in
     'oversized link' => ['https://example.com/'.str_repeat('x', 2029), 2049],
 ]);
 
+it('shows the visible non-ascii characters of a url as themselves', function (string $url, string $readable): void {
+    expect(resolve(Urls::class)->readable($url))->toBe($readable);
+})->with([
+    'accented path' => ['https://fr.wikipedia.org/wiki/%C3%89t%C3%A9', 'https://fr.wikipedia.org/wiki/Été'],
+    'ascii escapes' => ['https://example.com/a%20b%2Fc?q=100%25', 'https://example.com/a%20b%2Fc?q=100%25'],
+    'invalid utf-8' => ['https://example.com/%C3%28%FF', 'https://example.com/%C3%28%FF'],
+    'right-to-left override' => ['https://example.com/%E2%80%AEgnp.exe', 'https://example.com/%E2%80%AEgnp.exe'],
+    'zero-width and no-break spaces' => ['https://example.com/a%E2%80%8Bb%C2%A0c', 'https://example.com/a%E2%80%8Bb%C2%A0c'],
+]);
+
 it('shortens urls for display', function (string $url, string $shortened): void {
     $urls = resolve(Urls::class);
 
@@ -273,6 +283,14 @@ it('shortens urls for display', function (string $url, string $shortened): void 
     'bare domain with a path' => ['nunomaduro.com/talks', 'nunomaduro.com/talks'],
     'bare www domain' => ['www.php.net/manual/en/function.array-map.php', 'php.net/manual/en/function…'],
     'www as the domain' => ['https://www.com/about', 'www.com/about'],
+    'host with a trailing slash' => ['https://www.example.com/', 'example.com'],
+    'bare domain with a trailing slash' => ['example.org/', 'example.org'],
+    'port with a trailing slash' => ['http://localhost:8000/', 'localhost:8000'],
+    'path with a trailing slash' => ['https://laravel.com/docs/', 'laravel.com/docs/'],
+    'slash before a query' => ['https://example.com/?ref=feed', 'example.com/?ref=feed'],
+    'slash ending a query' => ['https://example.com/login?next=/', 'example.com/login?next=/'],
+    'slash ending a fragment' => ['https://example.com/#/', 'example.com/#/'],
+    'slash before a trailing newline' => ["https://example.com/\n", "example.com/\n"],
 ]);
 
 it('shortens the urls in prose', function (): void {

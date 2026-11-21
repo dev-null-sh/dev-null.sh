@@ -5,12 +5,15 @@ import MobileAuthorizationController from '@/actions/App/Http/Controllers/Mobile
 import AppLogo from '@/components/app-logo';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
+import { WordmarkText } from '@/components/wordmark-text';
 import { useUser } from '@/hooks/use-user';
 import { laneColor } from '@/lib/utils';
 
 type Authorization = {
     fingerprint: string;
     device_name: string;
+    app_name?: string;
+    app_id?: string;
     code_challenge: string;
     code_challenge_method: string;
     state: string;
@@ -40,15 +43,19 @@ function Approve({
 }) {
     const { user } = useUser();
     const [isApproving, setIsApproving] = useState(false);
+    const name =
+        authorization.app_name === undefined
+            ? authorization.device_name
+            : `${authorization.app_name} on ${authorization.device_name}`;
 
     return (
         <Page
-            title={`Approve ${authorization.device_name}`}
+            title={`Approve ${name}`}
             lane={laneColor(user.lane)}
             command="git credential approve"
         >
             <h1 className="mt-4 text-[clamp(1.75rem,4vw,2.5rem)] leading-tight font-semibold tracking-tight text-balance [overflow-wrap:anywhere]">
-                Approve {authorization.device_name}?
+                Approve {name}?
             </h1>
 
             <dl className="mt-6 grid max-w-md gap-4">
@@ -67,9 +74,9 @@ function Approve({
                             </span>
                             <span
                                 className="block truncate font-mono text-[13px] text-muted-foreground"
-                                title={`@${user.username}`}
+                                title={`@${user.handle}`}
                             >
-                                @{user.username}
+                                @{user.handle}
                             </span>
                         </span>
                     </dd>
@@ -83,7 +90,8 @@ function Approve({
             </dl>
 
             <p className="mt-6 max-w-[48ch] text-pretty text-muted-foreground">
-                The app will be able to use /dev/null as you. You can revoke it
+                The app will be able to use{' '}
+                <WordmarkText>/dev/null</WordmarkText> as you. You can revoke it
                 any time under Settings → Devices.
             </p>
 
@@ -124,7 +132,8 @@ function Invalid({ error }: { error: string }) {
                 This sign-in link isn't valid.
             </h1>
             <p className="mt-3 max-w-[42ch] text-lg text-pretty text-muted-foreground">
-                {error} Start signing in again from the /dev/null app.
+                {error} Start signing in again from the{' '}
+                <WordmarkText>/dev/null</WordmarkText> app.
             </p>
         </Page>
     );

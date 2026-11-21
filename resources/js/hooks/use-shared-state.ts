@@ -15,6 +15,10 @@ const subscribe = (callback: () => void) => {
 
 const notify = (): void => listeners.forEach((listener) => listener());
 
+export function sharedValue(key: string): SharedValue | undefined {
+    return values.get(key);
+}
+
 export function refreshSharedState(fresh: Map<string, SharedValue>): void {
     let hasChanged = false;
 

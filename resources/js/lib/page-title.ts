@@ -13,5 +13,5 @@ export function pageTitle(title: string, page: Page): string {
         auth.user === null ? 0 : auth.unreadNotificationsCount + messages;
     const name = title ? `${title} - ${appName}` : appName;
 
-    return count > 0 ? `(${count}) ${name}` : name;
+    return count > 0 ? `(${count > 99 ? '99+' : count}) ${name}` : name;
 }

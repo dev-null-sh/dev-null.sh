@@ -6,27 +6,52 @@ import ConversationDropController from '@/actions/App/Http/Controllers/Conversat
 import ConversationMergeController from '@/actions/App/Http/Controllers/ConversationMergeController';
 import ConversationMessageController from '@/actions/App/Http/Controllers/ConversationMessageController';
 import ConversationMuteController from '@/actions/App/Http/Controllers/ConversationMuteController';
+import ConversationPinController from '@/actions/App/Http/Controllers/ConversationPinController';
+import ConversationPingController from '@/actions/App/Http/Controllers/ConversationPingController';
 import ConversationReadController from '@/actions/App/Http/Controllers/ConversationReadController';
 import ConversationTypingController from '@/actions/App/Http/Controllers/ConversationTypingController';
 import InboxController from '@/actions/App/Http/Controllers/InboxController';
+import MessagePinController from '@/actions/App/Http/Controllers/MessagePinController';
 import MessageReactionController from '@/actions/App/Http/Controllers/MessageReactionController';
 import OrgArchiveController from '@/actions/App/Http/Controllers/OrgArchiveController';
 import OrgController from '@/actions/App/Http/Controllers/OrgController';
 import OrgMemberController from '@/actions/App/Http/Controllers/OrgMemberController';
+import OrgMentionController from '@/actions/App/Http/Controllers/OrgMentionController';
 import OrgMessageController from '@/actions/App/Http/Controllers/OrgMessageController';
 import OrgMuteController from '@/actions/App/Http/Controllers/OrgMuteController';
+import OrgPinController from '@/actions/App/Http/Controllers/OrgPinController';
+import OrgPingController from '@/actions/App/Http/Controllers/OrgPingController';
 import OrgReadController from '@/actions/App/Http/Controllers/OrgReadController';
 import OrgTypingController from '@/actions/App/Http/Controllers/OrgTypingController';
 import RemoteCandidateController from '@/actions/App/Http/Controllers/RemoteCandidateController';
 import UserBlockController from '@/actions/App/Http/Controllers/UserBlockController';
 import { showTimeout, timeoutFrom } from '@/components/timeout-dialog';
+import {
+    acceptedPinnedMessages,
+    isPinnedIn,
+    reactionsAfterOf,
+    withPinnedMessage,
+    withPinnedMessageRestored,
+    withoutPinnedMessage,
+    withShownReactions,
+} from '@/lib/pinned-messages';
+import type { PinnedMessages } from '@/lib/pinned-messages';
 import type { ReactionUsage } from '@/lib/reactions';
 import { withReactionUse } from '@/lib/reactions';
+import {
+    coalesce,
+    isListening,
+    listen,
+    liveTransport,
+    onRealtimeChange,
+    userChannel,
+} from '@/lib/realtime';
 import {
     createRemoteAlerts,
     isRemoteMuted,
     remoteAlertsEnabled,
 } from '@/lib/remote-notifications';
+import { remotePushEnabled, remotePushOptedIn } from '@/lib/remote-push';
 import type { VoiceDraft } from '@/lib/voice-notes';
 import type {
     ConversationSummary,
@@ -88,7 +113,27 @@ export type ThreadState = {
     members: OrgMember[];
     typing: string[];
     role: OrgRole | null;
+    /**
+     * The org's pinned messages, latest pinned first, which everyone in the org sees whatever history they were given.
+     * Whether the user pinned the conversation itself in their inbox is pinned_at.
+     */
+    pinned: Message[];
+    /**
+     * The reactions version the pinned messages are current with, which only moves when a list of them is taken.
+     */
+    pinnedMessagesVersion: number | null;
+    /**
+     * The org messages that mentioned the user, latest first, until they open or clear them, and how many there are.
+     */
+    mentions: Message[];
+    mentions_count: number;
+    /**
+     * The mentions being cleared, and when clearing last finished: until then, reads keep the mentions the bell shows.
+     */
+    clearingMentions: number[];
+    mentionsClearedAt: number | null;
     is_archived: boolean;
+    pinned_at: string | null;
     muted_until_at: string | null;
     access: PushAccess;
     pending: PendingMessage[];
@@ -125,6 +170,7 @@ export type ChatState = {
     notificationTitle: string | null;
     threads: Record<string, ThreadState>;
     mutePreferences: Record<string, { until: string | null; version: number }>;
+    pinPreferences: Record<string, { at: string | null; version: number }>;
     /**
      * The emoji the user reacts with, most used first, loaded once something shows a conversation.
      */
@@ -137,8 +183,22 @@ const activePoll = 1_500;
 const idlePoll = 4_000;
 const inboxPoll = 15_000;
 const busyInboxPoll = 6_000;
+const hiddenInboxPoll = 60_000;
 const activeWindow = 60_000;
 const typingPing = 3_000;
+/**
+ * While live updates are heard, polls only back them up, in case one was lost.
+ */
+const listeningPoll = 30_000;
+const listeningInboxPoll = 60_000;
+/**
+ * Typing is only announced when it starts, so an indicator is read again once it would have expired on the server.
+ */
+const typingRecheck = 5_500;
+/**
+ * The most messages one read after a message brings: a full one means there may be more.
+ */
+const catchUpPage = 100;
 
 const listOf = {
     open: 'conversations',
@@ -146,7 +206,7 @@ const listOf = {
     stashed: 'archived',
 } as const;
 
-let state: ChatState = {
+const emptyChat: ChatState = {
     conversations: null,
     fetched: null,
     archived: null,
@@ -158,43 +218,84 @@ let state: ChatState = {
     notificationTitle: null,
     threads: {},
     mutePreferences: {},
+    pinPreferences: {},
     reactionUsage: null,
 };
+let state = emptyChat;
 const listeners = new Set<() => void>();
 const threadWatchers = new Map<string, number>();
+const threadPollVersions = new Map<string, number>();
 const lastActivity = new Map<string, number>();
 const lastTypingPing = new Map<string, number>();
 const reactionsInFlight = new Map<number, number>();
 const reactionsSettledAt = new Map<number, number>();
+const messagePinsInFlight = new Map<string, number>();
+/**
+ * The last clear of each org's mentions, which the next one waits for, so the server answers them in order.
+ */
+const mentionClears = new Map<string, Promise<unknown>>();
+/**
+ * The newest pinned messages a pin request handed back while others in the org were still in flight.
+ */
+const newestPinnedMessages = new Map<
+    string,
+    { pinned: Message[]; version: number; sentAt: number }
+>();
 let inboxWatchers = 0;
 let inboxTimer: number | undefined;
 let isLoadingReactionUsage = false;
 let remoteAlerts: ReturnType<typeof createRemoteAlerts> | null = null;
-let isFetchingInbox = false;
+/**
+ * Whether this tab is the one of the user's tabs that keeps polling for alerts while hidden.
+ */
+let isAlertingTab = false;
+/**
+ * The inbox poll on its way, so one that comes back for remotes no longer watched never ends a newer one.
+ */
+let fetchingInbox: object | null = null;
+let pendingInboxPush: ReturnType<typeof createRemoteAlerts> | null = null;
 let muteVersion = 0;
-let remotesPageWatchers = 0;
+let pinVersion = 0;
+let inboxRevision = 0;
+let remotesUserId: string | null = null;
+let remotesOwner: string | null = null;
+/**
+ * Moves on whenever another account's remotes replace what was shown, so work started before can't touch them.
+ */
+let remotesResets = 0;
+/**
+ * Moves on whenever the remotes stop being watched for someone, so a read still on its way for them is dropped.
+ */
+let remotesGeneration = 0;
+const threadRefreshes = new Map<string, ReturnType<typeof coalesce>>();
+const typingRechecks = new Map<string, number>();
+const invalidatedInboxTabs = new Set<InboxTab>();
 
 export function targetKey(target: ChatTarget): string {
     return target.kind === 'direct'
-        ? target.partner.username
+        ? target.partner.handle
         : `org:${target.org.id}`;
 }
 
 export function summaryKey(summary: ConversationSummary): string {
-    return summary.kind === 'org' || summary.partner === null
+    return summary.kind === 'org'
         ? `org:${summary.id}`
-        : summary.partner.username;
+        : (summary.partner?.handle ?? `direct:${summary.id}`);
 }
 
-export function targetOf(summary: ConversationSummary): ChatTarget {
-    return summary.kind === 'org' || summary.partner === null
-        ? { kind: 'org', org: { id: summary.id, name: summary.name } }
+export function targetOf(summary: ConversationSummary): ChatTarget | null {
+    if (summary.kind === 'org') {
+        return { kind: 'org', org: { id: summary.id, name: summary.name } };
+    }
+
+    return summary.partner === null
+        ? null
         : { kind: 'direct', partner: summary.partner };
 }
 
 function urls(target: ChatTarget) {
     if (target.kind === 'direct') {
-        const partner = { partner: target.partner.username };
+        const partner = { partner: target.partner.handle };
 
         return {
             show: ConversationController.show.url(partner),
@@ -209,6 +310,8 @@ function urls(target: ChatTarget) {
             stash: ConversationArchiveController.store.url(partner),
             pop: ConversationArchiveController.destroy.url(partner),
             mute: ConversationMuteController.update.url(partner),
+            pin: ConversationPinController.update.url(partner),
+            ping: ConversationPingController.store.url(partner),
         };
     }
 
@@ -224,6 +327,8 @@ function urls(target: ChatTarget) {
         stash: OrgArchiveController.store.url(org),
         pop: OrgArchiveController.destroy.url(org),
         mute: OrgMuteController.update.url(org),
+        pin: OrgPinController.update.url(org),
+        ping: OrgPingController.store.url(org),
     };
 }
 
@@ -264,6 +369,43 @@ function withMutePreferences(
         }
     }
     return next;
+}
+
+function withPinPreferences(
+    preferences: [string, string | null][],
+    version = ++pinVersion,
+): ChatState['pinPreferences'] {
+    const next = { ...state.pinPreferences };
+    for (const [key, at] of preferences) {
+        if (version >= (next[key]?.version ?? 0)) {
+            next[key] = { at, version };
+        }
+    }
+    return next;
+}
+
+export function compareConversations(
+    a: ConversationSummary,
+    b: ConversationSummary,
+): number {
+    return (
+        Number(b.pinned_at != null) - Number(a.pinned_at != null) ||
+        (b.last_message_at ?? '').localeCompare(a.last_message_at ?? '') ||
+        b.id.localeCompare(a.id)
+    );
+}
+
+function withConversationPins(
+    items: ConversationSummary[],
+): ConversationSummary[] {
+    return items
+        .map((item) => {
+            const preference = state.pinPreferences[summaryKey(item)];
+            return preference === undefined
+                ? item
+                : { ...item, pinned_at: preference.at };
+        })
+        .sort(compareConversations);
 }
 
 function updateThread(
@@ -307,21 +449,57 @@ export class ChatRequestError extends Error {
 }
 
 /**
+ * A response that came back for remotes no longer watched, as after signing out or in as someone else: dropped before
+ * anything is written or shown, whether it succeeded or failed, and never applied to, nor retried for, whoever is
+ * watching now.
+ */
+class StaleRemotesError extends Error {}
+
+function isStaleRemotes(error: unknown): boolean {
+    return error instanceof StaleRemotesError;
+}
+
+/**
+ * Whether the remotes are still watched for the same account as when it was called.
+ */
+function ownership(): () => boolean {
+    const generation = remotesGeneration;
+    const owner = remotesOwner;
+
+    return () => generation === remotesGeneration && owner === remotesOwner;
+}
+
+/**
  * Sends JSON, or a form when there are files in it, which gets longer to upload.
  */
-async function request<T>(
+export async function request<T>(
     url: string,
     method: 'GET' | 'POST' | 'PUT' | 'DELETE' = 'GET',
     body?: object | FormData,
+    isCurrent: () => boolean = () => true,
 ): Promise<T> {
     const isForm = body instanceof FormData;
-    const response = await fetch(url, {
+    const socket = liveTransport.socketId?.() ?? null;
+    // Every outcome is checked against who asked, before it is told, shown or applied.
+    const owned = <V>(value: V): V => {
+        if (!isCurrent()) {
+            throw new StaleRemotesError();
+        }
+
+        return value;
+    };
+    const failed = (error: unknown): never => {
+        throw isCurrent() ? error : new StaleRemotesError();
+    };
+    const fetched = fetch(url, {
         method,
         headers: {
             Accept: 'application/json',
             ...(isForm ? {} : { 'Content-Type': 'application/json' }),
             'X-Requested-With': 'XMLHttpRequest',
             'X-XSRF-TOKEN': xsrfToken(),
+            // So what this tab did is announced to the user's other tabs and devices, not back to itself.
+            ...(socket === null ? {} : { 'X-Socket-ID': socket }),
         },
         ...(body === undefined
             ? {}
@@ -330,12 +508,15 @@ async function request<T>(
         credentials: 'same-origin',
         signal: AbortSignal.timeout(isForm ? 60_000 : 10_000),
     });
+    const response = owned(await fetched.catch(failed));
 
     if (!response.ok) {
-        const body = (await response.json().catch(() => ({}))) as {
-            message?: string;
-            banned?: boolean;
-        };
+        const body = owned(
+            (await response.json().catch(() => ({}))) as {
+                message?: string;
+                banned?: boolean;
+            },
+        );
         const timeout = timeoutFrom(response.status, body);
 
         // A timeout or a ban stops every remote the same way, so the user is told wherever they tried...
@@ -348,7 +529,17 @@ async function request<T>(
         throw new ChatRequestError(response.status, body);
     }
 
-    return (response.status === 204 ? null : await response.json()) as T;
+    return owned(
+        (response.status === 204
+            ? null
+            : await response.json().catch(failed)) as T,
+    );
+}
+
+async function remotesRequest<T>(
+    ...args: Parameters<typeof request>
+): Promise<T> {
+    return request<T>(args[0], args[1], args[2], ownership());
 }
 
 function mergeMessages(current: Message[], incoming: Message[]): Message[] {
@@ -381,7 +572,7 @@ function withReactionChanges(
             .map((change) => [change.id, change.reactions]),
     );
 
-    if (changed.size === 0) {
+    if (!messages.some((message) => changed.has(message.id))) {
         return messages;
     }
 
@@ -392,11 +583,58 @@ function withReactionChanges(
     );
 }
 
-function unreadOf(conversations: ConversationSummary[]): number {
-    return conversations.reduce(
-        (total, conversation) => total + conversation.ahead,
-        0,
+/**
+ * Whether a message's reactions are the user's own to settle: they are reacting to it right now, or reacted to it after
+ * the request was sent.
+ */
+function isReactionHeld(sentAt: number): (id: number) => boolean {
+    return (id) =>
+        reactionsInFlight.has(id) ||
+        (reactionsSettledAt.get(id) ?? 0) >= sentAt;
+}
+
+/**
+ * The thread's pinned messages once the server sent a list with the reactions version it read before it, or none.
+ * A list the thread doesn't take still gets the reaction changes sent with it.
+ */
+function pinnedMessagesFrom(
+    key: string,
+    thread: ThreadState,
+    pinned: Message[] | null,
+    version: number,
+    changes: MessageReactionChange[],
+    sentAt: number,
+): PinnedMessages {
+    const accepted = acceptedPinnedMessages(
+        thread,
+        pinned,
+        version,
+        messagePinsInFlight.has(key),
     );
+
+    if (accepted === null) {
+        return {
+            pinned: withReactionChanges(thread.pinned, changes, sentAt),
+            pinnedMessagesVersion: thread.pinnedMessagesVersion,
+        };
+    }
+
+    return {
+        pinned: withShownReactions(
+            accepted.pinned,
+            [...thread.messages, ...thread.pinned],
+            isReactionHeld(sentAt),
+        ),
+        pinnedMessagesVersion: accepted.pinnedMessagesVersion,
+    };
+}
+
+/**
+ * How many of the conversations have unread messages, the way the nav badge counts them.
+ */
+function unreadOf(conversations: ConversationSummary[]): number {
+    return conversations.filter((conversation) => conversation.ahead > 0)
+        .length;
 }
 
 function withoutKey(
@@ -410,15 +648,25 @@ function withoutKey(
     );
 }
 
-function byLatest(conversations: ConversationSummary[]): ConversationSummary[] {
-    return [...conversations].sort((a, b) =>
-        (b.last_message_at ?? '').localeCompare(a.last_message_at ?? ''),
-    );
+function forgetOtherServerRenders(): void {
+    if (typeof window === 'undefined') {
+        state = emptyChat;
+    }
 }
 
 export function seedInbox(inbox: InboxPage): void {
+    forgetOtherServerRenders();
+    invalidatedInboxTabs.delete('open');
     updateDuringRender({
-        conversations: inbox.conversations,
+        pinPreferences: withPinPreferences(
+            inbox.conversations.map((item) => [
+                summaryKey(item),
+                item.pinned_at,
+            ]),
+        ),
+    });
+    updateDuringRender({
+        conversations: withConversationPins(inbox.conversations),
         mutePreferences: withMutePreferences(
             inbox.conversations.map((item) => [
                 summaryKey(item),
@@ -438,35 +686,43 @@ function withFirstPage(
     firstPage: ConversationSummary[],
 ): ConversationSummary[] {
     const fresh = new Set(firstPage.map(summaryKey));
-    const oldest = firstPage.at(-1)?.last_message_at ?? '';
+    const oldest = firstPage.at(-1);
 
-    return [
+    return withConversationPins([
         ...firstPage,
-        ...(current ?? []).filter(
+        ...withConversationPins(current ?? []).filter(
             (item) =>
                 !fresh.has(summaryKey(item)) &&
-                (item.last_message_at ?? '') <= oldest,
+                oldest !== undefined &&
+                compareConversations(item, oldest) >= 0,
         ),
-    ];
+    ]);
 }
 
 async function fetchInbox(
     tab: InboxTab,
     before?: string,
     notificationBaseline = false,
+    notificationConversations = false,
 ): Promise<
     InboxPage & {
         unread: number;
         requests: number;
         notification_baseline?: Record<string, number>;
+        notification_conversations?: ConversationSummary[];
+        pins?: Record<string, string | null>;
+        pinsChanged: boolean;
     }
 > {
     const version = ++muteVersion;
-    const page = await request<
+    const pinsVersion = ++pinVersion;
+    const page = await remotesRequest<
         InboxPage & {
             unread: number;
             requests: number;
             notification_baseline?: Record<string, number>;
+            notification_conversations?: ConversationSummary[];
+            pins?: Record<string, string | null>;
         }
     >(
         InboxController.index.url({
@@ -474,35 +730,78 @@ async function fetchInbox(
                 tab,
                 ...(before === undefined ? {} : { before }),
                 ...(notificationBaseline ? { notification_baseline: 1 } : {}),
+                ...(notificationConversations
+                    ? { notification_conversations: 1 }
+                    : {}),
             },
         }),
     );
     update({
-        mutePreferences: withMutePreferences(
-            page.conversations.map((item) => [
+        pinPreferences: withPinPreferences(
+            [
+                ...(state.conversations ?? []),
+                ...(state.fetched ?? []),
+                ...(state.archived ?? []),
+                ...page.conversations,
+            ].map((item) => [
                 summaryKey(item),
-                item.muted_until_at,
+                page.pins === undefined
+                    ? item.pinned_at
+                    : (page.pins[item.id] ?? null),
             ]),
+            pinsVersion,
+        ),
+        mutePreferences: withMutePreferences(
+            [
+                ...page.conversations,
+                ...(page.notification_conversations ?? []),
+            ].map((item) => [summaryKey(item), item.muted_until_at]),
             version,
         ),
     });
-    return page;
+    const known = [
+        ...(state.conversations ?? []),
+        ...(state.fetched ?? []),
+        ...(state.archived ?? []),
+    ];
+    const pinsChanged =
+        known.some(
+            (item) =>
+                state.pinPreferences[summaryKey(item)]?.at !== item.pinned_at,
+        ) ||
+        page.conversations.some(
+            (item) =>
+                item.pinned_at !== null &&
+                !known.some((current) => current.id === item.id),
+        );
+    return {
+        ...page,
+        pinsChanged,
+        conversations: withConversationPins(page.conversations),
+    };
 }
 
 /**
  * Loads a tab's first page, for the tabs that are not polled.
  */
 export async function loadTab(tab: InboxTab): Promise<void> {
+    const revision = inboxRevision;
     try {
         const page = await fetchInbox(tab);
+        if (revision !== inboxRevision) {
+            return loadTab(tab);
+        }
+        invalidatedInboxTabs.delete(tab);
 
         update({
             [listOf[tab]]: page.conversations,
             hasMore: { ...state.hasMore, [tab]: page.has_more },
             requests: page.requests,
         });
-    } catch {
-        update({ [listOf[tab]]: state[listOf[tab]] ?? [] });
+    } catch (error) {
+        if (!(error instanceof StaleRemotesError)) {
+            update({ [listOf[tab]]: state[listOf[tab]] ?? [] });
+        }
     }
 }
 
@@ -510,30 +809,102 @@ export async function loadTab(tab: InboxTab): Promise<void> {
  * The next page of a tab, once the user scrolls to the end of it.
  */
 export async function loadMoreConversations(tab: InboxTab): Promise<void> {
-    const list = state[listOf[tab]];
-    const last = list?.at(-1);
-
-    if (!state.hasMore[tab] || state.isLoadingMore[tab] || last === undefined) {
+    if (!state.hasMore[tab] || state.isLoadingMore[tab]) {
         return;
     }
-
+    if (invalidatedInboxTabs.has(tab)) {
+        await refreshConversationPages(tab, true);
+        return;
+    }
+    const last = state[listOf[tab]]?.at(-1);
+    if (last === undefined) {
+        return;
+    }
+    const revision = inboxRevision;
     update({ isLoadingMore: { ...state.isLoadingMore, [tab]: true } });
 
     try {
         const page = await fetchInbox(tab, last.id);
+        if (revision !== inboxRevision) {
+            return;
+        }
+        if (page.pinsChanged) {
+            invalidateConversationPages();
+            await refreshConversationPages(tab, true);
+            return;
+        }
         const known = new Set((state[listOf[tab]] ?? []).map(summaryKey));
 
         update({
-            [listOf[tab]]: [
+            [listOf[tab]]: withConversationPins([
                 ...(state[listOf[tab]] ?? []),
                 ...page.conversations.filter(
                     (item) => !known.has(summaryKey(item)),
                 ),
-            ],
+            ]),
             hasMore: { ...state.hasMore, [tab]: page.has_more },
         });
     } finally {
-        update({ isLoadingMore: { ...state.isLoadingMore, [tab]: false } });
+        if (revision === inboxRevision) {
+            update({ isLoadingMore: { ...state.isLoadingMore, [tab]: false } });
+        }
+    }
+}
+
+/**
+ * A moved pin invalidates the last displayed row as a cursor. Rebuild the loaded depth as a continuous prefix.
+ */
+async function refreshConversationPages(
+    tab: InboxTab,
+    more = false,
+): Promise<void> {
+    const revision = inboxRevision;
+    const depth = state[listOf[tab]]?.length ?? 0;
+    const conversations: ConversationSummary[] = [];
+    let page: Awaited<ReturnType<typeof fetchInbox>>;
+    let before: string | undefined;
+    let pins: string | undefined;
+    update({ isLoadingMore: { ...state.isLoadingMore, [tab]: true } });
+    try {
+        while (true) {
+            page = await fetchInbox(tab, before);
+            if (revision !== inboxRevision) {
+                return;
+            }
+            const snapshot = JSON.stringify(
+                Object.entries(page.pins ?? {}).sort(([left], [right]) =>
+                    left.localeCompare(right),
+                ),
+            );
+            if (pins !== undefined && pins !== snapshot) {
+                conversations.length = 0;
+                before = undefined;
+                pins = undefined;
+                continue;
+            }
+            pins = snapshot;
+            conversations.push(...page.conversations);
+            before = page.conversations.at(-1)?.id;
+            if (
+                !page.has_more ||
+                before === undefined ||
+                conversations.length > depth ||
+                (!more && conversations.length === depth)
+            ) {
+                break;
+            }
+        }
+        invalidatedInboxTabs.delete(tab);
+        update({
+            [listOf[tab]]: withConversationPins(conversations),
+            hasMore: { ...state.hasMore, [tab]: page.has_more },
+        });
+    } catch {
+        // Keep the cursor invalid so the next scroll retries from the first page instead of skipping the gap.
+    } finally {
+        if (revision === inboxRevision) {
+            update({ isLoadingMore: { ...state.isLoadingMore, [tab]: false } });
+        }
     }
 }
 
@@ -549,7 +920,14 @@ function emptyThread(target: ChatTarget): ThreadState {
         members: [],
         typing: [],
         role: null,
+        pinned: [],
+        pinnedMessagesVersion: null,
+        mentions: [],
+        mentions_count: 0,
+        clearingMentions: [],
+        mentionsClearedAt: null,
         is_archived: false,
+        pinned_at: null,
         muted_until_at: null,
         access: 'open',
         pending: [],
@@ -562,6 +940,22 @@ function emptyThread(target: ChatTarget): ThreadState {
     };
 }
 
+/**
+ * The mentions a read handed over, unless it was sent before the user finished clearing some.
+ */
+function mentionsFrom(
+    current: ThreadState,
+    thread: Thread | OrgThread,
+    sentAt: number,
+): Pick<ThreadState, 'mentions' | 'mentions_count'> {
+    return !('mentions' in thread) ||
+        current.clearingMentions.length > 0 ||
+        (current.mentionsClearedAt !== null &&
+            current.mentionsClearedAt >= sentAt)
+        ? { mentions: current.mentions, mentions_count: current.mentions_count }
+        : { mentions: thread.mentions, mentions_count: thread.mentions_count };
+}
+
 function fromServer(thread: Thread | OrgThread): Partial<ThreadState> {
     return 'members' in thread
         ? {
@@ -569,6 +963,7 @@ function fromServer(thread: Thread | OrgThread): Partial<ThreadState> {
               typing: thread.typing,
               role: thread.role,
               is_archived: thread.is_archived,
+              pinned_at: thread.pinned_at,
               muted_until_at: thread.muted_until_at,
               access: thread.access,
           }
@@ -577,6 +972,7 @@ function fromServer(thread: Thread | OrgThread): Partial<ThreadState> {
               partner_read_at: thread.partner_read_at,
               partner_typing: thread.partner_typing,
               is_archived: thread.is_archived,
+              pinned_at: thread.pinned_at,
               muted_until_at: thread.muted_until_at,
               access: thread.access,
           };
@@ -593,14 +989,25 @@ export function seedThread(
     const current = state.threads[key] ?? emptyThread(target);
 
     updateDuringRender({
+        pinPreferences: withPinPreferences([[key, thread.pinned_at]]),
         mutePreferences: withMutePreferences([[key, thread.muted_until_at]]),
         threads: {
             ...state.threads,
             [key]: {
                 ...current,
                 ...fromServer(thread),
+                // A page doesn't say when it was read, so once the user cleared mentions, polls bring them instead.
+                ...mentionsFrom(current, thread, -Infinity),
                 target,
                 messages: mergeMessages(current.messages, thread.messages),
+                ...pinnedMessagesFrom(
+                    key,
+                    current,
+                    'pinned' in thread ? thread.pinned : null,
+                    thread.reactions_version,
+                    [],
+                    performance.now(),
+                ),
                 has_older: current.isLoaded
                     ? current.has_older
                     : thread.has_older,
@@ -628,17 +1035,55 @@ export function rememberTarget(target: ChatTarget): void {
     }
 }
 
-async function pollInbox(): Promise<void> {
-    if ((document.hidden && remoteAlerts === null) || isFetchingInbox) {
+async function pollInbox(fromPush = false): Promise<void> {
+    const isPaused =
+        document.hidden &&
+        (remoteAlerts === null ||
+            (!fromPush && (!isAlertingTab || remotePushEnabled())));
+
+    if (
+        isPaused &&
+        state.unread !== null &&
+        (remoteAlerts === null || !remotePushEnabled())
+    ) {
+        update({ unread: null });
+    }
+
+    if (isPaused) {
         return;
     }
 
-    isFetchingInbox = true;
+    if (fetchingInbox !== null) {
+        if (fromPush) pendingInboxPush = remoteAlerts;
+        return;
+    }
+
+    const fetching = {};
+    fetchingInbox = fetching;
+    const isCurrent = ownership();
+    let revision = inboxRevision;
+    // Every step after a wait, as much as the first, is for whoever asked and the inbox as it was then.
+    const isStillCurrent = () => revision === inboxRevision && isCurrent();
 
     try {
         const alerts = remoteAlerts;
-        const { conversations, unread, requests, notification_baseline } =
-            await fetchInbox('open', undefined, alerts?.needsBaseline());
+        const {
+            conversations,
+            unread,
+            requests,
+            notification_baseline,
+            notification_conversations,
+            pinsChanged,
+        } = await fetchInbox(
+            'open',
+            undefined,
+            alerts?.needsBaseline(),
+            alerts !== null,
+        );
+        if (!isStillCurrent()) {
+            return;
+        }
+        const notifications = notification_conversations ?? conversations;
         const isReading = (conversation: ConversationSummary) =>
             !document.hidden &&
             document.hasFocus() &&
@@ -648,13 +1093,12 @@ async function pollInbox(): Promise<void> {
             (!alerts?.needsBaseline() || notification_baseline !== undefined)
         ) {
             void alerts?.receive(
-                conversations.map((conversation) => ({
+                notifications.map((conversation) => ({
                     ...conversation,
                     muted_until_at:
                         state.mutePreferences[summaryKey(conversation)].until,
                 })),
                 (conversation) =>
-                    isViewingRemotes() ||
                     isReading(conversation) ||
                     isRemoteMuted(
                         state.mutePreferences[summaryKey(conversation)].until,
@@ -662,26 +1106,40 @@ async function pollInbox(): Promise<void> {
                 notification_baseline,
             );
         }
+        if (pinsChanged) {
+            invalidateConversationPages();
+            revision = inboxRevision;
+        }
+        const reconcileOpen = invalidatedInboxTabs.has('open');
+        await Promise.all(
+            [...invalidatedInboxTabs].map((tab) =>
+                refreshConversationPages(tab),
+            ),
+        );
+
+        if (!isStillCurrent()) {
+            return;
+        }
+
         const requestsChanged =
             state.requests !== null && requests !== state.requests;
         const watched = conversations.filter(isReading);
 
         update({
-            conversations: withFirstPage(
-                state.conversations,
-                conversations.map((conversation) =>
-                    isReading(conversation)
-                        ? { ...conversation, ahead: 0 }
-                        : conversation,
-                ),
-            ),
+            conversations: reconcileOpen
+                ? state.conversations
+                : withFirstPage(
+                      state.conversations,
+                      conversations.map((conversation) =>
+                          isReading(conversation)
+                              ? { ...conversation, ahead: 0 }
+                              : conversation,
+                      ),
+                  ),
+            fetched: state.fetched && withConversationPins(state.fetched),
+            archived: state.archived && withConversationPins(state.archived),
             requests,
-            unread:
-                unread -
-                watched.reduce(
-                    (total, conversation) => total + conversation.ahead,
-                    0,
-                ),
+            unread: unread - unreadOf(watched),
         });
 
         if (requestsChanged && state.fetched !== null) {
@@ -690,112 +1148,172 @@ async function pollInbox(): Promise<void> {
     } catch {
         // Keep the last known inbox until the next poll.
     } finally {
-        isFetchingInbox = false;
+        if (fetchingInbox === fetching) {
+            fetchingInbox = null;
+        }
+
+        const pending = pendingInboxPush;
+        pendingInboxPush = null;
+        if (pending !== null && pending === remoteAlerts) {
+            void pollInbox(true);
+        }
     }
 }
 
 export function watchRemoteAlerts(userId: string): () => void {
     let titleTimer: number | undefined;
-    let pendingTitle: string | null = null;
+    let pendingAlert: { key: string; title: string } | null = null;
     const channel =
         'BroadcastChannel' in window
             ? new BroadcastChannel(`remote-titles:${userId}`)
             : null;
     const clearTitle = () => {
         window.clearInterval(titleTimer);
-        pendingTitle = null;
+        pendingAlert = null;
         update({ notificationTitle: null });
     };
     const acknowledgeTitle = () => {
-        if (document.hidden || !document.hasFocus()) return;
-
-        clearTitle();
-        channel?.postMessage(null);
-    };
-    const showTitle = (title: string) => {
-        if (!remoteAlertsEnabled(userId)) return;
-        if (!document.hidden && document.hasFocus()) {
-            acknowledgeTitle();
+        if (
+            pendingAlert === null ||
+            document.hidden ||
+            !document.hasFocus() ||
+            !isWatching(pendingAlert.key)
+        )
             return;
-        }
 
-        const alreadyPending = pendingTitle !== null;
-        pendingTitle = title;
+        const key = pendingAlert.key;
+        clearTitle();
+        channel?.postMessage({ key, title: null });
+    };
+    const showTitle = (alert: { key: string; title: string }) => {
+        if (!remoteAlertsEnabled(userId)) return;
+
+        const alreadyPending = pendingAlert !== null;
+        pendingAlert = alert;
+        acknowledgeTitle();
+        if (pendingAlert === null) return;
+
         if (alreadyPending) {
             if (state.notificationTitle !== null) {
-                update({ notificationTitle: pendingTitle });
+                update({ notificationTitle: pendingAlert.title });
             }
             return;
         }
 
-        update({ notificationTitle: pendingTitle });
+        update({ notificationTitle: pendingAlert.title });
         let switches = 0;
         titleTimer = window.setInterval(() => {
             switches++;
             update({
-                notificationTitle: switches % 2 === 0 ? pendingTitle : null,
+                notificationTitle:
+                    switches % 2 === 0 ? (pendingAlert?.title ?? null) : null,
             });
             if (switches === 6) window.clearInterval(titleTimer);
         }, 1_000);
     };
     channel?.addEventListener('message', (event: MessageEvent<unknown>) => {
-        if (event.data === null) clearTitle();
-        else if (typeof event.data === 'string') showTitle(event.data);
+        const alert = event.data;
+        if (
+            typeof alert !== 'object' ||
+            alert === null ||
+            !('key' in alert) ||
+            typeof alert.key !== 'string' ||
+            !('title' in alert)
+        )
+            return;
+        if (alert.title === null && pendingAlert?.key === alert.key)
+            clearTitle();
+        else if (typeof alert.title === 'string')
+            showTitle({ key: alert.key, title: alert.title });
     });
     window.addEventListener('focus', acknowledgeTitle);
     document.addEventListener('visibilitychange', acknowledgeTitle);
-    acknowledgeTitle();
+    const unsubscribe = subscribeToChat(acknowledgeTitle);
 
     const alerts = createRemoteAlerts(
         userId,
-        (conversation) => urls(targetOf(conversation)).show,
+        (conversation) => {
+            const target = targetOf(conversation);
+
+            return target === null
+                ? ConversationController.index.url()
+                : urls(target).show;
+        },
         () =>
-            isViewingRemotes()
-                ? ['*']
-                : !document.hidden && document.hasFocus()
-                  ? [...threadWatchers.keys()].map(
-                        (key) => urls(state.threads[key].target).show,
-                    )
-                  : [],
+            !document.hidden && document.hasFocus()
+                ? [...threadWatchers.keys()].map(
+                      (key) => urls(state.threads[key].target).show,
+                  )
+                : [],
         (conversation) => {
             const sender = conversation.last_incoming_sender ?? 'Someone';
             const remote =
                 conversation.kind === 'org'
                     ? ` in ${conversation.name || 'an unnamed org'}`
                     : '';
-            const title = `${sender}${remote} sent you a message`;
-            channel?.postMessage(title);
-            showTitle(title);
+            const title =
+                conversation.last_message?.event === 'ping'
+                    ? `${sender}${remote} sent you a ping`
+                    : `${sender}${remote} sent you a message`;
+            const alert = { key: summaryKey(conversation), title };
+            channel?.postMessage(alert);
+            showTitle(alert);
         },
     );
     remoteAlerts = alerts;
     const unwatch = watchInbox();
+    const lock = new AbortController();
+    let releaseLock = () => {};
+    if (navigator.locks) {
+        void navigator.locks
+            .request(
+                `remote-alerts:${userId}`,
+                { signal: lock.signal },
+                () =>
+                    new Promise<void>((resolve) => {
+                        isAlertingTab = true;
+                        releaseLock = resolve;
+                    }),
+            )
+            .catch(() => undefined);
+    } else {
+        isAlertingTab = true;
+    }
+
+    const onPush = (event: MessageEvent<unknown>) => {
+        const data = event.data;
+        if (
+            typeof data !== 'object' ||
+            data === null ||
+            !('type' in data) ||
+            data.type !== 'remote-push' ||
+            !remotePushOptedIn(userId)
+        )
+            return;
+
+        void pollInbox(true);
+        for (const key of threadWatchers.keys()) {
+            void pollThread(state.threads[key].target).catch(() => undefined);
+        }
+    };
+    navigator.serviceWorker?.addEventListener('message', onPush);
 
     return () => {
+        lock.abort();
+        releaseLock();
+        isAlertingTab = false;
         alerts.stop();
         window.clearInterval(titleTimer);
         window.removeEventListener('focus', acknowledgeTitle);
         document.removeEventListener('visibilitychange', acknowledgeTitle);
+        navigator.serviceWorker?.removeEventListener('message', onPush);
         channel?.close();
+        unsubscribe();
         if (remoteAlerts === alerts) {
             remoteAlerts = null;
             update({ notificationTitle: null });
         }
         unwatch();
-    };
-}
-
-function isViewingRemotes(): boolean {
-    return remotesPageWatchers > 0 && !document.hidden && document.hasFocus();
-}
-
-export function watchRemotesPage(): () => void {
-    remotesPageWatchers++;
-    remoteAlerts?.updateReading();
-
-    return () => {
-        remotesPageWatchers--;
-        remoteAlerts?.updateReading();
     };
 }
 
@@ -808,8 +1326,243 @@ function scheduleInbox(): void {
 
     inboxTimer = window.setTimeout(
         () => void pollInbox().finally(scheduleInbox),
-        threadWatchers.size > 0 ? busyInboxPoll : inboxPoll,
+        isHearingRemotes()
+            ? listeningInboxPoll
+            : document.hidden
+              ? hiddenInboxPoll
+              : threadWatchers.size > 0
+                ? busyInboxPoll
+                : inboxPoll,
     );
+}
+
+/**
+ * Whether the user's private updates are being heard, so polling can slow down to a safety net.
+ */
+function isHearingRemotes(): boolean {
+    return remotesUserId !== null && isListening(userChannel(remotesUserId));
+}
+
+/**
+ * Calls back when live updates start or stop being heard, and not for every other channel coming and going.
+ */
+function onHearingChange(callback: () => void): () => void {
+    let isHeard = isHearingRemotes();
+
+    return onRealtimeChange(() => {
+        if (isHearingRemotes() !== isHeard) {
+            isHeard = !isHeard;
+            callback();
+        }
+    });
+}
+
+const inboxRefresh = coalesce(() => pollInbox(document.hidden), 150);
+
+/**
+ * A hidden tab reads the inbox on an update only when it is the one alerting and no push does it already: the
+ * others catch up once they are shown.
+ */
+function refreshInbox(): void {
+    if (
+        inboxWatchers === 0 ||
+        (document.hidden && (!isAlertingTab || remotePushEnabled()))
+    ) {
+        return;
+    }
+
+    inboxRefresh.request();
+}
+
+/**
+ * Reads a shown conversation again, once for a burst of updates, through the same incremental read a poll makes.
+ */
+function refreshThread(target: ChatTarget): void {
+    const key = targetKey(target);
+
+    if (!isWatching(key) || document.hidden) {
+        return;
+    }
+
+    let refresh = threadRefreshes.get(key);
+
+    if (refresh === undefined) {
+        refresh = coalesce(
+            () => pollThread(state.threads[key]?.target ?? target),
+            100,
+        );
+        threadRefreshes.set(key, refresh);
+    }
+
+    refresh.request();
+}
+
+/**
+ * The shown conversations an update is about. A direct conversation is known by its partner, so its id is matched
+ * through the inbox, and every shown direct conversation is read again when the inbox doesn't have it.
+ */
+function watchedTargets(payload: unknown): ChatTarget[] {
+    const id =
+        typeof payload === 'object' &&
+        payload !== null &&
+        'conversation' in payload &&
+        typeof payload.conversation === 'string'
+            ? payload.conversation
+            : null;
+    const summary =
+        id === null
+            ? undefined
+            : [
+                  ...(state.conversations ?? []),
+                  ...(state.fetched ?? []),
+                  ...(state.archived ?? []),
+              ].find((conversation) => conversation.id === id);
+
+    return [...threadWatchers.keys()]
+        .filter(
+            (key) =>
+                id === null ||
+                key === `org:${id}` ||
+                (summary === undefined
+                    ? !key.startsWith('org:')
+                    : summaryKey(summary) === key),
+        )
+        .flatMap((key) => state.threads[key]?.target ?? []);
+}
+
+/**
+ * Listens for what changed in the user's remotes, wherever it was changed from: new messages refresh the inbox and
+ * the conversations shown, and changes to a conversation only those. Joining the channel, at first and after a
+ * dropped connection, reads everything shown again, draining whatever arrived in between. Returns the function that
+ * stops listening.
+ */
+export function watchRemoteUpdates(userId: string): () => void {
+    // Another account's remotes, kept from before signing in as someone else, are never shown to this one.
+    if (remotesOwner !== null && remotesOwner !== userId) {
+        state = emptyChat;
+        remotesResets++;
+        invalidatedInboxTabs.clear();
+        listeners.forEach((listener) => listener());
+    } else {
+        // What was still loading when the remotes stopped being watched was dropped, so it isn't loading any more,
+        // and loads again from here.
+        olderLoads.clear();
+        fetchingInbox = null;
+        const threads = Object.fromEntries(
+            Object.entries(state.threads).map(([key, thread]) => [
+                key,
+                thread.isLoadingOlder
+                    ? { ...thread, isLoadingOlder: false }
+                    : thread,
+            ]),
+        );
+
+        update({ isLoadingMore: emptyChat.isLoadingMore, threads });
+    }
+
+    remotesOwner = userId;
+    remotesUserId = userId;
+
+    const refreshWatched = (payload: unknown) =>
+        watchedTargets(payload).forEach(refreshThread);
+    // Requests and the stash can change without their counts changing, so their loaded pages are read again.
+    const invalidateLoadedTabs = () => {
+        for (const tab of ['fetched', 'stashed'] as const) {
+            if (state[listOf[tab]] !== null) {
+                invalidatedInboxTabs.add(tab);
+            }
+        }
+    };
+
+    const stopListening = listen(
+        userChannel(userId),
+        {
+            'remotes.messages': (payload) => {
+                refreshInbox();
+                refreshWatched(payload);
+            },
+            'remotes.conversation': (payload) => {
+                // A partner's read also shows in the inbox, as how far they pulled.
+                if (
+                    typeof payload === 'object' &&
+                    payload !== null &&
+                    'read' in payload
+                ) {
+                    refreshInbox();
+                }
+
+                refreshWatched(payload);
+            },
+            'remotes.inbox': (payload) => {
+                invalidateLoadedTabs();
+                forgetUnwatched(payload);
+                refreshInbox();
+                refreshWatched(payload);
+            },
+        },
+        // Joining, at first or again after the connection dropped, may follow changes nobody heard, so the loaded tabs
+        // are read again whatever their counts say.
+        () => {
+            invalidateLoadedTabs();
+            refreshInbox();
+            refreshWatched(null);
+        },
+    );
+    const stopPacing = onHearingChange(scheduleInbox);
+
+    return () => {
+        stopListening();
+        stopPacing();
+        remotesGeneration++;
+        inboxRevision++;
+        threadRefreshes.forEach((refresh) => refresh.cancel());
+        threadRefreshes.clear();
+        typingRechecks.forEach((timer) => window.clearTimeout(timer));
+        typingRechecks.clear();
+
+        if (remotesUserId === userId) {
+            remotesUserId = null;
+        }
+    };
+}
+
+/**
+ * Access to a conversation changed, as when it was blocked or someone left an org: the ones kept from earlier but not
+ * shown right now are forgotten, so opening them again reads them, and finds out whether they still can be.
+ */
+function forgetUnwatched(payload: unknown): void {
+    const id =
+        typeof payload === 'object' &&
+        payload !== null &&
+        'conversation' in payload &&
+        typeof payload.conversation === 'string'
+            ? payload.conversation
+            : null;
+    const summary = [
+        ...(state.conversations ?? []),
+        ...(state.fetched ?? []),
+        ...(state.archived ?? []),
+    ].find((conversation) => conversation.id === id);
+    const forgotten = Object.keys(state.threads).filter(
+        (key) =>
+            !isWatching(key) &&
+            state.threads[key].pending.length === 0 &&
+            (id === null ||
+                key === `org:${id}` ||
+                (summary === undefined
+                    ? !key.startsWith('org:')
+                    : summaryKey(summary) === key)),
+    );
+
+    if (forgotten.length > 0) {
+        update({
+            threads: Object.fromEntries(
+                Object.entries(state.threads).filter(
+                    ([key]) => !forgotten.includes(key),
+                ),
+            ),
+        });
+    }
 }
 
 function isWatching(key: string): boolean {
@@ -830,7 +1583,7 @@ export function watchInbox(): () => void {
 
     const onVisible = () => {
         if (!document.hidden) {
-            void pollInbox();
+            void pollInbox().finally(scheduleInbox);
         }
     };
 
@@ -849,27 +1602,58 @@ export function watchInbox(): () => void {
 
 async function pollThread(target: ChatTarget): Promise<void> {
     const key = targetKey(target);
+    const pollVersion = (threadPollVersions.get(key) ?? 0) + 1;
+    threadPollVersions.set(key, pollVersion);
     const thread = state.threads[key];
     const after = thread?.isLoaded ? (thread.messages.at(-1)?.id ?? 0) : null;
     const reactionsAfter =
-        after === null ? null : (thread?.reactions_version ?? null);
+        after === null
+            ? null
+            : reactionsAfterOf(
+                  thread?.reactions_version ?? null,
+                  target.kind === 'org'
+                      ? (thread?.pinnedMessagesVersion ?? 0)
+                      : null,
+              );
     const polledAt = performance.now();
     const version = ++muteVersion;
+    const pinsVersion = ++pinVersion;
+    const generation = remotesGeneration;
 
-    const fresh = await request<
-        (Thread & { partner: User }) | (OrgThread & { org: OrgRef })
-    >(
-        urls(target).index(
-            after === null
-                ? undefined
-                : {
-                      after,
-                      ...(reactionsAfter === null
-                          ? {}
-                          : { reactions_after: reactionsAfter }),
-                  },
-        ),
-    );
+    let fresh: (Thread & { partner: User }) | (OrgThread & { org: OrgRef });
+
+    try {
+        fresh = await remotesRequest(
+            urls(target).index(
+                after === null
+                    ? undefined
+                    : {
+                          after,
+                          ...(reactionsAfter === null
+                              ? {}
+                              : { reactions_after: reactionsAfter }),
+                      },
+            ),
+        );
+    } catch (error) {
+        if (
+            error instanceof ChatRequestError &&
+            [403, 404].includes(error.status) &&
+            threadPollVersions.get(key) === pollVersion &&
+            generation === remotesGeneration
+        ) {
+            revokeThread(target);
+        }
+
+        throw error;
+    }
+
+    if (
+        threadPollVersions.get(key) !== pollVersion ||
+        generation !== remotesGeneration
+    ) {
+        return;
+    }
 
     const current = state.threads[key] ?? emptyThread(target);
     const isTyping =
@@ -880,6 +1664,10 @@ async function pollThread(target: ChatTarget): Promise<void> {
     }
 
     update({
+        pinPreferences: withPinPreferences(
+            [[key, fresh.pinned_at]],
+            pinsVersion,
+        ),
         mutePreferences: withMutePreferences(
             [[key, fresh.muted_until_at]],
             version,
@@ -889,6 +1677,7 @@ async function pollThread(target: ChatTarget): Promise<void> {
             [key]: {
                 ...current,
                 ...fromServer(fresh),
+                ...mentionsFrom(current, fresh, polledAt),
                 target:
                     'org' in fresh
                         ? { kind: 'org', org: fresh.org }
@@ -902,6 +1691,14 @@ async function pollThread(target: ChatTarget): Promise<void> {
                         polledAt,
                     ),
                     fresh.messages,
+                ),
+                ...pinnedMessagesFrom(
+                    key,
+                    current,
+                    'pinned' in fresh ? fresh.pinned : null,
+                    fresh.reactions_version,
+                    fresh.reaction_changes,
+                    polledAt,
                 ),
                 reactions_version: Math.max(
                     current.reactions_version ?? 0,
@@ -933,6 +1730,49 @@ async function pollThread(target: ChatTarget): Promise<void> {
             },
         },
     });
+
+    recheckTyping(target, isTyping);
+
+    // A read after a message only brings so many, so whoever was away for longer keeps reading until caught up.
+    if (after !== null && fresh.messages.length >= catchUpPage) {
+        await pollThread(target);
+    }
+}
+
+/**
+ * A conversation the user can no longer read, as after being removed from an org or blocked, no longer shows what
+ * it showed them: the messages go, and nothing can be sent. Messages already delivered to the browser can't be
+ * recalled, only no longer shown.
+ */
+function revokeThread(target: ChatTarget): void {
+    const key = targetKey(target);
+
+    update({
+        threads: {
+            ...state.threads,
+            [key]: { ...emptyThread(target), isLoaded: true, access: 'closed' },
+        },
+        conversations: withoutKey(state.conversations, key),
+        fetched: withoutKey(state.fetched, key),
+        archived: withoutKey(state.archived, key),
+    });
+}
+
+function recheckTyping(target: ChatTarget, isTyping: boolean): void {
+    const key = targetKey(target);
+
+    window.clearTimeout(typingRechecks.get(key));
+    typingRechecks.delete(key);
+
+    if (isTyping && isHearingRemotes()) {
+        typingRechecks.set(
+            key,
+            window.setTimeout(() => {
+                typingRechecks.delete(key);
+                refreshThread(target);
+            }, typingRecheck),
+        );
+    }
 }
 
 /**
@@ -976,12 +1816,22 @@ export function watchThread(target: ChatTarget): () => void {
             return;
         }
 
+        schedule();
+    };
+
+    const schedule = () => {
+        window.clearTimeout(timer);
+
         const isActive =
             Date.now() - (lastActivity.get(key) ?? 0) < activeWindow;
 
         timer = window.setTimeout(
             () => void tick(),
-            isActive ? activePoll : idlePoll,
+            isHearingRemotes()
+                ? listeningPoll
+                : isActive
+                  ? activePoll
+                  : idlePoll,
         );
     };
 
@@ -992,6 +1842,12 @@ export function watchThread(target: ChatTarget): () => void {
     };
 
     document.addEventListener('visibilitychange', onVisible);
+    // Losing the live updates brings back the quick polls straight away, instead of after the slow one.
+    const stopPacing = onHearingChange(() => {
+        if (!isStopped) {
+            schedule();
+        }
+    });
     void tick();
     scheduleInbox();
     void loadReactionUsage();
@@ -999,6 +1855,7 @@ export function watchThread(target: ChatTarget): () => void {
     return () => {
         isStopped = true;
         window.clearTimeout(timer);
+        stopPacing();
         document.removeEventListener('visibilitychange', onVisible);
 
         const watchers = (threadWatchers.get(key) ?? 1) - 1;
@@ -1041,11 +1898,15 @@ function touchInbox(target: ChatTarget, message: Message): void {
         partner_read_through_id: existing?.partner_read_through_id ?? 0,
         partner_read_at: existing?.partner_read_at ?? null,
         is_archived: false,
+        pinned_at: state.pinPreferences[key]?.at ?? existing?.pinned_at ?? null,
         muted_until_at: existing?.muted_until_at ?? null,
     };
 
     update({
-        conversations: [summary, ...(withoutKey(conversations, key) ?? [])],
+        conversations: withConversationPins([
+            summary,
+            ...(withoutKey(conversations, key) ?? []),
+        ]),
         archived: withoutKey(state.archived, key),
     });
     updateThread(key, () => ({ is_archived: false }));
@@ -1058,7 +1919,7 @@ async function deliver(
     const key = targetKey(target);
 
     try {
-        const { message } = await request<{ message: Message }>(
+        const { message } = await remotesRequest<{ message: Message }>(
             urls(target).store,
             'POST',
             payloadOf(pending),
@@ -1079,7 +1940,11 @@ async function deliver(
             head: Math.max(thread.head, message.id),
         }));
         touchInbox(target, message);
-    } catch {
+    } catch (error) {
+        if (error instanceof StaleRemotesError) {
+            return;
+        }
+
         updateThread(key, (thread) => ({
             pending: thread.pending.map((item) =>
                 item.client_id === pending.client_id
@@ -1156,6 +2021,38 @@ export function sendMessage(target: ChatTarget, draft: MessageDraft): void {
     void deliver(target, pending);
 }
 
+/**
+ * Pings the partner, or everyone in an org. The stored ping lands in the thread like a message, and the thread shakes
+ * as it arrives.
+ */
+export async function sendPing(target: ChatTarget): Promise<void> {
+    const key = targetKey(target);
+    const sent = await remotesRequest<{ message: Message }>(
+        urls(target).ping,
+        'POST',
+    ).catch((error: unknown) => {
+        if (isStaleRemotes(error)) {
+            return null;
+        }
+
+        throw error;
+    });
+
+    if (sent === null) {
+        return;
+    }
+
+    const { message } = sent;
+
+    lastActivity.set(key, Date.now());
+    updateThread(key, (thread) => ({
+        messages: mergeMessages(thread.messages, [message]),
+        read_through_id: Math.max(thread.read_through_id, message.id),
+        head: Math.max(thread.head, message.id),
+    }));
+    touchInbox(target, message);
+}
+
 async function loadReactionUsage(): Promise<void> {
     if (state.reactionUsage !== null || isLoadingReactionUsage) {
         return;
@@ -1164,7 +2061,7 @@ async function loadReactionUsage(): Promise<void> {
     isLoadingReactionUsage = true;
 
     try {
-        const { usage } = await request<{ usage: ReactionUsage[] }>(
+        const { usage } = await remotesRequest<{ usage: ReactionUsage[] }>(
             MessageReactionController.index.url(),
         );
 
@@ -1184,17 +2081,30 @@ function countReactionUse(emoji: string, change: 1 | -1): void {
     }
 }
 
+/**
+ * A message can show twice, in the thread and among the pinned ones, or only among the pinned ones for a member added
+ * after it without its history.
+ */
 function setReactions(
     key: string,
     messageId: number,
     change: (reactions: MessageReaction[]) => MessageReaction[],
 ): void {
+    const changed = (messages: Message[]) =>
+        messages.some((message) => message.id === messageId)
+            ? messages.map((message) =>
+                  message.id === messageId
+                      ? {
+                            ...message,
+                            reactions: change(message.reactions ?? []),
+                        }
+                      : message,
+              )
+            : messages;
+
     updateThread(key, (thread) => ({
-        messages: thread.messages.map((message) =>
-            message.id === messageId
-                ? { ...message, reactions: change(message.reactions ?? []) }
-                : message,
-        ),
+        messages: changed(thread.messages),
+        pinned: changed(thread.pinned),
     }));
 }
 
@@ -1209,9 +2119,11 @@ export async function toggleReaction(
     userId: string,
 ): Promise<boolean> {
     const key = targetKey(target);
-    const message = state.threads[key]?.messages.find(
-        (item) => item.id === messageId,
-    );
+    const thread = state.threads[key];
+    const message = [
+        ...(thread?.messages ?? []),
+        ...(thread?.pinned ?? []),
+    ].find((item) => item.id === messageId);
 
     if (message === undefined) {
         return false;
@@ -1248,7 +2160,9 @@ export async function toggleReaction(
     countReactionUse(emoji, isRemoving ? -1 : 1);
 
     try {
-        const { reactions } = await request<{ reactions: MessageReaction[] }>(
+        const { reactions } = await remotesRequest<{
+            reactions: MessageReaction[];
+        }>(
             isRemoving
                 ? MessageReactionController.destroy.url({ message: messageId })
                 : MessageReactionController.store.url({ message: messageId }),
@@ -1261,12 +2175,201 @@ export async function toggleReaction(
         }
 
         return true;
-    } catch {
+    } catch (error) {
         settle();
+
+        if (error instanceof StaleRemotesError) {
+            return false;
+        }
+
         setReactions(key, messageId, isRemoving ? add : remove);
         countReactionUse(emoji, isRemoving ? 1 : -1);
 
         return false;
+    }
+}
+
+/**
+ * Clears the mentions the user opened or saw, or every mention in the org, at once. The server answers with the
+ * mentions left, and when it refuses, the cleared ones come back and the thread is read again.
+ */
+export async function clearMentions(
+    org: OrgRef,
+    messageIds?: number[],
+): Promise<void> {
+    const isCurrent = ownership();
+    const resets = remotesResets;
+    const target: ChatTarget = { kind: 'org', org };
+    const key = targetKey(target);
+    const thread = state.threads[key];
+    const cleared = (thread?.mentions ?? []).filter(
+        (message) =>
+            messageIds === undefined || messageIds.includes(message.id),
+    );
+    const clearedCount =
+        messageIds === undefined
+            ? (thread?.mentions_count ?? 0)
+            : cleared.length;
+    const ids = cleared.map((message) => message.id);
+    const stillClearing = (current: ThreadState) =>
+        current.clearingMentions.filter((id) => !ids.includes(id));
+
+    if (cleared.length === 0) {
+        return;
+    }
+
+    updateThread(key, (current) => ({
+        mentions: current.mentions.filter(
+            (message) => !ids.includes(message.id),
+        ),
+        mentions_count: Math.max(0, current.mentions_count - clearedCount),
+        clearingMentions: [...current.clearingMentions, ...ids],
+    }));
+
+    const clearing = (mentionClears.get(key) ?? Promise.resolve())
+        .catch(() => undefined)
+        .then(() => {
+            // Waiting its turn may outlast the account that asked.
+            if (!isCurrent()) {
+                throw new StaleRemotesError();
+            }
+
+            return request<Pick<OrgThread, 'mentions' | 'mentions_count'>>(
+                OrgMentionController.destroy.url({ org: org.id }),
+                'DELETE',
+                messageIds === undefined ? undefined : { message_ids: ids },
+                isCurrent,
+            );
+        });
+    mentionClears.set(key, clearing);
+
+    try {
+        const left = await clearing;
+
+        updateThread(key, (current) => {
+            const clearing = stillClearing(current);
+            const mentions = left.mentions.filter(
+                (message) => !clearing.includes(message.id),
+            );
+
+            return {
+                mentions,
+                mentions_count:
+                    left.mentions_count -
+                    (left.mentions.length - mentions.length),
+                clearingMentions: clearing,
+                mentionsClearedAt: performance.now(),
+            };
+        });
+    } catch (error) {
+        if (error instanceof StaleRemotesError) {
+            // Watching the same account again keeps its threads, which must not wait for this clear any more.
+            if (remotesResets === resets) {
+                updateThread(key, (current) => ({
+                    clearingMentions: stillClearing(current),
+                }));
+            }
+
+            return;
+        }
+
+        updateThread(key, (current) => ({
+            mentions: [
+                ...current.mentions.filter(
+                    (message) => !ids.includes(message.id),
+                ),
+                ...cleared,
+            ].sort((a, b) => b.id - a.id),
+            mentions_count: current.mentions_count + clearedCount,
+            clearingMentions: stillClearing(current),
+        }));
+        refreshThread(target);
+
+        throw error;
+    }
+}
+
+/**
+ * Pins a message for the whole org, or unpins it, straight away, then settles on the org's pinned messages as the
+ * server holds them, once no other pin request in the org is in flight. Puts the message back where it was and throws
+ * when the server refuses, or answers without the message among the pinned ones.
+ */
+export async function setMessagePinned(
+    target: ChatTarget,
+    message: Message,
+    isPinned: boolean,
+): Promise<void> {
+    const isCurrent = ownership();
+    const key = targetKey(target);
+    const shown = state.threads[key]?.pinned ?? [];
+    const index = shown.findIndex((item) => item.id === message.id);
+    const sentAt = performance.now();
+
+    if (isPinned === (index !== -1)) {
+        return;
+    }
+
+    messagePinsInFlight.set(key, (messagePinsInFlight.get(key) ?? 0) + 1);
+    updateThread(key, (thread) => ({
+        pinned: isPinned
+            ? withPinnedMessage(thread.pinned, message)
+            : withoutPinnedMessage(thread.pinned, message),
+    }));
+
+    try {
+        const { pinned, reactions_version: version } = await remotesRequest<{
+            pinned: Message[];
+            reactions_version: number;
+        }>(
+            isPinned
+                ? MessagePinController.update.url({ message: message.id })
+                : MessagePinController.destroy.url({ message: message.id }),
+            isPinned ? 'PUT' : 'DELETE',
+        );
+
+        // Responses can arrive out of order, so the newest one wins.
+        if ((newestPinnedMessages.get(key)?.version ?? -1) <= version) {
+            newestPinnedMessages.set(key, { pinned, version, sentAt });
+        }
+
+        if (isPinned && !isPinnedIn(pinned, message)) {
+            throw new Error('Another pin took the last place first.');
+        }
+    } catch (error) {
+        if (error instanceof StaleRemotesError) {
+            return;
+        }
+
+        updateThread(key, (thread) => ({
+            pinned: isPinned
+                ? withoutPinnedMessage(thread.pinned, message)
+                : withPinnedMessageRestored(thread.pinned, shown[index], index),
+        }));
+
+        throw error;
+    } finally {
+        const left = (messagePinsInFlight.get(key) ?? 1) - 1;
+        const newest = newestPinnedMessages.get(key);
+
+        if (left > 0) {
+            messagePinsInFlight.set(key, left);
+        } else {
+            messagePinsInFlight.delete(key);
+            newestPinnedMessages.delete(key);
+
+            if (newest !== undefined && isCurrent()) {
+                updateThread(key, (thread) =>
+                    pinnedMessagesFrom(
+                        key,
+                        thread,
+                        newest.pinned,
+                        newest.version,
+                        [],
+                        newest.sentAt,
+                    ),
+                );
+            }
+        }
     }
 }
 
@@ -1319,7 +2422,7 @@ export function markThreadRead(target: ChatTarget): void {
 
     update({ conversations, unread: unreadOf(conversations) });
 
-    void request(urls(target).read, 'PUT', { through: latest }).catch(
+    void remotesRequest(urls(target).read, 'PUT', { through: latest }).catch(
         () => undefined,
     );
 }
@@ -1333,11 +2436,19 @@ export function pingTyping(target: ChatTarget): void {
     }
 
     lastTypingPing.set(key, now);
-    void request(urls(target).typing, 'PUT').catch(() => undefined);
+    void remotesRequest(urls(target).typing, 'PUT').catch(() => undefined);
 }
+
+const olderLoads = new Map<string, Promise<void>>();
 
 export async function loadOlderMessages(target: ChatTarget): Promise<void> {
     const key = targetKey(target);
+    const loading = olderLoads.get(key);
+
+    if (loading !== undefined) {
+        return loading;
+    }
+
     const thread = state.threads[key];
     const oldest = thread?.messages[0]?.id;
 
@@ -1352,19 +2463,64 @@ export async function loadOlderMessages(target: ChatTarget): Promise<void> {
 
     updateThread(key, () => ({ isLoadingOlder: true }));
 
-    try {
-        const older = await request<Thread | OrgThread>(
-            urls(target).index({ before: oldest }),
-        );
+    const load = (async () => {
+        try {
+            const older = await remotesRequest<Thread | OrgThread>(
+                urls(target).index({ before: oldest }),
+            );
 
-        updateThread(key, (current) => ({
-            messages: mergeMessages(current.messages, older.messages),
-            has_older: older.has_older,
-            isLoadingOlder: false,
-        }));
-    } catch {
-        updateThread(key, () => ({ isLoadingOlder: false }));
+            updateThread(key, (current) => ({
+                messages: mergeMessages(current.messages, older.messages),
+                has_older: older.has_older,
+                isLoadingOlder: false,
+            }));
+        } catch (error) {
+            if (!(error instanceof StaleRemotesError)) {
+                updateThread(key, () => ({ isLoadingOlder: false }));
+            }
+        }
+    })();
+    olderLoads.set(key, load);
+
+    try {
+        await load;
+    } finally {
+        if (olderLoads.get(key) === load) {
+            olderLoads.delete(key);
+        }
     }
+}
+
+/**
+ * Keep the history continuous when following a reply, sharing pages with ordinary scrolling.
+ */
+export async function loadMessage(
+    target: ChatTarget,
+    id: number,
+    signal: AbortSignal,
+): Promise<boolean> {
+    const key = targetKey(target);
+
+    while (!signal.aborted) {
+        const thread = state.threads[key];
+        const oldest = thread?.messages[0]?.id;
+
+        if (thread?.messages.some((message) => message.id === id)) {
+            return true;
+        }
+
+        if (oldest === undefined || oldest <= id || !thread.has_older) {
+            return false;
+        }
+
+        await loadOlderMessages(target);
+
+        if (state.threads[key]?.messages[0]?.id === oldest) {
+            return false;
+        }
+    }
+
+    return false;
 }
 
 /**
@@ -1377,17 +2533,38 @@ export async function searchConversations(
     signal: AbortSignal,
 ): Promise<ConversationSummary[]> {
     const version = ++muteVersion;
+    const pinsVersion = ++pinVersion;
+    const isCurrent = ownership();
     const response = await fetch(
         InboxController.index.url({ query: { q: term, tab } }),
         { headers: { Accept: 'application/json' }, cache: 'no-store', signal },
-    );
+    ).catch((error: unknown) => {
+        if (!isCurrent()) {
+            return null;
+        }
+
+        throw error;
+    });
+
+    if (response === null || !isCurrent()) {
+        return [];
+    }
 
     if (!response.ok) {
         throw new Error(`Conversation search failed: ${response.status}`);
     }
 
     const { conversations } = (await response.json()) as InboxPage;
+
+    if (!isCurrent()) {
+        return [];
+    }
+
     update({
+        pinPreferences: withPinPreferences(
+            conversations.map((item) => [summaryKey(item), item.pinned_at]),
+            pinsVersion,
+        ),
         mutePreferences: withMutePreferences(
             conversations.map((item) => [
                 summaryKey(item),
@@ -1396,7 +2573,7 @@ export async function searchConversations(
             version,
         ),
     });
-    return conversations;
+    return withConversationPins(conversations);
 }
 
 /**
@@ -1405,21 +2582,26 @@ export async function searchConversations(
  */
 export async function searchCandidates(
     term: string,
-    scope: { for: 'remote' | 'org' } | { org: string },
+    scope: { for: 'remote' | 'org' | 'share' } | { org: string },
     signal: AbortSignal,
 ): Promise<Candidate[]> {
+    const isCurrent = ownership();
     const response = await fetch(
         RemoteCandidateController.index.url({ query: { q: term, ...scope } }),
         { headers: { Accept: 'application/json' }, cache: 'no-store', signal },
     );
 
-    if (!response.ok) {
+    if (!response.ok || !isCurrent()) {
         return [];
     }
 
     const { candidates } = (await response.json()) as {
         candidates: Candidate[];
     };
+
+    if (!isCurrent()) {
+        return [];
+    }
 
     return candidates.toSorted(
         (a, b) => Number(a.reason !== null) - Number(b.reason !== null),
@@ -1433,19 +2615,14 @@ export async function settleRequest(
     partner: User,
     isMerging: boolean,
 ): Promise<boolean> {
-    const key = partner.username;
-
-    try {
-        await request(
-            isMerging
-                ? ConversationMergeController.store.url({ partner: key })
-                : ConversationDropController.store.url({ partner: key }),
-            'POST',
-        );
-    } catch {
-        return false;
-    }
-
+    const key = partner.handle;
+    const previous = {
+        conversations: state.conversations,
+        fetched: state.fetched,
+        requests: state.requests,
+        unread: state.unread,
+    };
+    const previousAccess = state.threads[key]?.access ?? 'request';
     const fetchedRequest = state.fetched?.find(
         (item) => summaryKey(item) === key,
     );
@@ -1456,7 +2633,7 @@ export async function settleRequest(
         unread: Math.max(0, (state.unread ?? 1) - 1),
         ...(isMerging && fetchedRequest
             ? {
-                  conversations: byLatest([
+                  conversations: withConversationPins([
                       ...(withoutKey(state.conversations, key) ?? []),
                       { ...fetchedRequest, ahead: 0 },
                   ]),
@@ -1465,7 +2642,25 @@ export async function settleRequest(
     });
     updateThread(key, () => ({ access: isMerging ? 'open' : 'waiting' }));
 
-    return true;
+    try {
+        await remotesRequest(
+            isMerging
+                ? ConversationMergeController.store.url({ partner: key })
+                : ConversationDropController.store.url({ partner: key }),
+            'POST',
+        );
+
+        return true;
+    } catch (error) {
+        if (error instanceof StaleRemotesError) {
+            return false;
+        }
+
+        update(previous);
+        updateThread(key, () => ({ access: previousAccess }));
+
+        return false;
+    }
 }
 
 /**
@@ -1490,13 +2685,16 @@ export async function setConversationArchived(
         const moved = { ...conversation, is_archived: isArchived };
         const conversations = isArchived
             ? withoutKey(state.conversations, key)
-            : byLatest([
+            : withConversationPins([
                   ...(withoutKey(state.conversations, key) ?? []),
                   moved,
               ]);
         const archived = isArchived
             ? state.archived &&
-              byLatest([...(withoutKey(state.archived, key) ?? []), moved])
+              withConversationPins([
+                  ...(withoutKey(state.archived, key) ?? []),
+                  moved,
+              ])
             : withoutKey(state.archived, key);
 
         update({
@@ -1506,20 +2704,24 @@ export async function setConversationArchived(
                 state.unread === null
                     ? null
                     : state.unread +
-                      (isArchived ? -conversation.ahead : conversation.ahead),
+                      (isArchived ? -1 : 1) * unreadOf([conversation]),
         });
     }
 
     updateThread(key, () => ({ is_archived: isArchived }));
 
     try {
-        await request(
+        await remotesRequest(
             isArchived ? urls(target).stash : urls(target).pop,
             isArchived ? 'POST' : 'DELETE',
         );
 
         return true;
-    } catch {
+    } catch (error) {
+        if (error instanceof StaleRemotesError) {
+            return false;
+        }
+
         update(previous);
         updateThread(key, () => ({ is_archived: !isArchived }));
 
@@ -1527,32 +2729,113 @@ export async function setConversationArchived(
     }
 }
 
+function invalidateConversationPages(): void {
+    inboxRevision++;
+    for (const tab of ['open', 'fetched', 'stashed'] as const) {
+        if (state[listOf[tab]] !== null && state.hasMore[tab]) {
+            invalidatedInboxTabs.add(tab);
+        }
+    }
+}
+
+function applyConversationPin(key: string, at: string | null): void {
+    update({ pinPreferences: withPinPreferences([[key, at]]) });
+    update({
+        conversations:
+            state.conversations && withConversationPins(state.conversations),
+        fetched: state.fetched && withConversationPins(state.fetched),
+        archived: state.archived && withConversationPins(state.archived),
+    });
+    updateThread(key, () => ({ pinned_at: at }));
+}
+
+export async function setConversationPinned(
+    target: ChatTarget,
+    pinned: boolean,
+): Promise<void> {
+    const key = targetKey(target);
+    const pin = state.pinPreferences[key];
+    const previous =
+        pin === undefined ? (state.threads[key]?.pinned_at ?? null) : pin.at;
+
+    applyConversationPin(key, pinned ? new Date().toISOString() : null);
+
+    const preference = await remotesRequest<{ pinned_at: string | null }>(
+        urls(target).pin,
+        'PUT',
+        { pinned },
+    ).catch((error: unknown) => {
+        if (isStaleRemotes(error)) {
+            return null;
+        }
+
+        applyConversationPin(key, previous);
+
+        throw error;
+    });
+
+    if (preference === null) {
+        return;
+    }
+
+    invalidateConversationPages();
+    applyConversationPin(key, preference.pinned_at);
+    await Promise.all(
+        [...invalidatedInboxTabs].map((tab) => refreshConversationPages(tab)),
+    );
+}
+
 export type MuteDuration = 'hour' | 'tomorrow' | 'week' | 'forever' | 'off';
+
+function applyConversationMute(key: string, until: string | null): void {
+    const apply = (items: ConversationSummary[] | null) =>
+        items?.map((item) =>
+            summaryKey(item) === key
+                ? { ...item, muted_until_at: until }
+                : item,
+        ) ?? null;
+
+    update({
+        mutePreferences: withMutePreferences([[key, until]]),
+        conversations: apply(state.conversations),
+        fetched: apply(state.fetched),
+        archived: apply(state.archived),
+    });
+    updateThread(key, () => ({ muted_until_at: until }));
+}
+
+const mutedUntilAnswered = '9999-12-31T00:00:00.000Z';
 
 export async function setConversationMute(
     target: ChatTarget,
     duration: MuteDuration,
 ): Promise<void> {
-    const preference = await request<{ muted_until_at: string | null }>(
+    const key = targetKey(target);
+    const mute = state.mutePreferences[key];
+    const previous =
+        mute === undefined
+            ? (state.threads[key]?.muted_until_at ?? null)
+            : mute.until;
+
+    applyConversationMute(key, duration === 'off' ? null : mutedUntilAnswered);
+
+    const preference = await remotesRequest<{ muted_until_at: string | null }>(
         urls(target).mute,
         'PUT',
         { duration },
-    );
-    const key = targetKey(target);
-    const apply = (items: ConversationSummary[] | null) =>
-        items?.map((item) =>
-            summaryKey(item) === key ? { ...item, ...preference } : item,
-        ) ?? null;
+    ).catch((error: unknown) => {
+        if (isStaleRemotes(error)) {
+            return null;
+        }
 
-    update({
-        mutePreferences: withMutePreferences([
-            [key, preference.muted_until_at],
-        ]),
-        conversations: apply(state.conversations),
-        fetched: apply(state.fetched),
-        archived: apply(state.archived),
+        applyConversationMute(key, previous);
+
+        throw error;
     });
-    updateThread(key, () => preference);
+
+    if (preference !== null) {
+        applyConversationMute(key, preference.muted_until_at);
+    }
 }
 
 /**
@@ -1560,6 +2843,7 @@ export async function setConversationMute(
  * that conversation no longer exists for either of them.
  */
 export async function blockPartner(partner: User): Promise<boolean> {
+    const isCurrent = ownership();
     const response = await fetch(UserBlockController.store.url(partner), {
         method: 'POST',
         headers: {
@@ -1572,18 +2856,19 @@ export async function blockPartner(partner: User): Promise<boolean> {
 
     if (
         response === null ||
+        !isCurrent() ||
         (response.type !== 'opaqueredirect' && !response.ok)
     ) {
         return false;
     }
 
     const threads = { ...state.threads };
-    delete threads[partner.username];
+    delete threads[partner.handle];
 
     update({
-        conversations: withoutKey(state.conversations, partner.username),
-        fetched: withoutKey(state.fetched, partner.username),
-        archived: withoutKey(state.archived, partner.username),
+        conversations: withoutKey(state.conversations, partner.handle),
+        fetched: withoutKey(state.fetched, partner.handle),
+        archived: withoutKey(state.archived, partner.handle),
         threads,
     });
 
@@ -1596,13 +2881,24 @@ export async function blockPartner(partner: User): Promise<boolean> {
 export async function createOrg(
     name: string,
     members: string[],
-): Promise<OrgRef> {
-    const { org } = await request<{ org: { id: string } }>(
+): Promise<OrgRef | null> {
+    const created = await remotesRequest<{ org: { id: string } }>(
         OrgController.store.url(),
         'POST',
         { name, members },
-    );
+    ).catch((error: unknown) => {
+        if (isStaleRemotes(error)) {
+            return null;
+        }
 
+        throw error;
+    });
+
+    if (created === null) {
+        return null;
+    }
+
+    const { org } = created;
     void pollInbox();
 
     return { id: org.id, name: name.trim() || null };
@@ -1614,13 +2910,59 @@ async function refreshOrg(org: OrgRef): Promise<void> {
 }
 
 export async function renameOrg(org: OrgRef, name: string): Promise<void> {
-    await request(OrgController.update.url({ org: org.id }), 'PUT', { name });
-
     const key = targetKey({ kind: 'org', org });
     const renamed = { ...org, name: name.trim() || null };
 
     updateThread(key, () => ({ target: { kind: 'org', org: renamed } }));
-    await refreshOrg(renamed);
+
+    const isRenamed = await remotesRequest(
+        OrgController.update.url({ org: org.id }),
+        'PUT',
+        { name },
+    ).then(
+        () => true,
+        (error: unknown) => {
+            if (isStaleRemotes(error)) {
+                return false;
+            }
+
+            updateThread(key, () => ({ target: { kind: 'org', org } }));
+
+            throw error;
+        },
+    );
+
+    if (isRenamed) {
+        await refreshOrg(renamed);
+    }
+}
+
+async function changeOrgMembers(
+    org: OrgRef,
+    change: (members: OrgMember[]) => OrgMember[],
+    save: () => Promise<unknown>,
+): Promise<void> {
+    const key = targetKey({ kind: 'org', org });
+    const previous = state.threads[key]?.members ?? [];
+
+    updateThread(key, (thread) => ({ members: change(thread.members) }));
+
+    const isSaved = await save().then(
+        () => true,
+        (error: unknown) => {
+            if (isStaleRemotes(error)) {
+                return false;
+            }
+
+            updateThread(key, () => ({ members: previous }));
+
+            throw error;
+        },
+    );
+
+    if (isSaved) {
+        await refreshOrg(org);
+    }
 }
 
 export async function addOrgMembers(
@@ -1628,11 +2970,27 @@ export async function addOrgMembers(
     members: string[],
     sharesHistory: boolean,
 ): Promise<void> {
-    await request(OrgMemberController.store.url({ org: org.id }), 'POST', {
-        members,
-        share_history: sharesHistory,
-    });
-    await refreshOrg(org);
+    const isAdded = await remotesRequest(
+        OrgMemberController.store.url({ org: org.id }),
+        'POST',
+        {
+            members,
+            share_history: sharesHistory,
+        },
+    ).then(
+        () => true,
+        (error: unknown) => {
+            if (isStaleRemotes(error)) {
+                return false;
+            }
+
+            throw error;
+        },
+    );
+
+    if (isAdded) {
+        await refreshOrg(org);
+    }
 }
 
 export async function setOrgMemberRole(
@@ -1640,15 +2998,22 @@ export async function setOrgMemberRole(
     member: User,
     role: OrgRole,
 ): Promise<void> {
-    await request(
-        OrgMemberController.update.url({
-            org: org.id,
-            member: member.username,
-        }),
-        'PUT',
-        { role },
+    await changeOrgMembers(
+        org,
+        (members) =>
+            members.map((item) =>
+                item.user.id === member.id ? { ...item, role } : item,
+            ),
+        () =>
+            remotesRequest(
+                OrgMemberController.update.url({
+                    org: org.id,
+                    member: member.handle,
+                }),
+                'PUT',
+                { role },
+            ),
     );
-    await refreshOrg(org);
 }
 
 /**
@@ -1659,17 +3024,37 @@ export async function removeOrgMember(
     member: User,
     isLeaving: boolean,
 ): Promise<void> {
-    await request(
-        OrgMemberController.destroy.url({
-            org: org.id,
-            member: member.username,
-        }),
-        'DELETE',
-    );
+    const remove = () =>
+        remotesRequest(
+            OrgMemberController.destroy.url({
+                org: org.id,
+                member: member.handle,
+            }),
+            'DELETE',
+        );
 
     if (!isLeaving) {
-        await refreshOrg(org);
+        await changeOrgMembers(
+            org,
+            (members) => members.filter((item) => item.user.id !== member.id),
+            remove,
+        );
 
+        return;
+    }
+
+    const isRemoved = await remove().then(
+        () => true,
+        (error: unknown) => {
+            if (isStaleRemotes(error)) {
+                return false;
+            }
+
+            throw error;
+        },
+    );
+
+    if (!isRemoved) {
         return;
     }
 

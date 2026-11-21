@@ -67,15 +67,32 @@ it('keeps the ordinary page size when the retained range has fewer than twenty c
         ->and($page->nextCursor()?->parameter('id'))->toBe($loaded[19]->id);
 });
 
-it('keeps other logs at their normal page size even when a range is supplied', function (): void {
+it('keeps a ranked log at its normal page size even when a range is supplied', function (): void {
     $viewer = User::factory()->create();
     $loaded = Commit::factory()->for($viewer)->count(30)->sequence(
         fn (Sequence $sequence): array => ['created_at' => now()->subMinutes($sequence->index)],
     )->create();
 
-    $page = resolve(LogCommitsQuery::class)->paginate(Log::Latest, $viewer, $loaded[29]);
+    $page = resolve(LogCommitsQuery::class)->paginate(Log::Trending, $viewer, $loaded[29]);
 
-    expect($page->getCollection()->modelKeys())->toEqual($loaded->take(20)->modelKeys());
+    expect($page->getCollection())->toHaveCount(20);
+});
+
+it('keeps every loaded Latest commit and adds the ones that arrived above them', function (): void {
+    $viewer = User::factory()->create();
+    $loaded = Commit::factory()->count(45)->sequence(
+        fn (Sequence $sequence): array => ['created_at' => now()->subHour()->subMinutes($sequence->index)],
+    )->create();
+    $arrived = Commit::factory()->count(3)->sequence(
+        fn (Sequence $sequence): array => ['created_at' => now()->subMinutes($sequence->index)],
+    )->create();
+    $through = $loaded[39];
+
+    $page = resolve(LogCommitsQuery::class)->paginate(Log::Latest, $viewer, $through);
+
+    expect($page->getCollection()->modelKeys())
+        ->toEqual([...$arrived->modelKeys(), ...$loaded->take(40)->modelKeys()])
+        ->and($page->nextCursor()?->parameter('id'))->toBe($through->id);
 });
 
 it('retains the boundary when a newer commit arrives between range retrieval and pagination metadata', function (): void {

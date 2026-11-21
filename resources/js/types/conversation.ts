@@ -60,6 +60,7 @@ export type Message = {
     subject_id?: string | null;
     user?: User;
     subject?: User | null;
+    pinned_at?: string | null;
     created_at: string;
 };
 
@@ -68,7 +69,7 @@ export type ConversationKind = 'direct' | 'org';
 export type OrgRole = 'maintainer' | 'contributor';
 
 /**
- * What happened in an org, logged between its messages.
+ * What happened in a remote, logged between its messages: an org's membership changes, and pings.
  */
 export type OrgEvent =
     | 'created'
@@ -78,7 +79,14 @@ export type OrgEvent =
     | 'renamed'
     | 'promoted'
     | 'demoted'
-    | 'inherited';
+    | 'inherited'
+    | 'ping'
+    | 'call_started'
+    | 'call_answered'
+    | 'call_cancelled'
+    | 'call_declined'
+    | 'call_missed'
+    | 'call_failed';
 
 export type OrgRef = { id: string; name: string | null };
 
@@ -104,6 +112,7 @@ export type ConversationSummary = {
     partner_read_through_id: number;
     partner_read_at: string | null;
     is_archived: boolean;
+    pinned_at: string | null;
     muted_until_at: string | null;
 };
 
@@ -117,6 +126,7 @@ export type Thread = {
     partner_read_at: string | null;
     partner_typing: boolean;
     is_archived: boolean;
+    pinned_at: string | null;
     muted_until_at: string | null;
     access: PushAccess;
 };
@@ -130,9 +140,21 @@ export type OrgThread = {
     members: OrgMember[];
     typing: string[];
     is_archived: boolean;
+    pinned_at: string | null;
     muted_until_at: string | null;
     role: OrgRole | null;
     access: PushAccess;
+    /**
+     * The org's pinned messages, latest pinned first, unlike pinned_at, which is when the user pinned the org in their
+     * inbox. Null when they haven't changed since the reactions version the poll asked after, so the ones already shown
+     * stay.
+     */
+    pinned: Message[] | null;
+    /**
+     * The messages that mentioned the user, latest first, until they open or clear them, and how many there are.
+     */
+    mentions: Message[];
+    mentions_count: number;
 };
 
 /**

@@ -33,7 +33,7 @@ it('is on by default, and hides remotes once turned off', function (): void {
 
 it('keeps people with remotes off out of reach', function (): void {
     $mark = User::factory()->withRemotes()->create();
-    $nuno = User::factory()->create(['username' => 'nunomaduro', 'remotes_enabled' => false]);
+    $nuno = User::factory()->create(['handle' => 'nunomaduro', 'remotes_enabled' => false]);
 
     $this->actingAs($mark)->postJson(route('conversation-message.store', $nuno), ['body' => 'hi', 'client_id' => Str::uuid()->toString()])
         ->assertForbidden()

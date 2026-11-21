@@ -54,7 +54,7 @@ it('may unfollow a user', function (): void {
     expect($this->user->isFollowing($user))->toBeFalse();
 });
 
-it('returns not found for unknown usernames', function (): void {
+it('returns not found for unknown handles', function (): void {
     $response = signedApiRequest($this->keyPair, 'POST', 'api/v1/users/missing/follow');
 
     $response->assertNotFound();

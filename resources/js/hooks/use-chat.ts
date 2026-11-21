@@ -6,15 +6,17 @@ import {
     targetKey,
     watchInbox,
     watchRemoteAlerts,
+    watchRemoteUpdates,
     watchThread,
 } from '@/lib/chat';
 import type { ChatState, ChatTarget, ThreadState } from '@/lib/chat';
 import type { RemoteAlertChannel } from '@/lib/remote-notifications';
 import {
     remoteAlertsEnabled,
-    remoteNotificationsAllowed,
+    remoteNotificationsSupported,
     subscribeRemoteAlerts,
 } from '@/lib/remote-notifications';
+import { remotePushSupported } from '@/lib/remote-push';
 
 export function useRemoteAlertsEnabled(
     userId: string | null,
@@ -27,22 +29,25 @@ export function useRemoteAlertsEnabled(
     );
 }
 
-export function useRemoteNotificationPermission(): boolean {
-    return useSyncExternalStore(
-        subscribeRemoteAlerts,
-        remoteNotificationsAllowed,
-        () => false,
-    );
-}
-
 export function useRemoteAlerts(userId: string | null): void {
     const notifications = useRemoteAlertsEnabled(userId);
     const sound = useRemoteAlertsEnabled(userId, 'sound');
-    const enabled = notifications || sound;
+    const offsite = useRemoteAlertsEnabled(userId, 'offsite');
+    const enabled = notifications || sound || offsite;
     useEffect(
         () =>
             enabled && userId !== null ? watchRemoteAlerts(userId) : undefined,
-        [enabled, userId],
+        [enabled, userId, offsite],
+    );
+}
+
+/**
+ * Keeps the remotes current from the user's live updates, on every page, so the dock and Remotes share them.
+ */
+export function useRemoteUpdates(userId: string | null): void {
+    useEffect(
+        () => (userId !== null ? watchRemoteUpdates(userId) : undefined),
+        [userId],
     );
 }
 
@@ -85,4 +90,12 @@ export function useUnreadMessages(): number {
     return isPollingInbox && unread !== null
         ? unread
         : auth.unreadMessagesCount;
+}
+
+export function useRemoteNotificationSupport(): boolean {
+    return useSyncExternalStore(
+        subscribeRemoteAlerts,
+        () => remoteNotificationsSupported() && remotePushSupported(),
+        () => false,
+    );
 }

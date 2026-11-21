@@ -1,5 +1,6 @@
 import { usePage } from '@inertiajs/react';
 import { useEffect, useRef, useState } from 'react';
+import { CertificateText } from '@/components/certificate-text';
 import { CodeBlock } from '@/components/code-block';
 import { LinkifiedText } from '@/components/linkified-text';
 import { bodyBlocks } from '@/lib/code';
@@ -10,13 +11,20 @@ import type { BodySegment, Commit } from '@/types';
 export function CommitBody({
     segments,
     mentions,
+    organizationMentions = null,
     className,
     isStatic = false,
+    linksEveryMention = true,
 }: {
     segments: BodySegment[];
     mentions: Commit['mentions'];
+    organizationMentions?: Commit['organization_mentions'];
     className?: string;
     isStatic?: boolean;
+    /**
+     * Whether a mention of anyone else links to their page too, as in commits, or stays text, as in remotes.
+     */
+    linksEveryMention?: boolean;
 }) {
     return (
         <div
@@ -35,7 +43,9 @@ export function CommitBody({
                         <BodySegments
                             segments={block.segments}
                             mentions={mentions}
+                            organizationMentions={organizationMentions}
                             isStatic={isStatic}
+                            linksEveryMention={linksEveryMention}
                         />
                     </blockquote>
                 ) : (
@@ -43,7 +53,9 @@ export function CommitBody({
                         key={index}
                         segments={block.segments}
                         mentions={mentions}
+                        organizationMentions={organizationMentions}
                         isStatic={isStatic}
+                        linksEveryMention={linksEveryMention}
                     />
                 ),
             )}
@@ -54,11 +66,15 @@ export function CommitBody({
 export function BodySegments({
     segments,
     mentions,
+    organizationMentions = null,
     isStatic = false,
+    linksEveryMention = true,
 }: {
     segments: BodySegment[];
     mentions: Commit['mentions'];
+    organizationMentions?: Commit['organization_mentions'];
     isStatic?: boolean;
+    linksEveryMention?: boolean;
 }) {
     const { auth } = usePage().props;
 
@@ -72,8 +88,10 @@ export function BodySegments({
                                 key={index}
                                 text={emojify(segment.text)}
                                 mentions={mentions}
+                                organizationMentions={organizationMentions}
                                 pasteisMode={Boolean(auth.pasteis)}
                                 isStatic={isStatic}
+                                linksEveryMention={linksEveryMention}
                             />
                         );
                     case 'code':
@@ -82,7 +100,7 @@ export function BodySegments({
                                 key={index}
                                 className="rounded-sm bg-muted px-1 py-0.5 font-mono text-[0.875em]"
                             >
-                                {segment.code}
+                                <CertificateText text={segment.code} />
                             </code>
                         );
                     case 'block':
@@ -90,7 +108,9 @@ export function BodySegments({
                             <CodeBlock
                                 key={index}
                                 html={segment.html}
+                                fullHtml={segment.fullHtml}
                                 language={segment.language}
+                                filename={segment.filename}
                                 isCopyable={!isStatic}
                             />
                         );
@@ -107,11 +127,13 @@ export function FoldedCommitBody({
     segments,
     previewSegments,
     mentions,
+    organizationMentions = null,
     className,
 }: {
     segments: BodySegment[];
     previewSegments: BodySegment[] | null;
     mentions: Commit['mentions'];
+    organizationMentions?: Commit['organization_mentions'];
     className?: string;
 }) {
     const [isUnfolded, setIsUnfolded] = useState(false);
@@ -122,6 +144,7 @@ export function FoldedCommitBody({
             <CommitBody
                 segments={segments}
                 mentions={mentions}
+                organizationMentions={organizationMentions}
                 className={className}
             />
         );
@@ -146,8 +169,13 @@ export function FoldedCommitBody({
     return (
         <div ref={bodyRef} tabIndex={-1} className="outline-none">
             <CommitBody
-                segments={isUnfolded ? segments : previewSegments}
+                segments={
+                    isUnfolded
+                        ? segments
+                        : withFullBlocks(previewSegments, segments)
+                }
                 mentions={mentions}
+                organizationMentions={organizationMentions}
                 className={className}
             />
             {!isUnfolded && (
@@ -162,6 +190,35 @@ export function FoldedCommitBody({
             )}
         </div>
     );
+}
+
+/**
+ * The preview is the start of the body, so its code blocks are the body's first ones, in order. The last may be cut
+ * to its first lines; each gets the whole block to copy.
+ */
+function withFullBlocks(
+    previewSegments: BodySegment[],
+    segments: BodySegment[],
+): BodySegment[] {
+    const blocks = segments.filter((segment) => segment.type === 'block');
+    let index = 0;
+
+    const preview = previewSegments.map((segment) =>
+        segment.type === 'block'
+            ? { ...segment, fullHtml: blocks[index++]?.html }
+            : segment,
+    );
+    const last = preview.at(-1);
+    const previous = preview.at(-2);
+
+    // A faded block already shows that it continues; keep the ellipsis for completed blocks and prose.
+    return last?.type === 'text' &&
+        last.text.trim() === '…' &&
+        previous?.type === 'block' &&
+        previous.fullHtml !== undefined &&
+        previous.fullHtml !== previous.html
+        ? preview.slice(0, -1)
+        : preview;
 }
 
 export function CommitBodyExcerpt({

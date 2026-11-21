@@ -8,6 +8,7 @@ export function SegmentedControl<T>({
     options,
     value,
     onChange,
+    iconOnly = false,
     className,
 }: {
     label: string;
@@ -15,6 +16,7 @@ export function SegmentedControl<T>({
     options: { value: T; icon?: LucideIcon; label: string }[];
     value: T;
     onChange: (value: T) => void;
+    iconOnly?: boolean;
     className?: string;
 }) {
     return (
@@ -29,6 +31,7 @@ export function SegmentedControl<T>({
                     type="button"
                     role="radio"
                     aria-checked={option.value === value}
+                    title={iconOnly ? option.label : undefined}
                     onClick={() => onChange(option.value)}
                     className={cn(
                         'relative isolate rounded-md px-3.5 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
@@ -58,7 +61,11 @@ export function SegmentedControl<T>({
                         }
                     >
                         {option.icon && <option.icon className="size-4" />}
-                        {option.label}
+                        {iconOnly ? (
+                            <span className="sr-only">{option.label}</span>
+                        ) : (
+                            option.label
+                        )}
                     </span>
                 </button>
             ))}

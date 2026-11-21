@@ -83,7 +83,7 @@ it('serves images of pending commits to moderators', function (): void {
 
     $image = storedCommitImage(Commit::factory()->pending()->create());
 
-    $this->actingAs(User::factory()->create(['username' => 'admin']))
+    $this->actingAs(User::factory()->create(['handle' => 'admin']))
         ->get(route('commit-image.show', $image))
         ->assertOk();
 });

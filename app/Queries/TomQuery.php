@@ -6,6 +6,7 @@ namespace App\Queries;
 
 use App\Actions\CreateTomFriendship;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
 
 final readonly class TomQuery
 {
@@ -13,7 +14,7 @@ final readonly class TomQuery
     {
         return User::query()
             ->where('github_id', CreateTomFriendship::GITHUB_ID)
-            ->whereIn('username', [CreateTomFriendship::USERNAME, CreateTomFriendship::FALLBACK_USERNAME])
+            ->whereRelation('profile', fn (Builder $query): Builder => $query->whereIn('handle', [CreateTomFriendship::HANDLE, CreateTomFriendship::FALLBACK_HANDLE]))
             ->first();
     }
 }

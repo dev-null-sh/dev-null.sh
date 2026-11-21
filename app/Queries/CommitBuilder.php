@@ -6,15 +6,20 @@ namespace App\Queries;
 
 use App\Enums\CommitStatus;
 use App\Enums\RepliesPerPage;
+use App\Enums\TopicType;
 use App\Models\Commit;
+use App\Models\LinkPreview;
+use App\Models\Organization;
 use App\Models\User;
 use App\Services\CommitTranslations;
+use Closure;
 use Illuminate\Contracts\Database\Query\Expression;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Query\Builder as QueryBuilder;
+use Illuminate\Database\Query\Expression as QueryExpression;
 use Illuminate\Pagination\Cursor;
 
 /**
@@ -23,16 +28,28 @@ use Illuminate\Pagination\Cursor;
 final class CommitBuilder extends Builder
 {
     /**
+     * A card shows up to three other people talking about its link, and the newest commits may share authors.
+     */
+    private const int TOPIC_AUTHORS_READ = 6;
+
+    /**
      * Every column but the embedding, in the table's order.
      */
     private const array COLUMNS_BUT_EMBEDDING = [
         'id', 'user_id', 'body', 'created_at', 'updated_at', 'status', 'parent_id', 'deleted_at', 'link_preview_id',
-        'quoted_commit_id', 'mentions', 'ai_decision', 'ai_categories', 'root_id', 'hot_score', 'pasteis_count',
+        'quoted_commit_id', 'mentions', 'ai_decision', 'ai_categories', 'root_id', 'hot_score', 'pasteis_count', 'author_id',
+        'headlines_classified_at', 'guild_id',
     ];
 
     /**
+     * The organizations a commit mentions, by lowercase handle, from its topics of type TopicType::Organization.
+     */
+    private const string ORGANIZATION_MENTIONS = "(select json_object_agg(reference, topic_id) from commit_topics where commit_topics.commit_id = commits.id and topic_type = 'organization') as organization_mentions";
+
+    /**
      * Embeddings are only ever compared within the database, so commits are loaded without theirs rather than carry
-     * kilobytes of numbers each that nothing reads.
+     * kilobytes of numbers each that nothing reads. They come with the organizations they mention instead, by lowercase
+     * handle, read from their topics in the same query, so rendering a page of commits takes no query more.
      *
      * @param  array<int, Expression|string>|string  $columns
      * @return array<int, Commit>
@@ -43,7 +60,7 @@ final class CommitBuilder extends Builder
 
         $this->query->columns = array_merge(...array_map(
             fn (Expression|string $column): array => $this->isEveryColumn($column)
-                ? array_map($this->qualifyColumn(...), self::COLUMNS_BUT_EMBEDDING)
+                ? [...array_map($this->qualifyColumn(...), self::COLUMNS_BUT_EMBEDDING), new QueryExpression(self::ORGANIZATION_MENTIONS)]
                 : [$column],
             $selected ?? (array) $columns,
         ));
@@ -56,8 +73,8 @@ final class CommitBuilder extends Builder
     }
 
     /**
-     * Approved commits are visible to everyone, guests included, while authors may also see their own pending or rejected commits.
-     * A block hides each one's commits from the other.
+     * Approved commits are visible to everyone, guests included, while authors may also see their own pending or rejected commits,
+     * and the members of an organization the organization's. A block hides the commits from each one's profile from the other.
      */
     public function visibleTo(?User $user): self
     {
@@ -67,10 +84,11 @@ final class CommitBuilder extends Builder
 
         return $this->where(fn (Builder $query): Builder => $query
             ->where($this->qualifyColumn('status'), CommitStatus::Approved)
-            ->orWhere($this->qualifyColumn('user_id'), $user->id))
+            ->orWhere($this->qualifyColumn('user_id'), $user->id)
+            ->orWhereIn($this->qualifyColumn('author_id'), $user->organizations()->newPivotQuery()->select('organization_id')))
             ->where(fn (Builder $query): Builder => $query
-                ->whereNull($this->qualifyColumn('user_id'))
-                ->orWhereNotIn($this->qualifyColumn('user_id'), $user->idsAcrossBlocks()));
+                ->whereNull($this->qualifyColumn('author_id'))
+                ->orWhereNotIn($this->qualifyColumn('author_id'), $user->idsAcrossBlocks()));
     }
 
     /**
@@ -79,8 +97,20 @@ final class CommitBuilder extends Builder
     public function withoutMutedAuthorsFor(?User $user): self
     {
         return $user instanceof User ? $this->where(fn (Builder $query): Builder => $query
-            ->whereNull($this->qualifyColumn('user_id'))
-            ->orWhereNotIn($this->qualifyColumn('user_id'), $user->mutedIds())) : $this;
+            ->whereNull($this->qualifyColumn('author_id'))
+            ->orWhereNotIn($this->qualifyColumn('author_id'), $user->mutedIds())) : $this;
+    }
+
+    public function fromJoinedGuilds(User $user): self
+    {
+        return $this->whereIn($this->qualifyColumn('id'), resolve(GuildCommitsQuery::class)->forPreference($user, muted: false));
+    }
+
+    public function withoutMutedGuildsFor(?User $user): self
+    {
+        return $user instanceof User
+            ? $this->whereNotIn($this->qualifyColumn('id'), resolve(GuildCommitsQuery::class)->forPreference($user, muted: true))
+            : $this;
     }
 
     /**
@@ -151,10 +181,11 @@ final class CommitBuilder extends Builder
      * the picked ones are then loaded as cards, so a commit with thousands of replies does not have every one of them
      * counted and checked for the viewer.
      */
-    public function withReplyPreviews(?User $user): self
+    public function withReplyPreviews(?User $user, bool $inLog = false): self
     {
         $count = RepliesPerPage::of(request())->value;
-        $newest = fn (HasMany $relation): HasMany => $this->newestVisibleOf($relation, $user, $count);
+        $muted = $inLog && $user instanceof User ? resolve(GuildCommitsQuery::class)->forPreference($user, muted: true) : [];
+        $newest = fn (HasMany $relation): HasMany => $this->newestVisibleOf($relation, $user, $count)->whereNotIn('commits.id', $muted);
 
         return $this->with(['replies' => $newest, 'quotes' => $newest])
             ->withContinuationId($user)
@@ -170,7 +201,7 @@ final class CommitBuilder extends Builder
             ->from((new Commit)->getTable().' as earliest_reply')
             ->select('earliest_reply.id')
             ->whereColumn('earliest_reply.parent_id', $this->qualifyColumn('id'))
-            ->whereColumn('earliest_reply.user_id', $this->qualifyColumn('user_id'))
+            ->whereColumn('earliest_reply.author_id', $this->qualifyColumn('author_id'))
             ->oldest('earliest_reply.created_at')
             ->oldest('earliest_reply.id')
             ->limit(1);
@@ -195,7 +226,7 @@ final class CommitBuilder extends Builder
             'quotedCommit' => fn (BelongsTo $query): BelongsTo => $query
                 ->withTrashed()
                 ->where(fn (self $query): self => $query->visibleTo($viewer))
-                ->with(['user', 'linkPreview', 'images'])
+                ->with(['author', 'linkPreview' => $this->linkPreviewWithTopicFor($viewer), 'images', 'guild'])
                 ->withPollFor($viewer),
         ]);
     }
@@ -206,6 +237,18 @@ final class CommitBuilder extends Builder
     }
 
     /**
+     * The commits linked to the organization by a mention, whatever handle it had when they were written.
+     */
+    public function mentioning(Organization $organization): self
+    {
+        return $this->whereExists(fn (QueryBuilder $query): QueryBuilder => $query
+            ->from('commit_topics')
+            ->whereColumn('commit_topics.commit_id', $this->qualifyColumn('id'))
+            ->where('commit_topics.topic_type', TopicType::Organization)
+            ->where('commit_topics.topic_id', $organization->id));
+    }
+
+    /**
      * Loads what anyone may see around the commits, like Commit::loadPublicPreview(): approved replies, stars, images, and the parent only when approved.
      */
     public function withPublicPreview(): self
@@ -213,12 +256,22 @@ final class CommitBuilder extends Builder
         return $this
             ->withVisibleReplyCount(null)
             ->withCount('stars')
-            ->with(['user', 'linkPreview', 'images', 'parent' => fn (BelongsTo $query): BelongsTo => $query->where('status', CommitStatus::Approved)]);
+            ->with(['author', 'linkPreview', 'images', 'guild', 'parent' => fn (BelongsTo $query): BelongsTo => $query->where('status', CommitStatus::Approved)]);
     }
 
     public function pending(): self
     {
         return $this->where('status', CommitStatus::Pending);
+    }
+
+    /**
+     * The pending commits the AI has checked, or gave up on, like Commit::isBeingChecked().
+     */
+    public function awaitingModerator(): self
+    {
+        return $this->pending()->where(fn (self $query): self => $query
+            ->whereNotNull('ai_decision')
+            ->orWhere('created_at', '<=', now()->subMinutes(Commit::CHECKING_MINUTES)));
     }
 
     /**
@@ -271,11 +324,32 @@ final class CommitBuilder extends Builder
     public function withCardDataFor(?User $viewer): self
     {
         return $this
-            ->with(['user', 'linkPreview', 'images'])
+            ->with(['author', 'linkPreview' => $this->linkPreviewWithTopicFor($viewer), 'images', 'guild'])
             ->withQuotedCommitFor($viewer)
             ->withStarsFor($viewer)
             ->withPollFor($viewer)
             ->afterQuery(fn (Collection $commits) => resolve(CommitTranslations::class)->attach($commits));
+    }
+
+    /**
+     * The link card with how many commits and people the viewer may see talk about its link, and the newest of those
+     * commits with their authors, so the card can say who else talks about it.
+     *
+     * @return Closure(BelongsTo<LinkPreview, Commit>): void
+     */
+    private function linkPreviewWithTopicFor(?User $viewer): Closure
+    {
+        return function (BelongsTo $link) use ($viewer): void {
+            $link->getQuery()
+                ->withCount([
+                    'commits as topic_commits_count' => fn (self $commits): self => $commits->visibleTo($viewer),
+                    'commits as topic_people_count' => fn (self $commits): self => $commits->visibleTo($viewer)->select(new QueryExpression('count(distinct commits.author_id)')),
+                ])
+                ->with(['commits' => function (HasMany $commits) use ($viewer): void {
+                    $commits->getQuery()->visibleTo($viewer)->withoutMutedAuthorsFor($viewer)->with('author')->latest()->orderByDesc('id')->limit(self::TOPIC_AUTHORS_READ)
+                        ->afterQuery(fn (Collection $topic): Collection => resolve(GuildCommitsQuery::class)->rejectMuted($topic, $viewer));
+                }]);
+        };
     }
 
     /**
@@ -350,14 +424,14 @@ final class CommitBuilder extends Builder
             ->keyBy('id');
 
         foreach ($previewed as $commit) {
-            $replies = collect($newest[$commit->id])->map(fn (string $id): ?Commit => $cards->get($id))->filter()->values();
+            $replies = new Collection(array_values(array_filter(array_map(fn (int|string $id): ?Commit => $cards->get($id), $newest->get($commit->id, [])))));
             $oldest = $replies->last();
             $cursor = $oldest instanceof Commit && $commit->replies_count > $replies->count()
                 ? new Cursor(['created_at' => $oldest->getRawOriginal('created_at'), 'id' => $oldest->id])->encode()
                 : null;
 
             $commit->setAttribute('reply_preview', [
-                'data' => $replies->map(fn (Commit $reply): array => $reply->toArray())->all(),
+                'data' => $replies,
                 'next_cursor' => $cursor,
                 'prev_cursor' => null,
             ]);

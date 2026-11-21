@@ -12,11 +12,12 @@ import {
     DialogTrigger,
 } from '@/components/ui/dialog';
 import { UserAvatar } from '@/components/user-avatar';
+import { UserPreview } from '@/components/user-preview';
 import { exactCountTitle, formatCount } from '@/lib/numbers';
 import { show } from '@/routes/user';
 import type { Commit, CursorPaginated, User } from '@/types';
 
-type Stargazer = Pick<User, 'id' | 'name' | 'username' | 'avatar_url'>;
+type Stargazer = Pick<User, 'id' | 'name' | 'handle' | 'avatar_url'>;
 
 /**
  * Who starred one of the viewer's own commits, newest first, opened from the star count.
@@ -85,24 +86,30 @@ export function CommitStargazersDialog({
                 <ul data-test="stargazers" className="-mx-2">
                     {stargazers.map((stargazer) => (
                         <li key={stargazer.id}>
-                            <Link
-                                href={show(stargazer)}
-                                onClick={() => setOpen(false)}
-                                className="flex items-center gap-3 rounded-md px-2 py-2 transition-colors hover:bg-accent"
+                            <UserPreview
+                                user={{ handle: stargazer.handle }}
+                                className="block"
                             >
-                                <UserAvatar
-                                    user={stargazer}
-                                    className="size-9"
-                                />
-                                <span className="min-w-0">
-                                    <span className="block truncate text-sm font-medium">
-                                        {stargazer.name}
+                                <Link
+                                    prefetch
+                                    href={show(stargazer)}
+                                    onClick={() => setOpen(false)}
+                                    className="flex items-center gap-3 rounded-md px-2 py-2 transition-colors hover:bg-accent"
+                                >
+                                    <UserAvatar
+                                        user={stargazer}
+                                        className="size-9"
+                                    />
+                                    <span className="min-w-0">
+                                        <span className="block truncate text-sm font-medium">
+                                            {stargazer.name}
+                                        </span>
+                                        <span className="block truncate font-mono text-[13px] text-muted-foreground">
+                                            @{stargazer.handle}
+                                        </span>
                                     </span>
-                                    <span className="block truncate font-mono text-[13px] text-muted-foreground">
-                                        @{stargazer.username}
-                                    </span>
-                                </span>
-                            </Link>
+                                </Link>
+                            </UserPreview>
                         </li>
                     ))}
                     {loading &&

@@ -1,10 +1,6 @@
 import { router } from '@inertiajs/react';
 import { useEffect } from 'react';
-import FeatureController from '@/actions/App/Http/Controllers/FeatureController';
 import LogController from '@/actions/App/Http/Controllers/LogController';
-import OperationsController from '@/actions/App/Http/Controllers/OperationsController';
-import SiteActivityController from '@/actions/App/Http/Controllers/SiteActivityController';
-import TrafficController from '@/actions/App/Http/Controllers/TrafficController';
 import { settingsTabs } from '@/layouts/settings/tabs';
 import { clearTabSlide } from '@/lib/utils';
 
@@ -15,12 +11,6 @@ const tabGroups = [
         LogController.show('trending').url,
     ],
     settingsTabs.map((tab) => tab.href.url),
-    [
-        OperationsController.show().url,
-        FeatureController.index().url,
-        SiteActivityController.show().url,
-        TrafficController.show().url,
-    ],
 ];
 
 /**

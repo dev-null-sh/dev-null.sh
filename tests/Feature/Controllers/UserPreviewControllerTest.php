@@ -2,13 +2,15 @@
 
 declare(strict_types=1);
 
+use App\Actions\DeleteUser;
 use App\Models\Commit;
+use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 
 it('returns a summary of the user for the user preview', function (): void {
     $viewer = User::factory()->create();
-    $user = User::factory()->create(['username' => 'octocat', 'name' => 'The Octocat', 'bio' => 'Hello']);
+    $user = User::factory()->create(['handle' => 'octocat', 'name' => 'The Octocat', 'bio' => 'Hello']);
 
     $user->followers()->attach($viewer);
     $user->following()->attach([$viewer->id, User::factory()->create()->id]);
@@ -32,8 +34,18 @@ it('returns a summary of the user for the user preview', function (): void {
         ->assertJsonMissingPath('user.github_id');
 });
 
+it('says which accounts the bio mentions are on dev/null', function (bool $guest): void {
+    Organization::factory()->create(['handle' => 'Laravel']);
+    User::factory()->create(['handle' => 'octocat', 'bio' => 'Building @laravel, previously @nobody']);
+
+    ($guest ? $this : $this->actingAs(User::factory()->create()))
+        ->getJson('/@octocat/preview')
+        ->assertOk()
+        ->assertJsonPath('bioProfiles', ['laravel' => 'Laravel']);
+})->with(['guest' => true, 'member' => false]);
+
 it('does not count deleted commits in the user preview', function (): void {
-    $user = User::factory()->create(['username' => 'octocat']);
+    $user = User::factory()->create(['handle' => 'octocat']);
 
     Commit::factory()->for($user)->create();
     Commit::factory()->for($user)->create()->delete();
@@ -47,7 +59,7 @@ it('does not count deleted commits in the user preview', function (): void {
 
 it('loads counts without joining users', function (): void {
     $viewer = User::factory()->create();
-    $user = User::factory()->create(['username' => 'octocat']);
+    $user = User::factory()->create(['handle' => 'octocat']);
 
     DB::enableQueryLog();
 
@@ -59,7 +71,7 @@ it('loads counts without joining users', function (): void {
 });
 
 it('reports when neither user follows the other', function (): void {
-    $user = User::factory()->create(['username' => 'octocat']);
+    $user = User::factory()->create(['handle' => 'octocat']);
 
     $response = $this->actingAs(User::factory()->create())
         ->getJson('/@octocat/preview');
@@ -71,7 +83,7 @@ it('reports when neither user follows the other', function (): void {
 
 it('reports whether the viewer mutes or blocks the user', function (string $relation, bool $isMuting, bool $isBlocking): void {
     $viewer = User::factory()->create();
-    $user = User::factory()->create(['username' => 'octocat']);
+    $user = User::factory()->create(['handle' => 'octocat']);
 
     $viewer->{$relation}()->attach($user);
 
@@ -89,7 +101,7 @@ it('reports whether the viewer mutes or blocks the user', function (string $rela
 
 it('shows a neutral unavailable preview to someone the user blocked', function (): void {
     $viewer = User::factory()->create();
-    $user = User::factory()->create(['username' => 'octocat']);
+    $user = User::factory()->create(['handle' => 'octocat']);
 
     $user->blocking()->attach($viewer);
 
@@ -104,7 +116,7 @@ it('shows a neutral unavailable preview to someone the user blocked', function (
         ->assertJsonMissingPath('user.followers_count');
 });
 
-it('returns not found for unknown usernames', function (): void {
+it('returns not found for unknown handles', function (): void {
     $response = $this->actingAs(User::factory()->create())
         ->getJson('/@missing/preview');
 
@@ -112,7 +124,7 @@ it('returns not found for unknown usernames', function (): void {
 });
 
 it('returns guests a summary of the user with only approved commits counted', function (): void {
-    $user = User::factory()->create(['username' => 'octocat']);
+    $user = User::factory()->create(['handle' => 'octocat']);
     Commit::factory()->for($user)->create();
     Commit::factory()->for($user)->pending()->create();
 
@@ -124,17 +136,54 @@ it('returns guests a summary of the user with only approved commits counted', fu
         ->assertJsonPath('followsYou', false)
         ->assertJsonPath('isMuting', false)
         ->assertJsonPath('isBlocking', false)
-        ->assertJsonPath('isUnavailable', false);
+        ->assertJsonPath('isUnavailable', false)
+        ->assertJsonPath('canPush', false);
 });
+
+it('offers a remote only when the viewer could push to the user', function (string $case, bool $canPush): void {
+    $viewer = User::factory()->create(['handle' => 'viewer']);
+    $user = User::factory()->create(['handle' => 'octocat']);
+
+    if (! in_array($case, ['they do not follow you', 'they pushed to you first', 'you are an admin'], true)) {
+        $user->following()->attach($viewer);
+    }
+
+    if ($case === 'they pushed to you first') {
+        $viewer->following()->attach($user);
+        sendChatMessage($user, $viewer);
+    }
+
+    match ($case) {
+        'you have remotes off' => $viewer->update(['remotes_enabled' => false]),
+        'they have remotes off' => $user->update(['remotes_enabled' => false]),
+        'you blocked them' => $viewer->blocking()->attach($user),
+        'they blocked you' => $user->blocking()->attach($viewer),
+        'you are an admin' => config(['app.admins' => ['viewer']]),
+        default => null,
+    };
+
+    $this->actingAs($viewer)->getJson('/@octocat/preview')
+        ->assertOk()
+        ->assertJsonPath('canPush', $canPush);
+})->with([
+    ['they follow you', true],
+    ['they do not follow you', false],
+    ['they pushed to you first', true],
+    ['you are an admin', true],
+    ['you have remotes off', false],
+    ['they have remotes off', false],
+    ['you blocked them', false],
+    ['they blocked you', false],
+]);
 
 it('previews the captured mention recipient after a rename and handle reuse', function (bool $authenticated): void {
     $viewer = User::factory()->create();
-    $user = User::factory()->create(['username' => 'original']);
+    $user = User::factory()->create(['handle' => 'original']);
     $user->followers()->attach($viewer);
     Commit::factory()->for($user)->create();
     Commit::factory()->for($user)->pending()->create();
-    $user->update(['username' => 'renamed']);
-    User::factory()->create(['username' => 'original']);
+    $user->profile->update(['handle' => 'renamed']);
+    User::factory()->create(['handle' => 'original']);
 
     if ($authenticated) {
         $this->actingAs($viewer);
@@ -143,17 +192,17 @@ it('previews the captured mention recipient after a rename and handle reuse', fu
     $this->getJson('/mentions/'.$user->id.'/preview')
         ->assertOk()
         ->assertJsonPath('user.id', $user->id)
-        ->assertJsonPath('user.username', 'renamed')
+        ->assertJsonPath('user.handle', 'renamed')
         ->assertJsonPath('user.commits_count', 1)
         ->assertJsonPath('isFollowing', $authenticated)
         ->assertJsonMissingPath('user.email');
 })->with([true, false]);
 
 it('does not preview a replacement account for a deleted mention recipient', function (): void {
-    $user = User::factory()->create(['username' => 'original']);
+    $user = User::factory()->create(['handle' => 'original']);
     $id = $user->id;
-    $user->delete();
-    User::factory()->create(['username' => 'original']);
+    resolve(DeleteUser::class)->handle($user);
+    User::factory()->create(['handle' => 'original']);
 
     $this->getJson('/mentions/'.$id.'/preview')->assertNotFound();
     $this->getJson('/mentions/original/preview')->assertNotFound();
@@ -171,4 +220,19 @@ it('preserves block privacy for captured mention previews', function (): void {
         ->assertJsonPath('isUnavailable', true)
         ->assertJsonMissingPath('user.commits_count')
         ->assertJsonMissingPath('user.followers_count');
+});
+
+it('includes the shared local time in the user preview', function (): void {
+    User::factory()->create(['handle' => 'octocat', 'timezone' => 'Europe/Berlin', 'show_local_time' => true]);
+
+    $this->actingAs(User::factory()->create())
+        ->getJson('/@octocat/preview')
+        ->assertOk()
+        ->assertJsonPath('user.timezone', 'Europe/Berlin')
+        ->assertJsonPath('user.show_local_time', true);
+
+    $this->getJson('/@octocat/preview')
+        ->assertOk()
+        ->assertJsonPath('user.timezone', 'Europe/Berlin')
+        ->assertJsonPath('user.show_local_time', true);
 });

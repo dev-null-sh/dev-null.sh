@@ -1,27 +1,62 @@
+import {
+    remotePushEnabled,
+    remotePushOptedIn,
+    setRemotePush,
+    syncRemotePush,
+} from '@/lib/remote-push';
 import { readStorage, writeStorage } from '@/lib/storage';
 import type { ConversationSummary } from '@/types';
 
-export type RemoteAlertChannel = 'notifications' | 'sound';
+export type RemoteAlertChannel = 'notifications' | 'sound' | 'offsite';
+
+export const REMOTE_SOUNDS = {
+    msn: { label: 'MSN Messenger', source: '/sounds/remote.mp3' },
+    icq: { label: 'ICQ', source: '/sounds/icq.mp3' },
+    aim: { label: 'AIM', source: '/sounds/aim.mp3' },
+};
+
+export type RemoteSound = keyof typeof REMOTE_SOUNDS;
 
 const listeners = new Set<() => void>();
 const preferenceKey = (userId: string, channel: RemoteAlertChannel) =>
     `remote-alerts:${userId}:${channel}`;
 
+export function remoteSound(userId: string): RemoteSound {
+    const saved = readStorage(`remote-sound:${userId}`);
+
+    return Object.hasOwn(REMOTE_SOUNDS, saved) ? (saved as RemoteSound) : 'msn';
+}
+
+export function setRemoteSound(userId: string, sound: RemoteSound): boolean {
+    writeStorage(`remote-sound:${userId}`, sound);
+    listeners.forEach((listener) => listener());
+
+    return readStorage(`remote-sound:${userId}`) === sound;
+}
+
+export function remoteSoundSource(sound: RemoteSound): string {
+    return REMOTE_SOUNDS[sound].source;
+}
+
 export function remoteAlertsEnabled(
     userId: string,
     channel: RemoteAlertChannel = 'notifications',
 ): boolean {
+    if (channel === 'offsite') return remotePushOptedIn(userId);
+
     return (
         (readStorage(preferenceKey(userId, channel)) ||
             readStorage(`remote-alerts:${userId}`)) !== 'off'
     );
 }
 
+export function remoteNotificationsSupported(): boolean {
+    return 'Notification' in window && window.isSecureContext;
+}
+
 export function remoteNotificationsAllowed(): boolean {
     return (
-        'Notification' in window &&
-        window.isSecureContext &&
-        Notification.permission === 'granted'
+        remoteNotificationsSupported() && Notification.permission === 'granted'
     );
 }
 
@@ -57,14 +92,12 @@ export async function setRemoteAlerts(
     enabled: boolean,
     channel: RemoteAlertChannel = 'notifications',
 ): Promise<boolean> {
-    if (
-        enabled &&
-        channel === 'notifications' &&
-        'Notification' in window &&
-        window.isSecureContext
-    ) {
-        // Tab titles need no permission, even when the browser declines or cannot show banners.
-        await Notification.requestPermission().catch(() => undefined);
+    if (channel === 'offsite') {
+        try {
+            return await setRemotePush(userId, enabled);
+        } finally {
+            listeners.forEach((listener) => listener());
+        }
     }
 
     writeStorage(preferenceKey(userId, channel), enabled ? 'on' : 'off');
@@ -73,6 +106,26 @@ export async function setRemoteAlerts(
     return (
         readStorage(preferenceKey(userId, channel)) === (enabled ? 'on' : 'off')
     );
+}
+
+let pingSound: HTMLAudioElement | undefined;
+let pingedAt = 0;
+
+/**
+ * MSN's ping sound. Threads showing the same ping at once, like the page and the dock, play it once.
+ */
+export function playPing(userId: string): void {
+    if (
+        !remoteAlertsEnabled(userId, 'sound') ||
+        Date.now() - pingedAt < 2_000
+    ) {
+        return;
+    }
+
+    pingedAt = Date.now();
+    pingSound ??= new Audio('/sounds/ping.mp3');
+    pingSound.currentTime = 0;
+    void pingSound.play().catch(() => undefined);
 }
 
 export function isRemoteMuted(until: string | null, now = Date.now()): boolean {
@@ -89,10 +142,11 @@ export function createRemoteAlerts(
     reading: () => string[],
     onIncoming: (conversation: ConversationSummary) => void,
 ) {
+    void syncRemotePush(userId).catch(() => undefined);
     let latest: Record<string, number> | null = null;
     let stopped = false;
     let lastSoundAt = 0;
-    const sound = new Audio('/sounds/remote.wav');
+    const sound = new Audio(remoteSoundSource(remoteSound(userId)));
     const notifications = new Set<Notification>();
     const cooldownKey = `remote-alert-cooldown:${userId}`;
     const readingKey = `remote-alert-reading:${userId}`;
@@ -194,8 +248,7 @@ export function createRemoteAlerts(
                         !isSuppressed(item) &&
                         !(
                             Number(readingUntil) > now &&
-                            (readingUrls.includes('*') ||
-                                readingUrls.includes(urlOf(item)))
+                            readingUrls.includes(urlOf(item))
                         ),
                 );
                 for (const item of arrivals) {
@@ -220,7 +273,8 @@ export function createRemoteAlerts(
                     `${previousSoundAt}\n${consumedState}`,
                 );
                 const showBanner =
-                    remoteAlertsEnabled(userId) && remoteNotificationsAllowed();
+                    remoteAlertsEnabled(userId, 'offsite') &&
+                    remoteNotificationsAllowed();
                 const playSound = remoteAlertsEnabled(userId, 'sound');
 
                 if (incoming === undefined) {
@@ -231,14 +285,20 @@ export function createRemoteAlerts(
                     onIncoming(incoming);
                 }
 
-                if (playSound && now - previousSoundAt >= 10_000) {
+                if (
+                    incoming.last_message?.event === 'ping' &&
+                    incoming.last_message.user_id !== userId
+                ) {
+                    playPing(userId);
+                } else if (playSound && now - previousSoundAt >= 10_000) {
                     lastSoundAt = now;
                     writeStorage(cooldownKey, `${now}\n${consumedState}`);
+                    sound.src = remoteSoundSource(remoteSound(userId));
                     sound.currentTime = 0;
                     void sound.play().catch(() => undefined);
                 }
 
-                if (!showBanner) return;
+                if (!showBanner || remotePushEnabled()) return;
 
                 const options: NotificationOptions = {
                     body: 'You have a new message in Remotes.',

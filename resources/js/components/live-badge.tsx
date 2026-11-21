@@ -1,6 +1,7 @@
+import type { ComponentProps } from 'react';
 import { cn } from '@/lib/utils';
 
-export function LiveBadge({ className }: { className?: string }) {
+export function LiveBadge({ className, ...props }: ComponentProps<'span'>) {
     return (
         <span
             className={cn(
@@ -8,6 +9,7 @@ export function LiveBadge({ className }: { className?: string }) {
                 className,
             )}
             data-test="live-badge"
+            {...props}
         >
             <span
                 aria-hidden

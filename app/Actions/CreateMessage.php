@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Enums\RemoteStatus;
+use App\Enums\UserUpdate;
+use App\Events\UsersUpdated;
+use App\Jobs\SendRemotePush;
 use App\Jobs\UnfurlLink;
 use App\Models\Conversation;
 use App\Models\ConversationParticipant;
@@ -25,6 +28,7 @@ final readonly class CreateMessage
         private EmojiShortcodes $emojiShortcodes,
         private CreateImageFiles $createImageFiles,
         private CreateMessageVoiceFile $createMessageVoiceFile,
+        private CreateLinkPreview $createLinkPreview,
         private MentionedUsersQuery $mentionedUsers,
         private Urls $urls,
     ) {
@@ -44,6 +48,8 @@ final readonly class CreateMessage
         ConversationParticipant::query()
             ->where('conversation_id', $conversation->id)
             ->update(['last_message_at' => $message->created_at, ...$unstash ? ['archived_at' => null] : []]);
+
+        event(new UsersUpdated(ConversationParticipant::query()->where('conversation_id', $conversation->id)->pluck('user_id'), UserUpdate::Messages, ['conversation' => $conversation->id]));
     }
 
     /**
@@ -64,7 +70,7 @@ final readonly class CreateMessage
         };
 
         $message = DB::transaction(function () use ($sender, $conversation, $body, $clientId, $replyTo, $images, $imageDescriptions, $url, $voice, $voiceWaveform): Message {
-            $linkPreview = $url === null ? null : LinkPreview::query()->firstOrCreate(['url_hash' => hash('sha256', $url)], ['url' => $url]);
+            $linkPreview = $url === null ? null : $this->createLinkPreview->handle($url);
 
             $message = Message::query()->createOrFirst(
                 ['user_id' => $sender->id, 'client_id' => $clientId],
@@ -88,6 +94,20 @@ final readonly class CreateMessage
             }
 
             self::advance($conversation, $message, unstash: true);
+
+            // Advancing locked every member's row, so someone leaving waits for this to commit before forgetting
+            // their mentions, or has already left.
+            if ($conversation->isOrg()) {
+                $message->mentionedUsers()->attach($conversation->participants()
+                    ->whereIn('user_id', array_values($message->mentions ?? []))
+                    ->where('user_id', '!=', $sender->id)
+                    ->where('visible_from_id', '<', $message->id)
+                    ->whereNotIn('user_id', $sender->idsAcrossBlocks())
+                    ->whereNotIn('user_id', $sender->mutedBy()->newPivotQuery()->select('muter_id'))
+                    ->pluck('user_id'));
+            }
+
+            SendRemotePush::dispatchFor($message);
 
             ConversationParticipant::query()
                 ->where('conversation_id', $conversation->id)

@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Models\Commit;
+use App\Models\Guild;
 use App\Models\User;
 
 it('pins an own top-level commit', function (): void {
@@ -15,6 +16,17 @@ it('pins an own top-level commit', function (): void {
         ->assertRedirectToRoute('user.show', $user);
 
     expect($user->fresh()->pinned_commit_id)->toBe($commit->id);
+});
+
+it('forbids pinning an own guild commit without replacing the existing pin', function (): void {
+    $user = User::factory()->create();
+    $pinned = Commit::factory()->for($user)->create();
+    $user->update(['pinned_commit_id' => $pinned->id]);
+    $commit = Commit::factory()->for($user)->for(Guild::factory())->create();
+
+    $this->actingAs($user)->put(route('commit-pin.update', $commit))->assertForbidden();
+
+    expect($user->fresh()->pinned_commit_id)->toBe($pinned->id);
 });
 
 it('replaces a pin idempotently without changing identity or content', function (string $status): void {
@@ -60,7 +72,7 @@ it('requires sign in to change a pin', function (string $method): void {
 
 it('forbids changing another author pin even for an admin', function (string $method): void {
     $commit = Commit::factory()->create();
-    $viewer = User::factory()->create(['username' => 'admin']);
+    $viewer = User::factory()->create(['handle' => 'admin']);
     config(['app.admins' => ['admin']]);
     $commit->user->update(['pinned_commit_id' => $commit->id]);
 

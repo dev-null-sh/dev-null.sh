@@ -4,6 +4,9 @@ import LogController from '@/actions/App/Http/Controllers/LogController';
 import { CommitCard, CommitTombstone } from '@/components/commit-card';
 import { CopyLinkButton } from '@/components/copy-link-button';
 import { GraphCanvas } from '@/components/graph-canvas';
+import { LinkTopicSection } from '@/components/link-topic';
+import type { LinkTopicAround } from '@/components/link-topic';
+import { RelatedCommits } from '@/components/related-commits';
 import { useContinuation } from '@/hooks/use-continuation';
 import AppLayout from '@/layouts/app-layout';
 import { isDeleted, laneOf, shortHash } from '@/lib/utils';
@@ -22,11 +25,13 @@ export default function Show({
     ancestors,
     continuation,
     replies,
+    linkTopic,
 }: {
     commit: Commit;
     ancestors: ThreadCommit[];
     continuation: ThreadContinuation;
     replies: CursorPaginated<ThreadCommit> | null;
+    linkTopic?: LinkTopicAround | null;
 }) {
     const { auth } = usePage().props;
     const { shown, nextId, size, isCapped, isLoading, loadMore } =
@@ -54,7 +59,7 @@ export default function Show({
 
     return (
         <>
-            <Head title={`${commit.user.name}: “${excerpt}”`} />
+            <Head title={`${commit.author.name}: “${excerpt}”`} />
 
             <div className="sticky top-0 z-10 flex h-14 items-center gap-3 border-b bg-card px-4">
                 <button
@@ -164,6 +169,21 @@ export default function Show({
                     </div>
                 )}
             </GraphCanvas>
+
+            {!isDeleted(commit) && linkTopic && (
+                <LinkTopicSection topic={linkTopic} />
+            )}
+
+            {!isDeleted(commit) && (
+                <RelatedCommits
+                    commitId={commit.id}
+                    exceptIds={
+                        linkTopic === undefined
+                            ? null
+                            : (linkTopic?.commits.map(({ id }) => id) ?? [])
+                    }
+                />
+            )}
         </>
     );
 }
@@ -175,7 +195,7 @@ function isSameAuthor(
     return (
         previous !== undefined &&
         !isDeleted(previous) &&
-        previous.user_id === commit.user_id
+        previous.author.id === commit.author.id
     );
 }
 

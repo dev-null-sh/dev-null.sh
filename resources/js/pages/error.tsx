@@ -1,5 +1,6 @@
 import { Head, usePage } from '@inertiajs/react';
 import { ErrorMessage, useHomeAction } from '@/components/error-message';
+import { WordmarkText } from '@/components/wordmark-text';
 import { home } from '@/routes';
 
 type Status = 403 | 404 | 429 | 500 | 503;
@@ -14,14 +15,25 @@ type ErrorCopy = {
 function errorCopy(
     status: Status,
     path: string,
-    username: string | null,
+    handle: string | null,
+    eventTheme: string | null,
 ): ErrorCopy {
+    if (status === 404 && eventTheme === 'halloween') {
+        return {
+            title: 'Ghost not found',
+            command: `fatal: ghost '${path}' not found in 'HEAD'`,
+            headline: 'Ghost not found.',
+            description:
+                'Whatever lived here has passed to the other side. The link may be mistyped, or the page may be haunting a different path.',
+        };
+    }
+
     switch (status) {
         case 403:
             return {
                 title: 'Forbidden',
-                command: username
-                    ? `remote: Permission to ${path} denied to ${username}.`
+                command: handle
+                    ? `remote: Permission to ${path} denied to ${handle}.`
                     : `remote: Permission to ${path} denied.`,
                 headline: "You don't have access to this page.",
                 description:
@@ -68,7 +80,8 @@ export default function ErrorPage({ status }: { status: Status }) {
     const copy = errorCopy(
         status,
         path,
-        page.props.auth.user?.username ?? null,
+        page.props.auth.user?.handle ?? null,
+        page.props.eventTheme,
     );
     const homeAction = useHomeAction();
     const action =
@@ -81,7 +94,11 @@ export default function ErrorPage({ status }: { status: Status }) {
             <main className="mx-auto flex min-h-svh w-full max-w-3xl items-center px-4 py-16 sm:px-8">
                 <ErrorMessage
                     command={copy.command}
-                    headline={<h1>{copy.headline}</h1>}
+                    headline={
+                        <h1>
+                            <WordmarkText>{copy.headline}</WordmarkText>
+                        </h1>
+                    }
                     description={<p>{copy.description}</p>}
                     action={action}
                 />

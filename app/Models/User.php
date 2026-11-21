@@ -12,21 +12,26 @@ use App\Enums\Log;
 use App\Enums\RemotesFrom;
 use Carbon\CarbonInterface;
 use Database\Factories\UserFactory;
+use Illuminate\Contracts\Database\Eloquent\Builder as BuilderContract;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Support\Facades\DB;
+use LogicException;
 
 /**
  * @property-read string $id
  * @property-read string $github_id
- * @property-read string $username
+ * @property-read string $handle
  * @property-read string $name
  * @property-read string|null $email
  * @property-read string|null $avatar_url
@@ -41,10 +46,16 @@ use Illuminate\Support\Facades\DB;
  * @property-read bool $remotes_enabled
  * @property-read RemotesFrom $remotes_from
  * @property-read bool $pull_receipts
+ * @property-read bool $push_follows
+ * @property-read bool $push_replies
+ * @property-read bool $push_mentions
+ * @property-read bool $push_direct_remotes
+ * @property-read bool $push_org_remotes
  * @property-read int $pasteis_received
  * @property-read int $pasteis_given_today
  * @property-read CarbonInterface|null $pasteis_given_on
  * @property-read string|null $pinned_commit_id
+ * @property-read bool|null $automatic_translation
  * @property-read string|null $translation_language
  * @property-read string|null $timezone
  * @property-read bool $show_local_time
@@ -54,11 +65,14 @@ use Illuminate\Support\Facades\DB;
  * @property-read Log $log
  * @property-read CarbonInterface|null $onboarded_at
  * @property-read CarbonInterface|null $github_follows_imported_at
+ * @property-read CarbonInterface|null $github_organization_follows_imported_at
  * @property-read string|null $remember_token
  * @property-read CarbonInterface|null $github_synced_at
  * @property-read CarbonInterface|null $last_seen_at
  * @property-read CarbonInterface|null $banned_at
+ * @property-read CarbonInterface|null $terms_accepted_at
  * @property-read CarbonInterface|null $commit_rules_accepted_at
+ * @property-read CarbonInterface|null $emails_unsubscribed_at
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
  * @property-read Collection<int, Commit> $commits
@@ -75,36 +89,47 @@ use Illuminate\Support\Facades\DB;
  * @property-read Collection<int, Device> $devices
  * @property-read Collection<int, UserTimeout> $timeouts
  * @property-read Ban|null $ban
+ * @property-read Profile $profile
  * @property-read int $commits_count
  * @property-read int $timeouts_count
  * @property-read int $following_count
  * @property-read int $followers_count
  */
 #[Hidden([
+    'profile',
     'github_id',
     'email',
     'remember_token',
     'translation_language',
+    'automatic_translation',
     'preferred_lane',
     'lane_color',
     'pasteis_mode',
     'remotes_enabled',
+    'pushSubscriptions',
     'remotes_from',
     'pull_receipts',
+    'push_follows',
+    'push_replies',
+    'push_mentions',
+    'push_direct_remotes',
+    'push_org_remotes',
     'pasteis_received',
     'pasteis_given_today',
     'pasteis_given_on',
     'pinned_commit_id',
-    'github_synced_at',
     'log',
     'onboarded_at',
     'github_follows_imported_at',
+    'github_organization_follows_imported_at',
     'live_platform',
     'live_url',
     'live_ends_at',
     'last_seen_at',
     'banned_at',
     'commit_rules_accepted_at',
+    'terms_accepted_at',
+    'emails_unsubscribed_at',
 ])]
 final class User extends Authenticatable
 {
@@ -126,6 +151,13 @@ final class User extends Authenticatable
     public const array BOT_GITHUB_IDS = [CreateTomFriendship::GITHUB_ID, CreateWorldReply::GITHUB_ID];
 
     /**
+     * Every user shows their GitHub identity, so their profile comes with them.
+     *
+     * @var list<string>
+     */
+    protected $with = ['profile'];
+
+    /**
      * @var array<string, mixed>
      */
     protected $attributes = [
@@ -136,6 +168,11 @@ final class User extends Authenticatable
         'remotes_enabled' => true,
         'remotes_from' => RemotesFrom::Following->value,
         'pull_receipts' => true,
+        'push_follows' => true,
+        'push_replies' => true,
+        'push_mentions' => true,
+        'push_direct_remotes' => true,
+        'push_org_remotes' => true,
         'pasteis_received' => 0,
         'pasteis_given_today' => 0,
         'pasteis_given_on' => null,
@@ -145,6 +182,8 @@ final class User extends Authenticatable
         'last_seen_at' => null,
         'banned_at' => null,
         'commit_rules_accepted_at' => null,
+        'terms_accepted_at' => null,
+        'emails_unsubscribed_at' => null,
     ];
 
     /**
@@ -163,13 +202,7 @@ final class User extends Authenticatable
         return [
             'id' => 'string',
             'github_id' => 'string',
-            'username' => 'string',
-            'name' => 'string',
             'email' => 'string',
-            'avatar_url' => 'string',
-            'bio' => 'string',
-            'location' => 'string',
-            'website' => 'string',
             'company' => 'string',
             'has_sponsors_listing' => 'boolean',
             'preferred_lane' => 'integer',
@@ -178,6 +211,11 @@ final class User extends Authenticatable
             'remotes_enabled' => 'boolean',
             'remotes_from' => RemotesFrom::class,
             'pull_receipts' => 'boolean',
+            'push_follows' => 'boolean',
+            'push_replies' => 'boolean',
+            'push_mentions' => 'boolean',
+            'push_direct_remotes' => 'boolean',
+            'push_org_remotes' => 'boolean',
             'pasteis_received' => 'integer',
             'pasteis_given_today' => 'integer',
             'pasteis_given_on' => 'date',
@@ -185,28 +223,57 @@ final class User extends Authenticatable
             'timezone' => 'string',
             'show_local_time' => 'boolean',
             'translation_language' => 'encrypted',
+            'automatic_translation' => 'boolean',
             'log' => Log::class,
             'onboarded_at' => 'datetime',
             'github_follows_imported_at' => 'datetime',
+            'github_organization_follows_imported_at' => 'datetime',
             'remember_token' => 'string',
             'live_platform' => LivePlatform::class,
             'live_url' => 'string',
             'live_ends_at' => 'datetime',
-            'github_synced_at' => 'datetime',
             'last_seen_at' => 'date',
             'banned_at' => 'datetime',
             'commit_rules_accepted_at' => 'datetime',
+            'terms_accepted_at' => 'datetime',
+            'emails_unsubscribed_at' => 'datetime',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
         ];
     }
 
     /**
+     * A user shares their profile's ID, as an organization does.
+     *
+     * @return BelongsTo<Profile, $this>
+     */
+    public function profile(): BelongsTo
+    {
+        return $this->belongsTo(Profile::class, 'id');
+    }
+
+    /**
+     * Resolves "@handle" URLs through the profile, which holds the handle, whatever its case, like GitHub.
+     *
+     * @param  Model|BuilderContract|Relation<Model, Model, mixed>  $query
+     * @param  mixed  $value
+     * @param  string|null  $field
+     */
+    public function resolveRouteBindingQuery($query, $value, $field = null): BuilderContract
+    {
+        return $field === 'handle'
+            ? parent::resolveRouteBindingQuery($query, Profile::query()->select('id')->where('handle', $value), 'id')
+            : parent::resolveRouteBindingQuery($query, $value, $field);
+    }
+
+    /**
+     * The commits from the user's own profile.
+     *
      * @return HasMany<Commit, $this>
      */
     public function commits(): HasMany
     {
-        return $this->hasMany(Commit::class);
+        return $this->hasMany(Commit::class, 'author_id');
     }
 
     /**
@@ -236,11 +303,29 @@ final class User extends Authenticatable
     }
 
     /**
+     * @return HasMany<PushSubscription, $this>
+     */
+    public function pushSubscriptions(): HasMany
+    {
+        return $this->hasMany(PushSubscription::class);
+    }
+
+    /**
      * @return HasMany<Device, $this>
      */
     public function devices(): HasMany
     {
         return $this->hasMany(Device::class);
+    }
+
+    /**
+     * The org messages that mentioned the user, until they open or clear them.
+     *
+     * @return BelongsToMany<Message, $this>
+     */
+    public function mentions(): BelongsToMany
+    {
+        return $this->belongsToMany(Message::class, 'message_mentions');
     }
 
     /**
@@ -252,6 +337,16 @@ final class User extends Authenticatable
     public function timeouts(): HasMany
     {
         return $this->hasMany(UserTimeout::class, 'github_id', 'github_id');
+    }
+
+    /**
+     * Ban decisions go by GitHub account, so they outlive the user and apply again after a new signup.
+     *
+     * @return HasMany<BanEvent, $this>
+     */
+    public function banEvents(): HasMany
+    {
+        return $this->hasMany(BanEvent::class, 'github_id', 'github_id');
     }
 
     /**
@@ -278,6 +373,26 @@ final class User extends Authenticatable
     public function isBanned(): bool
     {
         return $this->banned_at !== null;
+    }
+
+    /**
+     * The organizations the user is a member of, see `Organization::members()`.
+     *
+     * @return BelongsToMany<Organization, $this>
+     */
+    public function organizations(): BelongsToMany
+    {
+        return $this->belongsToMany(Organization::class, 'organization_members', 'user_id', 'organization_id')->withPivot('role')->withTimestamps(updatedAt: false);
+    }
+
+    /**
+     * The organizations the user follows, see `Organization::followers()`.
+     *
+     * @return BelongsToMany<Organization, $this>
+     */
+    public function followedOrganizations(): BelongsToMany
+    {
+        return $this->belongsToMany(Organization::class, 'organization_follows', 'user_id', 'organization_id')->withTimestamps(updatedAt: false);
     }
 
     /**
@@ -365,9 +480,25 @@ final class User extends Authenticatable
         return '';
     }
 
+    /**
+     * Whether they have accepted the terms and privacy policy as they stand now.
+     */
+    public function hasAcceptedCurrentTerms(): bool
+    {
+        return $this->terms_accepted_at?->gte(config()->string('legal.terms_version')) ?? false;
+    }
+
     public function isOnboarded(): bool
     {
         return $this->onboarded_at !== null;
+    }
+
+    /**
+     * The user's private channel, where only they hear what changed for them.
+     */
+    public function broadcastChannel(): string
+    {
+        return 'users.'.$this->id;
     }
 
     public function isAdmin(): bool
@@ -375,11 +506,11 @@ final class User extends Authenticatable
         /** @var list<string> $admins */
         $admins = config('app.admins');
 
-        return in_array(mb_strtolower($this->username), array_map(mb_strtolower(...), $admins), true);
+        return in_array(mb_strtolower($this->handle), array_map(mb_strtolower(...), $admins), true);
     }
 
     /**
-     * Unlike loadCount(), counts follows on the pivot table alone: the self-referencing
+     * Unlike loadCount(), counts follows on the pivot tables alone: the self-referencing
      * relations would otherwise join the users table for every follow. Commits are
      * counted as the viewer sees them, which is all of them for the user themselves.
      */
@@ -417,20 +548,17 @@ final class User extends Authenticatable
      */
     public function openGraphIdentity(): array
     {
-        return [$this->name, $this->username, $this->avatar_url, $this->lane()];
+        return [$this->name, $this->handle, $this->avatar_url, $this->lane()];
     }
 
     public function mention(): string
     {
-        return '@'.$this->username;
+        return $this->profile->mention();
     }
 
-    /**
-     * How link previews title the user, without repeating a name that is just the username.
-     */
     public function nameWithHandle(): string
     {
-        return $this->name === $this->username ? $this->mention() : $this->name.' ('.$this->mention().')';
+        return $this->profile->nameWithHandle();
     }
 
     public function isFollowing(self $user): bool
@@ -540,6 +668,13 @@ final class User extends Authenticatable
     public function toArray(): array
     {
         return [
+            'id' => $this->id,
+            'handle' => $this->handle,
+            'name' => $this->name,
+            'avatar_url' => $this->avatar_url,
+            'bio' => $this->bio,
+            'location' => $this->location,
+            'website' => $this->website,
             ...parent::toArray(),
             'lane' => $this->lane(),
             'has_github_account' => $this->hasGitHubAccount(),
@@ -565,12 +700,32 @@ final class User extends Authenticatable
         return $this->github_id !== CreateTomFriendship::GITHUB_ID;
     }
 
+    /**
+     * The GitHub identity lives on the profile: it reads through, and only the profile changes it.
+     *
+     * @param  string  $key
+     */
+    public function getAttribute($key): mixed
+    {
+        return in_array($key, Profile::USER_ATTRIBUTES, true) ? $this->profile->getAttribute($key) : parent::getAttribute($key);
+    }
+
+    /**
+     * @param  string  $key
+     */
+    public function setAttribute($key, $value): mixed
+    {
+        throw_if(in_array($key, Profile::USER_ATTRIBUTES, true), LogicException::class, "Update the {$key} of a user on their profile.");
+
+        return parent::setAttribute($key, $value);
+    }
+
     private function fillCounts(int $commits): self
     {
         $counts = [
             'commits_count' => $commits,
             'followers_count' => $this->followers()->newPivotQuery()->count(),
-            'following_count' => $this->following()->newPivotQuery()->count(),
+            'following_count' => $this->following()->newPivotQuery()->count() + $this->followedOrganizations()->newPivotQuery()->count(),
         ];
 
         $this->forceFill($counts)->syncOriginalAttributes(array_keys($counts));

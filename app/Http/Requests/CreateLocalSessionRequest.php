@@ -14,14 +14,14 @@ final class CreateLocalSessionRequest extends FormRequest
     }
 
     /**
-     * The same shape as a GitHub username: up to 39 letters, digits, and single hyphens, not at either end.
+     * The same shape as a GitHub handle: up to 39 letters, digits, and single hyphens, not at either end.
      *
      * @return array<string, array<int, string>>
      */
     public function rules(): array
     {
         return [
-            'username' => ['required', 'string', 'max:39', 'regex:/^[a-z\d](?:[a-z\d]|-(?=[a-z\d]))*$/i'],
+            'handle' => ['required', 'string', 'max:39', 'regex:/^[a-z\d](?:[a-z\d]|-(?=[a-z\d]))*$/i'],
         ];
     }
 }

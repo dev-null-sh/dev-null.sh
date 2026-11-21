@@ -2,8 +2,10 @@
 
 declare(strict_types=1);
 
+use App\Contracts\Services\GitHubProvider;
 use App\Enums\ModerationReason;
 use App\Models\Ban;
+use App\Models\BanEvent;
 use App\Models\Commit;
 use App\Models\ScheduledCommit;
 use App\Models\User;
@@ -16,8 +18,8 @@ beforeEach(function (): void {
 });
 
 it('may ban a user', function (): void {
-    $admin = User::factory()->create(['username' => 'admin']);
-    $user = User::factory()->create(['username' => 'octocat', 'github_id' => '583231']);
+    $admin = User::factory()->create(['handle' => 'admin']);
+    $user = User::factory()->create(['handle' => 'octocat', 'github_id' => '583231']);
 
     config(['app.admins' => ['admin']]);
 
@@ -31,15 +33,19 @@ it('may ban a user', function (): void {
         ->github_id->toBe('583231')
         ->reason->toBe(ModerationReason::AiGenerated);
 
+    expect(BanEvent::query()->count())->toBe(1);
+    expect(BanEvent::query()->sole()->user->is($user))->toBeTrue();
+
     expect($user->refresh()->isBanned())->toBeTrue();
 
     $this->post(route('user-ban.store', $user), ['reason' => 'spam']);
 
     expect(Ban::query()->sole()->reason)->toBe(ModerationReason::Spam);
+    expect(BanEvent::query()->count())->toBe(2);
 });
 
 it('validates the reason of a ban', function (): void {
-    $admin = User::factory()->create(['username' => 'admin']);
+    $admin = User::factory()->create(['handle' => 'admin']);
     $user = User::factory()->create();
 
     config(['app.admins' => ['admin']]);
@@ -52,14 +58,14 @@ it('validates the reason of a ban', function (): void {
 });
 
 it('may not be given by someone who is not an admin, nor to an admin', function (string $actor, string $target): void {
-    User::factory()->create(['username' => 'admin']);
-    User::factory()->create(['username' => 'other-admin']);
-    User::factory()->create(['username' => 'someone']);
-    User::factory()->create(['username' => 'octocat']);
+    User::factory()->create(['handle' => 'admin']);
+    User::factory()->create(['handle' => 'other-admin']);
+    User::factory()->create(['handle' => 'someone']);
+    User::factory()->create(['handle' => 'octocat']);
 
     config(['app.admins' => ['admin', 'other-admin']]);
 
-    $this->actingAs(User::query()->where('username', $actor)->sole())
+    $this->actingAs(User::query()->whereRelation('profile', 'handle', $actor)->sole())
         ->post(route('user-ban.store', ['user' => $target]), ['reason' => 'spam'])
         ->assertForbidden();
 
@@ -73,8 +79,8 @@ it('may not be given by someone who is not an admin, nor to an admin', function 
 ]);
 
 it('may unban a user', function (): void {
-    $admin = User::factory()->create(['username' => 'admin']);
-    $user = User::factory()->banned()->create(['username' => 'octocat']);
+    $admin = User::factory()->create(['handle' => 'admin']);
+    $user = User::factory()->banned()->create(['handle' => 'octocat']);
 
     config(['app.admins' => ['admin']]);
 
@@ -89,7 +95,7 @@ it('may unban a user', function (): void {
 });
 
 it('sends a banned user from every page to the one that tells them why', function (string $method, string $route, array $parameters): void {
-    $user = User::factory()->banned()->create(['username' => 'octocat']);
+    $user = User::factory()->banned()->create(['handle' => 'octocat']);
     $parameters = array_map(fn (mixed $parameter): mixed => $parameter === 'commit' ? Commit::factory()->create() : $parameter, $parameters);
 
     $this->actingAs($user)
@@ -183,8 +189,9 @@ it('lets a banned user delete their account, and keeps the ban for when they sig
 it('signs in a banned user who still has an account, straight to the banned page', function (): void {
     $user = User::factory()->banned()->create(['github_id' => '583231']);
 
-    Socialite::fake('github', GitHubUser::fake(['id' => '583231', 'nickname' => $user->username]));
-    fakeGitHubSponsorsListing();
+    Socialite::fake('github', GitHubUser::fake(['id' => '583231', 'nickname' => $user->handle]));
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('hasSponsorsListing')->andReturnFalse();
 
     $this->get(route('login.store'))->assertRedirect();
 
@@ -206,7 +213,7 @@ it('refuses every signed request of a banned user but deleting their account', f
 });
 
 it('cancels the scheduled commits of the user it bans, so lifting the ban does not send them all at once', function (): void {
-    $admin = User::factory()->create(['username' => 'admin']);
+    $admin = User::factory()->create(['handle' => 'admin']);
     $user = User::factory()->create();
     $pending = ScheduledCommit::factory()->for($user)->create(['scheduled_at' => now()->addHour()]);
     $submitted = ScheduledCommit::factory()->for($user)->create(['scheduled_at' => now()->subHour(), 'submitted_at' => now()->subHour()]);

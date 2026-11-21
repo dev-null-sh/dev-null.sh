@@ -33,7 +33,7 @@ it('keeps link cards out of the history an org member cannot see', function (): 
     [$nuno, $taylor] = followersOf($mark, 2);
     $org = createOrg($mark, [$nuno]);
     $before = pushToOrg($nuno, $org, 'see https://laravel.com');
-    $this->actingAs($mark)->postJson(route('org-member.store', $org), ['members' => [$taylor->username], 'share_history' => false])->assertNoContent();
+    $this->actingAs($mark)->postJson(route('org-member.store', $org), ['members' => [$taylor->handle], 'share_history' => false])->assertNoContent();
 
     $this->actingAs($taylor)->getJson(route('message-link-preview.show', $before))->assertNotFound();
 });

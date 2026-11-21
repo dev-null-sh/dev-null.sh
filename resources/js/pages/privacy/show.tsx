@@ -5,6 +5,7 @@ import {
     DocumentPage,
     DocumentSection,
 } from '@/components/document-page';
+import { WordmarkText } from '@/components/wordmark-text';
 import AppLayout from '@/layouts/app-layout';
 import {
     COMPANY_NAME,
@@ -18,7 +19,11 @@ function Mail() {
 }
 
 function Terms() {
-    return <Link href={TermsController.show()}>terms of service</Link>;
+    return (
+        <Link href={TermsController.show()} prefetch>
+            terms of service
+        </Link>
+    );
 }
 
 export default function Show() {
@@ -32,11 +37,11 @@ export default function Show() {
             >
                 <DocumentSection id="who" title="Who we are">
                     <p>
-                        {COMPANY_NAME}, a company registered in Portugal ("we",
-                        "us"), operates /dev/null and everything we offer under
-                        that name or any other, now or in the future (the
-                        "service"), and is the controller of the personal data
-                        processed in it. Contact: <Mail />.
+                        <WordmarkText>/dev/null</WordmarkText> ("we", "us") is a
+                        social network for developers at dev-null.sh. This
+                        policy covers it and everything we offer under that name
+                        or any other, now or in the future (the "service").
+                        Contact: <Mail />.
                     </p>
                 </DocumentSection>
 
@@ -50,6 +55,46 @@ export default function Show() {
                                 GitHub shares, whether you have a Sponsors
                                 listing, your public SSH key fingerprints, and
                                 who you follow and who follows you.
+                            </>,
+                            <>
+                                <strong>
+                                    From GitHub, before you sign up:
+                                </strong>{' '}
+                                when a member opens the page of your GitHub
+                                username, your GitHub ID, username, name,
+                                avatar, and bio, to show that page until you
+                                sign in and make it yours, and which members
+                                follow you on GitHub, who then follow you here
+                                once you sign up. Never your location or
+                                website.
+                            </>,
+                            <>
+                                <strong>
+                                    From GitHub, when you claim an
+                                    organization's page:
+                                </strong>{' '}
+                                whether you belong to that organization, asked
+                                once with your permission to read your
+                                organizations. Nothing else about them is kept,
+                                and your claim shows on the organization's page.
+                            </>,
+                            <>
+                                <strong>
+                                    From an organization's admins, when they add
+                                    you:
+                                </strong>{' '}
+                                that you are a member or an admin of that
+                                organization, which its members see. Admins are
+                                also listed on the organization's page.
+                            </>,
+                            <>
+                                <strong>
+                                    From Apple, when you sign in with Apple in
+                                    the iOS app:
+                                </strong>{' '}
+                                your Apple account identifier, and the name and
+                                email address you choose to share, which may be
+                                Apple's private relay address.
                             </>,
                             <>
                                 <strong>
@@ -82,15 +127,42 @@ export default function Show() {
                                 discard.
                             </>,
                             <>
+                                <strong>From our apps:</strong> when you approve
+                                a device, its key's fingerprint, its name, when
+                                you approved it, and when it was last used,
+                                until you revoke it. The private key stays in
+                                your device's Keychain and never reaches us.
+                            </>,
+                            <>
                                 <strong>From others:</strong> what other users
                                 post, say, or report about you, such as replies,
                                 quotes, and mentions.
                             </>,
                             <>
+                                <strong>
+                                    From the join link, if you ask for one:
+                                </strong>{' '}
+                                the email address you enter on your phone, used
+                                only to send you one email with a link back to
+                                the page you were reading. We keep a keyed hash
+                                of it for 30 days, so the same address doesn't
+                                get it twice, and don't keep the address once
+                                the email is sent, except, encrypted, in our
+                                error logs if it can't be sent.
+                            </>,
+                            <>
                                 <strong>Technical data:</strong> IP address,
                                 browser and device information, logs, and how
-                                you use the service, such as the last day you
-                                used it.
+                                you use the service, such as the days you used
+                                it and which of our apps you used on them.
+                            </>,
+                            <>
+                                <strong>From the iOS app:</strong> a key the app
+                                makes on your phone to sign its requests, which
+                                never leaves it, and the name of your phone. The
+                                app asks for your photos or camera only when you
+                                attach an image, and for your microphone only
+                                when you record a voice note.
                             </>,
                             <>
                                 <strong>Cookies and browser storage</strong>{' '}
@@ -104,8 +176,8 @@ export default function Show() {
                         others give us about you, or that is generated when you
                         use the service. New features may involve other data,
                         which this policy covers once it is updated to describe
-                        it. Signing in with GitHub is required to use the
-                        service.
+                        it. Signing in with GitHub, or with Apple in the iOS
+                        app, is required to use the service.
                     </p>
                 </DocumentSection>
 
@@ -206,15 +278,27 @@ export default function Show() {
                         stops a banned GitHub account from signing up again, and
                         keeps a timeout from ending early by signing up again.
                     </p>
+                    <p>
+                        If you are removed as a guild moderator, we retain your
+                        GitHub account ID, the guild hashtag and removal date,
+                        including after account deletion, to prevent you from
+                        reclaiming that guild with the same GitHub account.
+                    </p>
+                    <p>
+                        When you delete your account, we keep your GitHub ID
+                        until you sign in again, so that your page doesn't come
+                        back before you sign up.
+                    </p>
                 </DocumentSection>
 
                 <DocumentSection id="rights" title="Your rights">
                     <p>
                         You can export your data or delete your account from{' '}
-                        <Link href={profileSettings()}>settings</Link>. Under
-                        the GDPR, you may also have the right to access,
-                        correct, erase, restrict, or port your data, to object
-                        to its processing, and to lodge a complaint with a data
+                        <Link href={profileSettings()}>settings</Link>, or
+                        delete it in the iOS app under Settings. Under the GDPR,
+                        you may also have the right to access, correct, erase,
+                        restrict, or port your data, to object to its
+                        processing, and to lodge a complaint with a data
                         protection authority, such as Portugal's CNPD. You may
                         object at any time to processing based on our legitimate
                         interests. To exercise these rights, write to <Mail />.
@@ -250,7 +334,11 @@ export default function Show() {
 
                 <DocumentSection id="contact" title="Contact">
                     <p>
-                        {COMPANY_NAME}, <Mail />. See also our <Terms />.
+                        <WordmarkText>/dev/null</WordmarkText> is property of{' '}
+                        {COMPANY_NAME}, a company registered in Portugal, which
+                        is "we" and "us" in this policy and the controller of
+                        the personal data processed in the service. Contact:{' '}
+                        <Mail />. See also our <Terms />.
                     </p>
                 </DocumentSection>
             </DocumentPage>

@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-use App\Dto\SshPublicKey;
+use App\Contracts\Services\EmbeddingProvider;
+use App\Http\Middleware\HandleInertiaRequests;
 use App\Jobs\UnfurlLink;
 use App\Models\Device;
 use App\Models\Message;
 use App\Models\User;
-use App\Services\OpenAI;
 use App\Services\SignedCommits;
 use App\Services\SignedRequests;
 use Carbon\CarbonInterface;
@@ -55,8 +55,20 @@ function sshFixture(string $name): string
  */
 function embeddingVector(int $dimension): array
 {
-    $vector = array_fill(0, OpenAI::EMBEDDING_DIMENSIONS, 0.0);
+    $vector = array_fill(0, EmbeddingProvider::DIMENSIONS, 0.0);
     $vector[$dimension] = 1.0;
+
+    return $vector;
+}
+
+/**
+ * @return list<float>
+ */
+function embeddingAtDistance(float $distance): array
+{
+    $vector = array_fill(0, EmbeddingProvider::DIMENSIONS, 0.0);
+    $vector[0] = 1 - $distance;
+    $vector[1] = sqrt(1 - (1 - $distance) ** 2);
 
     return $vector;
 }
@@ -95,87 +107,11 @@ function relevanceResponse(array $verdicts): array
 }
 
 /**
- * The two requests a commit search makes: embedding the term, and the decision model's verdicts on the candidates. By
- * default every candidate is relevant, so only the filtering tests pass verdicts.
- *
- * @param  list<bool>  $verdicts
+ * @return array<string, mixed>
  */
-function fakeSearch(array $verdicts = []): void
+function gitHubContributor(string $login, int $commits, string $type = 'User', ?int $id = null): array
 {
-    Http::fake([
-        'api.openai.com/v1/embeddings' => Http::response(embeddingsResponse([embeddingVector(0)])),
-        'api.openai.com/v1/decisions' => Http::response(relevanceResponse($verdicts)),
-    ]);
-}
-
-/**
- * @param  array<string, mixed>  $account
- */
-function fakeGitHubAccount(User $user, array $account = []): void
-{
-    $account = [
-        'id' => (int) $user->github_id,
-        'login' => 'octocat',
-        'name' => 'The Octocat',
-        'email' => 'octocat@github.com',
-        'avatar_url' => 'https://avatars.githubusercontent.com/u/583231?v=4',
-        'bio' => 'I am the Octocat.',
-        'company' => '@github',
-        'location' => 'San Francisco',
-        'blog' => 'https://github.blog',
-        ...$account,
-    ];
-
-    Http::fake([
-        "api.github.com/user/{$user->github_id}" => Http::response($account),
-    ]);
-
-    fakeGitHubSshKeys(User::factory()->make(['github_id' => $user->github_id, 'username' => $account['login']]));
-}
-
-/**
- * @param  list<SshPublicKey>  $keys
- * @param  list<SshPublicKey>  $signingKeys
- */
-function fakeGitHubSshKeys(User $user, array $keys = [], array $signingKeys = []): void
-{
-    $toResponse = fn (array $publicKeys): array => array_map(
-        fn (SshPublicKey $publicKey): array => ['id' => 1, 'key' => $publicKey->toOpenSsh()],
-        $publicKeys,
-    );
-
-    Http::fake([
-        "api.github.com/user/{$user->github_id}" => Http::response(['login' => $user->username]),
-        "api.github.com/users/{$user->username}/keys*" => Http::response($toResponse($keys)),
-        "api.github.com/users/{$user->username}/ssh_signing_keys*" => Http::response($toResponse($signingKeys)),
-    ]);
-}
-
-/**
- * @param  list<User>  $following
- * @param  list<User>  $followers
- */
-function fakeGitHubFollows(User $user, array $following = [], array $followers = []): void
-{
-    $toResponse = fn (array $users): array => array_map(
-        fn (User $user): array => ['id' => (int) $user->github_id, 'login' => $user->username],
-        $users,
-    );
-
-    Http::fake([
-        "api.github.com/user/{$user->github_id}" => Http::response(['login' => $user->username]),
-        "api.github.com/users/{$user->username}/following*" => Http::response($toResponse($following)),
-        "api.github.com/users/{$user->username}/followers*" => Http::response($toResponse($followers)),
-    ]);
-}
-
-function fakeGitHubSponsorsListing(bool $hasSponsorsListing = false): void
-{
-    Http::fake([
-        'api.github.com/graphql' => Http::response(['data' => ['viewer' => [
-            'hasSponsorsListing' => $hasSponsorsListing,
-        ]]]),
-    ]);
+    return ['login' => $login, 'id' => $id ?? crc32($login), 'contributions' => $commits, 'type' => $type];
 }
 
 /**
@@ -340,7 +276,7 @@ function createOrg(User $maintainer, array $members, ?string $name = 'dev/null c
 {
     return test()->actingAs($maintainer)->postJson(route('org.store'), [
         'name' => $name,
-        'members' => array_map(fn (User $member): string => $member->username, $members),
+        'members' => array_map(fn (User $member): string => $member->handle, $members),
     ])->assertCreated()->json('org.id');
 }
 
@@ -411,6 +347,25 @@ function signedApiRequestWithImages(SshKeyPair $keyPair, string $method, string 
 }
 
 /**
+ * Sends an API request with a voice note the way the Mac app does: multipart, with the data as the JSON payload beside
+ * the voice note, signed with the hash of $signedVoice, which is the voice note sent unless a test says otherwise.
+ *
+ * @param  array<string, mixed>  $data
+ */
+function signedApiRequestWithVoice(SshKeyPair $keyPair, string $method, string $uri, array $data, UploadedFile $voice, ?UploadedFile $signedVoice = null): TestResponse
+{
+    $payload = json_encode($data, JSON_THROW_ON_ERROR);
+
+    return test()->call($method, $uri, files: [
+        'payload' => UploadedFile::fake()->createWithContent('payload', $payload),
+        'voice' => $voice,
+    ], server: [
+        ...signApiRequest($keyPair, $method, $uri, hash_file('sha256', ($signedVoice ?? $voice)->getPathname())."\n".$payload, namespace: SignedRequests::ImagesNamespace),
+        'CONTENT_TYPE' => 'multipart/form-data; boundary=devnull',
+    ]);
+}
+
+/**
  * Gives the user a key approved as a device, that the mobile app signs API requests with. It isn't on their GitHub
  * account, as the API doesn't need it to be.
  */
@@ -421,4 +376,35 @@ function apiKeyPairFor(User $user): SshKeyPair
     Device::factory()->for($user)->withPublicKey($keyPair->publicKey)->create();
 
     return $keyPair;
+}
+
+/**
+ * Whether the database's pgvector predates `hnsw.iterative_scan` (0.8), as the one Herd ships locally does.
+ */
+function pgvectorLacksIterativeScan(): bool
+{
+    return version_compare((string) DB::scalar("select extversion from pg_extension where extname = 'vector'"), '0.8.0', '<');
+}
+
+/**
+ * Which of a connections list a page loaded, as the page asks for it.
+ */
+function loadedDigest(string $route, User $user, array $loaded): mixed
+{
+    return test()->get(route($route, ['user' => $user, 'loaded' => $loaded]), [
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) resolve(HandleInertiaRequests::class)->version(request()),
+        'X-Inertia-Partial-Component' => 'user/connections',
+        'X-Inertia-Partial-Data' => 'loadedDigest',
+    ])->assertOk()->assertJsonMissingPath('props.users')->json('props.loadedDigest');
+}
+
+/**
+ * The digest the server names a list by: the SHA-256 of its sorted ids.
+ */
+function digestOf(string ...$ids): string
+{
+    sort($ids, SORT_STRING);
+
+    return hash('sha256', implode(',', $ids));
 }

@@ -3,30 +3,24 @@
 declare(strict_types=1);
 
 use App\Enums\Feature;
+use App\Enums\UserUpdate;
+use App\Events\UsersUpdated;
+use App\Models\Guild;
 use App\Models\User;
 use App\Services\Features;
+use Illuminate\Support\Facades\Event;
 
 beforeEach(function (): void {
     config(['app.admins' => ['admin']]);
 });
 
 it('lists the features to admins', function (): void {
-    $this->actingAs(User::factory()->create(['username' => 'admin']))
+    $this->actingAs(User::factory()->create(['handle' => 'admin']))
         ->get(route('feature.index'))
         ->assertOk()
         ->assertInertia(fn ($page) => $page
             ->component('operations/features')
-            ->where('features', [['name' => 'translations', 'enabled' => true]])
-            ->where('hasTraffic', false));
-});
-
-it('offers the traffic tab when a Fathom token is configured', function (): void {
-    config(['services.fathom.token' => 'token', 'services.fathom.site_id' => 'SITE']);
-
-    $this->actingAs(User::factory()->create(['username' => 'admin']))
-        ->get(route('feature.index'))
-        ->assertOk()
-        ->assertInertia(fn ($page) => $page->where('hasTraffic', true));
+            ->where('features', [['name' => 'translations', 'enabled' => true, 'admin_only' => false], ['name' => 'guilds', 'enabled' => true, 'admin_only' => true]]));
 });
 
 it('hides the features from non admins', function (): void {
@@ -40,10 +34,10 @@ it('requires authentication to list the features', function (): void {
 });
 
 it('lets admins switch a feature off and back on for everyone', function (): void {
-    $admin = User::factory()->create(['username' => 'admin']);
+    $admin = User::factory()->create(['handle' => 'admin']);
 
     $this->actingAs($admin)->get(route('feature.index'))
-        ->assertInertia(fn ($page) => $page->where('features', [['name' => 'translations', 'enabled' => true]]));
+        ->assertInertia(fn ($page) => $page->where('features', [['name' => 'translations', 'enabled' => true, 'admin_only' => false], ['name' => 'guilds', 'enabled' => true, 'admin_only' => true]]));
 
     $this->fromRoute('feature.index')
         ->put(route('feature.update', 'translations'), ['enabled' => false])
@@ -52,7 +46,7 @@ it('lets admins switch a feature off and back on for everyone', function (): voi
     expect(resolve(Features::class)->enabled(Feature::Translations))->toBeFalse();
     $this->assertDatabaseHas('features', ['name' => 'translations', 'enabled' => false]);
     $this->get(route('feature.index'))
-        ->assertInertia(fn ($page) => $page->where('features', [['name' => 'translations', 'enabled' => false]]));
+        ->assertInertia(fn ($page) => $page->where('features', [['name' => 'translations', 'enabled' => false, 'admin_only' => false], ['name' => 'guilds', 'enabled' => true, 'admin_only' => true]]));
 
     $this->put(route('feature.update', 'translations'), ['enabled' => true])->assertRedirect();
 
@@ -62,7 +56,7 @@ it('lets admins switch a feature off and back on for everyone', function (): voi
 });
 
 it('rejects missing or invalid settings without changing the feature', function (array $payload): void {
-    $this->actingAs(User::factory()->create(['username' => 'admin']))
+    $this->actingAs(User::factory()->create(['handle' => 'admin']))
         ->putJson(route('feature.update', 'translations'), $payload)
         ->assertUnprocessable()->assertJsonValidationErrors('enabled');
 
@@ -71,7 +65,7 @@ it('rejects missing or invalid settings without changing the feature', function 
 })->with([fn (): array => [], fn (): array => ['enabled' => 'yes'], fn (): array => ['enabled' => null]]);
 
 it('is a 404 for unknown features', function (): void {
-    $this->actingAs(User::factory()->create(['username' => 'admin']))
+    $this->actingAs(User::factory()->create(['handle' => 'admin']))
         ->put(route('feature.update', 'teleportation'), ['enabled' => false])
         ->assertNotFound();
 
@@ -89,4 +83,34 @@ it('is a 404 for non admins', function (): void {
 
 it('requires authentication', function (): void {
     $this->putJson(route('feature.update', 'translations'), ['enabled' => false])->assertUnauthorized();
+});
+
+it('switches guild availability between everyone admins and nobody', function (): void {
+    $admin = User::factory()->create(['handle' => 'admin']);
+    $member = User::factory()->create();
+    $guild = Guild::factory()->create();
+    Event::fake([UsersUpdated::class]);
+
+    $this->actingAs($member)->get(route('guild.show', $guild->handle))->assertNotFound();
+    $this->actingAs($admin)->put(route('feature.update', Feature::Guilds), ['enabled' => true, 'admin_only' => false])->assertRedirect();
+    $this->actingAs($member)->get(route('guild.show', $guild->handle))->assertOk();
+    $this->post(route('guild.store'), ['name' => 'New Guild', 'description' => 'Open to everyone.', 'emoji' => '💻'])->assertRedirectToRoute('guild.show', 'newguild');
+    $this->assertDatabaseHas('guilds', ['handle' => 'newguild', 'user_id' => $member->id]);
+    Event::assertDispatched(UsersUpdated::class, fn (UsersUpdated $event): bool => $event->update === UserUpdate::Guilds && in_array($member->id, $event->userIds, true));
+    Event::assertDispatched(UsersUpdated::class, fn (UsersUpdated $event): bool => $event->update === UserUpdate::Relationships && in_array($member->id, $event->userIds, true));
+
+    $this->actingAs($admin)->put(route('feature.update', Feature::Guilds), ['enabled' => true, 'admin_only' => true])->assertRedirect();
+    $this->get(route('guild.show', $guild->handle))->assertOk();
+    $this->actingAs($member)->get(route('guild.show', $guild->handle))->assertNotFound();
+    $this->actingAs($admin)->put(route('feature.update', Feature::Guilds), ['enabled' => false])->assertRedirect();
+    $this->get(route('guild.show', $guild->handle))->assertNotFound();
+    $this->actingAs($member)->get(route('guild.show', $guild->handle))->assertNotFound();
+    $this->assertDatabaseHas('features', ['name' => 'guilds', 'enabled' => false, 'admin_only' => true]);
+});
+
+it('rejects an invalid audience without changing access', function (): void {
+    $this->actingAs(User::factory()->create(['handle' => 'admin']))
+        ->putJson(route('feature.update', Feature::Guilds), ['enabled' => true, 'admin_only' => 'everyone'])
+        ->assertUnprocessable()->assertJsonValidationErrors('admin_only');
+    $this->assertDatabaseCount('features', 0);
 });

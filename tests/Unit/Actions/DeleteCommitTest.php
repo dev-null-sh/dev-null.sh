@@ -6,6 +6,7 @@ use App\Actions\CreateCommitRestoration;
 use App\Actions\DeleteCommit;
 use App\Actions\DeleteCommitContent;
 use App\Actions\UpdateCommitHotScores;
+use App\Dto\ThreadEngagement;
 use App\Jobs\EraseDeletedCommit;
 use App\Models\Commit;
 use App\Models\CommitImage;
@@ -15,15 +16,18 @@ use App\Services\TheAlgorithm;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 
-it('may delete a commit', function (): void {
-    $commit = Commit::factory()->create();
+it('deletes a commit and only clears recaps directly linked to it', function (bool $isReply): void {
+    $root = Commit::factory()->create();
+    $commit = $isReply ? Commit::factory()->for($root, 'parent')->create() : $root;
+    $headline = $root->headlines()->create(['name' => 'Vector databases', 'summary' => 'A recap of the deleted source.', 'summary_created_at' => now()]);
 
     $action = resolve(DeleteCommit::class);
 
     $action->handle($commit);
 
     $this->assertSoftDeleted($commit);
-});
+    expect($headline->refresh()->summary)->toBe($isReply ? 'A recap of the deleted source.' : null);
+})->with(['root' => false, 'reply' => true]);
 
 it('keeps the replies of a deleted commit', function (): void {
     $commit = Commit::factory()->create();
@@ -94,7 +98,7 @@ it('lowers the thread when a reply is deleted', function (): void {
     resolve(DeleteCommit::class)->handle($reply);
 
     expect($commit->fresh()->hot_score)
-        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, 0, 0), 1e-9);
+        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, ThreadEngagement::none()), 1e-9);
 });
 
 it('lowers the quoted thread when a quote is deleted', function (): void {
@@ -105,7 +109,7 @@ it('lowers the quoted thread when a quote is deleted', function (): void {
     resolve(DeleteCommit::class)->handle($quote);
 
     expect($commit->fresh()->hot_score)
-        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, 0, 0), 1e-9);
+        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, ThreadEngagement::none()), 1e-9);
 });
 
 it('keeps reports while applying the undo window to images', function (bool $undo): void {

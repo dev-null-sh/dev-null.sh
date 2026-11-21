@@ -6,6 +6,7 @@ import {
     ActivityCells,
     activitySummary,
 } from '../../resources/js/components/activity-graph';
+import { setReaderClock } from '../../resources/js/lib/utils';
 import type { Activity } from '../../resources/js/types';
 
 const week: Activity = {
@@ -47,6 +48,34 @@ test('summarizes the activity with its own noun', () => {
         ),
         '1,500 commits in the last year',
     );
+});
+
+test("labels the hours of the last day on the reader's clock, whatever the clock of the machine rendering them", () => {
+    const day: Activity = {
+        scale: 'day',
+        buckets: Array.from({ length: 24 }, (_, hour) => ({
+            date: `2026-10-15T${String(hour).padStart(2, '0')}:00:00Z`,
+            count: 0,
+        })),
+    };
+    const labels = () =>
+        renderToString(
+            <ActivityCells
+                activity={day}
+                color="var(--muted-foreground)"
+                noun={['commit', 'commits']}
+            />,
+        ).match(/\d\d:\d\d/g);
+
+    try {
+        setReaderClock({ timeZone: 'UTC', hourCycle: 'h23' });
+        assert.deepEqual(labels(), ['00:00', '06:00', '12:00', '18:00']);
+
+        setReaderClock({ timeZone: 'Pacific/Auckland', hourCycle: 'h23' });
+        assert.deepEqual(labels(), ['18:00', '00:00', '06:00']);
+    } finally {
+        setReaderClock(null);
+    }
 });
 
 test('labels the cells with the summary and paints them in the given color', () => {

@@ -2,7 +2,7 @@ import { useSyncExternalStore } from 'react';
 import { readStorage, writeStorage } from '@/lib/storage';
 
 /**
- * The open conversation is kept by its key: the partner's username, or `org:{id}`.
+ * The open conversation is kept by its key: the partner's handle, or `org:{id}`.
  */
 export type ChatDock = {
     isDocked: boolean;
@@ -48,7 +48,10 @@ function subscribe(listener: () => void): () => void {
     listeners.add(listener);
 
     const onStorage = (event: StorageEvent) => {
-        if (event.key === storageKey) {
+        if (
+            event.storageArea === window.localStorage &&
+            (event.key === storageKey || event.key === null)
+        ) {
             dock = null;
             listener();
         }

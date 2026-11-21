@@ -27,17 +27,18 @@ it('lists the notifications of the user, newest first', function (): void {
 
     $user = fn (User $user): array => [
         'id' => $user->id,
-        'username' => $user->username,
+        'handle' => $user->handle,
         'name' => $user->name,
         'avatar_url' => $user->avatar_url,
         'bio' => $user->bio,
         'company' => $user->company,
         'location' => $user->location,
         'website' => $user->website,
-        'github_url' => "https://github.com/{$user->username}",
+        'github_url' => "https://github.com/{$user->handle}",
         'html_url' => route('user.show', $user),
         'feed_url' => route('user-feed.show', $user),
         'created_at' => now()->toIso8601ZuluString(),
+        'live' => null,
         'lane' => $user->lane(),
     ];
 
@@ -50,8 +51,9 @@ it('lists the notifications of the user, newest first', function (): void {
             'reason' => null,
             'read_at' => now()->toIso8601ZuluString(),
             'created_at' => now()->toIso8601ZuluString(),
-            'actor' => [...$user($replied->actor), 'is_followed' => false],
-            'actors' => [[...$user($replied->actor), 'is_followed' => false]],
+            'actor' => ['type' => 'user', ...$user($replied->actor->user), 'is_followed' => false],
+            'actors' => [['type' => 'user', ...$user($replied->actor->user), 'is_followed' => false]],
+            'organization' => null,
             'group_id' => $replied->id,
             'event_count' => 1,
             'actors_count' => 1,
@@ -61,9 +63,9 @@ it('lists the notifications of the user, newest first', function (): void {
                 'short_hash' => mb_substr(str_replace('-', '', $reply->id), -7),
                 'body' => $reply->body,
                 'parent_id' => $reply->parent_id,
-                'html_url' => route('commit.show', [$replied->actor, $reply]),
+                'html_url' => route('commit.show', [$replied->actor->user, $reply]),
                 'created_at' => now()->toIso8601ZuluString(),
-                'author' => $user($replied->actor),
+                'author' => ['type' => 'user', ...$user($replied->actor->user)],
                 'body_segments' => [['type' => 'text', 'text' => $reply->body]],
                 'preview_segments' => null,
                 'mentions' => [],
@@ -78,7 +80,7 @@ it('lists the notifications of the user, newest first', function (): void {
                     'parent_id' => null,
                     'html_url' => route('commit.show', [$this->user, $reply->parent]),
                     'created_at' => now()->toIso8601ZuluString(),
-                    'author' => $user($this->user),
+                    'author' => ['type' => 'user', ...$user($this->user)],
                     'body_segments' => [['type' => 'text', 'text' => $reply->parent->body]],
                     'preview_segments' => null,
                     'mentions' => [],
@@ -102,7 +104,7 @@ it('lists the notifications of the user, newest first', function (): void {
 it('hides notifications that no longer hold', function (): void {
     $notification = Notification::factory()->for($this->user, 'recipient')->create();
 
-    resolve(DeleteUserFollow::class)->handle($notification->actor, $this->user);
+    resolve(DeleteUserFollow::class)->handle($notification->actor->user, $this->user);
 
     $response = signedApiRequest($this->keyPair, 'GET', route('api-notification.index'));
 
@@ -164,7 +166,7 @@ it('hides notifications about deleted commits', function (): void {
 it('leaves out the commit a mention replies to when the user may not see it', function (Closure $parent): void {
     $parent = $parent();
     $actor = User::factory()->create();
-    $mention = Commit::factory()->for($actor)->for($parent, 'parent')->create(['body' => "Ask @{$this->user->username}"]);
+    $mention = Commit::factory()->for($actor)->for($parent, 'parent')->create(['body' => "Ask @{$this->user->handle}"]);
     Notification::factory()->for($this->user, 'recipient')->for($actor, 'actor')->create([
         'type' => NotificationType::Mentioned,
         'commit_id' => $mention->id,
@@ -310,9 +312,10 @@ it('lists every group through a date when asked, like the web refreshing its inb
 });
 
 it('says which group a notification leads, how many events it has, and whether the user follows the actor', function (): void {
+    $this->travelTo(now()->setTime(12, 0));
     $first = Notification::factory()->for($this->user, 'recipient')->create(['created_at' => now()->subMinutes(2)]);
     $latest = Notification::factory()->for($this->user, 'recipient')->create();
-    $this->user->following()->attach($latest->actor);
+    $this->user->following()->attach($latest->actor->user);
 
     signedApiRequest($this->keyPair, 'GET', route('api-notification.index'))
         ->assertOk()
@@ -358,8 +361,8 @@ it('leaves out what muted people and people across a block did, as the web does'
     $kept = Notification::factory()->for($this->user, 'recipient')->replied()->create();
     $muted = Notification::factory()->for($this->user, 'recipient')->replied()->create();
     $blocked = Notification::factory()->for($this->user, 'recipient')->mentioned()->create();
-    $this->user->muting()->attach($muted->actor);
-    $blocked->actor->blocking()->attach($this->user);
+    $this->user->muting()->attach($muted->actor->user);
+    $blocked->actor->user->blocking()->attach($this->user);
 
     signedApiRequest($this->keyPair, 'GET', route('api-notification.index'))
         ->assertOk()
