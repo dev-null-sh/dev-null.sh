@@ -1,4 +1,4 @@
-import { Image, Mic, Pin, Reply, SmilePlus } from 'lucide-react';
+import { Image, Mic, Pencil, Pin, Reply, SmilePlus } from 'lucide-react';
 import type { ReactNode, RefObject } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { show as showMessageImage } from '@/actions/App/Http/Controllers/MessageImageController';
@@ -384,6 +384,7 @@ export function BubbleActions({
     isMine,
     onReply,
     onReact,
+    onEdit = null,
     isReacting,
     reactRef,
     trayId,
@@ -393,6 +394,7 @@ export function BubbleActions({
     isMine: boolean;
     onReply: (() => void) | null;
     onReact: (() => void) | null;
+    onEdit?: (() => void) | null;
     isReacting: boolean;
     reactRef: RefObject<HTMLButtonElement | null>;
     trayId: string;
@@ -440,7 +442,12 @@ export function BubbleActions({
         return () => document.removeEventListener('pointermove', onPointerMove);
     }, [isJustPinned]);
 
-    if (onReply === null && onReact === null && !isPinShown) {
+    if (
+        onReply === null &&
+        onReact === null &&
+        onEdit === null &&
+        !isPinShown
+    ) {
         return null;
     }
 
@@ -513,6 +520,18 @@ export function BubbleActions({
                         />
                     </button>
                 ))}
+            {onEdit !== null && (
+                <button
+                    type="button"
+                    onClick={onEdit}
+                    aria-label="Edit message"
+                    title="Edit message"
+                    className={transient}
+                    data-test="edit-button"
+                >
+                    <Pencil aria-hidden className="size-4" />
+                </button>
+            )}
             {onReply !== null && (
                 <button
                     type="button"

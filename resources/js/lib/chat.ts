@@ -305,6 +305,11 @@ function urls(target: ChatTarget) {
                     query ? { query } : undefined,
                 ),
             store: ConversationMessageController.store.url(partner),
+            updateMessage: (message: number) =>
+                ConversationMessageController.update.url({
+                    partner: target.partner.handle,
+                    message,
+                }),
             read: ConversationReadController.update.url(partner),
             typing: ConversationTypingController.update.url(partner),
             stash: ConversationArchiveController.store.url(partner),
@@ -322,6 +327,8 @@ function urls(target: ChatTarget) {
         index: (query?: Record<string, number>) =>
             OrgMessageController.index.url(org, query ? { query } : undefined),
         store: OrgMessageController.store.url(org),
+        updateMessage: (message: number) =>
+            OrgMessageController.update.url({ org: target.org.id, message }),
         read: OrgReadController.update.url(org),
         typing: OrgTypingController.update.url(org),
         stash: OrgArchiveController.store.url(org),
@@ -1635,6 +1642,16 @@ async function pollThread(target: ChatTarget): Promise<void> {
                       },
             ),
         );
+
+        if (
+            after !== null &&
+            fresh.messages.length === 0 &&
+            fresh.reaction_changes.length === 0
+        ) {
+            // In-place changes, like edits, don't advance the last id, so an empty page means the loaded window
+            // itself changed. Reread it so open threads see the new wording without a reload.
+            fresh = await remotesRequest(urls(target).index(undefined));
+        }
     } catch (error) {
         if (
             error instanceof ChatRequestError &&
@@ -2836,6 +2853,27 @@ export async function setConversationMute(
     if (preference !== null) {
         applyConversationMute(key, preference.muted_until_at);
     }
+}
+
+/**
+ * Rewords a pushed message within its edit window, swapping in what the server hands back.
+ */
+export async function editMessage(
+    target: ChatTarget,
+    messageId: number,
+    body: string,
+): Promise<void> {
+    const key = targetKey(target);
+
+    const { message } = await remotesRequest<{ message: Message }>(
+        urls(target).updateMessage(messageId),
+        'PUT',
+        { body },
+    );
+
+    updateThread(key, (thread) => ({
+        messages: mergeMessages(thread.messages, [message]),
+    }));
 }
 
 /**

@@ -61,6 +61,7 @@ export type Message = {
     user?: User;
     subject?: User | null;
     pinned_at?: string | null;
+    edited_at?: string | null;
     created_at: string;
 };
 

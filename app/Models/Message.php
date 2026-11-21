@@ -42,10 +42,11 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
  * @property-read MessageVoice|null $voice
  * @property-read Collection<int, MessageReaction> $reactions
  * @property-read Conversation $conversation
+ * @property-read CarbonInterface|null $edited_at
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
  */
-#[Visible(['id', 'user_id', 'client_id', 'body', 'reply_to_id', 'mentions', 'event', 'subject_id', 'pinned_at', 'created_at', 'user', 'subject', 'linkPreview', 'images', 'voice', 'reactions'])]
+#[Visible(['id', 'user_id', 'client_id', 'body', 'reply_to_id', 'mentions', 'event', 'subject_id', 'pinned_at', 'edited_at', 'created_at', 'user', 'subject', 'linkPreview', 'images', 'voice', 'reactions'])]
 final class Message extends Model
 {
     /** @use HasFactory<MessageFactory> */
@@ -54,10 +55,23 @@ final class Message extends Model
     public const int MAX_LENGTH = 2000;
 
     /**
+     * How long after pushing its author may still edit a message, after which it is frozen for good.
+     */
+    public const int EDIT_WINDOW_MINUTES = 3;
+
+    /**
      * What a message is shown with in a thread: its link card, its images, its voice note, its reactions, and the
      * message it replies to.
      */
     public const array SHOWN_WITH = ['linkPreview', 'images', 'voice', 'reactions', 'replyTo.images', 'replyTo.voice'];
+
+    /**
+     * Whether the message's edit window has closed, freezing it the way the issue asked.
+     */
+    public function editExpired(): bool
+    {
+        return $this->created_at->lt(now()->subMinutes(self::EDIT_WINDOW_MINUTES));
+    }
 
     /**
      * @return array<string, string>
@@ -77,6 +91,7 @@ final class Message extends Model
             'subject_id' => 'string',
             'reactions_version' => 'integer',
             'pinned_at' => 'datetime',
+            'edited_at' => 'datetime',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
         ];
