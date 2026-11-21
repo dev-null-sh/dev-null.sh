@@ -84,6 +84,8 @@ vi.doMock('../../resources/js/hooks/use-stash', () => ({
     discardSeriesStash: vi.fn(),
 }));
 
+const { ColorSwatchHint } =
+    await import('../../resources/js/components/color-swatch-hint');
 const { CommitComposer } =
     await import('../../resources/js/components/commit-composer');
 const { IssueCommandBadge, IssueCommandHint, IssueCommandSuggestions } =
@@ -107,7 +109,10 @@ function elements(node: ReactNode): Element[] {
         return [];
     }
     const element = node as Element;
-    if (typeof element.type === 'function' && element.props.stash === draft) {
+    if (
+        (typeof element.type === 'function' && element.props.stash === draft) ||
+        element.type === ColorSwatchHint
+    ) {
         const renderPart = element.type as (
             props: typeof element.props,
         ) => ReactNode;
@@ -140,7 +145,7 @@ beforeEach(() => {
     draft.descriptions = [];
 });
 
-test('previews the guild hashtag without spending the draft character budget', () => {
+test('previews guild text unchanged and uses the full draft character budget', () => {
     draft.body = 'Learning Rust';
     let view = render('rust');
     assert.equal(
@@ -153,7 +158,7 @@ test('previews the guild hashtag without spending the draft character budget', (
     )!;
     assert.equal(
         (toggle.props.preview as { draft: string }).draft,
-        'Learning Rust\n\n#rust',
+        'Learning Rust',
     );
     assert.equal(view.form.props.onBefore(), true);
 
@@ -180,7 +185,7 @@ test('previews the guild hashtag without spending the draft character budget', (
         const preview = render('rust').fields.find(
             (element) => element.type === PreviewToggle,
         )!.props.preview as { draft: string };
-        assert.equal(preview.draft, `${body}\n\n#rust`);
+        assert.equal(preview.draft, body);
     }
     draft.body = 'x'.repeat(4000);
     assert.equal(render('rust').form.props.onBefore(), true);
@@ -196,12 +201,92 @@ test('previews the guild hashtag without spending the draft character budget', (
     assert.equal(render('rust').form.props.onBefore(), false);
 });
 
+test('offers to format the last ambiguous hashtag as a swatch and updates only that part of the draft', () => {
+    draft.body = 'Guild #dead, try #CAFE! Keep the rest.';
+    const { form, fields } = render();
+    const action = fields.find(
+        (element) => element.props['data-test'] === 'use-color',
+    )!;
+    const textarea = fields.find(
+        (element) => element.type === MentionTextarea,
+    )!;
+    const syntax = fields.find((element) => element.type === 'code');
+
+    assert.equal(syntax?.props.children, 'color(#CAFE)');
+    assert.equal(action.props.type, 'button');
+    assert.equal(action.props.disabled, false);
+    assert.match(String(textarea.props['aria-describedby']), /-color-hint/);
+    assert.equal(form.props.onBefore(), true);
+
+    const input = { focus: vi.fn(), setSelectionRange: vi.fn() };
+    (textarea.props.ref as { current: typeof input }).current = input;
+    const requestFrame = vi.fn<(callback: FrameRequestCallback) => number>(
+        () => 1,
+    );
+    vi.stubGlobal('requestAnimationFrame', requestFrame);
+    try {
+        (action.props.onClick as () => void)();
+        assert.deepEqual(draft.updateBody.mock.calls, [
+            ['Guild #dead, try color(#CAFE)! Keep the rest.'],
+        ]);
+        requestFrame.mock.calls[0][0](0);
+        assert.equal(input.focus.mock.calls.length, 1);
+        assert.deepEqual(input.setSelectionRange.mock.calls, [[29, 29]]);
+    } finally {
+        vi.unstubAllGlobals();
+    }
+});
+
+test('leaves ordinary hashtags, automatic swatches, explicit colors, code, and URLs alone', () => {
+    for (const body of [
+        '#laravel #dead_guild #000 #123 #0ff',
+        'color(#dead) COLOR(#cafe)',
+        'color(#dead',
+        '`#dead` and `#cafe',
+        '```css\n#dead',
+        'https://example.com/?q=#dead example.com/?q=#cafe',
+    ]) {
+        draft.body = body;
+        const { fields } = render();
+        const textarea = fields.find(
+            (element) => element.type === MentionTextarea,
+        )!;
+        const action = fields.find(
+            (element) => element.props['data-test'] === 'use-color',
+        )!;
+
+        assert.doesNotMatch(
+            String(textarea.props['aria-describedby']),
+            /-color-hint/,
+            body,
+        );
+        assert.equal(action.props.disabled, true, body);
+    }
+});
+
 test('recognizes a guild draft after a successful post reload and leaves other drafts alone', () => {
     draft.body = 'Learning Rust';
-    flash = { committed: { body: 'Learning Rust\n\n#rust' } };
+    flash = { committed: { body: 'Learning Rust', guild_handle: 'rust' } };
     render('rust');
     effects.forEach((effect) => effect());
     assert.equal(draft.drop.mock.calls.length, 1);
+});
+
+test('keeps identical restored text when another posting context was submitted', () => {
+    draft.body = 'Learning Rust';
+    for (const [guild, committedGuild] of [
+        ['rust', null],
+        [undefined, 'rust'],
+        ['rust', 'go'],
+    ]) {
+        effects = [];
+        flash = {
+            committed: { body: draft.body, guild_handle: committedGuild },
+        };
+        render(guild ?? undefined);
+        effects.forEach((effect) => effect());
+        assert.equal(draft.drop.mock.calls.length, 0);
+    }
 });
 
 test('preserves restored images and link cards and allows scheduling them', () => {

@@ -31,12 +31,13 @@ use App\Http\Controllers\Api\ConversationTypingController;
 use App\Http\Controllers\Api\CurrentUserController;
 use App\Http\Controllers\Api\DeviceController;
 use App\Http\Controllers\Api\DevicePushTokenController;
+use App\Http\Controllers\Api\GuildController;
+use App\Http\Controllers\Api\GuildIconController;
 use App\Http\Controllers\Api\HeadlineController;
 use App\Http\Controllers\Api\IssueController;
 use App\Http\Controllers\Api\IssueSuggestionController;
 use App\Http\Controllers\Api\LiveFollowingController;
 use App\Http\Controllers\Api\LogController;
-use App\Http\Controllers\Api\MacAppController;
 use App\Http\Controllers\Api\MentionSuggestionController;
 use App\Http\Controllers\Api\MessageImageController;
 use App\Http\Controllers\Api\MessageLinkPreviewController;
@@ -135,16 +136,13 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             ->name('api-organization-mention.index');
     });
 
-    // The Mac app's latest release, which its update check compares with, unsigned so it sends nothing about anyone...
-    Route::get('apps/mac', [MacAppController::class, 'show'])->name('api-mac-app.show');
-
     // Signing in: the app redeems the code it got on the web, signed with a key that isn't approved yet...
     Route::post('devices', [DeviceController::class, 'store'])
         ->withoutMiddleware('throttle:api')
         ->middleware('throttle:devices')
         ->name('api-device.store');
 
-    // Remote images and voice notes: the app's image views and audio players can't sign requests, so a thread hands out URLs signed for the user...
+    // Remote images, voice notes and guild icons: the app's image views and audio players can't sign requests, so the API hands out URLs signed for the user...
     Route::get('remotes/images/{messageImage}', [MessageImageController::class, 'show'])
         ->whereUuid('messageImage')
         ->withoutMiddleware('throttle:api')
@@ -155,6 +153,10 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         ->withoutMiddleware('throttle:api')
         ->middleware('signed:relative')
         ->name('api-message-voice.show');
+    Route::get('guilds/{guild:handle}/icon', [GuildIconController::class, 'show'])
+        ->withoutMiddleware('throttle:api')
+        ->middleware('signed:relative')
+        ->name('api-guild-icon.show');
 
     // Signed by the mobile app with an SSH key that the user approved as a device...
     Route::middleware(AuthenticateSignedRequest::class)->group(function (): void {
@@ -238,6 +240,10 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         Route::get('headlines/{headline}', [HeadlineController::class, 'show'])
             ->whereUuid('headline')
             ->name('api-headline.show');
+
+        // Guilds: the directory the web's Guilds page lists, and a guild's board...
+        Route::get('guilds', [GuildController::class, 'index'])->name('api-guild.index');
+        Route::get('guilds/{guild:handle}', [GuildController::class, 'show'])->name('api-guild.show');
 
         // Composer suggestions: people to mention and /dev/null issues to reference, as the web's composer suggests them...
         Route::get('search/mentions', [MentionSuggestionController::class, 'index'])

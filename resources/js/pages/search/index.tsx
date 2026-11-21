@@ -93,7 +93,7 @@ export default function Index({ query }: { query: string }) {
                 </form>
             </header>
 
-            <HashtagGuild key={query} query={query} />
+            <HashtagGuild term={draft.trim()} />
 
             {query !== '' && (
                 <TabGroup key={query}>
@@ -146,10 +146,13 @@ export default function Index({ query }: { query: string }) {
 
 Index.layout = AppLayout;
 
-function HashtagGuild({ query }: { query: string }) {
+/**
+ * Follows the search box rather than the last submitted search, so the banner comes and goes as the hashtag is typed.
+ */
+function HashtagGuild({ term }: { term: string }) {
     const { guilds } = usePage().props;
-    const handle = /^#\p{L}[\p{L}\p{M}\p{N}_]{0,59}$/u.test(query)
-        ? query.slice(1).toLowerCase()
+    const handle = /^#\p{L}[\p{L}\p{M}\p{N}_]{0,59}$/u.test(term)
+        ? term.slice(1).toLowerCase()
         : null;
 
     if (!guilds || !handle) {

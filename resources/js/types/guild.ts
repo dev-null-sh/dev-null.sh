@@ -8,4 +8,12 @@ export type Guild = {
     member_count: number;
     is_joined: boolean;
     is_muted: boolean;
+    is_paused: boolean;
+};
+
+export type JoinedGuild = Pick<
+    Guild,
+    'handle' | 'name' | 'emoji' | 'icon_url'
+> & {
+    missed_commits: number;
 };
