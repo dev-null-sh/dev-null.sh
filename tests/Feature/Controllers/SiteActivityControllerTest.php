@@ -71,6 +71,8 @@ it('rejects unknown activity scales and series', function (array $query): void {
         ->assertSessionHasErrors();
 })->with([
     'unknown scale' => [['scale' => 'decade']],
+    'quarter scale' => [['scale' => 'quarter']],
+    'half scale' => [['scale' => 'half']],
     'unknown series' => [['metric' => 'stars']],
 ]);
 
