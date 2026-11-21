@@ -1,7 +1,11 @@
 import { Head, InfiniteScroll, router, usePage } from '@inertiajs/react';
-import { Check, X } from 'lucide-react';
+import { Check, Flag, Undo2, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import {
+    destroy as undoEscalateRoute,
+    store as escalateRoute,
+} from '@/actions/App/Http/Controllers/CommitEscalationController';
 import { store as reject } from '@/actions/App/Http/Controllers/CommitRejectionController';
 import { destroy } from '@/actions/App/Http/Controllers/CommitReportController';
 import { CommitCard } from '@/components/commit-card';
@@ -197,6 +201,25 @@ export default function Reports({
             },
         );
 
+    // Unlike a dismissal, an escalation keeps the report: it flags the commit for an admin.
+    const escalate = (report: Report) =>
+        router.visit(escalateRoute(report.commit), {
+            preserveScroll: true,
+            only: ['reports'],
+            reset: ['reports'],
+            onError: () =>
+                toast.error('Could not escalate this commit. Try again.'),
+        });
+
+    const undoEscalate = (report: Report) =>
+        router.visit(undoEscalateRoute(report.commit), {
+            preserveScroll: true,
+            only: ['reports'],
+            reset: ['reports'],
+            onError: () =>
+                toast.error('Could not undo the escalation. Try again.'),
+        });
+
     return (
         <>
             <Head title="Reported commits" />
@@ -301,6 +324,42 @@ export default function Reports({
                                                 <Check />
                                                 Dismiss report
                                             </Button>
+                                            {report.commit.escalated_at !=
+                                            null ? (
+                                                auth.isAdmin ? (
+                                                    <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                                                        <Flag className="size-3.5" />
+                                                        Escalated
+                                                    </span>
+                                                ) : (
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() =>
+                                                            undoEscalate(report)
+                                                        }
+                                                        data-test="undo-escalation-button"
+                                                    >
+                                                        <Undo2 />
+                                                        Undo escalation
+                                                    </Button>
+                                                )
+                                            ) : (
+                                                !auth.isAdmin && (
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() =>
+                                                            escalate(report)
+                                                        }
+                                                        data-test="escalate-report-button"
+                                                        className="border-amber-600/40 text-amber-700 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-400"
+                                                    >
+                                                        <Flag />
+                                                        Escalate to admin
+                                                    </Button>
+                                                )
+                                            )}
                                             <Button
                                                 variant="destructive"
                                                 size="sm"

@@ -510,6 +510,22 @@ final class User extends Authenticatable
     }
 
     /**
+     * Moderators review the pending queue and user reports, but cannot timeout or ban anyone.
+     */
+    public function isModerator(): bool
+    {
+        /** @var list<string> $moderators */
+        $moderators = config('app.moderators');
+
+        return in_array(mb_strtolower($this->handle), array_map(mb_strtolower(...), $moderators), true);
+    }
+
+    public function canModerate(): bool
+    {
+        return $this->isAdmin() || $this->isModerator();
+    }
+
+    /**
      * Unlike loadCount(), counts follows on the pivot tables alone: the self-referencing
      * relations would otherwise join the users table for every follow. Commits are
      * counted as the viewer sees them, which is all of them for the user themselves.

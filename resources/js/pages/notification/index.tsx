@@ -14,6 +14,7 @@ import {
     Check,
     ChevronDown,
     ChevronsUp,
+    Flag,
     GitCommitVertical,
     Hourglass,
     MessageSquareReply,
@@ -118,6 +119,11 @@ const filterOptions: {
         type: 'moderation',
         label: 'Moderation',
         empty: 'No moderation updates. Approved, rejected, and timeout notices show up here.',
+    },
+    {
+        type: 'escalations',
+        label: 'Escalations',
+        empty: 'No escalations. When a moderator flags a commit for admin review, it shows up here.',
     },
 ];
 
@@ -1164,6 +1170,7 @@ export function NotificationContent({
     const moderation =
         notification.type === 'approved' ||
         notification.type === 'rejected' ||
+        notification.type === 'escalated' ||
         notification.type === 'timed_out';
     const isOwnCommit =
         notification.type === 'starred' ||
@@ -1194,6 +1201,7 @@ export function NotificationContent({
         first_commit: GitCommitVertical,
         approved: Check,
         rejected: X,
+        escalated: Flag,
         timed_out: Hourglass,
     }[notification.type];
     const icon = (
@@ -1207,17 +1215,22 @@ export function NotificationContent({
         />
     );
     const href =
-        notification.type === 'followed' ||
-        notification.type === 'timed_out' ||
-        notification.type === 'leveled_up' ||
-        (!summary && notification.type === 'starred')
-            ? show(actor)
-            : CommitController.show({
-                  profile: isOwnCommit
-                      ? (notification.organization ?? user)
-                      : actor,
+        notification.type === 'escalated'
+            ? CommitController.show({
+                  profile: notification.commit.author,
                   commit: notification.commit,
-              });
+              })
+            : notification.type === 'followed' ||
+                notification.type === 'timed_out' ||
+                notification.type === 'leveled_up' ||
+                (!summary && notification.type === 'starred')
+              ? show(actor)
+              : CommitController.show({
+                    profile: isOwnCommit
+                        ? (notification.organization ?? user)
+                        : actor,
+                    commit: notification.commit,
+                });
     const time = (
         <time
             dateTime={notification.created_at}
@@ -1243,6 +1256,7 @@ export function NotificationContent({
         first_commit: 'made their first commit',
         approved: `${organization ? whose : 'Your'} commit was approved`,
         rejected: `${organization ? whose : 'Your'} commit was rejected`,
+        escalated: 'escalated a commit for admin review',
         timed_out: 'You were put in timeout',
         leveled_up: level && `You reached level ${level.level}: ${level.rank}`,
     }[notification.type];

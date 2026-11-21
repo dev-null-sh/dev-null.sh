@@ -1,8 +1,9 @@
 import { Head, router, usePage } from '@inertiajs/react';
-import { Bot, Check, X } from 'lucide-react';
+import { Bot, Check, Flag, Undo2, X } from 'lucide-react';
 import { useEffect, useId, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import CommitApprovalController from '@/actions/App/Http/Controllers/CommitApprovalController';
+import CommitEscalationController from '@/actions/App/Http/Controllers/CommitEscalationController';
 import CommitRejectionController from '@/actions/App/Http/Controllers/CommitRejectionController';
 import ModerationController from '@/actions/App/Http/Controllers/ModerationController';
 import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
@@ -66,17 +67,24 @@ function AiDecision({ commit }: { commit: Commit }) {
 }
 
 function ModerationActions({
+    commit,
     isSelected,
     onSelectedChange,
     onModerate,
+    onEscalate,
+    onUndoEscalate,
 }: {
+    commit: Commit;
     isSelected: boolean;
     onSelectedChange: (isSelected: boolean) => void;
     onModerate: (route: ModerationRoute, reason: string) => void;
+    onEscalate: () => void;
+    onUndoEscalate: () => void;
 }) {
     const [showReason, setShowReason] = useState(false);
     const [reason, setReason] = useState('');
     const reasonId = useId();
+    const { auth } = usePage().props;
 
     return (
         <div>
@@ -126,6 +134,37 @@ function ModerationActions({
                     >
                         Add reason
                     </Button>
+                )}
+                {commit.escalated_at != null ? (
+                    auth.isAdmin ? (
+                        <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                            <Flag className="size-3.5" />
+                            Escalated
+                        </span>
+                    ) : (
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={onUndoEscalate}
+                            data-test="undo-escalation-button"
+                        >
+                            <Undo2 />
+                            Undo escalation
+                        </Button>
+                    )
+                ) : (
+                    !auth.isAdmin && (
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={onEscalate}
+                            data-test="escalate-commit-button"
+                            className="border-amber-600/40 text-amber-700 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-400"
+                        >
+                            <Flag />
+                            Escalate to admin
+                        </Button>
+                    )
                 )}
             </div>
             {showReason && (
@@ -360,6 +399,25 @@ export default function Show({
         });
     };
 
+    // An escalation stays in the queue: it flags the commit for an admin without deciding it.
+    const escalate = (commit: Commit) =>
+        router.visit(CommitEscalationController.store(commit), {
+            preserveScroll: true,
+            only: ['commits', 'hasUnmoderatedCommits'],
+            reset: ['commits'],
+            onError: () =>
+                toast.error('Could not escalate this commit. Try again.'),
+        });
+
+    const undoEscalate = (commit: Commit) =>
+        router.visit(CommitEscalationController.destroy(commit), {
+            preserveScroll: true,
+            only: ['commits', 'hasUnmoderatedCommits'],
+            reset: ['commits'],
+            onError: () =>
+                toast.error('Could not undo the escalation. Try again.'),
+        });
+
     const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
 
     const selectedIds = commits.data
@@ -474,6 +532,7 @@ export default function Show({
                         <AiDecision commit={commit} />
                         <CommitPoster commit={commit} className="mt-1" />
                         <ModerationActions
+                            commit={commit}
                             isSelected={selected.has(commit.id)}
                             onSelectedChange={(isSelected) =>
                                 toggle(commit.id, isSelected)
@@ -481,6 +540,8 @@ export default function Show({
                             onModerate={(route, reason) =>
                                 moderate(commit, route, reason)
                             }
+                            onEscalate={() => escalate(commit)}
+                            onUndoEscalate={() => undoEscalate(commit)}
                         />
                     </>
                 )}

@@ -16,5 +16,6 @@ it('has the types of a notification', function (): void {
         'LeveledUp' => 'leveled_up',
         'FirstCommit' => 'first_commit',
         'TimedOut' => 'timed_out',
+        'Escalated' => 'escalated',
     ]);
 });
