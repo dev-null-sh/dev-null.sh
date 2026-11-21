@@ -31,12 +31,16 @@ it('picks the key that is on the github account of a user', function (): void {
 });
 
 it('fails when none of the keys are on the github account of a user', function (): void {
+    Http::fake();
+
     $response = $this->call('POST', route('cli-key-lookup.store'), content: SshKeyPair::generate()->publicKey->toOpenSsh());
 
     $response->assertNotFound()
         ->assertHeader('Content-Type', 'text/plain; charset=utf-8')
         ->assertSee('None of your SSH keys are on the GitHub account of a /dev/null user.')
         ->assertSee('then click Sync from GitHub on '.route('user-profile.edit').'.');
+
+    Http::assertNothingSent();
 });
 
 it('finds a key added on github after signing in once the user syncs from github', function (): void {
