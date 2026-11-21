@@ -399,7 +399,7 @@ function Strip({
 /**
  * Shorter grids cap each week's column, so a few weeks don't stretch into oversized cells.
  */
-const weekPitch = '2rem';
+const weekPitch = '1.5rem';
 
 function WeekGrid({
     scale,
