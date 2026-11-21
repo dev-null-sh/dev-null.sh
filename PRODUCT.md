@@ -33,6 +33,7 @@ What exists, one line each (details in the knowledge base):
 
 - **Commits:** text with code, images, link cards and embedded players, or a poll; replies, quotes, threads, scheduling, translation.
 - **Logs:** Following, Latest, and Trending.
+- **Help wanted:** public contributor requests for GitHub projects, grouped by the kind of help needed, with owner-managed open and filled status.
 - **Engagement:** follows, stars, saved commits, pins, mentions, and pastéis (an opt-in daily allowance of pastries).
 - **Profiles:** mirrored from GitHub, with an activity graph, streaks, achievements, a Unix rank, and a live marker while you stream on YouTube.
 - **Link pages:** every https link has a page listing the commits that use it as their card; once two people talk about a link, its cards and commit pages lead there.

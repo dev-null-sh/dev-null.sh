@@ -9,6 +9,7 @@ use App\Models\BanEvent;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\CommitReport;
+use App\Models\ContributorRequest;
 use App\Models\Conversation;
 use App\Models\ConversationParticipant;
 use App\Models\Device;
@@ -43,6 +44,7 @@ use Traversable;
  *     schema_version: int,
  *     exported_at: string,
  *     profile: array<string, bool|int|string|null>,
+ *     contributor_requests: Generator<int, array{commit_id: string, project_url: string, kind: string, status: string, filled_at: string|null, created_at: string}>,
  *     active_days: Generator<int, ExportActiveDay>,
  *     commits: Generator<int, array<string, mixed>>,
  *     organization_commits: Generator<int, array<string, mixed>>,
@@ -86,7 +88,7 @@ final readonly class CreateExport
     public function handle(User $user): array
     {
         return [
-            'schema_version' => 9,
+            'schema_version' => 10,
             'exported_at' => now()->toIso8601String(),
             'profile' => [
                 'github_id' => $user->github_id,
@@ -128,6 +130,7 @@ final readonly class CreateExport
                 'updated_at' => $user->updated_at->toIso8601String(),
             ],
             'active_days' => $this->activeDays($user),
+            'contributor_requests' => $this->contributorRequests($user),
             'commits' => $this->commits($user),
             'organization_commits' => $this->organizationCommits($user),
             'polls' => $this->polls($user),
@@ -224,6 +227,20 @@ final readonly class CreateExport
             ])->all(),
             'sessions' => $this->sessions($user),
         ];
+    }
+
+    /**
+     * @return Generator<int, array{commit_id: string, project_url: string, kind: string, status: string, filled_at: string|null, created_at: string}>
+     */
+    private function contributorRequests(User $user): Generator
+    {
+        foreach (ContributorRequest::query()->where('user_id', $user->id)->oldest()->oldest('id')->cursor() as $item) {
+            yield [
+                'commit_id' => $item->commit_id, 'project_url' => $item->project_url,
+                'kind' => $item->kind->value, 'status' => $item->status->value,
+                'filled_at' => $item->filled_at?->toIso8601String(), 'created_at' => $item->created_at->toIso8601String(),
+            ];
+        }
     }
 
     /**
