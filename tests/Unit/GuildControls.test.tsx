@@ -18,6 +18,7 @@ vi.doMock('@inertiajs/react', async () => ({
                 {
                     id: 'guild-id',
                     handle: 'rust',
+                    aliases: [],
                     name: 'Rust',
                     is_joined: true,
                 },
@@ -60,6 +61,8 @@ const { default: GuildBoard } =
     await import('../../resources/js/pages/guild/show');
 const { CommitCard } =
     await import('../../resources/js/components/commit-card');
+const { GuildAliasesButton } =
+    await import('../../resources/js/components/guild-aliases');
 const { GuildDialog } =
     await import('../../resources/js/components/guild-dialog');
 const { GuildPreferences } =
@@ -179,6 +182,32 @@ test('clears the missed commits of a joined guild when its board opens', () => {
     );
     assert.equal(put.mock.calls[0][0], '/guild-reads/guild-id');
     assert.deepEqual(put.mock.calls[0][2].only, ['joinedGuilds']);
+});
+
+test('removes an alias optimistically from its own guild only', () => {
+    const remove = vi.fn();
+    const optimistic = vi
+        .spyOn(router, 'optimistic')
+        .mockReturnValue({ delete: remove } as unknown as typeof router);
+    const guild = {
+        id: 'guild-id',
+        handle: 'go',
+        aliases: ['golang', 'gopher'],
+    } as Guild;
+    const other = { id: 'other', handle: 'rust', aliases: ['golang'] } as Guild;
+
+    const button = elements(GuildAliasesButton({ guild })).find(
+        (element) => element.props['aria-label'] === 'Remove #golang',
+    )!;
+    (button.props.onClick as () => void)();
+
+    const update = optimistic.mock.calls[0][0] as (props: {
+        guilds: Guild[];
+    }) => unknown;
+    assert.deepEqual(update({ guilds: [guild, other] }), {
+        guilds: [{ id: 'guild-id', handle: 'go', aliases: ['gopher'] }, other],
+    });
+    assert.equal(remove.mock.calls[0][0], '/guilds/go/aliases/golang');
 });
 
 test('changes only the pin optimistically and prevents pin and load-more requests from overlapping', () => {
