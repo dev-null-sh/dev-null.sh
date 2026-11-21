@@ -333,6 +333,7 @@ it('shows a signed request the commit as its page shows it to its user', functio
                 'created_at' => now()->toIso8601ZuluString(),
                 'stars_count' => 1,
                 'replies_count' => 1,
+                'continuation_id' => null,
                 'link_preview' => null,
                 'images' => [
                     ['id' => $image->id, 'width' => 1200, 'height' => 800, 'description' => null, 'url' => route('commit-image.show', $image)],
@@ -1121,4 +1122,16 @@ it('refuses a board post from a signed request when the guild is paused after va
         ->assertExactJson(['message' => 'This guild is paused until it has a moderator.', 'code' => 'guild_paused']);
 
     expect(Commit::query()->where('body', 'Board post')->exists())->toBeFalse();
+});
+
+it("sends the reply that continues a commit as its author's thread", function (): void {
+    $author = User::factory()->create();
+    $commit = Commit::factory()->for($author)->create();
+    $continuation = Commit::factory()->for($commit, 'parent')->for($author)->create();
+    Commit::factory()->for($commit, 'parent')->create();
+
+    signedApiRequest(apiKeyPairFor(User::factory()->create()), 'GET', route('api-commit.show', $commit))
+        ->assertOk()
+        ->assertJsonPath('data.continuation_id', $continuation->id)
+        ->assertJsonPath('data.replies_count', 1);
 });
