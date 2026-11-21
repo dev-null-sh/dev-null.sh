@@ -158,6 +158,48 @@ function deferredImage(name = 'picked.png') {
     };
 }
 
+function stubImageCodecs() {
+    const bitmap = { width: 4032, height: 3024, close: () => {} };
+
+    vi.stubGlobal('createImageBitmap', (image: Blob) =>
+        image.type === 'image/heic'
+            ? Promise.reject(
+                  new DOMException('Undecodable', 'InvalidStateError'),
+              )
+            : Promise.resolve(bitmap),
+    );
+    vi.stubGlobal(
+        'OffscreenCanvas',
+        class {
+            width: number;
+            height: number;
+
+            constructor(width: number, height: number) {
+                this.width = width;
+                this.height = height;
+            }
+
+            getContext() {
+                return { drawImage: () => {} };
+            }
+
+            convertToBlob() {
+                return Promise.resolve(
+                    new Blob(['webp'], { type: 'image/webp' }),
+                );
+            }
+        },
+    );
+
+    return bitmap;
+}
+
+const dropped = (files: File[]) =>
+    ({
+        dataTransfer: { types: ['Files'], files },
+        preventDefault: () => {},
+    }) as unknown as React.DragEvent<HTMLElement>;
+
 afterEach(() => {
     harnesses.forEach(unmount);
     harnesses.clear();
@@ -294,7 +336,7 @@ test('keeps valid images around an oversized selection and displays the error', 
     };
     const first = new File(['first'], 'first.png', { type: 'image/png' });
     const oversized = new File(
-        [new Uint8Array(10 * 1024 * 1024 + 1)],
+        [new Uint8Array(100 * 1024 * 1024 + 1)],
         'large.png',
         {
             type: 'image/png',
@@ -314,7 +356,7 @@ test('keeps valid images around an oversized selection and displays the error', 
         ['first', 'last'],
     );
     assert.deepEqual(draft.descriptions, ['', '']);
-    assert.match(attachments.error!, /10 MB/);
+    assert.match(attachments.error!, /100 MB/);
     assert.equal(attachments.isReading(), false);
 
     attachments.clearError();
@@ -336,7 +378,7 @@ test('rejected files do not consume the last available attachment slot', async (
         descriptions: ['first', 'second'],
     };
     const oversized = new File(
-        [new Uint8Array(10 * 1024 * 1024 + 1)],
+        [new Uint8Array(100 * 1024 * 1024 + 1)],
         'large.png',
         {
             type: 'image/png',
@@ -351,7 +393,7 @@ test('rejected files do not consume the last available attachment slot', async (
         ['existing.png', 'existing.png', 'valid.png'],
     );
     assert.deepEqual(draft.descriptions, ['first', 'second', '']);
-    assert.match(render(draft).error!, /10 MB/);
+    assert.match(render(draft).error!, /100 MB/);
 });
 
 test('late read errors belong to the originating hook instance', async () => {
@@ -438,4 +480,76 @@ test('releases report previews on unmount but survives Strict Mode effect replay
     } finally {
         revoke.mockRestore();
     }
+});
+
+test('reads a drop or paste with a HEIC photo or a large image in order, one read at a time', async () => {
+    const bitmap = stubImageCodecs();
+    const heicTo = vi.fn(() => Promise.resolve(bitmap));
+    vi.doMock('heic-to', () => ({ heicTo }));
+    const draft: Draft = {
+        key: 'stash:convert:mixed',
+        images: [],
+        descriptions: [],
+    };
+    const heic = new File(['heic'], 'IMG_0001.HEIC', { type: 'image/heic' });
+    const small = new File(['small'], 'small.png', { type: 'image/png' });
+    const large = new File(
+        [new Uint8Array(10 * 1024 * 1024 + 1)],
+        'large.jpg',
+        { type: 'image/jpeg' },
+    );
+
+    try {
+        render(draft).dropzone.onDrop(dropped([heic, small]));
+        assert.deepEqual(draft.images, []);
+        assert.equal(isReadingImages(draft.key), true);
+
+        render(draft).dropzone.onDrop(
+            dropped([
+                new File(['heic'], 'IMG_0002.HEIC', { type: 'image/heic' }),
+            ]),
+        );
+        assert.match(render(draft).error!, /Still adding images/);
+        await vi.waitFor(() => assert.equal(isReadingImages(draft.key), false));
+
+        render(draft).onPaste({
+            clipboardData: { files: [large] },
+            preventDefault: () => {},
+        } as unknown as React.ClipboardEvent<HTMLElement>);
+        render(draft);
+        await vi.waitFor(() => assert.equal(isReadingImages(draft.key), false));
+
+        assert.deepEqual(
+            draft.images.map(({ name, type }) => [name, type]),
+            [
+                ['IMG_0001.webp', 'image/webp'],
+                ['small.png', 'image/png'],
+                ['large.webp', 'image/webp'],
+            ],
+        );
+        assert.equal(heicTo.mock.calls.length, 1);
+        assert.equal(render(draft).error, null);
+    } finally {
+        vi.unstubAllGlobals();
+        vi.doUnmock('heic-to');
+    }
+});
+
+test('a HEIC photo dropped on a full composer reports the image limit', async () => {
+    const existing = new File(['existing'], 'existing.png', {
+        type: 'image/png',
+    });
+    const draft: Draft = {
+        key: 'stash:convert:full',
+        images: [existing, existing, existing],
+        descriptions: ['', '', ''],
+    };
+
+    render(draft).dropzone.onDrop(
+        dropped([new File(['heic'], 'IMG_0004.HEIC', { type: 'image/heic' })]),
+    );
+    await vi.waitFor(() => assert.equal(isReadingImages(draft.key), false));
+
+    assert.equal(draft.images.length, 3);
+    assert.match(render(draft).error!, /Up to 3/);
 });
