@@ -58,6 +58,7 @@ it('lists the latest commits of everyone, newest first', function (): void {
         'created_at' => now()->subMinute()->toIso8601ZuluString(),
         'stars_count' => 0,
         'replies_count' => 2,
+        'continuation_id' => null,
         'link_preview' => null,
         'images' => [],
         'author' => [
@@ -408,4 +409,21 @@ it('suggests commits on an empty following log, as the web does', function (): v
 
 it('rejects requests that are not signed', function (): void {
     $this->getJson(route('api-log.show', 'latest'))->assertUnauthorized();
+});
+
+it("sends the reply that continues a commit as its author's thread", function (): void {
+    $author = User::factory()->create();
+    $threaded = Commit::factory()->for($author)->create(['created_at' => now()->subMinutes(2)]);
+    Commit::factory()->for($threaded, 'parent')->create(['created_at' => now()->subSeconds(50)]);
+    $continuation = Commit::factory()->for($threaded, 'parent')->for($author)->create(['created_at' => now()->subSeconds(40)]);
+    $alone = Commit::factory()->create(['created_at' => now()->subMinute()]);
+
+    $response = signedApiRequest($this->keyPair, 'GET', route('api-log.show', 'latest'));
+
+    $response->assertOk()
+        ->assertJsonPath('data.0.id', $alone->id)
+        ->assertJsonPath('data.0.continuation_id', null)
+        ->assertJsonPath('data.1.id', $threaded->id)
+        ->assertJsonPath('data.1.continuation_id', $continuation->id)
+        ->assertJsonPath('data.1.replies_count', 1);
 });
