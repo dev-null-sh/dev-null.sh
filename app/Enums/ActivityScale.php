@@ -12,6 +12,8 @@ enum ActivityScale: string
     case Day = 'day';
     case Week = 'week';
     case Month = 'month';
+    case Quarter = 'quarter';
+    case Half = 'half';
     case Year = 'year';
 
     /**
@@ -19,7 +21,7 @@ enum ActivityScale: string
      */
     public static function since(CarbonInterface $since, CarbonImmutable $now): self
     {
-        foreach ([self::Day, self::Week, self::Month] as $scale) {
+        foreach ([self::Day, self::Week, self::Month, self::Quarter, self::Half] as $scale) {
             if ($since->greaterThanOrEqualTo($scale->start($now))) {
                 return $scale;
             }
@@ -34,13 +36,15 @@ enum ActivityScale: string
             self::Day => $now->startOfHour()->subHours(23),
             self::Week => $now->startOfDay()->subDays(6),
             self::Month => $now->startOfDay()->subDays(29),
+            self::Quarter => $now->subWeeks(12)->startOfWeek(CarbonInterface::SUNDAY),
+            self::Half => $now->subWeeks(25)->startOfWeek(CarbonInterface::SUNDAY),
             self::Year => $now->subWeeks(52)->startOfWeek(CarbonInterface::SUNDAY),
         };
     }
 
     /**
      * The start of the window ending now, as the operations page has always counted: the last 24 hours, 7 days, or
-     * 30 days. The year keeps its whole weeks, since its grid needs them.
+     * 30 days. The week grids keep their whole weeks, since they need them.
      */
     public function rollingStart(CarbonImmutable $now): CarbonImmutable
     {
@@ -48,7 +52,7 @@ enum ActivityScale: string
             self::Day => $now->subDay(),
             self::Week => $now->subWeek(),
             self::Month => $now->subDays(30),
-            self::Year => $this->start($now),
+            self::Quarter, self::Half, self::Year => $this->start($now),
         };
     }
 
