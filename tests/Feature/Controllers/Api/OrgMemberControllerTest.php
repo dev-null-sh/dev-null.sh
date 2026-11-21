@@ -2,9 +2,11 @@
 
 declare(strict_types=1);
 
+use App\Actions\CreateOrgMembers;
 use App\Enums\OrgEvent;
 use App\Enums\OrgRole;
 use App\Models\Conversation;
+use App\Models\ConversationParticipant;
 use App\Models\Message;
 use App\Models\Profile;
 use App\Models\User;
@@ -61,6 +63,23 @@ it('caps an org at 256 people', function (): void {
         ->assertJsonValidationErrors('members');
     signedApiRequest($this->keyPair, 'POST', route('api-org-member.store', $org), ['members' => [$last->handle], 'share_history' => true])
         ->assertNoContent();
+});
+
+it('keeps the cap when another maintainer fills the last place at the same moment', function (): void {
+    $followers = followersOf($this->user, Conversation::MAX_MEMBERS);
+    [$last, $extra] = array_slice($followers, -2);
+    $org = createOrg($this->user, array_slice($followers, 0, -2));
+    // Another maintainer's request takes the last place after this one's check found it free...
+    $this->app->beforeResolving(CreateOrgMembers::class, fn () => ConversationParticipant::query()->create([
+        'conversation_id' => $org, 'user_id' => $last->id, 'role' => OrgRole::Contributor,
+        'visible_from_id' => 0, 'read_through_id' => 0, 'last_message_at' => now(),
+    ]));
+
+    signedApiRequest($this->keyPair, 'POST', route('api-org-member.store', $org), ['members' => [$extra->handle], 'share_history' => true])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['members' => 'An org holds up to '.Conversation::MAX_MEMBERS.' people.']);
+
+    expect(ConversationParticipant::query()->where('conversation_id', $org)->count())->toBe(Conversation::MAX_MEMBERS);
 });
 
 it('lets only maintainers add, change roles, and remove others', function (): void {
