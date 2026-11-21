@@ -566,12 +566,12 @@ export function MobileNav({ children }: { children?: ReactNode }) {
     const [isChangelogOpen, setIsChangelogOpen] = useState(false);
     const allItems = useNavItems();
     const menuItems = allItems.filter((item) =>
-        ['Profile', 'Settings', 'Operations', 'Guilds'].includes(item.title),
+        ['Profile', 'Starred', 'Settings', 'Operations', 'Guilds'].includes(
+            item.title,
+        ),
     );
     const items = allItems.filter(
-        (item) =>
-            item.title !== 'Starred' &&
-            !menuItems.some((menuItem) => menuItem.title === item.title),
+        (item) => !menuItems.some((menuItem) => menuItem.title === item.title),
     );
     const nav = useRef<HTMLElement>(null);
 
