@@ -516,6 +516,9 @@ export function MentionTextarea({
                   .filter(
                       (guild) =>
                           guild.handle.includes(guildQuery) ||
+                          guild.aliases.some((alias) =>
+                              alias.includes(guildQuery),
+                          ) ||
                           guild.name.toLowerCase().includes(guildQuery),
                   )
                   .toSorted(
