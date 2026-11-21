@@ -80,6 +80,66 @@ it('erases the commits of a deleted user along with the replies under them', fun
         ->and(DB::table('commit_topics')->pluck('commit_id')->all())->toBe([$unrelated->id]);
 });
 
+it('erases the previews of links to the commits it erases, which hold their bodies', function (): void {
+    $user = User::factory()->create();
+    $commit = Commit::factory()->for($user)->create();
+    $reply = Commit::factory()->for($commit, 'parent')->create();
+    $tombstone = Commit::factory()->for($user)->for(Commit::factory(), 'parent')->create();
+    Commit::factory()->for($tombstone, 'parent')->create();
+    $previews = collect([$commit, $reply, $tombstone])->map(fn (Commit $linked): LinkPreview => LinkPreview::factory()->create([
+        'url' => route('commit.show', [$linked->user, $linked]),
+        'description' => $linked->body,
+    ]));
+    $shouted = LinkPreview::factory()->create(['url' => str_replace($commit->id, mb_strtoupper($commit->id), route('commit.show', [$user, $commit]))]);
+    $linking = Commit::factory()->create(['link_preview_id' => $previews->first()->id]);
+    $other = LinkPreview::factory()->create(['url' => route('commit.show', [$linking->user, $linking])]);
+
+    resolve(DeleteUser::class)->handle($user);
+
+    $previews->push($shouted)->each(fn (LinkPreview $preview) => $this->assertModelMissing($preview));
+    $this->assertModelExists($other);
+    expect($linking->fresh()->link_preview_id)->toBeNull();
+});
+
+it('erases the previews of links to its commits written another way that still opens them', function (string $plain, string $escaped): void {
+    $user = User::factory()->create();
+    $commit = Commit::factory()->for($user)->create(['id' => '01a16ffc-740e-7105-82dc-e3a7ed20aaaa']);
+    $other = Commit::factory()->create(['id' => '01a16ffc-740e-7105-82dc-e3a7ed20bbbb']);
+    $preview = LinkPreview::factory()->create(['url' => str_replace($plain, $escaped, route('commit.show', [$user, $commit]))]);
+    $kept = LinkPreview::factory()->create(['url' => str_replace($plain, $escaped, route('commit.show', [$other->user, $other]))]);
+
+    expect($preview->url)->not->toBe(route('commit.show', [$user, $commit]));
+
+    resolve(DeleteUser::class)->handle($user);
+
+    $this->assertModelMissing($preview);
+    $this->assertModelExists($kept);
+})->with([
+    'a dash' => ['-7105-', '%2D7105%2d'],
+    'a digit' => ['01a16ffc', '%301a16ffc'],
+    'a letter' => ['16ffc', '16%66fc'],
+    'an uppercase letter' => ['e3a7', 'e3%41%37'],
+    'the path' => ['/commits/', '%2F%63%6F%6d%6d%69%74%73%2f'],
+    'an escaped dot segment' => ['/commits/', '/commits/%2e/'],
+    'a parent segment' => ['/commits/', '/commits/x/../'],
+    'backslashes' => ['/commits/', '\\commits\\'],
+]);
+
+it('erases the previews of links to replies to its commits in other threads, whose titles name it', function (): void {
+    $user = User::factory()->create();
+    $thread = Commit::factory()->create();
+    $answer = Commit::factory()->for(Commit::factory()->for($user)->for($thread, 'parent'), 'parent')->create();
+    $sibling = Commit::factory()->for($thread, 'parent')->create();
+    $answered = LinkPreview::factory()->create(['url' => route('commit.show', [$answer->user, $answer])]);
+    $kept = LinkPreview::factory()->create(['url' => route('commit.show', [$sibling->user, $sibling])]);
+
+    resolve(DeleteUser::class)->handle($user);
+
+    $this->assertModelMissing($answered);
+    $this->assertModelExists($kept);
+    $this->assertModelExists($answer);
+});
+
 it('keeps the quotes of others when erasing the quoted commits of a deleted user', function (): void {
     $user = User::factory()->create();
     $quote = Commit::factory()->for(Commit::factory()->for($user), 'quotedCommit')->create();
