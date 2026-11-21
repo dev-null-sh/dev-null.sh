@@ -95,6 +95,26 @@ it('applies the luddite penalty once while Tom is unfollowed and restores xp on 
     'xp cannot become negative' => [1, 25, 0, 1, 0],
 ]);
 
+it('applies the luddite penalty when Tom is unfollowed by blocking him', function (bool $unblocks): void {
+    $user = User::factory()->create();
+    resolve(CreateTomFriendship::class)->handle($user);
+    $tom = User::query()->where('github_id', CreateTomFriendship::GITHUB_ID)->firstOrFail();
+
+    $this->actingAs($user)->post(route('user-block.store', $tom))->assertRedirect();
+
+    if ($unblocks) {
+        $this->delete(route('user-block.destroy', $tom))->assertRedirect();
+        $this->delete(route('user-follow.destroy', $tom))->assertRedirect();
+    }
+
+    expect($user->isFollowing($tom))->toBeFalse()
+        ->and(resolve(UserAchievementsQuery::class)->get($user, null)['xp_breakdown']['luddite'])
+        ->toBe(['count' => 1, 'multiplier' => -100, 'xp' => -100]);
+})->with([
+    'still blocked' => [false],
+    'blocked then unblocked' => [true],
+]);
+
 it('follows from an unrelated log without replacing its loaded commits or ranking', function (Log $log): void {
     $viewer = User::factory()->create();
     $author = User::factory()->create();
