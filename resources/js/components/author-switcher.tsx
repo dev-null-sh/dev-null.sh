@@ -59,7 +59,7 @@ export function AuthorSwitcher({
                 className={cn(
                     'relative flex',
                     // Follows the avatar's shape, so the focus ring it gets back when the menu closes fits around it.
-                    author === null ? 'rounded-full' : 'rounded-lg',
+                    author === null ? 'rounded-full' : 'rounded-md',
                     className,
                 )}
                 data-test="author-switcher"

@@ -245,6 +245,8 @@ function CommitComposerBody({
                         author={author}
                         onChange={onAuthorChange}
                         fallback={ownNode}
+                        // The rail frames an organization's avatar in a larger square, which the focus ring follows.
+                        className={author === null ? undefined : 'rounded-lg'}
                     >
                         {author === null ? (
                             <RailAvatar user={user} progress={progress} />
