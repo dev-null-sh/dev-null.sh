@@ -90,6 +90,71 @@ it('leaves the commits of muted guilds out of who else talks about a link', func
         ->loadDeferredProps(fn ($reload) => $reload->where('linkTopic.commits', fn ($commits): bool => collect($commits)->pluck('id')->all() === [$other->id])));
 });
 
+it('leaves the commits that tag a muted guild out of who else talks about a link', function (): void {
+    config(['app.admins' => ['admin']]);
+    $viewer = User::factory()->create(['handle' => 'admin']);
+    $guild = Guild::factory()->create(['handle' => 'rust']);
+    $link = LinkPreview::factory()->fetched()->create(['url' => 'https://dev-null.sh']);
+    $commit = Commit::factory()->create(['link_preview_id' => $link->id]);
+    $other = Commit::factory()->create(['link_preview_id' => $link->id, 'created_at' => now()->subDay()]);
+    Commit::factory()->create(['link_preview_id' => $link->id, 'body' => 'Learning #Rust today']);
+    $this->actingAs($viewer)->put(route('guild-mute.update', $guild), ['muted' => true])->assertRedirect();
+
+    $this->get(route('commit.show', [$commit->author, $commit]))->assertInertia(fn ($page) => $page
+        ->where('commit.link_topic.authors', fn ($authors): bool => collect($authors)->pluck('id')->all() === [$other->author_id]));
+});
+
+it('keeps the topic of a link when each newest commit about it is from a muted guild', function (): void {
+    config(['app.admins' => ['admin']]);
+    $viewer = User::factory()->create(['handle' => 'admin']);
+    $guild = Guild::factory()->create();
+    $link = LinkPreview::factory()->fetched()->create(['url' => 'https://dev-null.sh']);
+    $commit = Commit::factory()->create(['link_preview_id' => $link->id, 'created_at' => now()->subDay()]);
+    Commit::factory()->for($guild)->count(6)->create(['link_preview_id' => $link->id]);
+    $this->actingAs($viewer)->put(route('guild-mute.update', $guild), ['muted' => true])->assertRedirect();
+
+    $this->get(route('commit.show', [$commit->author, $commit]))->assertInertia(fn ($page) => $page
+        ->where('commit.link_topic.url', url('link/dev-null.sh'))
+        ->where('commit.link_topic.others', 6)
+        ->where('commit.link_topic.authors', []));
+});
+
+it('shows the commits of a muted guild to a guest and to a person who did not mute it', function (): void {
+    config(['app.admins' => ['admin', 'reader']]);
+    $viewer = User::factory()->create(['handle' => 'admin']);
+    $reader = User::factory()->create(['handle' => 'reader']);
+    $guild = Guild::factory()->create();
+    $link = LinkPreview::factory()->fetched()->create(['url' => 'https://dev-null.sh']);
+    $commit = Commit::factory()->create(['link_preview_id' => $link->id, 'created_at' => now()->subDay()]);
+    $posted = Commit::factory()->for($guild)->create(['link_preview_id' => $link->id]);
+    $showsPosted = fn ($authors): bool => collect($authors)->pluck('id')->all() === [$posted->author_id];
+
+    $this->actingAs($viewer)->put(route('guild-mute.update', $guild), ['muted' => true])->assertRedirect();
+
+    $this->actingAs($reader)->get(route('commit.show', [$commit->author, $commit]))
+        ->assertInertia(fn ($page) => $page->where('commit.link_topic.authors', $showsPosted));
+
+    auth()->logout();
+
+    $this->get(route('commit.show', [$commit->author, $commit]))
+        ->assertInertia(fn ($page) => $page->where('commit.link_topic.authors', $showsPosted));
+});
+
+it('leaves a muted guild out of who else talks about the link of a quoted commit', function (): void {
+    config(['app.admins' => ['admin']]);
+    $viewer = User::factory()->create(['handle' => 'admin']);
+    $guild = Guild::factory()->create();
+    $link = LinkPreview::factory()->fetched()->create(['url' => 'https://dev-null.sh']);
+    $quoted = Commit::factory()->create(['link_preview_id' => $link->id]);
+    $other = Commit::factory()->create(['link_preview_id' => $link->id, 'created_at' => now()->subDay()]);
+    Commit::factory()->for($guild)->create(['link_preview_id' => $link->id]);
+    $quote = Commit::factory()->create(['quoted_commit_id' => $quoted->id]);
+    $this->actingAs($viewer)->put(route('guild-mute.update', $guild), ['muted' => true])->assertRedirect();
+
+    $this->get(route('commit.show', [$quote->author, $quote]))->assertInertia(fn ($page) => $page
+        ->where('commit.quoted_commit.link_topic.authors', fn ($authors): bool => collect($authors)->pluck('id')->all() === [$other->author_id]));
+});
+
 it('never makes a topic of an http link', function (): void {
     $link = LinkPreview::factory()->fetched()->create(['url' => 'http://dev-null.sh']);
     $commit = Commit::factory()->create(['link_preview_id' => $link->id]);

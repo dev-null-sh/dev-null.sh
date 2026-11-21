@@ -1,6 +1,5 @@
-import { Head, Link, router } from '@inertiajs/react';
+import { Head, router } from '@inertiajs/react';
 import { useRef, useState } from 'react';
-import AppController from '@/actions/App/Http/Controllers/AppController';
 import DeviceController from '@/actions/App/Http/Controllers/DeviceController';
 import { Button } from '@/components/ui/button';
 import { WordmarkText } from '@/components/wordmark-text';
@@ -44,15 +43,7 @@ export default function Index({ devices }: { devices: Device[] }) {
                     <p className="mt-1 max-w-prose text-sm text-pretty text-muted-foreground">
                         Each one can use <WordmarkText>/dev/null</WordmarkText>{' '}
                         as you through the app, since you approved it here on
-                        the web. Revoke any you don't use or don't recognize.{' '}
-                        <Link
-                            prefetch
-                            href={AppController.index()}
-                            className="underline decoration-rail underline-offset-4 hover:decoration-current"
-                        >
-                            Get the Mac app
-                        </Link>
-                        .
+                        the web. Revoke any you don't use or don't recognize.
                     </p>
                 </header>
 

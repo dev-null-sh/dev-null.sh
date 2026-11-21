@@ -12,10 +12,22 @@ use Illuminate\Pagination\LengthAwarePaginator;
 
 final readonly class GuildsQuery
 {
+    /** @return list<string> */
+    public function joinedHandles(User $user): array
+    {
+        return array_values(Guild::query()->whereHas('members', fn (Builder $query): Builder => $query->whereKey($user->id))
+            ->orderBy('handle')->get(['handle'])->map(fn (Guild $guild): string => $guild->handle)->all());
+    }
+
     /** @return Collection<int, Guild> */
     public function get(User $user): Collection
     {
         return $this->withPreferencesOf($user)->orderByDesc('members_count')->orderBy('handle')->get();
+    }
+
+    public function find(Guild $guild, User $user): Guild
+    {
+        return $this->withPreferencesOf($user)->whereKey($guild->id)->sole();
     }
 
     /** @return LengthAwarePaginator<int, Guild> */

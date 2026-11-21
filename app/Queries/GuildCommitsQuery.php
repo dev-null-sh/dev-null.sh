@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Services\Features;
 use App\Services\Hashtags;
 use Closure;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Database\Query\JoinClause;
 use Illuminate\Pagination\Paginator;
@@ -75,6 +76,25 @@ final readonly class GuildCommitsQuery
     }
 
     /**
+     * @param  Collection<int, Commit>  $commits
+     * @return Collection<int, Commit>
+     */
+    public function rejectMuted(Collection $commits, ?User $user): Collection
+    {
+        if (! $user instanceof User || $commits->isEmpty() || ! resolve(Features::class)->available(Feature::Guilds, $user)) {
+            return $commits;
+        }
+
+        /** @var array<string, string> $muted */
+        $muted = DB::table('guild_preferences')->join('guilds', 'guilds.id', '=', 'guild_preferences.guild_id')
+            ->where('guild_preferences.user_id', $user->id)->whereNotNull('muted_at')->pluck('handle', 'guilds.id')->all();
+
+        return $muted === [] ? $commits : $commits->reject(fn (Commit $commit): bool => $commit->guild_id !== null
+            ? array_key_exists($commit->guild_id, $muted)
+            : array_intersect($muted, $this->hashtags->handles($commit->body)) !== [])->values();
+    }
+
+    /**
      * @param  iterable<array-key, Commit>  $commits
      * @return array<string, string>
      */
@@ -108,9 +128,10 @@ final readonly class GuildCommitsQuery
                 ->orWhere(fn (CommitBuilder $query): CommitBuilder => $query->whereNull('guild_id')->whereLike('body', '%#%')))
             ->joinSub($roots, 'roots', fn (JoinClause $join): JoinClause => $join->on('roots.id', '=', DB::raw('coalesce(commits.root_id, commits.id)')))
             ->orderByDesc('roots.created_at')->orderByDesc('roots.id')->orderBy('commits.id')
-            ->select(['roots.id', 'commits.body', 'commits.guild_id'])->toBase()->lazy(100)
+            ->select(['roots.id', 'commits.body', 'commits.guild_id'])->toBase()->cursor()
             ->map(fn (stdClass $commit): Fluent => new Fluent(get_object_vars($commit)))
-            ->filter(fn (Fluent $commit): bool => $commit->get('guild_id') !== null || in_array($guild->handle, $this->hashtags->handles($commit->string('body')->value()), true))
+            ->filter(fn (Fluent $commit): bool => $commit->get('guild_id') !== null
+                || (str_contains(str_replace('ς', 'σ', mb_strtolower($commit->string('body')->value())), '#'.str_replace('ς', 'σ', $guild->handle)) && in_array($guild->handle, $this->hashtags->handles($commit->string('body')->value()), true)))
             ->map(fn (Fluent $commit): string => $commit->string('id')->value())
             ->unique()->values();
     }
