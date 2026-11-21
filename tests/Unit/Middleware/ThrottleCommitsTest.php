@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 use App\Http\Middleware\ThrottleCommits;
 use App\Models\User;
+use Illuminate\Contracts\Cache\Lock;
+use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Routing\Route;
 use Illuminate\Routing\Router;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\RateLimiter;
 use Inertia\Support\SessionKey;
 
@@ -38,6 +41,32 @@ it('lets each user commit 10 times a minute', function (): void {
             ],
         ])
         ->and(throttledCommit(User::factory()->create())->getContent())->toBe('Committed');
+});
+
+it('refuses a commit the count puts over the limit, even when the budget looked open a moment before', function (): void {
+    $user = User::factory()->create();
+
+    // Commits sent at the same moment each read room left, then the others are counted before this one is...
+    RateLimiter::shouldReceive('tooManyAttempts')->andReturnFalse();
+    RateLimiter::shouldReceive('increment')->once()->andReturn(11);
+    RateLimiter::shouldReceive('availableIn')->andReturn(60);
+
+    expect(throttledCommit($user))->toBeInstanceOf(RedirectResponse::class);
+});
+
+it('tells the commit to slow down, uncounted, when it cannot get its turn to be counted', function (): void {
+    $user = User::factory()->create();
+    // A worker that died while counting leaves the lock behind until it expires...
+    $lock = Mockery::mock(Lock::class);
+    $lock->shouldReceive('block')->andThrow(new LockTimeoutException);
+    Cache::shouldReceive('lock')->with("commits:{$user->id}:counting", 10)->andReturn($lock);
+
+    $response = throttledCommit($user, 'cli-commit.store');
+
+    expect($response->getStatusCode())->toBe(429)
+        ->and($response->headers->get('Retry-After'))->toBe('1')
+        ->and($response->getContent())->toBe("Slow down: 10 commits a minute. Even CI takes breaks.\n")
+        ->and(RateLimiter::attempts("commits:{$user->id}"))->toBe(0);
 });
 
 it('tells the commit script to slow down in plain text', function (): void {
