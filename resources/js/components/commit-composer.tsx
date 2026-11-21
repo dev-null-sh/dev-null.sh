@@ -249,7 +249,7 @@ function CommitComposerBody({
                         {author === null ? (
                             <RailAvatar user={user} progress={progress} />
                         ) : (
-                            <RailAvatar user={author} />
+                            <RailAvatar user={author} progress={progress} />
                         )}
                     </AuthorSwitcher>
                 }
