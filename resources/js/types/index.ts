@@ -1,4 +1,5 @@
 export type * from './achievement';
+export type * from './api-docs';
 export type * from './activity';
 export type * from './auth';
 export type * from './commit';

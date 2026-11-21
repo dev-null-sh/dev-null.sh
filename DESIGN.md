@@ -300,6 +300,11 @@ Content sits on the Cool Shell in a grid of panels: Feed White, 8px, hairline-bo
 - **Status:** the console is the one place with status colors, `success` (lane-1's green) and `warning` (lane-5's ochre) beside Rm Red. They only ever mark state (healthy, watch, failing; event levels; better or worse than the period before) and always come with an icon, a sign or a word. They are not lanes and never mark a person.
 - **Charts:** drawn in SVG at their real size, one y-axis, hairline gridlines, mono 11px ticks. History is a 2px ink line; a forecast continues it as a dashed Muted Ink line over a 15% Muted Ink wash for its range, after a dashed Rail Gray "today" rule. Columns are at most 24px wide with a 2px surface gap between stacked segments. Hovering shows the inverted tooltip; every chart carries a screen-reader table.
 
+### API Docs
+The API docs use the Operations Console's shell (`ConsoleLayout`), for everyone, guests included: the wordmark with a bordered mono `api` chip, a sidebar grouping the guides under `guide`, the theme switch and "Back to /dev/null" (without an avatar for a guest). The header names the section and says in one line what it holds; on the right a mono `v1`.
+
+- **Guides:** read like the site's other long pages, never a card per section: one Feed White sheet on the Cool Shell, 1160px wide, 8px and hairline-bordered, whose sections follow one another with a hairline between them, each under a Section heading that links to itself. Prose at 15px, named values in a hairline list with mono keys like the settings, and code in the same code blocks as commits, highlighted on the server, its language above it.
+
 ### Error Pages
 403, 404, 429, 500 (outside debug), and 503 render one standalone `error` page, with no app shell, for guests and signed-in users alike. A broken rail: the wordmark sits on a node in the viewer's lane (Rail Gray for guests) whose segment fades out before reaching a hollow, dangling node. Beside it, a mono git-style line (`fatal: path '/x' does not exist in 'HEAD'`), a Headline sentence saying what happened, one muted sentence saying what to do, and a single primary button ("Back to your log", "Go to the home page", or "Try again" during maintenance). A 419 is not a page: it redirects back with an error toast.
 
