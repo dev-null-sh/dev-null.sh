@@ -26,6 +26,10 @@ vi.doMock('../../resources/js/lib/storage', () => ({
     },
 }));
 
+vi.doMock('../../resources/js/hooks/use-media-query', () => ({
+    useMediaQuery: () => false,
+}));
+
 vi.doMock('react', () => ({
     ...React,
     useEffect: (effect: () => unknown) => {
