@@ -14,6 +14,7 @@ import { rememberSearch, useRecentSearches } from '@/hooks/use-recent-searches';
 import AppLayout from '@/layouts/app-layout';
 import { searchCommits } from '@/lib/commit-search';
 import { CommitSearchResults } from '@/lib/commit-search-results';
+import { isHashtagHandle } from '@/lib/hashtags';
 
 const skeletonDelay = 300;
 
@@ -151,9 +152,10 @@ Index.layout = AppLayout;
  */
 function HashtagGuild({ term }: { term: string }) {
     const { guilds } = usePage().props;
-    const handle = /^#\p{L}[\p{L}\p{M}\p{N}_]{0,59}$/u.test(term)
-        ? term.slice(1).toLowerCase()
-        : null;
+    const handle =
+        term.startsWith('#') && isHashtagHandle(term.slice(1))
+            ? term.slice(1).toLowerCase()
+            : null;
 
     if (!guilds || !handle) {
         return null;

@@ -154,6 +154,8 @@ it('creates a guild from its display name without an existing hashtag', function
     ['Laravel 4ever', 'laravel4ever'],
     ['/dev/null', 'devnull'],
     ['☕ CAFÉ_Dev 2!', 'café_dev2'],
+    ['3D Printing', '3dprinting'],
+    ['123 Developers', '123developers'],
     [str_repeat('a', 60), str_repeat('a', 60)],
 ]);
 
@@ -162,7 +164,7 @@ it('rejects names that cannot produce a hashtag without an explicit handle', fun
         'name' => $name, 'description' => 'A public group.', 'emoji' => '💻',
     ])->assertUnprocessable()->assertJsonValidationErrors('handle');
     $this->assertDatabaseCount('guilds', 0);
-})->with([null, [['invalid']], '!!!', '123 Developers']);
+})->with([null, [['invalid']], '!!!', '2024', '_jobs', '3D 3D 3D', '0FF1CE']);
 
 it('requires sign in and exposes no guild data to guests', function (): void {
     $guild = Guild::factory()->create();
@@ -194,7 +196,10 @@ it('rejects invalid guild details without creating a guild', function (array $pa
     'missing handle' => [['handle' => null], 'handle'],
     'hashtag prefix' => [['handle' => '#jobs'], 'handle'],
     'path' => [['handle' => '../jobs'], 'handle'],
-    'leading number' => [['handle' => '123jobs'], 'handle'],
+    'only numbers' => [['handle' => '123', 'name' => '123'], 'handle'],
+    'issue-like hex color' => [['handle' => '1a2b3c', 'name' => '1a2b3c'], 'handle'],
+    'short hex color' => [['handle' => '2fa', 'name' => '2FA'], 'handle'],
+    'hex color before an underscore' => [['handle' => '2fa_', 'name' => '2FA_'], 'handle'],
     'long handle' => [['handle' => str_repeat('a', 61)], 'handle'],
     'empty name' => [['name' => ''], 'name'],
     'long name' => [['name' => str_repeat('a', 61)], 'name'],
@@ -303,6 +308,18 @@ it('includes hex-shaped hashtags on their guild board and excludes explicit swat
     $guild = Guild::factory()->create(['handle' => 'dead']);
     $tagged = Commit::factory()->create(['body' => 'Join color(#dead)#DEAD']);
     Commit::factory()->create(['body' => 'Try (COLOR(#dead)).']);
+
+    $this->actingAs($admin)->get(route('guild.show', $guild->handle))->assertOk()->assertInertia(fn ($page) => $page
+        ->has('commits', 1)->where('commits.0.id', $tagged->id));
+});
+
+it('includes hashtags that start with numbers but keep a letter on their guild board', function (): void {
+    $admin = User::factory()->create(['handle' => 'admin']);
+    $guild = Guild::factory()->create(['handle' => '3dprinting']);
+    $tagged = Commit::factory()->create(['body' => 'New #3DPrinting setup']);
+    foreach (['#3dprintingclub', 'v#3dprinting', '`#3dprinting`'] as $body) {
+        Commit::factory()->create(['body' => $body]);
+    }
 
     $this->actingAs($admin)->get(route('guild.show', $guild->handle))->assertOk()->assertInertia(fn ($page) => $page
         ->has('commits', 1)->where('commits.0.id', $tagged->id));

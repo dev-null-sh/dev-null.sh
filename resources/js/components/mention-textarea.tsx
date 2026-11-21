@@ -12,6 +12,7 @@ import { typedProse } from '@/lib/code';
 import { isTypingExplicitColor } from '@/lib/colors';
 import type { EmojiSuggestion } from '@/lib/emoji';
 import { emojifyInput, searchEmoji } from '@/lib/emoji';
+import { typedHashtagPattern } from '@/lib/hashtags';
 import { issueReferenceBeforeCaret } from '@/lib/issue-reference';
 import { suggestionPosition } from '@/lib/suggestion-position';
 import { toastWhenThrottled } from '@/lib/throttle';
@@ -128,9 +129,7 @@ function triggerAt(
     if (issue) return { kind: 'issue', ...issue };
 
     const guild = suggestsGuilds
-        ? (typedProse(before).at(-1) ?? '').match(
-              /(?:^|[\s([{])#(\p{L}[\p{L}\p{M}\p{N}_]*|)$/u,
-          )
+        ? (typedProse(before).at(-1) ?? '').match(typedHashtagPattern)
         : null;
 
     return guild && !/^[\p{L}\p{M}\p{N}_/#-]/u.test(textarea.value.slice(caret))

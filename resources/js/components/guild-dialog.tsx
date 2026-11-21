@@ -18,6 +18,7 @@ import {
     DialogTrigger,
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { handleFor, isHashtagHandle } from '@/lib/hashtags';
 import type { Guild } from '@/types/guild';
 
 const fieldClass =
@@ -37,7 +38,7 @@ export function GuildDialog({
     const [removeIcon, setRemoveIcon] = useState(false);
     const [name, setName] = useState(guild?.name ?? handle ?? '');
     const form = useRef<FormComponentRef>(null);
-    const nameHandle = name.replace(/[^\p{L}\p{M}\p{N}_]+/gu, '').toLowerCase();
+    const nameHandle = handleFor(name);
     const hashtag = guild?.handle ?? handle ?? nameHandle;
 
     return (
@@ -83,12 +84,10 @@ export function GuildDialog({
                             );
                             return false;
                         }
-                        if (
-                            !/^\p{L}[\p{L}\p{M}\p{N}_]{0,59}$/u.test(nameHandle)
-                        ) {
+                        if (!isHashtagHandle(nameHandle)) {
                             form.current?.setError(
                                 'name',
-                                'Use a name whose hashtag starts with a letter.',
+                                'Use a name whose hashtag has a letter after any leading numbers and is not a color like 2FA.',
                             );
                             return false;
                         }

@@ -9,6 +9,7 @@ use App\Models\Guild;
 use App\Rules\FlaggedGuild;
 use App\Services\EmojiShortcodes;
 use App\Services\Features;
+use App\Services\Hashtags;
 use Closure;
 use Illuminate\Auth\Access\Response;
 use Illuminate\Foundation\Http\FormRequest;
@@ -54,7 +55,7 @@ final class UpdateGuildRequest extends FormRequest
             $guild = $this->route('guild');
             assert($guild instanceof Guild);
 
-            if ($this->string('name')->replaceMatches('/[^\p{L}\p{M}\p{N}_]+/u', '')->lower()->value() !== $guild->handle) {
+            if (Hashtags::handleFor($this->string('name')->value()) !== $guild->handle) {
                 $validator->errors()->add('name', "Guild display name doesn't match hashtag");
 
                 return;

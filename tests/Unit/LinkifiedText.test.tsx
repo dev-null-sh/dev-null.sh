@@ -803,6 +803,31 @@ test('gives a bare hex-shaped hashtag its guild or search link and renders an ex
     );
 });
 
+test('links hashtags that start with numbers but keeps colors and issue numbers plain', () => {
+    const html = renderPage(
+        <LinkifiedText
+            text="#3DPrinting #100DaysOfCode #3d3d3d #123"
+            mentions={null}
+        />,
+        {
+            auth: { user: { id: 'viewer' }, pasteis: null },
+            guilds: [
+                {
+                    handle: '3dprinting',
+                    name: '3D Printing',
+                    emoji: '🖨️',
+                    icon_url: null,
+                },
+            ],
+        },
+    );
+
+    assert.equal((html.match(/href="\/guilds\/3dprinting"/g) ?? []).length, 1);
+    assert.match(html, /href="\/search\?q=%23100DaysOfCode"/);
+    assert.match(html, /background-color:#3d3d3d/);
+    assert.doesNotMatch(html, /q=%233d3d3d|q=%23123/);
+});
+
 test('shows the hex value and swatch without the color markup', () => {
     const html = renderToStaticMarkup(
         <LinkifiedText
