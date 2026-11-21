@@ -531,7 +531,7 @@ Sources: [web app manifest](public/site.webmanifest), [service worker](public/sw
 
 ### Activity graphs and README embeds
 
-Profiles display commit activity with current and longest streaks. The profile graph adapts to how long someone has been committing: the last 24 hours, 7 days, 30 days, or a year. Hovering a cell highlights that period's commits. Settings → Profile includes a live preview and copyable Markdown for embedding your /dev/null activity graph in a GitHub profile README. The graph is public at `/@{handle}/graph.svg`, uses your lane color, and supports `?theme=light`, `dark`, or `auto` (light by default). The SVG is cached for an hour, so a new commit may not appear in an external embed immediately.
+Profiles display commit activity with current and longest streaks. The profile graph adapts to how long someone has been committing: the last 24 hours, 7 days, 30 days, 6 months, or a year. Hovering a cell highlights that period's commits. Settings → Profile includes a live preview and copyable Markdown for embedding your /dev/null activity graph in a GitHub profile README. The graph is public at `/@{handle}/graph.svg`, always shows the full year, uses your lane color, and supports `?theme=light`, `dark`, or `auto` (light by default). The SVG is cached for an hour, so a new commit may not appear in an external embed immediately.
 
 Sources: [graph embed settings](resources/js/components/activity-graph-embed.tsx), [graph controller](app/Http/Controllers/UserActivityGraphController.php), [graph route and cache](routes/web.php).
 
