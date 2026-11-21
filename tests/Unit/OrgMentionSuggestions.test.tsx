@@ -4,13 +4,13 @@ import * as React from 'react';
 import type { ReactElement, ReactNode } from 'react';
 import { afterEach, beforeEach, test, vi } from 'vite-plus/test';
 import type { OrgMember, User } from '../../resources/js/types';
-import type { Guild } from '../../resources/js/types/guild';
+import type { GuildBadge } from '../../resources/js/types/guild';
 
 let state: unknown[];
 let cursor = 0;
 let effects: (() => unknown)[];
 const fetchMock = vi.fn();
-let guilds: Guild[] | null = null;
+let guildsEnabled = false;
 
 vi.doMock('react', () => ({
     ...React,
@@ -35,7 +35,7 @@ vi.doMock('react-dom', () => ({
 }));
 vi.doMock('@inertiajs/react', () => ({
     usePage: () => ({
-        props: { repository: 'dev-null-sh/dev-null.sh', guilds },
+        props: { repository: 'dev-null-sh/dev-null.sh', guildsEnabled },
     }),
 }));
 vi.doMock('../../resources/js/components/user-avatar', () => ({
@@ -96,14 +96,16 @@ function handles(fields: Element[]) {
 beforeEach(() => {
     state = [undefined, { top: 0, left: 0 }];
     effects = [];
-    guilds = null;
+    guildsEnabled = false;
     fetchMock.mockReset();
     vi.stubGlobal('fetch', fetchMock);
     vi.stubGlobal('document', { body: {} });
 });
 
-test('suggests loaded guilds and inserts a hex-shaped hashtag without fetching', () => {
-    guilds = ['dead', 'deadbeef', 'laravel'].map(
+test('fetches matching guilds on demand and inserts a hex-shaped hashtag', async () => {
+    vi.useFakeTimers();
+    guildsEnabled = true;
+    const guilds = ['dead', 'deadbeef'].map(
         (handle) =>
             ({
                 id: handle,
@@ -111,15 +113,27 @@ test('suggests loaded guilds and inserts a hex-shaped hashtag without fetching',
                 name: handle,
                 emoji: '💻',
                 icon_url: null,
-            }) as Guild,
+            }) as GuildBadge,
     );
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({ guilds }) });
     state[0] = { kind: 'guild', start: 6, query: 'DE' };
     cursor = 0;
     effects = [];
     const onValueChange = vi.fn();
-    const fields = elements(
+    let fields = elements(
         MentionTextarea({ value: 'Hello #DE', onValueChange }),
     );
+    assert.equal(
+        fields.filter((element) => element.props.role === 'option').length,
+        0,
+    );
+    const cleanup = effects[2]() as () => void;
+    await vi.advanceTimersByTimeAsync(120);
+    assert.equal(fetchMock.mock.calls.length, 1);
+    assert.match(fetchMock.mock.calls[0][0], /q=de/);
+    cursor = 0;
+    effects = [];
+    fields = elements(MentionTextarea({ value: 'Hello #DE', onValueChange }));
     const options = fields.filter((element) => element.props.role === 'option');
     assert.deepEqual(
         options.map((option) => option.props.id),
@@ -135,11 +149,10 @@ test('suggests loaded guilds and inserts a hex-shaped hashtag without fetching',
     vi.stubGlobal('requestAnimationFrame', (callback: () => void) =>
         callback(),
     );
-    (options[0].props.onClick as () => void)();
-    assert.deepEqual(onValueChange.mock.calls, [['Hello #dead ']]);
-    assert.deepEqual(target.setSelectionRange.mock.calls, [[12, 12]]);
-    effects.slice(0, 2).forEach((effect) => effect());
-    assert.equal(fetchMock.mock.calls.length, 0);
+    (options[1].props.onClick as () => void)();
+    assert.deepEqual(onValueChange.mock.calls, [['Hello #deadbeef ']]);
+    assert.deepEqual(target.setSelectionRange.mock.calls, [[16, 16]]);
+    cleanup();
 });
 
 test('does not suggest guilds inside code, URLs, partial handles or when preview data is absent', () => {
@@ -152,7 +165,7 @@ test('does not suggest guilds inside code, URLs, partial handles or when preview
         '##rust',
         'color(#dead',
     ]) {
-        guilds = [{ id: 'rust', handle: 'rust', name: 'Rust' } as Guild];
+        guildsEnabled = true;
         cursor = 0;
         state[0] = null;
         const fields = elements(
@@ -168,7 +181,7 @@ test('does not suggest guilds inside code, URLs, partial handles or when preview
         });
         assert.equal(state[0], null, value);
     }
-    guilds = null;
+    guildsEnabled = false;
     cursor = 0;
     const textarea = elements(
         MentionTextarea({ value: '#rust', onValueChange: () => {} }),
@@ -177,6 +190,174 @@ test('does not suggest guilds inside code, URLs, partial handles or when preview
         currentTarget: { value: '#rust', selectionStart: 5, selectionEnd: 5 },
     });
     assert.equal(state[0], null);
+});
+
+test('dismisses pending guild suggestions without closing the editor and discards a reopened attempt', async () => {
+    vi.useFakeTimers();
+    guildsEnabled = true;
+    fetchMock.mockResolvedValue({
+        ok: true,
+        json: async () => ({ guilds: [{ handle: 'rust', name: 'Rust' }] }),
+    });
+    state[0] = { kind: 'guild', start: 0, query: 'ru' };
+    const onKeyDown = vi.fn();
+    const renderGuild = () => {
+        cursor = 0;
+        effects = [];
+        return elements(
+            MentionTextarea({
+                value: '#ru',
+                onValueChange: () => {},
+                onKeyDown,
+            }),
+        );
+    };
+    let fields = renderGuild();
+    const cleanup = effects[2]() as () => void;
+    await vi.advanceTimersByTimeAsync(120);
+    fields = renderGuild();
+    assert.equal(
+        fields.filter((element) => element.props.role === 'option').length,
+        1,
+    );
+    const escape = {
+        key: 'Escape',
+        nativeEvent: {},
+        preventDefault: vi.fn(),
+        stopPropagation: vi.fn(),
+    };
+    (
+        fields.find((element) => element.type === 'textarea')!.props
+            .onKeyDown as (event: unknown) => void
+    )(escape);
+    cleanup();
+    state[0] = { kind: 'guild', start: 0, query: 'ru' };
+    state[1] = { top: 0, left: 0 };
+    fields = renderGuild();
+    assert.equal(
+        fields.filter((element) => element.props.role === 'option').length,
+        0,
+    );
+    assert.equal(
+        fields.find((element) => element.type === 'textarea')!.props[
+            'aria-activedescendant'
+        ],
+        undefined,
+    );
+    (
+        fields.find((element) => element.type === 'textarea')!.props
+            .onKeyDown as (event: unknown) => void
+    )(escape);
+    assert.equal(onKeyDown.mock.calls.length, 0);
+    assert.equal(escape.stopPropagation.mock.calls.length, 2);
+});
+
+for (const activation of ['Enter', 'pointer']) {
+    test(`retries failed guild suggestions with ${activation} without changing the draft and distinguishes an empty success`, async () => {
+        vi.useFakeTimers();
+        guildsEnabled = true;
+        fetchMock
+            .mockRejectedValueOnce(new Error('offline'))
+            .mockResolvedValue({
+                ok: true,
+                json: async () => ({ guilds: [] }),
+            });
+        state[0] = { kind: 'guild', start: 0, query: 'ru' };
+        const onValueChange = vi.fn();
+        const renderGuild = () => {
+            cursor = 0;
+            effects = [];
+            return elements(MentionTextarea({ value: '#ru', onValueChange }));
+        };
+        renderGuild();
+        effects[2]();
+        await vi.advanceTimersByTimeAsync(120);
+        let fields = renderGuild();
+        assert.ok(
+            fields.some(
+                (element) =>
+                    element.props.children ===
+                    'Guild lookup failed. Press Enter to retry.',
+            ),
+        );
+        if (activation === 'Enter') {
+            const enter = {
+                key: 'Enter',
+                nativeEvent: { isComposing: false },
+                preventDefault: vi.fn(),
+            };
+            (
+                fields.find((element) => element.type === 'textarea')!.props
+                    .onKeyDown as (event: unknown) => void
+            )(enter);
+            assert.equal(enter.preventDefault.mock.calls.length, 1);
+        } else {
+            const retry = fields.find(
+                (element) =>
+                    element.type === 'button' &&
+                    element.props.children === 'Retry',
+            )!;
+            (retry.props.onClick as () => void)();
+        }
+        renderGuild();
+        effects[2]();
+        await vi.advanceTimersByTimeAsync(120);
+        fields = renderGuild();
+        assert.ok(
+            fields.some(
+                (element) => element.props.children === 'No matching guilds.',
+            ),
+        );
+        assert.equal(
+            fields.some(
+                (element) =>
+                    element.props.children ===
+                    'Guild lookup failed. Press Enter to retry.',
+            ),
+            false,
+        );
+        assert.equal(onValueChange.mock.calls.length, 0);
+        assert.equal(fetchMock.mock.calls.length, 2);
+    });
+}
+
+test('keeps cancelled guild suggestions silent and ignores their late responses', async () => {
+    vi.useFakeTimers();
+    guildsEnabled = true;
+    for (const failed of [false, true]) {
+        const request = Promise.withResolvers<Response>();
+        fetchMock.mockReturnValue(request.promise);
+        state[0] = { kind: 'guild', start: 0, query: 'ru' };
+        state[1] = { top: 0, left: 0 };
+        cursor = 0;
+        effects = [];
+        MentionTextarea({ value: '#ru', onValueChange: () => {} });
+        const cleanup = effects[2]() as () => void;
+        await vi.advanceTimersByTimeAsync(120);
+        cleanup();
+        if (failed) {
+            request.reject(new Error('cancelled'));
+        } else {
+            request.resolve(Response.json({ guilds: [{ handle: 'rust' }] }));
+        }
+        await vi.advanceTimersByTimeAsync(0);
+        cursor = 0;
+        const fields = elements(
+            MentionTextarea({ value: '#ru', onValueChange: () => {} }),
+        );
+        assert.equal(
+            fields.some((element) => element.props.role === 'option'),
+            false,
+        );
+        assert.equal(
+            fields.some(
+                (element) =>
+                    element.props.children ===
+                    'Guild lookup failed. Press Enter to retry.',
+            ),
+            false,
+        );
+    }
 });
 
 test('suggests loaded org members immediately without scheduling a search request', () => {

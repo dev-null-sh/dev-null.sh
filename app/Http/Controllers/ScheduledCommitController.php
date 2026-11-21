@@ -28,8 +28,12 @@ final readonly class ScheduledCommitController
     public function index(Request $request, #[CurrentUser] User $user, ScheduledCommitsQuery $scheduled): Response
     {
         return Inertia::render('scheduled-commits/index', [
-            'scheduledCommits' => Inertia::live(fn (): LengthAwarePaginator => $scheduled->builder($user)
-                ->paginate(20)->through(fn (ScheduledCommit $scheduledCommit): array => ScheduledCommitResource::make($scheduledCommit)->resolve($request)), on: UserUpdate::ScheduledCommits->value, channel: new PrivateChannel($user)),
+            'scheduledCommits' => Inertia::live(function () use ($scheduled, $user, $request): LengthAwarePaginator {
+                $page = $scheduled->builder($user)->paginate(20);
+                $page->setCollection(collect(ScheduledCommitResource::collection($page->getCollection())->resolve($request)));
+
+                return $page;
+            }, on: UserUpdate::ScheduledCommits->value, channel: new PrivateChannel($user)),
         ]);
     }
 

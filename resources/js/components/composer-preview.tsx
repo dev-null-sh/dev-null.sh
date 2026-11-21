@@ -1,14 +1,15 @@
 import { useHttp, usePage } from '@inertiajs/react';
 import { Eye, Link2 } from 'lucide-react';
 import type { KeyboardEvent, RefObject } from 'react';
-import { useId, useState } from 'react';
+import { useEffect, useEffectEvent, useId, useRef, useState } from 'react';
+import { toast } from 'sonner';
 import CommitPreviewController from '@/actions/App/Http/Controllers/CommitPreviewController';
 import { ActionTooltip } from '@/components/action-tooltip';
 import { CommitBody } from '@/components/commit-body';
 import { objectUrlFor } from '@/components/commit-image-picker';
 import { CommitImages } from '@/components/commit-images';
 import { CommitPoll } from '@/components/commit-poll';
-import { hasMention } from '@/components/linkified-text';
+import { hasMention, typedGuildHandles } from '@/components/linkified-text';
 import type { PollDraft } from '@/components/poll-editor';
 import { Button } from '@/components/ui/button';
 import { useNow } from '@/hooks/use-now';
@@ -16,14 +17,17 @@ import { bodySegments, hasCodeBlock } from '@/lib/code';
 import { hasModKey, useKeyLabels } from '@/lib/keyboard';
 import { cn } from '@/lib/utils';
 import type { BodySegment } from '@/types';
+import type { GuildMentions } from '@/types/guild';
 
 type Mentions = Record<string, string>;
 
 type Resolved = {
     body: string;
+    guildHandle?: string;
     segments: BodySegment[];
     mentions: Mentions;
     organizationMentions: Mentions;
+    guildMentions: GuildMentions;
 };
 
 const isModifierEnter = (event: KeyboardEvent) =>
@@ -36,8 +40,8 @@ export type ComposerPreview = ReturnType<typeof useComposerPreview>;
 
 /**
  * Switches a composer between writing and previewing its draft as the commit it becomes. The draft is rendered right
- * away, and its code blocks are highlighted and its mentions linked once the server, the only place code is
- * highlighted and handles are looked up, sends them back.
+ * away unless guild badges need resolving first, so their names never replace hashtags in an already visible body.
+ * Code highlighting and mention links come from the server.
  */
 export function useComposerPreview({
     body,
@@ -50,8 +54,12 @@ export function useComposerPreview({
     textareaRef: RefObject<HTMLTextAreaElement | null>;
     isSubmittable: boolean;
 }) {
+    const { guildsEnabled } = usePage().props;
     const [isPreviewing, setIsPreviewing] = useState(false);
+    const [isResolving, setIsResolving] = useState(false);
     const [resolved, setResolved] = useState<Resolved | null>(null);
+    const lookup = useRef<AbortController | null>(null);
+    const pendingLookup = useRef<AbortController | null>(null);
     const previewId = useId();
     const request = useHttp<
         { body: string; guild_handle?: string },
@@ -59,17 +67,34 @@ export function useComposerPreview({
             segments: BodySegment[];
             mentions: Mentions | [];
             organization_mentions: Mentions | [];
+            guild_mentions: GuildMentions | [];
         }
     >({
         body: '',
     });
 
     const draft = body.trim();
-    const isResolved = resolved?.body === draft;
+    const isResolved =
+        resolved?.body === draft && resolved.guildHandle === guildHandle;
     const segments = isResolved ? resolved.segments : bodySegments(draft);
+    const handles = guildsEnabled ? typedGuildHandles(draft) : [];
+    const needsPreviewRequest =
+        hasCodeBlock(segments) || hasMention(segments) || handles.length > 0;
+    const cancelRequest = useEffectEvent(() => request.cancel());
 
-    const resolve = async () => {
-        if (isResolved || (!hasCodeBlock(segments) && !hasMention(segments))) {
+    useEffect(
+        () => () => {
+            lookup.current?.abort();
+            cancelRequest();
+            lookup.current = null;
+            pendingLookup.current = null;
+            setIsResolving(false);
+        },
+        [draft, guildHandle],
+    );
+
+    const resolve = async (controller: AbortController) => {
+        if (isResolved || !needsPreviewRequest) {
             return;
         }
 
@@ -77,14 +102,25 @@ export function useComposerPreview({
             body: body.trim(),
             ...(guildHandle && { guild_handle: guildHandle }),
         }));
+        let validationRejected = false;
 
         try {
             const response = await request.submit(
                 CommitPreviewController.store(),
+                {
+                    onError: () => {
+                        validationRejected = true;
+                    },
+                },
             );
+
+            if (controller.signal.aborted) {
+                return;
+            }
 
             setResolved({
                 body: draft,
+                guildHandle,
                 segments: response.segments,
                 mentions: Array.isArray(response.mentions)
                     ? {}
@@ -94,38 +130,99 @@ export function useComposerPreview({
                 )
                     ? {}
                     : response.organization_mentions,
+                guildMentions: Array.isArray(response.guild_mentions)
+                    ? {}
+                    : response.guild_mentions,
             });
         } catch {
-            // The preview keeps the code unhighlighted and the mentions as text.
+            if (controller.signal.aborted) {
+                return;
+            }
+
+            if (validationRejected) {
+                setResolved({
+                    body: draft,
+                    guildHandle,
+                    segments: bodySegments(draft),
+                    mentions: {},
+                    organizationMentions: {},
+                    guildMentions: {},
+                });
+
+                return;
+            }
+
+            // Keep writing when guild names could not be resolved, rather than changing the visible preview later.
+            if (handles.length > 0) {
+                toast.error('Could not load the preview. Try again.');
+                controller.abort();
+            }
         }
     };
 
-    const show = (previewing: boolean, moveFocus: boolean) => {
-        setIsPreviewing(previewing);
-
-        if (previewing) {
-            void resolve();
+    const show = async (previewing: boolean, moveFocus: boolean) => {
+        if (previewing && pendingLookup.current) {
+            return;
         }
 
+        lookup.current?.abort();
+        request.cancel();
+        const controller = new AbortController();
+        lookup.current = controller;
+        pendingLookup.current = null;
+        setIsResolving(false);
+
+        if (previewing) {
+            const resolving = resolve(controller);
+
+            if (handles.length > 0 && !isResolved) {
+                pendingLookup.current = controller;
+                setIsResolving(true);
+                await resolving;
+                if (lookup.current === controller) {
+                    pendingLookup.current = null;
+                    setIsResolving(false);
+                }
+            }
+        }
+
+        if (controller.signal.aborted) {
+            if (moveFocus && lookup.current === controller) {
+                textareaRef.current?.focus();
+            }
+
+            return;
+        }
+
+        setIsPreviewing(previewing);
+
         if (moveFocus) {
-            requestAnimationFrame(() =>
+            requestAnimationFrame(() => {
+                if (controller.signal.aborted) {
+                    return;
+                }
+
                 (previewing
                     ? document.getElementById(previewId)
                     : textareaRef.current
-                )?.focus(),
-            );
+                )?.focus();
+            });
         }
     };
 
     return {
         isPreviewing,
+        isResolving,
         draft,
         segments,
         mentions: isResolved ? resolved.mentions : null,
         organizationMentions: isResolved ? resolved.organizationMentions : null,
+        guildMentions: isResolved ? resolved.guildMentions : undefined,
         previewId,
         toggle: (moveFocus = false) => show(!isPreviewing, moveFocus),
-        close: () => setIsPreviewing(false),
+        close: () => {
+            void show(false, false);
+        },
         /**
          * Handles ⌘/Ctrl + Shift + P in the textarea, and tells whether it did.
          */
@@ -135,7 +232,7 @@ export function useComposerPreview({
             }
 
             event.preventDefault();
-            show(true, true);
+            void show(true, true);
 
             return true;
         },
@@ -143,7 +240,7 @@ export function useComposerPreview({
             if (isPreviewShortcut(event) || event.key === 'Escape') {
                 event.preventDefault();
                 event.stopPropagation();
-                show(false, true);
+                void show(false, true);
             }
 
             if (isModifierEnter(event) && isSubmittable) {
@@ -174,6 +271,8 @@ export function PreviewToggle({
                 size="icon"
                 onClick={() => preview.toggle(true)}
                 aria-pressed={preview.isPreviewing}
+                aria-busy={preview.isResolving}
+                aria-disabled={preview.isResolving}
                 aria-label="Preview"
                 aria-keyshortcuts="Meta+Shift+P Control+Shift+P"
                 className={cn(
@@ -217,6 +316,7 @@ export function ComposerPreviewBody({
                     segments={preview.segments}
                     mentions={preview.mentions}
                     organizationMentions={preview.organizationMentions}
+                    guildMentions={preview.guildMentions}
                     className="text-[15px]"
                 />
             ) : (

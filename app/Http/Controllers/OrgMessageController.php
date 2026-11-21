@@ -7,6 +7,7 @@ namespace App\Http\Controllers;
 use App\Actions\CreateMessage;
 use App\Http\Requests\CreateOrgMessageRequest;
 use App\Http\Requests\ListOrgMessagesRequest;
+use App\Http\Resources\ShownGuildMentions;
 use App\Models\Conversation;
 use App\Models\User;
 use App\Queries\ConversationThreadQuery;
@@ -17,10 +18,10 @@ final readonly class OrgMessageController
 {
     public function index(ListOrgMessagesRequest $request, #[CurrentUser] User $user, Conversation $org, ConversationThreadQuery $threads): JsonResponse
     {
-        return response()->json([
+        return response()->json(ShownGuildMentions::of([
             'org' => ['id' => $org->id, 'name' => $org->name],
             ...$threads->org($user, $org, $request->afterId(), $request->beforeId(), $request->reactionsAfter()),
-        ])->header('Cache-Control', 'private, no-store');
+        ], $user))->header('Cache-Control', 'private, no-store');
     }
 
     public function store(CreateOrgMessageRequest $request, #[CurrentUser] User $user, Conversation $org, CreateMessage $action): JsonResponse
@@ -38,6 +39,6 @@ final readonly class OrgMessageController
             $request->voiceWaveform(),
         );
 
-        return response()->json(['message' => $message], 201);
+        return response()->json(ShownGuildMentions::of(['message' => $message], $user), 201);
     }
 }

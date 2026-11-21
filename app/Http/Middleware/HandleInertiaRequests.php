@@ -12,16 +12,13 @@ use App\Enums\Log;
 use App\Enums\RepliesPerPage;
 use App\Enums\UserUpdate;
 use App\Http\Requests\ListNotificationsRequest;
-use App\Http\Resources\GuildResource;
 use App\Http\Resources\ShownStreams;
 use App\Models\Commit;
-use App\Models\Guild;
 use App\Models\Organization;
 use App\Models\User;
 use App\Queries\BioProfilesQuery;
 use App\Queries\ConversationsQuery;
 use App\Queries\DevelopersCountQuery;
-use App\Queries\GuildsQuery;
 use App\Queries\HotTopicsQuery;
 use App\Queries\JoinedGuildsQuery;
 use App\Queries\LiveFollowingQuery;
@@ -167,12 +164,7 @@ final class HandleInertiaRequests extends Middleware
             'isLiteMobileApp' => str_contains((string) $request->userAgent(), 'DevNullLite/'),
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'showsWhoToFollow' => $showsWhoToFollow,
-            'guilds' => $user instanceof User
-                ? Inertia::once(fn (): ?array => resolve(Features::class)->available(Feature::Guilds, $user) ? resolve(GuildsQuery::class)->get($user)->map(fn (Guild $guild): array => [
-                    'id' => $guild->id,
-                    ...GuildResource::make($guild)->resolve($request),
-                ])->all() : null)->until(60)->fresh($request->routeIs('guild.*', 'search.index'))->live(UserUpdate::Guilds->value, new PrivateChannel($user))
-                : null,
+            'guildsEnabled' => $live(fn (): bool => $user instanceof User && resolve(Features::class)->available(Feature::Guilds, $user), UserUpdate::Guilds),
             'joinedGuilds' => $user instanceof User
                 ? Inertia::once(fn (): array => resolve(JoinedGuildsQuery::class)->get($user))->until(60)->live(UserUpdate::Guilds->value, new PrivateChannel($user))
                 : [],

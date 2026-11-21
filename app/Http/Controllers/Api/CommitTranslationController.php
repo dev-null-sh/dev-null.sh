@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api;
 use App\Actions\CreateCommitTranslation;
 use App\Exceptions\CommitProcessingFailed;
 use App\Http\Requests\CreateApiCommitTranslationRequest;
+use App\Http\Resources\ShownGuildMentions;
 use App\Models\Commit;
 use App\Services\CommitTranslations;
 use Illuminate\Http\JsonResponse;
@@ -33,7 +34,7 @@ final readonly class CommitTranslationController
                 ->header('Cache-Control', 'no-store, private');
         }
 
-        return response()->json(['translation' => $translations->display($commit, $request->string('language')->value(), includePending: true)])
+        return response()->json(ShownGuildMentions::of(['translation' => $translations->display($commit, $request->string('language')->value(), includePending: true)], $request->user()))
             ->header('Cache-Control', 'no-store, private');
     }
 }

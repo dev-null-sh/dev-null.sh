@@ -1,7 +1,7 @@
 import type { SharedClock } from '@/lib/utils';
 import type { Auth, SuggestedUser, User } from '@/types/auth';
 import type { Commit } from '@/types/commit';
-import type { Guild, JoinedGuild } from '@/types/guild';
+import type { JoinedGuild } from '@/types/guild';
 import type {
     CommittedFlash,
     DeletedFlash,
@@ -36,8 +36,8 @@ declare module '@inertiajs/core' {
             isLiteMobileApp: boolean;
             sidebarOpen: boolean;
             showsWhoToFollow: boolean;
-            guilds: Guild[] | null;
             joinedGuilds: JoinedGuild[];
+            guildsEnabled: boolean;
             dimsLanes: boolean;
             /** The event theme on the page for this reader, if any. */
             eventTheme: string | null;

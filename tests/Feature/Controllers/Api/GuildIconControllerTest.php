@@ -92,5 +92,5 @@ it('keeps the web icon URL for the web', function (): void {
     $admin = User::factory()->create(['handle' => 'admin']);
 
     $this->actingAs($admin)->get(route('guild.index'))->assertInertia(fn ($page) => $page
-        ->where('guilds.0.icon_url', route('guild-icon.show', ['guild' => 'rust', 'v' => $this->rust->updated_at->getTimestampMs()])));
+        ->where('guildPage.data.0.icon_url', route('guild-icon.show', ['guild' => 'rust', 'v' => $this->rust->updated_at->getTimestampMs()])));
 });

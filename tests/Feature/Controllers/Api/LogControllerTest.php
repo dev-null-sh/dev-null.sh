@@ -88,6 +88,7 @@ it('lists the latest commits of everyone, newest first', function (): void {
         'quoted_commit_id' => null,
         'quoted_commit' => null,
         'poll' => null,
+        'guild_mentions' => [],
     ]);
 
     $response->assertJsonPath('links.next', null)

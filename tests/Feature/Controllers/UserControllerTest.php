@@ -61,19 +61,42 @@ it('shows the guilds the profile owner joined rather than the viewers guilds or 
     config(['app.admins' => ['admin']]);
     $viewer = User::factory()->create(['handle' => 'admin']);
     $user = User::factory()->create();
-    $rust = Guild::factory()->create(['handle' => 'rust']);
-    $laravel = Guild::factory()->create(['handle' => 'laravel']);
+    $rust = Guild::factory()->create(['handle' => 'rust', 'name' => 'Rust Guild', 'emoji' => '🦀', 'icon_path' => 'guild-icons/rust.webp']);
+    $laravel = Guild::factory()->create(['handle' => 'laravel', 'name' => 'Laravel Guild', 'emoji' => '💻']);
     $left = Guild::factory()->create();
     $viewersGuild = Guild::factory()->create();
     $rust->members()->attach($user, ['joined_at' => now(), 'muted_at' => now()]);
     $laravel->members()->attach($user, ['joined_at' => now()]);
     $left->muters()->attach($user, ['muted_at' => now()]);
     $viewersGuild->members()->attach($viewer, ['joined_at' => now()]);
+    $laravel->members()->attach($viewer, ['joined_at' => now()]);
 
-    $this->actingAs($viewer)->get(route('user.show', $user))
+    $response = $this->actingAs($viewer)->get(route('user.show', $user))
         ->assertOk()
         ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
-            ->where('profileGuilds', ['laravel', 'rust']));
+            ->has('profileGuilds', 2)
+            ->where('profileGuilds.0.id', $laravel->id)
+            ->where('profileGuilds.0.handle', 'laravel')
+            ->where('profileGuilds.0.name', 'Laravel Guild')
+            ->where('profileGuilds.0.emoji', '💻')
+            ->where('profileGuilds.0.icon_url', null)
+            ->where('profileGuilds.0.is_joined', true)
+            ->where('profileGuilds.0.member_count', 2)
+            ->where('profileGuilds.1.id', $rust->id)
+            ->where('profileGuilds.1.handle', 'rust')
+            ->where('profileGuilds.1.name', 'Rust Guild')
+            ->where('profileGuilds.1.emoji', '🦀')
+            ->where('profileGuilds.1.icon_url', route('guild-icon.show', ['guild' => 'rust', 'v' => $rust->updated_at->getTimestampMs()]))
+            ->where('profileGuilds.1.is_joined', false)
+            ->where('profileGuilds.1.member_count', 1)
+            ->missing('profileGuilds.1.user_id')
+            ->missing('profileGuilds.1.icon_path')
+            ->missing('guilds'));
+
+    expect($response->viewData('page')['liveProps']['profileGuilds']['listeners'])->toBe([
+        ['channel' => ['name' => 'profiles.'.$user->id, 'type' => 'public'], 'events' => ['profile']],
+        ['channel' => ['name' => 'users.'.$viewer->id, 'type' => 'private'], 'events' => ['guilds']],
+    ]);
 
     $rust->members()->detach($user);
     $laravel->members()->detach($user);
