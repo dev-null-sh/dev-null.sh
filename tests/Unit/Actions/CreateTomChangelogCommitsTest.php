@@ -1,0 +1,215 @@
+<?php
+
+declare(strict_types=1);
+
+use App\Actions\CreateTomChangelogCommits;
+use App\Actions\CreateTomFriendship;
+use App\Ai\Agents\ChangelogWriter;
+use App\Contracts\Services\GitHubProvider;
+use App\Jobs\AnnounceProductionCommits;
+use App\Jobs\EmbedCommit;
+use App\Jobs\ModerateCommit;
+use App\Models\Commit;
+use App\Models\User;
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Queue;
+use Laravel\Ai\Classification;
+use Laravel\Ai\Prompts\ClassificationPrompt;
+use Laravel\Ai\Responses\Data\BooleanAnswer;
+
+function productionSha(int $number): string
+{
+    return mb_str_pad((string) $number, 40, '0', STR_PAD_LEFT);
+}
+
+/**
+ * @param  list<int>  $parents
+ * @return array{sha: string, message: string, url: string, committed_at: string, parents: list<string>, author: array{id: int|null, login: string, avatar_url: string}}
+ */
+function productionCommit(int $number, string $message, array $parents, ?int $githubId = null, string $login = 'someone'): array
+{
+    return [
+        'sha' => productionSha($number),
+        'message' => $message,
+        'url' => 'https://github.com/dev-null-sh/dev-null.sh/commit/'.productionSha($number),
+        'committed_at' => '2026-11-11T12:00:00Z',
+        'parents' => array_map(productionSha(...), $parents),
+        'author' => ['id' => $githubId, 'login' => $login, 'avatar_url' => 'https://avatars.githubusercontent.com/u/1'],
+    ];
+}
+
+beforeEach(function (): void {
+    config(['ai.providers.opencode.key' => 'test']);
+    Queue::fake([ModerateCommit::class, EmbedCommit::class]);
+    Classification::fake(fn (ClassificationPrompt $prompt): array => ['decision' => new BooleanAnswer(str_contains((string) $prompt->state, '"type":"test"') ? 0 : 1)])
+        ->preventStrayClassifications();
+    $this->tom = User::factory()->create(['handle' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
+});
+
+it('only remembers where production is on its first run, so old changes are never announced', function (): void {
+    ChangelogWriter::fake()->preventStrayPrompts();
+    $this->mock(GitHubProvider::class)->shouldReceive('commits')->with('dev-null-sh/dev-null.sh', 'production', 1, 100)->once()
+        ->andReturn([productionCommit(2, 'feat: two (#2)', [1]), productionCommit(1, 'feat: one (#1)', [])]);
+
+    resolve(CreateTomChangelogCommits::class)->handle();
+
+    expect(Cache::get(CreateTomChangelogCommits::LastAnnouncedKey))->toBe(productionSha(2))
+        ->and(Commit::query()->count())->toBe(0);
+    ChangelogWriter::assertNeverPrompted();
+});
+
+it('posts one commit as Tom for every change on the changelog since the last one, oldest first', function (): void {
+    $member = User::factory()->create(['handle' => 'xheaven', 'github_id' => '14284867']);
+    ChangelogWriter::fake(['You can pick emoji while quoting now :-)', 'Fixed the dot. *whirr*', 'The bell shows up again.'])->preventStrayPrompts();
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('commits')->once()->andReturn([
+        productionCommit(6, 'fix: show the bell', [5], 14284867, 'xHeaven'),
+        productionCommit(5, 'fix: centre the dot (#1544)', [4], login: 'nunomaduro'),
+        productionCommit(4, "Merge pull request #1468 from xheaven/emoji\n\nfeat: add emoji picker to quote composer", [3, 9], 1, 'nunomaduro'),
+        productionCommit(9, 'wip: a commit of the merged branch', [3]),
+        productionCommit(3, "Merge branch 'production' into production", [2, 8]),
+        productionCommit(2, 'test: run the suite in parallel', [1], login: 'ahosker'),
+        productionCommit(1, 'feat: announced before (#1)', []),
+    ]);
+    $github->shouldReceive('pullRequest')->with('dev-null-sh/dev-null.sh', 1468)->once()
+        ->andReturn(['description' => 'Adds the picker. Trello: https://trello.com/c/abc', 'author' => ['id' => 14284867, 'login' => 'xHeaven']]);
+    $github->shouldReceive('pullRequest')->with('dev-null-sh/dev-null.sh', 1544)->once()->andReturn(['description' => null, 'author' => ['id' => null, 'login' => 'nunomaduro']]);
+    Cache::forever(CreateTomChangelogCommits::LastAnnouncedKey, productionSha(1));
+
+    resolve(CreateTomChangelogCommits::class)->handle();
+
+    expect(Commit::query()->oldest('id')->get()->map(fn (Commit $commit): array => [$commit->user_id, $commit->parent_id, $commit->body])->all())->toBe([
+        [$this->tom->id, null, "You can pick emoji while quoting now :-)\n\nBy {$member->mention()}: https://github.com/dev-null-sh/dev-null.sh/pull/1468"],
+        [$this->tom->id, null, "Fixed the dot. *whirr*\n\nBy nunomaduro: https://github.com/dev-null-sh/dev-null.sh/pull/1544"],
+        [$this->tom->id, null, "The bell shows up again.\n\nBy {$member->mention()}: https://github.com/dev-null-sh/dev-null.sh/commit/".productionSha(6)],
+    ])->and(Cache::get(CreateTomChangelogCommits::LastAnnouncedKey))->toBe(productionSha(6));
+    Classification::assertClassified(fn (ClassificationPrompt $prompt): bool => $prompt->state === '{"type":"test","breaking":false,"title":"Run the suite in parallel","description":null}' && $prompt->asks('decision'));
+    ChangelogWriter::assertPrompted('{"type":"feat","breaking":false,"title":"Add emoji picker to quote composer","description":"Adds the picker. Trello: https://trello.com/c/abc"}');
+    ChangelogWriter::assertPrompted('{"type":"fix","breaking":false,"title":"Centre the dot","description":null}');
+    ChangelogWriter::assertPrompted('{"type":"fix","breaking":false,"title":"Show the bell","description":null}');
+    ChangelogWriter::assertPromptedTimes(3);
+});
+
+it('remembers it looked at a change nobody would notice, without asking Tom', function (): void {
+    ChangelogWriter::fake()->preventStrayPrompts();
+    $this->mock(GitHubProvider::class)->shouldReceive('commits')->once()->andReturn([
+        productionCommit(2, 'test: run the suite in parallel', [1]),
+        productionCommit(1, 'feat: announced before (#1)', []),
+    ]);
+    Cache::forever(CreateTomChangelogCommits::LastAnnouncedKey, productionSha(1));
+
+    resolve(CreateTomChangelogCommits::class)->handle();
+
+    expect(Commit::query()->count())->toBe(0)
+        ->and(Cache::get(CreateTomChangelogCommits::LastAnnouncedKey))->toBe(productionSha(2));
+    ChangelogWriter::assertNeverPrompted();
+});
+
+it("builds Tom's changelog instructions from the persona his replies use", function (): void {
+    expect(new ChangelogWriter()->instructions())
+        ->toStartWith(mb_trim(view('ai.agents.tom.persona', ['botMention' => '@tom'])->render()))
+        ->toContain('Explain it to them in one public post.');
+});
+
+it('posts nothing when production has not moved', function (): void {
+    ChangelogWriter::fake()->preventStrayPrompts();
+    $this->mock(GitHubProvider::class)->shouldReceive('commits')->once()->andReturn([productionCommit(1, 'feat: one (#1)', [])]);
+    Cache::forever(CreateTomChangelogCommits::LastAnnouncedKey, productionSha(1));
+
+    resolve(CreateTomChangelogCommits::class)->handle();
+
+    expect(Commit::query()->count())->toBe(0);
+    ChangelogWriter::assertNeverPrompted();
+});
+
+it('starts again from the latest commit when it cannot find where it left off', function (): void {
+    ChangelogWriter::fake()->preventStrayPrompts();
+    $this->mock(GitHubProvider::class)->shouldReceive('commits')->once()->andReturn([productionCommit(2, 'feat: two (#2)', [1]), productionCommit(1, 'feat: one (#1)', [])]);
+    Cache::forever(CreateTomChangelogCommits::LastAnnouncedKey, productionSha(77));
+
+    resolve(CreateTomChangelogCommits::class)->handle();
+
+    expect(Cache::get(CreateTomChangelogCommits::LastAnnouncedKey))->toBe(productionSha(2))
+        ->and(Commit::query()->count())->toBe(0);
+    ChangelogWriter::assertNeverPrompted();
+});
+
+it('reads further pages when a merged branch pushes the last announced commit off the first', function (): void {
+    ChangelogWriter::fake(['Two landed.', 'A big branch landed.'])->preventStrayPrompts();
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('commits')->with('dev-null-sh/dev-null.sh', 'production', 1, 100)->once()->andReturn([
+        productionCommit(500, "Merge pull request #1600 from someone/big\n\nfeat: a big branch", [2, 499]),
+        ...array_map(fn (int $number): array => productionCommit($number, 'wip', [$number - 1]), range(499, 401)),
+    ]);
+    $github->shouldReceive('commits')->with('dev-null-sh/dev-null.sh', 'production', 2, 100)->once()->andReturn([
+        productionCommit(400, 'wip', [1]),
+        productionCommit(2, 'feat: two', [1], login: 'someone'),
+        productionCommit(1, 'feat: announced before (#1)', []),
+    ]);
+    $github->shouldReceive('pullRequest')->with('dev-null-sh/dev-null.sh', 1600)->once()->andReturn(['description' => null, 'author' => ['id' => null, 'login' => 'someone']]);
+    Cache::forever(CreateTomChangelogCommits::LastAnnouncedKey, productionSha(1));
+
+    resolve(CreateTomChangelogCommits::class)->handle();
+
+    expect(Commit::query()->oldest('id')->pluck('body')->all())->toBe([
+        "Two landed.\n\nBy someone: https://github.com/dev-null-sh/dev-null.sh/commit/".productionSha(2),
+        "A big branch landed.\n\nBy someone: https://github.com/dev-null-sh/dev-null.sh/pull/1600",
+    ])
+        ->and(Cache::get(CreateTomChangelogCommits::LastAnnouncedKey))->toBe(productionSha(500));
+});
+
+it('starts again from the latest commit when the last one is not in the first ten pages', function (): void {
+    ChangelogWriter::fake()->preventStrayPrompts();
+    $this->mock(GitHubProvider::class)->shouldReceive('commits')->times(10)
+        ->andReturnUsing(fn (string $repository, string $branch, int $page): array => array_map(
+            fn (int $number): array => productionCommit($number, 'feat: change', [$number - 1]),
+            range(5000 - ($page - 1) * 100, 4901 - ($page - 1) * 100),
+        ));
+    Cache::forever(CreateTomChangelogCommits::LastAnnouncedKey, productionSha(77));
+
+    resolve(CreateTomChangelogCommits::class)->handle();
+
+    expect(Cache::get(CreateTomChangelogCommits::LastAnnouncedKey))->toBe(productionSha(5000))
+        ->and(Commit::query()->count())->toBe(0);
+    ChangelogWriter::assertNeverPrompted();
+});
+
+it('picks up from the commit it failed on', function (): void {
+    ChangelogWriter::fake(['One.', 'Two.', 'Three.']);
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('commits')->twice()->andReturn([
+        productionCommit(3, 'feat: three (#3)', [2]),
+        productionCommit(2, 'feat: two (#2)', [1]),
+        productionCommit(1, 'feat: one (#1)', []),
+    ]);
+    $github->shouldReceive('pullRequest')->with('dev-null-sh/dev-null.sh', 2)->once()->andReturnNull();
+    $github->shouldReceive('pullRequest')->with('dev-null-sh/dev-null.sh', 3)->once()->andThrow(new ConnectionException('GitHub is down'));
+    $github->shouldReceive('pullRequest')->with('dev-null-sh/dev-null.sh', 3)->once()->andReturnNull();
+    Cache::forever(CreateTomChangelogCommits::LastAnnouncedKey, productionSha(1));
+
+    expect(fn () => resolve(CreateTomChangelogCommits::class)->handle())->toThrow(ConnectionException::class)
+        ->and(Cache::get(CreateTomChangelogCommits::LastAnnouncedKey))->toBe(productionSha(2));
+
+    resolve(CreateTomChangelogCommits::class)->handle();
+
+    expect(Commit::query()->oldest('id')->pluck('body')->map(fn (string $body): string => strtok($body, "\n"))->all())->toBe(['One.', 'Two.'])
+        ->and(Cache::get(CreateTomChangelogCommits::LastAnnouncedKey))->toBe(productionSha(3));
+});
+
+it('does nothing without Tom', function (): void {
+    $this->tom->delete();
+    $this->mock(GitHubProvider::class)->shouldNotReceive('commits');
+
+    resolve(CreateTomChangelogCommits::class)->handle();
+
+    expect(Cache::has(CreateTomChangelogCommits::LastAnnouncedKey))->toBeFalse();
+});
+
+it('runs from the job', function (): void {
+    $this->mock(GitHubProvider::class)->shouldReceive('commits')->once()->andReturn([productionCommit(1, 'feat: one (#1)', [])]);
+
+    dispatch_sync(new AnnounceProductionCommits());
+
+    expect(Cache::get(CreateTomChangelogCommits::LastAnnouncedKey))->toBe(productionSha(1));
+});

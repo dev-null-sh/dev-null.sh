@@ -126,6 +126,14 @@ interface GitHubProvider
     public function issue(string $repository, int $number): ?array;
 
     /**
+     * The pull request with the number: its description, null when it has none, and the account that opened it, which
+     * a merge commit doesn't carry. Null when there is no such pull request.
+     *
+     * @return array{description: string|null, author: array{id: int|null, login: string}}|null
+     */
+    public function pullRequest(string $repository, int $number): ?array;
+
+    /**
      * Creates an issue on this repository, as the GitHub App installed on it.
      *
      * @param  list<string>  $labels
