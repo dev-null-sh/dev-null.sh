@@ -39,6 +39,8 @@ In production, the server needs `BROADCAST_CONNECTION=reverb` and the `REVERB_AP
 
 Commits are attributed to people only: never add Amp, Claude Code, or any other AI tool as a co-author, and keep their names out of commit attribution (author, committer, and trailers).
 
+To vote for a pull request, give its description a 👍 (its author's own and bots' don't count). Maintainers can run `.github/pr-queue.sh` (it needs `gh` 2.48 or later and `jq`) to list open pull requests from low risk to critical, and each vote moves a pull request up within its group.
+
 ### Amp orbs
 
 Amp runs `.agents/setup` to prepare a reusable snapshot with PHP 8.5, Composer, Node 26, the Bun version from `package.json`, locked dependencies, generated routes, and built assets. Setup also prepares isolated PostgreSQL 18 development and test databases with `vector` and `pg_trgm`, including extensions inherited by parallel test databases. It is safe to rerun and preserves an existing `.env` and application key.
