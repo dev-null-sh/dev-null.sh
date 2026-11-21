@@ -90,3 +90,45 @@ test('labels the cells with the summary and paints them in the given color', () 
     assert.match(html, /aria-label="3 replies in the last 7 days"/);
     assert.match(html, /--lane:var\(--muted-foreground\)/);
 });
+
+test('summarizes the quarter and half windows, counting zero instead of saying none yet', () => {
+    assert.equal(
+        activitySummary(
+            { scale: 'quarter', buckets: [{ date: '2026-10-15', count: 3 }] },
+            ['commit', 'commits'],
+        ),
+        '3 commits in the last 3 months',
+    );
+    assert.equal(
+        activitySummary({ scale: 'half', buckets: [] }, ['commit', 'commits']),
+        '0 commits in the last 6 months',
+    );
+});
+
+test('draws quarter, half and year as week grids with one column per week', () => {
+    for (const [scale, weeks] of [
+        ['quarter', 13],
+        ['half', 26],
+        ['year', 53],
+    ] as const) {
+        const buckets = Array.from({ length: weeks * 7 }, (_, day) => ({
+            date: new Date(Date.UTC(2026, 0, 4 + day))
+                .toISOString()
+                .slice(0, 10),
+            count: day % 3,
+        }));
+        const html = renderToString(
+            <ActivityCells
+                activity={{ scale, buckets }}
+                color="red"
+                noun={['commit', 'commits']}
+            />,
+        );
+
+        assert.match(
+            html,
+            new RegExp(`repeat\\(${weeks}, minmax\\(0, 1fr\\)\\)`),
+        );
+        assert.match(html, /grid-rows-7/);
+    }
+});
