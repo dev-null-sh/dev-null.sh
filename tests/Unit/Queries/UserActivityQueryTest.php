@@ -89,6 +89,16 @@ it('counts the commits of each day of the last 7 days', function (): void {
         ]);
 });
 
+it('falls back to the year when the half year is not among the scales to choose from', function (): void {
+    $user = User::factory()->create();
+
+    Commit::factory()->for($user)->create(['created_at' => '2026-08-15 09:00:00']);
+
+    expect(resolve(UserActivityQuery::class)->get($user, $user, scales: [ActivityScale::Day, ActivityScale::Week, ActivityScale::Month]))
+        ->scale->toBe(ActivityScale::Year)
+        ->buckets->toHaveCount(369);
+});
+
 it('counts the commits of each day of the last 26 weeks', function (): void {
     $user = User::factory()->create();
 

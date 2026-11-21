@@ -16,11 +16,18 @@ enum ActivityScale: string
     case Year = 'year';
 
     /**
-     * The smallest scale whose window still contains everything since the given moment.
+     * The scales shorter than a year that a profile's activity can fit into, smallest first.
      */
-    public static function since(CarbonInterface $since, CarbonImmutable $now): self
+    public const array FITTING = [self::Day, self::Week, self::Month, self::Half];
+
+    /**
+     * The smallest of the given scales whose window still contains everything since the given moment, or else the year.
+     *
+     * @param  list<self>  $scales
+     */
+    public static function since(CarbonInterface $since, CarbonImmutable $now, array $scales = self::FITTING): self
     {
-        foreach ([self::Day, self::Week, self::Month, self::Half] as $scale) {
+        foreach ($scales as $scale) {
             if ($since->greaterThanOrEqualTo($scale->start($now))) {
                 return $scale;
             }
