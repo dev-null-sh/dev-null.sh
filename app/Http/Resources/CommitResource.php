@@ -38,11 +38,27 @@ use Illuminate\Http\Resources\Json\JsonResource;
  */
 final class CommitResource extends JsonResource
 {
-    public bool $withGuildMentions = true;
+    private ?GuildBadges $guildBadges = null;
 
     public static function newCollection(mixed $resource): GuildMentionCollection
     {
-        return new GuildMentionCollection($resource, self::class);
+        return new GuildMentionCollection($resource, self::class, self::guildBadges(...));
+    }
+
+    /**
+     * @param  iterable<array-key, mixed>  $commits
+     */
+    public static function guildBadges(iterable $commits, ?User $viewer): GuildBadges
+    {
+        return GuildBadges::forCommits(collect($commits)->map(fn (mixed $commit): ?Commit => $commit instanceof Commit ? $commit : null), $viewer);
+    }
+
+    public function withGuildBadges(GuildBadges $badges): self
+    {
+        $resource = clone $this;
+        $resource->guildBadges = $badges;
+
+        return $resource;
     }
 
     /**
@@ -88,7 +104,9 @@ final class CommitResource extends JsonResource
             return $commit;
         }
 
-        $shown = [
+        $badges = $this->guildBadges ?? self::guildBadges([$this->resource], $request->user());
+
+        return [
             ...$commit,
             ...resolve(CommitBodies::class)->segments($this->body),
             'mentions' => resolve(Mentions::class)->positions($this->body, $this->organization_mentions ?? []),
@@ -97,16 +115,15 @@ final class CommitResource extends JsonResource
             'starred' => $this->whenHas('starred'),
             'pasteis_count' => $this->pasteis_count,
             'deleted_at' => null,
-            'parent' => $this->whenLoaded('parent', fn (Commit $parent): self => self::make($parent)),
+            'parent' => $this->whenLoaded('parent', fn (Commit $parent): self => self::make($parent)->withGuildBadges($badges)),
             'quoted_commit_id' => $this->quoted_commit_id,
-            'quoted_commit' => $this->whenLoaded('quotedCommit', fn (Commit $quoted): self => self::make($quoted)),
-            'poll' => $this->whenLoaded('poll', fn (Poll $poll): PollResource => PollResource::make($poll)),
+            'quoted_commit' => $this->whenLoaded('quotedCommit', fn (Commit $quoted): self => self::make($quoted)->withGuildBadges($badges)),
+            'poll' => $this->whenLoaded('poll', fn (Poll $poll): array => $badges->onPoll(PollResource::make($poll)->resolve($request))),
             'reply_preview' => $this->whenLoaded('replyPreview', fn (Collection $replies): array => [
-                'data' => self::collection($replies),
+                'data' => self::newCollection($replies)->withGuildBadges($badges),
                 'next_cursor' => data_get($this->getAttribute('reply_preview'), 'next_cursor'),
             ]),
+            'guild_mentions' => $badges->in($this->body),
         ];
-
-        return $this->withGuildMentions ? ShownGuildMentions::of($shown, $request->user()) : $shown;
     }
 }

@@ -58,12 +58,97 @@ final class ShownStreams
     /**
      * @return array<mixed>|null
      */
-    public static function commit(?Commit $commit, bool $withGuildMentions = true): ?array
+    public static function commit(?Commit $commit): ?array
     {
-        if (! $commit instanceof Commit) {
-            return null;
+        return $commit instanceof Commit ? self::commits([$commit])[0] : null;
+    }
+
+    /**
+     * @param  iterable<array-key, Commit>  $commits
+     * @return list<array<mixed>>
+     */
+    public static function commits(iterable $commits): array
+    {
+        $commits = collect($commits);
+        $badges = GuildBadges::forCommits($commits, request()->user());
+
+        return array_map($badges->onCommit(...), self::cards($commits));
+    }
+
+    /**
+     * The page of commit cards, paginated as before.
+     *
+     * @param  CursorPaginator<int, Commit>  $page
+     * @return CursorPaginator<int, ShownCommitResource>
+     */
+    public static function page(CursorPaginator $page, ?User $joinedGuildsFor = null): CursorPaginator
+    {
+        $guilds = $joinedGuildsFor instanceof User ? resolve(GuildCommitsQuery::class)->joinedFor($page->items(), $joinedGuildsFor) : [];
+        $cards = self::commits($page->items());
+        $shown = clone $page;
+        $shown->setCollection($page->getCollection()->values()->map(fn (Commit $commit, int $index): ShownCommitResource => new ShownCommitResource($commit, $cards[$index], $guilds[$commit->id] ?? null)));
+
+        return $shown;
+    }
+
+    /**
+     * @param  CursorPaginator<int, Notification>  $page
+     * @return CursorPaginator<int, ShownNotificationResource>
+     */
+    public static function notifications(CursorPaginator $page): CursorPaginator
+    {
+        $badges = GuildBadges::forCommits($page->getCollection()->map(fn (Notification $notification): ?Commit => $notification->relationLoaded('commit') ? $notification->commit : null), request()->user());
+        $shown = clone $page;
+        $shown->setCollection($page->getCollection()->map(fn (Notification $notification): ShownNotificationResource => new ShownNotificationResource($notification, $badges)));
+
+        return $shown;
+    }
+
+    /**
+     * Reports with the commit each is about, paginated as before.
+     *
+     * @param  CursorPaginator<int, CommitReport>  $reports
+     * @return CursorPaginator<int, array<mixed>>
+     */
+    public static function reports(CursorPaginator $reports): CursorPaginator
+    {
+        $badges = GuildBadges::forCommits($reports->getCollection()->map(fn (CommitReport $report): ?Commit => $report->relationLoaded('commit') ? $report->commit : null), request()->user());
+        $shown = clone $reports;
+        $shown->setCollection($reports->getCollection()->map(fn (CommitReport $report): array => $report->relationLoaded('commit')
+            ? [...$report->toArray(), 'commit' => $report->commit instanceof Commit ? $badges->onCommit(self::card($report->commit)) : null]
+            : $report->toArray()));
+
+        return $shown;
+    }
+
+    /**
+     * @return array{data: list<array<mixed>>, position: int, length: int, is_capped: bool, next_id: string|null}
+     */
+    public static function continuation(ThreadContinuation $continuation): array
+    {
+        return [...$continuation->toArray(), 'data' => self::commits($continuation->commits)];
+    }
+
+    /**
+     * @param  iterable<array-key, Commit>  $commits
+     * @return list<array<mixed>>
+     */
+    private static function cards(iterable $commits): array
+    {
+        $cards = [];
+
+        foreach ($commits as $commit) {
+            $cards[] = self::card($commit);
         }
 
+        return $cards;
+    }
+
+    /**
+     * @return array<mixed>
+     */
+    private static function card(Commit $commit): array
+    {
         $shown = $commit->toArray();
 
         if ($commit->trashed()) {
@@ -87,91 +172,16 @@ final class ShownStreams
         }
 
         if (is_array($shown['quoted_commit'] ?? null) && $commit->relationLoaded('quotedCommit')) {
-            $shown['quoted_commit'] = self::commit($commit->quotedCommit, false);
+            $shown['quoted_commit'] = $commit->quotedCommit instanceof Commit ? self::card($commit->quotedCommit) : null;
         }
 
         $preview = $commit->hasAttribute('reply_preview') ? $commit->getAttribute('reply_preview') : null;
 
         if (is_array($preview) && $preview['data'] instanceof Collection) {
-            $shown['reply_preview'] = [...$preview, 'data' => self::commits($preview['data'], false)];
+            $shown['reply_preview'] = [...$preview, 'data' => self::cards($preview['data'])];
         }
 
-        return $withGuildMentions ? ShownGuildMentions::of($shown, request()->user()) : $shown;
-    }
-
-    /**
-     * @param  iterable<array-key, Commit>  $commits
-     * @return list<array<mixed>>
-     */
-    public static function commits(iterable $commits, bool $withGuildMentions = true): array
-    {
-        $shown = [];
-
-        foreach ($commits as $commit) {
-            $shown[] = self::commit($commit, false);
-        }
-
-        $shown = array_values(array_filter($shown));
-
-        return $withGuildMentions ? ShownGuildMentions::many($shown, request()->user()) : $shown;
-    }
-
-    /**
-     * The page of commit cards, paginated as before.
-     *
-     * @param  CursorPaginator<int, Commit>  $page
-     * @return CursorPaginator<int, ShownCommitResource>
-     */
-    public static function page(CursorPaginator $page, ?User $joinedGuildsFor = null): CursorPaginator
-    {
-        $guilds = $joinedGuildsFor instanceof User ? resolve(GuildCommitsQuery::class)->joinedFor($page->items(), $joinedGuildsFor) : [];
-        $cards = self::commits($page->items());
-        $shown = clone $page;
-        $shown->setCollection($page->getCollection()->values()->map(fn (Commit $commit, int $index): ShownCommitResource => new ShownCommitResource($commit, $guilds[$commit->id] ?? null, $cards[$index])));
-
         return $shown;
-    }
-
-    /**
-     * @param  CursorPaginator<int, Notification>  $page
-     * @return CursorPaginator<int, ShownNotificationResource>
-     */
-    public static function notifications(CursorPaginator $page): CursorPaginator
-    {
-        $cards = ShownGuildMentions::many($page->getCollection()->map(fn (Notification $notification): array => new ShownNotificationResource($notification)->toArray())->all(), request()->user());
-        $shown = clone $page;
-        $shown->setCollection($page->getCollection()->values()->map(function (Notification $notification, int $index) use ($cards): ShownNotificationResource {
-            $resource = new ShownNotificationResource($notification);
-            $resource->shown = $cards[$index];
-
-            return $resource;
-        }));
-
-        return $shown;
-    }
-
-    /**
-     * Reports with the commit each is about, paginated as before.
-     *
-     * @param  CursorPaginator<int, CommitReport>  $reports
-     * @return CursorPaginator<int, array<mixed>>
-     */
-    public static function reports(CursorPaginator $reports): CursorPaginator
-    {
-        $shown = clone $reports;
-        $shown->setCollection(collect(ShownGuildMentions::many($reports->getCollection()->map(fn (CommitReport $report): array => $report->relationLoaded('commit')
-            ? [...$report->toArray(), 'commit' => self::commit($report->commit, false)]
-            : $report->toArray())->all(), request()->user())));
-
-        return $shown;
-    }
-
-    /**
-     * @return array{data: list<array<mixed>>, position: int, length: int, is_capped: bool, next_id: string|null}
-     */
-    public static function continuation(ThreadContinuation $continuation): array
-    {
-        return [...$continuation->toArray(), 'data' => self::commits($continuation->commits)];
     }
 
     /**

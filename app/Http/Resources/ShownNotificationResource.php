@@ -17,23 +17,24 @@ use Illuminate\Http\Resources\Json\JsonResource;
  */
 final class ShownNotificationResource extends JsonResource implements Arrayable
 {
-    /** @var array<mixed>|null */
-    public ?array $shown = null;
+    public function __construct(Notification $resource, private readonly GuildBadges $badges)
+    {
+        parent::__construct($resource);
+    }
 
     /**
      * @return array<mixed>
      */
     public function toArray(?Request $request = null): array
     {
-        if ($this->shown !== null) {
-            return $this->shown;
-        }
-
         $notification = $this->resource;
         assert($notification instanceof Notification);
 
+        $shown = $notification->toArray();
+
         return [
-            ...$notification->toArray(),
+            ...$shown,
+            ...is_array($shown['commit'] ?? null) ? ['commit' => $this->badges->onCommit($shown['commit'])] : [],
             'actor' => ShownStreams::profile($notification->actor),
             ...$notification->type === NotificationType::TimedOut && $notification->relationLoaded('timeout') && $notification->timeout instanceof UserTimeout ? [
                 'timeout' => [
@@ -46,6 +47,5 @@ final class ShownNotificationResource extends JsonResource implements Arrayable
                 'actors' => $notification->actors->map(fn (Profile $actor): array => ShownStreams::profile($actor))->all(),
             ] : [],
         ];
-
     }
 }

@@ -8,6 +8,7 @@ use App\Enums\NotificationType;
 use App\Models\Commit;
 use App\Models\Notification;
 use App\Models\Organization;
+use App\Models\User;
 use App\Models\UserTimeout;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -23,11 +24,27 @@ use Illuminate\Http\Resources\Json\JsonResource;
  */
 final class NotificationResource extends JsonResource
 {
-    public bool $withGuildMentions = true;
+    private ?GuildBadges $guildBadges = null;
 
     public static function newCollection(mixed $resource): GuildMentionCollection
     {
-        return new GuildMentionCollection($resource, self::class);
+        return new GuildMentionCollection($resource, self::class, self::guildBadges(...));
+    }
+
+    /**
+     * @param  iterable<array-key, mixed>  $notifications
+     */
+    public static function guildBadges(iterable $notifications, ?User $viewer): GuildBadges
+    {
+        return GuildBadges::forCommits(collect($notifications)->map(fn (mixed $notification): ?Commit => $notification instanceof Notification && $notification->relationLoaded('commit') ? $notification->commit : null), $viewer);
+    }
+
+    public function withGuildBadges(GuildBadges $badges): self
+    {
+        $resource = clone $this;
+        $resource->guildBadges = $badges;
+
+        return $resource;
     }
 
     /**
@@ -35,7 +52,9 @@ final class NotificationResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
-        $shown = [
+        $badges = $this->guildBadges ?? self::guildBadges([$this->resource], $request->user());
+
+        return [
             'id' => $this->id,
             'type' => $this->type,
             'subject_id' => $this->subject_id,
@@ -49,14 +68,12 @@ final class NotificationResource extends JsonResource
             'event_count' => $this->event_count,
             'actors_count' => $this->actors_count,
             'unread_count' => $this->unread_count,
-            'commit' => $this->commit instanceof Commit ? CommitResource::make($this->commit) : null,
+            'commit' => $this->commit instanceof Commit ? CommitResource::make($this->commit)->withGuildBadges($badges) : null,
             ...$this->type === NotificationType::TimedOut && $this->timeout instanceof UserTimeout ? ['timeout' => [
                 'reason' => $this->timeout->reason->label(),
                 'duration' => $this->timeout->duration(),
                 'ends_at' => $this->timeout->ends_at->toIso8601ZuluString(),
             ]] : [],
         ];
-
-        return $this->withGuildMentions ? ShownGuildMentions::of($shown, $request->user()) : $shown;
     }
 }

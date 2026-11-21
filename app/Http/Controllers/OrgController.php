@@ -10,7 +10,7 @@ use App\Actions\UpdateOrgName;
 use App\Http\Requests\CreateOrgRequest;
 use App\Http\Requests\ShowOrgRequest;
 use App\Http\Requests\UpdateOrgRequest;
-use App\Http\Resources\ShownGuildMentions;
+use App\Http\Resources\GuildBadges;
 use App\Models\Conversation;
 use App\Models\User;
 use App\Queries\ConversationsQuery;
@@ -35,9 +35,20 @@ final readonly class OrgController
 
                 $action->handle($user, $org, $thread['messages']->last()->id ?? 0);
 
-                return ShownGuildMentions::of($thread, $user);
+                $badges = GuildBadges::forMessages([...$thread['messages'], ...$thread['pinned'] ?? [], ...$thread['mentions']], $user);
+
+                return [
+                    ...$thread,
+                    'messages' => $badges->onMessages($thread['messages']),
+                    'pinned' => $thread['pinned'] === null ? null : $badges->onMessages($thread['pinned']),
+                    'mentions' => $badges->onMessages($thread['mentions']),
+                ];
             },
-            'inbox' => fn (): array => ShownGuildMentions::of($conversations->get($user), $user),
+            'inbox' => function () use ($conversations, $user): array {
+                $inbox = $conversations->get($user);
+
+                return [...$inbox, 'conversations' => GuildBadges::forConversations($inbox['conversations'], $user)->onConversations($inbox['conversations'])];
+            },
             'partner' => null,
             'org' => ['id' => $org->id, 'name' => $org->name],
         ]);

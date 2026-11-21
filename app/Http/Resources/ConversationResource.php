@@ -20,11 +20,27 @@ use Illuminate\Http\Resources\Json\JsonResource;
  */
 final class ConversationResource extends JsonResource
 {
-    public bool $withGuildMentions = true;
+    private ?GuildBadges $guildBadges = null;
 
     public static function newCollection(mixed $resource): GuildMentionCollection
     {
-        return new GuildMentionCollection($resource, self::class);
+        return new GuildMentionCollection($resource, self::class, self::guildBadges(...));
+    }
+
+    /**
+     * @param  iterable<array-key, mixed>  $conversations
+     */
+    public static function guildBadges(iterable $conversations, ?User $viewer): GuildBadges
+    {
+        return GuildBadges::forMessages(collect($conversations)->map(fn (mixed $conversation): ?Message => is_array($conversation) && ($conversation['last_message'] ?? null) instanceof Message ? $conversation['last_message'] : null), $viewer);
+    }
+
+    public function withGuildBadges(GuildBadges $badges): self
+    {
+        $resource = clone $this;
+        $resource->guildBadges = $badges;
+
+        return $resource;
     }
 
     /**
@@ -35,16 +51,16 @@ final class ConversationResource extends JsonResource
         /** @var ConversationSummary $conversation */
         $conversation = $this->resource;
 
-        $shown = [
+        $badges = $this->guildBadges ?? self::guildBadges([$conversation], $request->user());
+
+        return [
             ...$conversation,
             'partner' => $conversation['partner'] instanceof User ? UserResource::make($conversation['partner']) : null,
             'members' => $conversation['members']?->map(fn (array $member): array => [
                 'user' => UserResource::make($member['user']),
                 'role' => $member['role'],
             ]),
-            'last_message' => $conversation['last_message'] instanceof Message ? MessageResource::make($conversation['last_message']) : null,
+            'last_message' => $conversation['last_message'] instanceof Message ? MessageResource::make($conversation['last_message'])->withGuildBadges($badges) : null,
         ];
-
-        return $this->withGuildMentions ? ShownGuildMentions::of($shown, $request->user()) : $shown;
     }
 }

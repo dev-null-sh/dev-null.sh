@@ -5,10 +5,10 @@ declare(strict_types=1);
 use App\Enums\Feature;
 use App\Enums\RemotesFrom;
 use App\Http\Resources\CommitResource;
+use App\Http\Resources\GuildBadges;
 use App\Http\Resources\MessageResource;
 use App\Http\Resources\NotificationResource;
 use App\Http\Resources\ScheduledCommitResource;
-use App\Http\Resources\ShownGuildMentions;
 use App\Http\Resources\ShownStreams;
 use App\Models\Commit;
 use App\Models\Guild;
@@ -102,23 +102,17 @@ it('does not expose badge metadata from deleted cards or disabled guilds', funct
     expect(ShownStreams::commit($visible)['guild_mentions'])->toBe([]);
 });
 
-it('does not disable badge enrichment on reused resources', function (bool $collection): void {
+it('keeps the badges of a resource that a collection also resolves', function (): void {
     $viewer = User::factory()->create();
     $this->actingAs($viewer);
     request()->setUserResolver(fn (): User => $viewer);
     resolve(Features::class)->update(Feature::Guilds, true, false);
     Guild::factory()->create(['handle' => 'rust']);
-    $message = Message::factory()->create(['body' => '#rust']);
-    $resource = MessageResource::make($message);
-    $batch = MessageResource::collection(collect([$resource]));
+    $resource = MessageResource::make(Message::factory()->create(['body' => '#rust']));
 
-    $shown = ShownGuildMentions::of(['message' => $collection ? $batch : $resource], $viewer);
-
-    expect($shown['message'][$collection ? 0 : 'guild_mentions'])->not->toBeEmpty()
-        ->and($resource->withGuildMentions)->toBeTrue()
-        ->and($batch->withGuildMentions)->toBeTrue()
+    expect(MessageResource::collection(collect([$resource]))->resolve()[0]['guild_mentions'])->toHaveKey('rust')
         ->and($resource->resolve()['guild_mentions'])->toHaveKey('rust');
-})->with(['single' => false, 'collection' => true]);
+});
 
 it('omits unloaded notification actors when serialized standalone', function (): void {
     $notification = Notification::factory()->create();
@@ -183,7 +177,7 @@ it('does not swallow programming errors in optional badge enrichment', function 
         throw new LogicException('Not a database failure');
     })();
 
-    expect(fn (): array => ShownGuildMentions::get($texts, $viewer))->toThrow(LogicException::class, 'Not a database failure');
+    expect(fn (): GuildBadges => GuildBadges::forTexts($texts, $viewer))->toThrow(LogicException::class, 'Not a database failure');
 });
 
 it('returns a newly scheduled API commit even when its optional badge lookup fails', function (): void {

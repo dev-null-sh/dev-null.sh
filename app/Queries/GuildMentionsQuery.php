@@ -7,6 +7,7 @@ namespace App\Queries;
 use App\Enums\Feature;
 use App\Models\Commit;
 use App\Models\Guild;
+use App\Models\Message;
 use App\Models\Poll;
 use App\Models\PollOption;
 use App\Models\User;
@@ -54,6 +55,29 @@ final readonly class GuildMentionsQuery
     }
 
     /**
+     * @param  iterable<array-key, Message|null>  $messages
+     * @return array<string, Guild>
+     */
+    public function forMessages(iterable $messages, ?User $viewer): array
+    {
+        $texts = [];
+
+        foreach ($messages as $message) {
+            if ($message === null) {
+                continue;
+            }
+
+            $texts[] = $message->body;
+
+            if ($message->relationLoaded('replyTo') && $message->replyTo instanceof Message) {
+                $texts[] = $message->replyTo->body;
+            }
+        }
+
+        return $this->get($texts, $viewer);
+    }
+
+    /**
      * @param  iterable<array-key, Commit|null>  $commits
      * @return list<string>
      */
@@ -74,8 +98,16 @@ final readonly class GuildMentionsQuery
                 $texts[] = collect($translated)->where('type', 'text')->pluck('text')->implode("\n");
             }
 
+            if ($commit->relationLoaded('parent')) {
+                array_push($texts, ...$this->texts([$commit->parent]));
+            }
+
             if ($commit->relationLoaded('quotedCommit')) {
                 array_push($texts, ...$this->texts([$commit->quotedCommit]));
+            }
+
+            if ($commit->relationLoaded('replyPreview') && $commit->getRelation('replyPreview') instanceof Collection) {
+                array_push($texts, ...$this->texts($commit->getRelation('replyPreview')));
             }
 
             if ($commit->relationLoaded('poll') && $commit->poll instanceof Poll) {

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Http\Requests\CreateCommitPreviewRequest;
-use App\Http\Resources\ShownGuildMentions;
+use App\Http\Resources\GuildBadges;
 use App\Queries\MentionedOrganizationsQuery;
 use App\Queries\MentionedUsersQuery;
 use App\Services\CodeSpans;
@@ -33,7 +33,7 @@ final readonly class CommitPreviewController
             'segments' => $codeSpans->highlight($expanded),
             'mentions' => $mentions,
             'organization_mentions' => $mentionedOrganizations->get($body, $mentions),
-            'guild_mentions' => ShownGuildMentions::get([$expanded], $request->user()),
+            'guild_mentions' => GuildBadges::forTexts([$expanded], $request->user())->in($expanded),
         ]);
     }
 }

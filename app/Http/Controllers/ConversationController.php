@@ -7,7 +7,7 @@ namespace App\Http\Controllers;
 use App\Actions\UpdateConversationReadThrough;
 use App\Http\Requests\ListConversationsRequest;
 use App\Http\Requests\ShowConversationRequest;
-use App\Http\Resources\ShownGuildMentions;
+use App\Http\Resources\GuildBadges;
 use App\Models\Conversation;
 use App\Models\User;
 use App\Queries\ConversationsQuery;
@@ -21,7 +21,11 @@ final readonly class ConversationController
     public function index(ListConversationsRequest $request, #[CurrentUser] User $user, ConversationsQuery $conversations): Response
     {
         return Inertia::render('conversation/index', [
-            'inbox' => fn (): array => ShownGuildMentions::of($conversations->get($user), $user),
+            'inbox' => function () use ($conversations, $user): array {
+                $inbox = $conversations->get($user);
+
+                return [...$inbox, 'conversations' => GuildBadges::forConversations($inbox['conversations'], $user)->onConversations($inbox['conversations'])];
+            },
             'partner' => null,
             'thread' => null,
         ]);
@@ -43,9 +47,13 @@ final readonly class ConversationController
                     $action->handle($user, $conversation, $thread['messages']->last()->id ?? 0);
                 }
 
-                return ShownGuildMentions::of($thread, $user);
+                return [...$thread, 'messages' => GuildBadges::forMessages($thread['messages'], $user)->onMessages($thread['messages'])];
             },
-            'inbox' => fn (): array => ShownGuildMentions::of($conversations->get($user), $user),
+            'inbox' => function () use ($conversations, $user): array {
+                $inbox = $conversations->get($user);
+
+                return [...$inbox, 'conversations' => GuildBadges::forConversations($inbox['conversations'], $user)->onConversations($inbox['conversations'])];
+            },
             'partner' => $partner,
         ]);
     }

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Http\Requests\ShowCommitPollRequest;
-use App\Http\Resources\ShownGuildMentions;
+use App\Http\Resources\GuildBadges;
 use App\Models\Commit;
 use App\Models\User;
 use Illuminate\Container\Attributes\CurrentUser;
@@ -19,8 +19,8 @@ final readonly class CommitPollController
      */
     public function show(ShowCommitPollRequest $request, #[CurrentUser] ?User $user, Commit $commit): JsonResponse
     {
-        return response()->json(ShownGuildMentions::of([
-            'poll' => Commit::query()->withPollFor($user)->findOrFail($commit->id)->poll,
-        ], $user))->header('Cache-Control', 'no-store, private');
+        return response()->json([
+            'poll' => GuildBadges::badgedPoll(Commit::query()->withPollFor($user)->findOrFail($commit->id)->poll, $user),
+        ])->header('Cache-Control', 'no-store, private');
     }
 }

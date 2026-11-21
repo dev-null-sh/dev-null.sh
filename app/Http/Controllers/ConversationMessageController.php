@@ -8,7 +8,7 @@ use App\Actions\CreateConversation;
 use App\Actions\CreateMessage;
 use App\Http\Requests\CreateConversationMessageRequest;
 use App\Http\Requests\ListConversationMessagesRequest;
-use App\Http\Resources\ShownGuildMentions;
+use App\Http\Resources\GuildBadges;
 use App\Models\User;
 use App\Queries\ConversationThreadQuery;
 use Illuminate\Container\Attributes\CurrentUser;
@@ -18,10 +18,13 @@ final readonly class ConversationMessageController
 {
     public function index(ListConversationMessagesRequest $request, #[CurrentUser] User $user, User $partner, ConversationThreadQuery $threads): JsonResponse
     {
-        return response()->json(ShownGuildMentions::of([
+        $thread = $threads->get($user, $partner, $request->afterId(), $request->beforeId(), $request->reactionsAfter());
+
+        return response()->json([
             'partner' => $partner,
-            ...$threads->get($user, $partner, $request->afterId(), $request->beforeId(), $request->reactionsAfter()),
-        ], $user))->header('Cache-Control', 'private, no-store');
+            ...$thread,
+            'messages' => GuildBadges::forMessages($thread['messages'], $user)->onMessages($thread['messages']),
+        ])->header('Cache-Control', 'private, no-store');
     }
 
     public function store(CreateConversationMessageRequest $request, #[CurrentUser] User $user, User $partner, CreateConversation $createConversation, CreateMessage $action): JsonResponse
@@ -39,6 +42,6 @@ final readonly class ConversationMessageController
             $request->voiceWaveform(),
         );
 
-        return response()->json(ShownGuildMentions::of(['message' => $message], $user), 201);
+        return response()->json(['message' => GuildBadges::forMessages([$message], $user)->onMessage($message->toArray())], 201);
     }
 }

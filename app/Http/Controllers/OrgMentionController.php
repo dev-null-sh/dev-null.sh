@@ -6,7 +6,7 @@ namespace App\Http\Controllers;
 
 use App\Actions\DeleteOrgMentions;
 use App\Http\Requests\DeleteOrgMentionsRequest;
-use App\Http\Resources\ShownGuildMentions;
+use App\Http\Resources\GuildBadges;
 use App\Models\Conversation;
 use App\Models\User;
 use App\Queries\OrgMentionsQuery;
@@ -22,6 +22,8 @@ final readonly class OrgMentionController
     {
         $action->handle($user, $org, $request->messageIds());
 
-        return response()->json(ShownGuildMentions::of($mentions->get($user, $org), $user));
+        $left = $mentions->get($user, $org);
+
+        return response()->json([...$left, 'mentions' => GuildBadges::forMessages($left['mentions'], $user)->onMessages($left['mentions'])]);
     }
 }

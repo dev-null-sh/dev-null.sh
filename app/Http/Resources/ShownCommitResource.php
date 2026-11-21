@@ -16,8 +16,10 @@ use Illuminate\Http\Resources\Json\JsonResource;
  */
 final class ShownCommitResource extends JsonResource implements Arrayable
 {
-    /** @param array<mixed>|null $shown */
-    public function __construct(Commit $resource, private readonly ?string $joinedGuild = null, private readonly ?array $shown = null)
+    /**
+     * @param  array<mixed>  $shown
+     */
+    public function __construct(Commit $resource, private readonly array $shown, private readonly ?string $joinedGuild)
     {
         parent::__construct($resource);
     }
@@ -29,9 +31,7 @@ final class ShownCommitResource extends JsonResource implements Arrayable
     {
         $commit = $this->resource;
         assert($commit instanceof Commit);
-        $shown = $this->shown ?? ShownStreams::commit($commit);
-        assert(is_array($shown));
 
-        return $commit->trashed() ? $shown : [...$shown, 'joined_guild' => $this->joinedGuild];
+        return $commit->trashed() ? $this->shown : [...$this->shown, 'joined_guild' => $this->joinedGuild];
     }
 }

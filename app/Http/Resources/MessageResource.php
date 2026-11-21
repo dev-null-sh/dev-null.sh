@@ -29,11 +29,27 @@ use Illuminate\Support\Str;
  */
 final class MessageResource extends JsonResource
 {
-    public bool $withGuildMentions = true;
+    private ?GuildBadges $guildBadges = null;
 
     public static function newCollection(mixed $resource): GuildMentionCollection
     {
-        return new GuildMentionCollection($resource, self::class);
+        return new GuildMentionCollection($resource, self::class, self::guildBadges(...));
+    }
+
+    /**
+     * @param  iterable<array-key, mixed>  $messages
+     */
+    public static function guildBadges(iterable $messages, ?User $viewer): GuildBadges
+    {
+        return GuildBadges::forMessages(collect($messages)->map(fn (mixed $message): ?Message => $message instanceof Message ? $message : null), $viewer);
+    }
+
+    public function withGuildBadges(GuildBadges $badges): self
+    {
+        $resource = clone $this;
+        $resource->guildBadges = $badges;
+
+        return $resource;
     }
 
     /**
@@ -41,7 +57,9 @@ final class MessageResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
-        $shown = [
+        $badges = $this->guildBadges ?? self::guildBadges([$this->resource], $request->user());
+
+        return [
             'id' => $this->id,
             'user_id' => $this->user_id,
             'client_id' => $this->client_id,
@@ -57,6 +75,7 @@ final class MessageResource extends JsonResource
                 'body' => $replyTo->body,
                 'images_count' => $replyTo->images->count(),
                 'has_voice' => $replyTo->voice instanceof MessageVoice,
+                'guild_mentions' => $badges->in($replyTo->body),
             ]),
             'link_preview' => $this->whenLoaded('linkPreview'),
             'images' => $this->whenLoaded('images', fn (): Collection => $this->images->map(fn (MessageImage $image): array => [
@@ -85,8 +104,7 @@ final class MessageResource extends JsonResource
             'subject' => $this->whenLoaded('subject', fn (User $subject): UserResource => UserResource::make($subject)),
             'pinned_at' => $this->pinned_at?->toIso8601ZuluString(),
             'created_at' => $this->created_at->toIso8601ZuluString(),
+            'guild_mentions' => $badges->in($this->body),
         ];
-
-        return $this->withGuildMentions ? ShownGuildMentions::of($shown, $request->user()) : $shown;
     }
 }

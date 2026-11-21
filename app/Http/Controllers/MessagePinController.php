@@ -8,7 +8,7 @@ use App\Actions\DeleteMessagePin;
 use App\Actions\UpdateMessagePin;
 use App\Http\Requests\DeleteMessagePinRequest;
 use App\Http\Requests\UpdateMessagePinRequest;
-use App\Http\Resources\ShownGuildMentions;
+use App\Http\Resources\GuildBadges;
 use App\Models\Message;
 use App\Models\User;
 use App\Queries\PinnedMessagesQuery;
@@ -27,7 +27,9 @@ final readonly class MessagePinController
 
         $org = $message->conversation()->firstOrFail();
 
-        return response()->json(ShownGuildMentions::of(['pinned' => $pinnedMessages->get($org), 'reactions_version' => $org->reactions_version], $user));
+        $pinned = $pinnedMessages->get($org);
+
+        return response()->json(['pinned' => GuildBadges::forMessages($pinned, $user)->onMessages($pinned), 'reactions_version' => $org->reactions_version]);
     }
 
     public function destroy(DeleteMessagePinRequest $request, Message $message, #[CurrentUser] User $user, DeleteMessagePin $action, PinnedMessagesQuery $pinnedMessages): JsonResponse
@@ -36,6 +38,8 @@ final readonly class MessagePinController
 
         $org = $message->conversation()->firstOrFail();
 
-        return response()->json(ShownGuildMentions::of(['pinned' => $pinnedMessages->get($org), 'reactions_version' => $org->reactions_version], $user));
+        $pinned = $pinnedMessages->get($org);
+
+        return response()->json(['pinned' => GuildBadges::forMessages($pinned, $user)->onMessages($pinned), 'reactions_version' => $org->reactions_version]);
     }
 }

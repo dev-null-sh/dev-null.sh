@@ -1,5 +1,5 @@
 import { Link, usePage } from '@inertiajs/react';
-import { Fragment, useContext } from 'react';
+import { Fragment } from 'react';
 import type { ReactNode, SVGAttributes } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import { show as showGuild } from '@/actions/App/Http/Controllers/GuildController';
@@ -12,7 +12,6 @@ import { CodebergIcon } from '@/components/codeberg-icon';
 import { GitHubIcon } from '@/components/github-icon';
 import { GitLabIcon } from '@/components/gitlab-icon';
 import { GuildIcon } from '@/components/guild-icon';
-import { GuildMentionsContext } from '@/components/guild-mentions-context';
 import { UserPreview } from '@/components/user-preview';
 import { typedProse, withoutCode } from '@/lib/code';
 import type { Color } from '@/lib/colors';
@@ -671,12 +670,12 @@ export function Hashtag({
     guildMentions?: GuildMentions;
 }) {
     const { auth, guildsEnabled } = usePage().props;
-    const pageGuildMentions = useContext(GuildMentionsContext);
     const handle = hashtag.slice(1).toLowerCase();
-    const mentions = guildMentions ?? pageGuildMentions;
     const guild =
         postedGuild ??
-        (Object.hasOwn(mentions, handle) ? mentions[handle] : undefined);
+        (guildMentions && Object.hasOwn(guildMentions, handle)
+            ? guildMentions[handle]
+            : undefined);
 
     if (guild) {
         const canOpenGuild = !!auth.user && guildsEnabled;

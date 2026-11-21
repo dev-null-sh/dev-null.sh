@@ -8,7 +8,6 @@ import { BodyCounter } from '../../resources/js/components/body-counter';
 import { ConversationList } from '../../resources/js/components/chat/conversation-list';
 import { MessageText } from '../../resources/js/components/chat/message-parts';
 import { CommitBody } from '../../resources/js/components/commit-body';
-import { GuildMentionsContext } from '../../resources/js/components/guild-mentions-context';
 import {
     Hashtag,
     LinkifiedText,
@@ -140,33 +139,6 @@ test('renders loaded guild badges on the first paint without a shared catalogue'
     assert.doesNotMatch(ordinary, /\/guilds\//);
     assert.match(ordinary, /Job Board/);
     assert.match(ordinary, /data-test="guild-mention"/);
-});
-
-test('reads guild badges from the page map when a body brings none of its own', () => {
-    const markup = renderPage(
-        <GuildMentionsContext
-            value={{
-                rust: {
-                    handle: 'rust',
-                    name: 'Rust',
-                    emoji: '🦀',
-                    icon_url: null,
-                },
-            }}
-        >
-            <CommitBody
-                segments={bodySegments('Reading #rust and #go')}
-                mentions={null}
-            />
-        </GuildMentionsContext>,
-        {
-            auth: { user: { id: 'viewer' }, pasteis: null },
-            guildsEnabled: true,
-        },
-    );
-
-    assert.match(markup, /aria-label="Rust, #rust guild"/);
-    assert.match(markup, /href="\/search\?q=%23go"/);
 });
 
 test('explicit posted guild metadata wins over mention metadata', () => {

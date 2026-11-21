@@ -7,7 +7,7 @@ namespace App\Http\Controllers;
 use App\Actions\CreateMessage;
 use App\Http\Requests\CreateOrgMessageRequest;
 use App\Http\Requests\ListOrgMessagesRequest;
-use App\Http\Resources\ShownGuildMentions;
+use App\Http\Resources\GuildBadges;
 use App\Models\Conversation;
 use App\Models\User;
 use App\Queries\ConversationThreadQuery;
@@ -18,10 +18,16 @@ final readonly class OrgMessageController
 {
     public function index(ListOrgMessagesRequest $request, #[CurrentUser] User $user, Conversation $org, ConversationThreadQuery $threads): JsonResponse
     {
-        return response()->json(ShownGuildMentions::of([
+        $thread = $threads->org($user, $org, $request->afterId(), $request->beforeId(), $request->reactionsAfter());
+        $badges = GuildBadges::forMessages([...$thread['messages'], ...$thread['pinned'] ?? [], ...$thread['mentions']], $user);
+
+        return response()->json([
             'org' => ['id' => $org->id, 'name' => $org->name],
-            ...$threads->org($user, $org, $request->afterId(), $request->beforeId(), $request->reactionsAfter()),
-        ], $user))->header('Cache-Control', 'private, no-store');
+            ...$thread,
+            'messages' => $badges->onMessages($thread['messages']),
+            'pinned' => $thread['pinned'] === null ? null : $badges->onMessages($thread['pinned']),
+            'mentions' => $badges->onMessages($thread['mentions']),
+        ])->header('Cache-Control', 'private, no-store');
     }
 
     public function store(CreateOrgMessageRequest $request, #[CurrentUser] User $user, Conversation $org, CreateMessage $action): JsonResponse
@@ -39,6 +45,6 @@ final readonly class OrgMessageController
             $request->voiceWaveform(),
         );
 
-        return response()->json(ShownGuildMentions::of(['message' => $message], $user), 201);
+        return response()->json(['message' => GuildBadges::forMessages([$message], $user)->onMessage($message->toArray())], 201);
     }
 }

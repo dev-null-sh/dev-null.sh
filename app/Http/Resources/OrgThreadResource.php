@@ -51,13 +51,15 @@ final class OrgThreadResource extends JsonResource
             'user' => UserResource::make($member['user']),
         ]);
 
-        return ShownGuildMentions::of([
+        $badges = GuildBadges::forMessages([...$thread['messages'], ...$thread['pinned'] ?? [], ...$thread['mentions']], $request->user());
+
+        return [
             ...$thread,
             'org' => ['id' => $thread['org']->id, 'name' => $thread['org']->name],
-            'messages' => MessageResource::collection($thread['messages']),
-            'pinned' => $thread['pinned'] === null ? null : MessageResource::collection($thread['pinned']),
-            'mentions' => MessageResource::collection($thread['mentions']),
+            'messages' => MessageResource::newCollection($thread['messages'])->withGuildBadges($badges),
+            'pinned' => $thread['pinned'] === null ? null : MessageResource::newCollection($thread['pinned'])->withGuildBadges($badges),
+            'mentions' => MessageResource::newCollection($thread['mentions'])->withGuildBadges($badges),
             'members' => $members,
-        ], $request->user());
+        ];
     }
 }
