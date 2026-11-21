@@ -20,6 +20,7 @@ use App\Models\CommitImage;
 use App\Models\CommitReport;
 use App\Models\Device;
 use App\Models\Guild;
+use App\Models\GuildAlias;
 use App\Models\GuildSubmission;
 use App\Models\Message;
 use App\Models\MessageVoice;
@@ -745,7 +746,9 @@ it('exports subscription metadata without delivery endpoints', function (): void
 it('exports only the users guilds without internal paths or identifiers', function (): void {
     $user = User::factory()->create();
     $pin = Commit::factory()->create(['body' => '#jobs']);
-    Guild::factory()->create(['user_id' => $user->id, 'handle' => 'jobs', 'name' => 'Job Board', 'description' => 'Hiring.', 'emoji' => '💼', 'icon_path' => 'guild-icons/private-path.webp', 'pinned_commit_id' => $pin->id]);
+    $jobs = Guild::factory()->create(['user_id' => $user->id, 'handle' => 'jobs', 'name' => 'Job Board', 'description' => 'Hiring.', 'emoji' => '💼', 'icon_path' => 'guild-icons/private-path.webp', 'pinned_commit_id' => $pin->id]);
+    GuildAlias::factory()->for($jobs)->create(['handle' => 'work']);
+    GuildAlias::factory()->for($jobs)->create(['handle' => 'hiring']);
     Guild::factory()->create(['user_id' => $user->id, 'handle' => 'rust']);
     Guild::factory()->create(['name' => 'Someone else']);
     GuildSubmission::factory()->for($user)->create(['handle' => 'adhd', 'name' => 'ADHD', 'description' => 'Waiting for review.', 'icon_path' => 'guild-icons/pending-path.webp']);
@@ -757,11 +760,13 @@ it('exports only the users guilds without internal paths or identifiers', functi
     expect($data['guilds'])->toHaveCount(2)
         ->and($data['guilds'][0])->toBe([
             'handle' => 'jobs', 'name' => 'Job Board', 'description' => 'Hiring.', 'emoji' => '💼',
+            'aliases' => ['hiring', 'work'],
             'icon' => route('guild-icon.show', 'jobs'),
             'pinned_commit_id' => $pin->id,
             'created_at' => now()->toIso8601String(), 'updated_at' => now()->toIso8601String(),
         ])
         ->and($data['guilds'][1]['icon'])->toBeNull()
+        ->and($data['guilds'][1]['aliases'])->toBe([])
         ->and($data['guild_submissions'])->toBe([[
             'handle' => 'adhd', 'name' => 'ADHD', 'description' => 'Waiting for review.', 'emoji' => '💻', 'has_icon' => true,
             'created_at' => now()->toIso8601String(),

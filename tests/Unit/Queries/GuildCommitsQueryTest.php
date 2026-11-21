@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Enums\Feature;
 use App\Models\Commit;
 use App\Models\Guild;
+use App\Models\GuildAlias;
 use App\Models\User;
 use App\Queries\GuildCommitsQuery;
 use App\Services\Features;
@@ -31,6 +32,22 @@ it('rejects the commits posted in a muted guild or tagging it, and keeps the oth
     $kept = resolve(GuildCommitsQuery::class)->rejectMuted(new Collection([$postedInMuted, $taggingMuted, $postedInOther, $inCode, $plain]), $viewer);
 
     expect($kept->modelKeys())->toBe([$postedInOther->id, $inCode->id, $plain->id]);
+});
+
+it('rejects the commits tagging an alias of a muted guild', function (): void {
+    resolve(Features::class)->update(Feature::Guilds, true, adminOnly: false);
+    $viewer = User::factory()->create();
+    $muted = Guild::factory()->create(['handle' => 'go']);
+    GuildAlias::factory()->for($muted)->create(['handle' => 'golang']);
+    GuildAlias::factory()->for($muted)->create(['handle' => 'gopher']);
+    muteGuildFor($viewer, $muted);
+    $aliased = Commit::factory()->create(['body' => 'Learning #GoLang today']);
+    $postedInMuted = Commit::factory()->create(['guild_id' => $muted->id, 'body' => 'Board post']);
+    $other = Commit::factory()->create(['body' => 'Learning #golanguage today']);
+
+    $kept = resolve(GuildCommitsQuery::class)->rejectMuted(new Collection([$aliased, $postedInMuted, $other]), $viewer);
+
+    expect($kept->modelKeys())->toBe([$other->id]);
 });
 
 it('keeps every commit for a viewer who muted no guild', function (): void {
