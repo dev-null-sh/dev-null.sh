@@ -1,9 +1,4 @@
-export type ActivityScale =
-    | 'day'
-    | 'week'
-    | 'month'
-    | 'half'
-    | 'year';
+export type ActivityScale = 'day' | 'week' | 'month' | 'half' | 'year';
 
 export type ActivityBucket = {
     date: string;
