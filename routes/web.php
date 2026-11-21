@@ -2,9 +2,11 @@
 
 declare(strict_types=1);
 
+use App\Enums\ApiDocsSection;
 use App\Enums\Log;
 use App\Enums\ProfileType;
 use App\Http\Controllers\AboutController;
+use App\Http\Controllers\ApiDocsController;
 use App\Http\Controllers\AppController;
 use App\Http\Controllers\BanController;
 use App\Http\Controllers\BannedController;
@@ -250,6 +252,10 @@ Route::get('apps', [AppController::class, 'index'])->name('app.index');
 
 // What was merged into production, readable by everyone...
 Route::get('changelog', [ChangelogController::class, 'index'])->name('changelog.index');
+
+// The API docs, readable by everyone...
+Route::redirect('docs/api', '/docs/api/'.ApiDocsSection::Introduction->value)->name('api-docs.index');
+Route::get('docs/api/{section}', [ApiDocsController::class, 'show'])->name('api-docs.show');
 
 // Public pages, readable by guests and crawlers...
 Route::middleware([RememberIntendedUrl::class, RedirectToHandleCase::class])->group(function (): void {
