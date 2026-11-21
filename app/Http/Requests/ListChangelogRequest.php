@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace App\Http\Requests;
 
+use App\Http\Requests\Concerns\NormalizesBrowserTimezone;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Http\FormRequest;
 
 final class ListChangelogRequest extends FormRequest
 {
+    use NormalizesBrowserTimezone;
+
     public function authorize(): bool
     {
         return true;
