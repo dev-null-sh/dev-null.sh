@@ -16,6 +16,8 @@ use Illuminate\Queue\Attributes\Queue;
 use Illuminate\Queue\Attributes\Timeout;
 use Illuminate\Queue\Attributes\Tries;
 use Illuminate\Queue\Attributes\UniqueFor;
+use Illuminate\Support\Facades\Cache;
+use Throwable;
 
 #[Backoff([60, 600])]
 #[Queue('translations')]
@@ -42,6 +44,19 @@ final class DetectCommitLanguage implements ShouldBeUnique, ShouldQueue
 
         if ($commit instanceof Commit && resolve(CommitTranslations::class)->enabled()) {
             $action->handle($commit);
+        }
+    }
+
+    /**
+     * Detection that keeps failing is remembered for a while, so the next view does not queue it again, the way
+     * GitHubReadmeQuery remembers a failed fetch. A body that changed since the dispatch is not marked.
+     */
+    public function failed(Throwable $exception): void
+    {
+        $commit = Commit::query()->find($this->commitId);
+
+        if ($commit instanceof Commit) {
+            Cache::put(resolve(CommitTranslations::class)->failedKey($commit), true, CommitTranslations::DETECTION_FAILURE_TTL_SECONDS);
         }
     }
 }
