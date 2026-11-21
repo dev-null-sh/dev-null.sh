@@ -28,6 +28,7 @@ final readonly class CreateMessage
         private EmojiShortcodes $emojiShortcodes,
         private CreateImageFiles $createImageFiles,
         private CreateMessageVoiceFile $createMessageVoiceFile,
+        private CreateLinkPreview $createLinkPreview,
         private MentionedUsersQuery $mentionedUsers,
         private Urls $urls,
     ) {
@@ -69,7 +70,7 @@ final readonly class CreateMessage
         };
 
         $message = DB::transaction(function () use ($sender, $conversation, $body, $clientId, $replyTo, $images, $imageDescriptions, $url, $voice, $voiceWaveform): Message {
-            $linkPreview = $url === null ? null : LinkPreview::query()->firstOrCreate(['url_hash' => hash('sha256', $url)], ['url' => $url]);
+            $linkPreview = $url === null ? null : $this->createLinkPreview->handle($url);
 
             $message = Message::query()->createOrFirst(
                 ['user_id' => $sender->id, 'client_id' => $clientId],
@@ -106,10 +107,7 @@ final readonly class CreateMessage
                     ->pluck('user_id'));
             }
 
-            foreach (ConversationParticipant::query()->where('conversation_id', $conversation->id)
-                ->where('user_id', '!=', $sender->id)->whereHas('user.pushSubscriptions')->get(['user_id']) as $participant) {
-                dispatch(new SendRemotePush($message->id, $participant->user_id))->delay(now()->addSeconds(10))->afterCommit();
-            }
+            SendRemotePush::dispatchFor($message);
 
             ConversationParticipant::query()
                 ->where('conversation_id', $conversation->id)

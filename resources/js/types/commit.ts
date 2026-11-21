@@ -1,4 +1,5 @@
 import type { User } from '@/types/auth';
+import type { Guild } from '@/types/guild';
 import type { Organization } from '@/types/organization';
 
 export type CommitStatus = 'pending' | 'approved' | 'rejected';
@@ -22,6 +23,13 @@ export type LinkPreview = {
     site_name: string | null;
     is_pending: boolean;
     embed?: Embed | null;
+};
+
+/** Who else talks about a commit's link, once enough people do: its card then leads to the link's page. */
+export type LinkTopic = {
+    url: string;
+    others: number;
+    authors: CommitAuthor[];
 };
 
 export type PollOption = {
@@ -86,6 +94,9 @@ export type OrganizationAuthor = Extract<
 
 export type Commit = {
     id: string;
+    joined_guild?: string | null;
+    guild_handle?: string | null;
+    guild?: Pick<Guild, 'handle' | 'name' | 'emoji' | 'icon_url'> | null;
     parent_id: string | null;
     hot_score: number;
     body: string;
@@ -113,6 +124,7 @@ export type Commit = {
         | DeletedCommit
         | null;
     link_preview?: LinkPreview | null;
+    link_topic?: LinkTopic | null;
     poll?: Poll | null;
     quoted_commit_id: string | null;
     quoted_commit?: QuotedCommit | DeletedCommit | null;
@@ -137,6 +149,7 @@ export type QuotedCommit = Pick<
     | 'replies_count'
     | 'poll'
     | 'link_preview'
+    | 'link_topic'
     | 'images'
 >;
 

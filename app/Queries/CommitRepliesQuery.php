@@ -19,15 +19,16 @@ final readonly class CommitRepliesQuery
      * @param  list<string>|null  $ids
      * @return CursorPaginator<int, Commit>
      */
-    public function paginate(Commit $commit, ?User $user, bool $newest = false, int $limit = self::PER_PAGE, ?string $except = null, ?array $ids = null): CursorPaginator
+    public function paginate(Commit $commit, ?User $user, bool $newest = false, int $limit = self::PER_PAGE, ?string $except = null, ?array $ids = null, bool $inLog = false): CursorPaginator
     {
-        return Commit::query()
+        return resolve(GuildCommitsQuery::class)->snapshot($user, fn (): CursorPaginator => Commit::query()
             ->where(fn (CommitBuilder $query): CommitBuilder => $query
                 ->where('parent_id', $commit->id)
                 ->orWhere('quoted_commit_id', $commit->id))
             ->when($except, fn (CommitBuilder $query, string $except): CommitBuilder => $query->whereKeyNot($except))
             ->when($ids !== null, fn (CommitBuilder $query): CommitBuilder => $query->whereKey($ids ?? []))
             ->visibleInThreadTo($user)
+            ->when($inLog, fn (CommitBuilder $query): CommitBuilder => $query->withoutMutedGuildsFor($user))
             ->withVisibleReplyCount($user)
             ->withContinuationId($user)
             ->withCardDataFor($user)
@@ -35,7 +36,7 @@ final readonly class CommitRepliesQuery
             ->when($newest,
                 fn (CommitBuilder $query): CommitBuilder => $query->newestFirst(),
                 fn (CommitBuilder $query): CommitBuilder => $query->oldest()->oldest('id'))
-            ->cursorPaginate($limit);
+            ->cursorPaginate($limit));
     }
 
     /**

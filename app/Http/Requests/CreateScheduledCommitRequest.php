@@ -6,6 +6,7 @@ namespace App\Http\Requests;
 
 use App\Dto\NewPoll;
 use App\Enums\PollDuration;
+use App\Models\Guild;
 use App\Models\Organization;
 use App\Models\User;
 use App\Rules\OrganizationToPostAs;
@@ -40,6 +41,7 @@ final class CreateScheduledCommitRequest extends FormRequest
             'scheduled_at' => ['required', 'date_format:Y-m-d\TH:i:sP', 'after:now', 'before_or_equal:'.now()->addDays(30)->toIso8601String(), new ScheduledCommitLimit($user)],
             'parent_id' => ['prohibited'],
             'link_preview_url' => ['nullable', 'string', Rule::in(is_string($body) ? resolve(Urls::class)->all($body) : [])],
+            ...CreateCommitRequest::guildRules($this),
             ...CreateCommitRequest::attachmentRules(),
         ];
     }
@@ -123,5 +125,10 @@ final class CreateScheduledCommitRequest extends FormRequest
     public function prepareForValidation(): void
     {
         CreateCommitRequest::normalizeBody($this);
+    }
+
+    public function guild(): ?Guild
+    {
+        return CreateCommitRequest::guildOf($this);
     }
 }

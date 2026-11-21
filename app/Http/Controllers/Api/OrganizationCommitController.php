@@ -34,6 +34,7 @@ final readonly class OrganizationCommitController
 
         return CommitResource::collection(Commit::query()
             ->where('author_id', $organization->id)
+            ->whereNull('guild_id')
             ->approved()
             ->topLevel()
             ->withPublicPreview()

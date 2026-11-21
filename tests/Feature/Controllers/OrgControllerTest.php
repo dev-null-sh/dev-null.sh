@@ -3,11 +3,14 @@
 declare(strict_types=1);
 
 use App\Enums\OrgEvent;
+use App\Enums\OrgRole;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\Conversation;
+use App\Models\ConversationParticipant;
 use App\Models\Message;
 use App\Models\Profile;
 use App\Models\User;
+use Illuminate\Support\Collection;
 use Inertia\Testing\AssertableInertia;
 
 it('creates an org with people who follow the maintainer', function (): void {
@@ -25,6 +28,23 @@ it('creates an org with people who follow the maintainer', function (): void {
         ->assertJsonPath('conversations.0.name', 'dev/null core')
         ->assertJsonCount(3, 'conversations.0.members')
         ->assertJsonPath('conversations.0.members.0.role', 'maintainer');
+});
+
+it('lists maintainers first, then everyone by name', function (): void {
+    $mark = User::factory()->create(['name' => 'Mark']);
+    [$taylor, $nuno, $caleb] = followersOf($mark, 3);
+    $taylor->profile->update(['name' => 'Taylor']);
+    $nuno->profile->update(['name' => 'Nuno']);
+    $caleb->profile->update(['name' => 'Caleb']);
+    $org = createOrg($mark, [$taylor, $nuno, $caleb]);
+    ConversationParticipant::query()->where('conversation_id', $org)->where('user_id', $taylor->id)->update(['role' => OrgRole::Maintainer]);
+    $order = ['Mark', 'Taylor', 'Caleb', 'Nuno'];
+
+    $this->actingAs($nuno)->get(route('org.show', $org))
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
+            ->where('thread.members', fn (Collection $members): bool => $members->pluck('user.name')->all() === $order));
+
+    expect($this->actingAs($nuno)->getJson(route('inbox.index'))->json('conversations.0.members.*.user.name'))->toBe($order);
 });
 
 it('adds people whatever the case of their handles, but each only once', function (): void {
@@ -91,7 +111,7 @@ it('lets site admins add anyone with remotes on', function (): void {
     $this->actingAs($nuno)->getJson(route('inbox.index'))->assertJsonCount(1, 'conversations');
 });
 
-it('caps an org at a hundred people', function (): void {
+it('caps an org at 256 people', function (): void {
     $mark = User::factory()->create();
 
     $this->actingAs($mark)->postJson(route('org.store'), ['members' => array_map(fn (User $user): string => $user->handle, followersOf($mark, Conversation::MAX_MEMBERS))])

@@ -4,25 +4,31 @@ declare(strict_types=1);
 
 namespace App\Http\Middleware;
 
+use App\Contracts\Services\HumanVerificationProvider;
 use App\Dto\ReaderClock;
 use App\Enums\EventTheme;
+use App\Enums\Feature;
 use App\Enums\Log;
 use App\Enums\RepliesPerPage;
 use App\Enums\UserUpdate;
 use App\Http\Requests\ListNotificationsRequest;
+use App\Http\Resources\GuildResource;
 use App\Http\Resources\ShownStreams;
 use App\Models\Commit;
+use App\Models\Guild;
 use App\Models\Organization;
 use App\Models\User;
 use App\Queries\BioProfilesQuery;
 use App\Queries\ConversationsQuery;
 use App\Queries\DevelopersCountQuery;
-use App\Queries\HeadlineSummaryQuery;
-use App\Queries\HotHeadlinesQuery;
+use App\Queries\GuildsQuery;
+use App\Queries\HotTopicsQuery;
+use App\Queries\JoinedGuildsQuery;
 use App\Queries\LiveFollowingQuery;
 use App\Queries\NotificationGroupsQuery;
 use App\Queries\SuggestedUsersQuery;
 use App\Services\CommitTranslations;
+use App\Services\Features;
 use Carbon\CarbonInterface;
 use Closure;
 use Illuminate\Broadcasting\Channel;
@@ -123,6 +129,7 @@ final class HandleInertiaRequests extends Middleware
             ...parent::share($request),
             'name' => config('app.name'),
             'repository' => config('services.github.repository'),
+            'humanVerificationSiteKey' => fn (): string => resolve(HumanVerificationProvider::class)->siteKey(),
             'auth' => [
                 // What the user saved anywhere, from their profile to their preferences, shows on every page they have open.
                 'user' => $live(fn (): ?array => ShownStreams::user($request->user()?->loadCounts()), UserUpdate::Account),
@@ -156,25 +163,25 @@ final class HandleInertiaRequests extends Middleware
             ],
             // Guests see how many developers are here, next to the sign-in button...
             'developersCount' => fn (): ?int => $user instanceof User ? null : resolve(DevelopersCountQuery::class)->get(),
-            'hasUnmoderatedCommits' => $isAdmin ? $live(fn (): bool => Commit::query()->pending()->exists(), UserUpdate::Moderation) : false,
+            'hasUnmoderatedCommits' => $isAdmin ? $live(fn (): bool => Commit::query()->awaitingModerator()->exists(), UserUpdate::Moderation) : false,
             // The lite mobile app, which draws its own tab bar (see resources/js/lib/lite-mobile-app.ts). Any browser can send this
             // token, so it only ever changes the UI...
             'isLiteMobileApp' => str_contains((string) $request->userAgent(), 'DevNullLite/'),
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'showsWhoToFollow' => $showsWhoToFollow,
+            'guilds' => $user instanceof User
+                ? Inertia::once(fn (): ?array => resolve(Features::class)->available(Feature::Guilds, $user) ? resolve(GuildsQuery::class)->get($user)->map(fn (Guild $guild): array => [
+                    'id' => $guild->id,
+                    ...GuildResource::make($guild)->resolve($request),
+                ])->all() : null)->until(60)->fresh($request->routeIs('guild.*', 'search.index'))->live(UserUpdate::Guilds->value, new PrivateChannel($user))
+                : null,
+            'joinedGuilds' => $user instanceof User
+                ? Inertia::once(fn (): array => resolve(JoinedGuildsQuery::class)->get($user))->until(60)->live(UserUpdate::Guilds->value, new PrivateChannel($user))
+                : [],
             ...$user instanceof User && $liveFollowing !== null ? [
                 // Drawn again when someone followed goes live or stops, never on its own, so it doesn't reshuffle.
                 'liveFollowing' => $liveFollowing,
-                'hotTopics' => Inertia::once(function () use ($user): array {
-                    $topics = resolve(HotHeadlinesQuery::class)->get($user);
-                    $summaries = resolve(HeadlineSummaryQuery::class)->getMany(array_column($topics, 'id'), $user);
-
-                    return array_map(fn (array $headline): array => [
-                        'id' => $headline['id'],
-                        'name' => $headline['name'],
-                        'summary' => $summaries->get($headline['id']),
-                    ], $topics);
-                })->until(60)
+                'hotTopics' => Inertia::once(fn (): array => resolve(HotTopicsQuery::class)->get($user))->until(60)
                     // Read again at most once a minute however busy the headlines get, since everyone listens.
                     ->live('headlines', new Channel('headlines'), throttle: 60_000),
             ] : [],

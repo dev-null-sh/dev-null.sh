@@ -17,6 +17,7 @@ final readonly class OrganizationCommitsQuery
     {
         return Commit::query()
             ->where('author_id', $organization->id)
+            ->whereNull('guild_id')
             ->visibleTo($viewer)
             ->topLevel()
             ->withVisibleReplyCount($viewer)

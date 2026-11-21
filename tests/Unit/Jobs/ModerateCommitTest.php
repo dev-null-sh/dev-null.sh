@@ -5,6 +5,8 @@ declare(strict_types=1);
 use App\Contracts\Services\ModerationProvider;
 use App\Enums\CommitStatus;
 use App\Enums\NotificationType;
+use App\Enums\UserUpdate;
+use App\Events\UsersUpdated;
 use App\Exceptions\CommitProcessingFailed;
 use App\Jobs\ModerateCommit;
 use App\Models\Commit;
@@ -17,6 +19,7 @@ use GuzzleHttp\Psr7\Response as Psr7Response;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
@@ -35,6 +38,24 @@ it('stores that the ai would approve a commit it does not flag', function (): vo
         ->ai_categories->toBe([])
         ->status->toBe(CommitStatus::Approved);
 });
+
+it('checks decoded contents before approving an encoded post', function (string $body): void {
+    $moderation = $this->mock(ModerationProvider::class);
+    $moderation->shouldReceive('moderate')->andReturnUsing(fn (string $text): array => str_contains(mb_strtolower($text), 'hi') ? ['harassment' => 0.99] : []);
+    $moderation->shouldReceive('isHarmful')->andReturnFalse();
+    $commit = Commit::factory()->pending()->create(['body' => $body]);
+
+    dispatch_sync(new ModerateCommit($commit));
+
+    expect($commit->refresh())
+        ->ai_categories->toBe(['harassment'])
+        ->status->toBe(CommitStatus::Rejected)
+        ->body->toBe($body);
+})->with([
+    'binary' => '01001000 01001001',
+    'Morse' => '.... ..',
+    'Morse with repeated separators' => '.... .. .-.-.- '.str_repeat('/', 3000),
+]);
 
 it('auto-approves clean commits without requiring approved history', function (CommitStatus $previousStatus, bool $sameAuthor, bool $deleted, bool $anonymous, CommitStatus $expected): void {
     $moderation = $this->mock(ModerationProvider::class);
@@ -134,6 +155,23 @@ it('leaves a commit the ai is not all but certain about to moderators', function
     expect($commit->refresh())
         ->ai_decision->toBe(CommitStatus::Rejected)
         ->status->toBe(CommitStatus::Pending);
+});
+
+it('tells moderators about a commit the ai leaves to them', function (): void {
+    config(['app.admins' => ['admin']]);
+    $admin = User::factory()->create(['handle' => 'admin']);
+    Event::fake([UsersUpdated::class]);
+    $moderation = $this->mock(ModerationProvider::class);
+    $moderation->shouldReceive('moderate')->andReturn(['harassment' => 0.94]);
+    $moderation->shouldReceive('isHarmful')->andReturnFalse();
+
+    $commit = Commit::factory()->pending()->create();
+
+    dispatch_sync(new ModerateCommit($commit));
+
+    expect(Event::dispatched(UsersUpdated::class, fn (UsersUpdated $event): bool => $event->update === UserUpdate::Moderation
+        && $event->userIds === [$admin->id]
+        && $event->data === ['commits' => [$commit->id]]))->toHaveCount(1);
 });
 
 it('checks the images of a commit too', function (string $category): void {

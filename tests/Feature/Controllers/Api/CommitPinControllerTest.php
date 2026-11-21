@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Models\Commit;
+use App\Models\Guild;
 use App\Models\User;
 
 beforeEach(function (): void {
@@ -21,6 +22,16 @@ it('pins an own top-level commit and answers with it pinned', function (string $
 
     expect($this->user->fresh()->pinned_commit_id)->toBe($commit->id);
 })->with(['approved', 'pending', 'rejected']);
+
+it('forbids pinning an own guild commit without replacing the existing pin', function (): void {
+    $pinned = Commit::factory()->for($this->user)->create();
+    $this->user->update(['pinned_commit_id' => $pinned->id]);
+    $commit = Commit::factory()->for($this->user)->for(Guild::factory())->create();
+
+    signedApiRequest($this->keyPair, 'PUT', route('api-commit-pin.update', $commit))->assertForbidden();
+
+    expect($this->user->fresh()->pinned_commit_id)->toBe($pinned->id);
+});
 
 it('replaces the commit pinned before', function (): void {
     $first = Commit::factory()->for($this->user)->create();
