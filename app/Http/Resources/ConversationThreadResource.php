@@ -47,7 +47,7 @@ final class ConversationThreadResource extends JsonResource
         return [
             ...$thread,
             'partner' => UserResource::make($thread['partner']),
-            'messages' => MessageResource::newCollection($thread['messages'])->withGuildBadges($badges),
+            'messages' => MessageResource::newCollection($thread['messages'])->withGuildBadges($badges)->resolve($request),
         ];
     }
 }

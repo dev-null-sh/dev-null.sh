@@ -56,9 +56,9 @@ final class OrgThreadResource extends JsonResource
         return [
             ...$thread,
             'org' => ['id' => $thread['org']->id, 'name' => $thread['org']->name],
-            'messages' => MessageResource::newCollection($thread['messages'])->withGuildBadges($badges),
-            'pinned' => $thread['pinned'] === null ? null : MessageResource::newCollection($thread['pinned'])->withGuildBadges($badges),
-            'mentions' => MessageResource::newCollection($thread['mentions'])->withGuildBadges($badges),
+            'messages' => MessageResource::newCollection($thread['messages'])->withGuildBadges($badges)->resolve($request),
+            'pinned' => $thread['pinned'] === null ? null : MessageResource::newCollection($thread['pinned'])->withGuildBadges($badges)->resolve($request),
+            'mentions' => MessageResource::newCollection($thread['mentions'])->withGuildBadges($badges)->resolve($request),
             'members' => $members,
         ];
     }

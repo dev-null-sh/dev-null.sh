@@ -68,7 +68,7 @@ final class NotificationResource extends JsonResource
             'event_count' => $this->event_count,
             'actors_count' => $this->actors_count,
             'unread_count' => $this->unread_count,
-            'commit' => $this->commit instanceof Commit ? CommitResource::make($this->commit)->withGuildBadges($badges) : null,
+            'commit' => $this->commit instanceof Commit ? CommitResource::make($this->commit)->withGuildBadges($badges)->resolve($request) : null,
             ...$this->type === NotificationType::TimedOut && $this->timeout instanceof UserTimeout ? ['timeout' => [
                 'reason' => $this->timeout->reason->label(),
                 'duration' => $this->timeout->duration(),

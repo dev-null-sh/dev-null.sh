@@ -60,7 +60,7 @@ final class ConversationResource extends JsonResource
                 'user' => UserResource::make($member['user']),
                 'role' => $member['role'],
             ]),
-            'last_message' => $conversation['last_message'] instanceof Message ? MessageResource::make($conversation['last_message'])->withGuildBadges($badges) : null,
+            'last_message' => $conversation['last_message'] instanceof Message ? MessageResource::make($conversation['last_message'])->withGuildBadges($badges)->resolve($request) : null,
         ];
     }
 }

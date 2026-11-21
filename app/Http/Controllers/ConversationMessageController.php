@@ -42,6 +42,6 @@ final readonly class ConversationMessageController
             $request->voiceWaveform(),
         );
 
-        return response()->json(['message' => GuildBadges::forMessages([$message], $user)->onMessage($message->toArray())], 201);
+        return response()->json(['message' => GuildBadges::forMessages([$message], $user)->onMessage($message)], 201);
     }
 }

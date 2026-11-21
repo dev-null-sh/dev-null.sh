@@ -162,7 +162,7 @@ final readonly class GuildBadges
         $shown = [];
 
         foreach ($messages as $message) {
-            $shown[] = $this->onMessage($message->toArray());
+            $shown[] = $this->onMessage($message);
         }
 
         return $shown;
@@ -176,27 +176,22 @@ final readonly class GuildBadges
     {
         return array_values($conversations->map(fn (array $conversation): array => [
             ...$conversation,
-            'last_message' => $conversation['last_message'] instanceof Message ? $this->onMessage($conversation['last_message']->toArray()) : null,
+            'last_message' => $conversation['last_message'] instanceof Message ? $this->onMessage($conversation['last_message']) : null,
         ])->all());
     }
 
     /**
-     * @param  array<mixed>  $message
      * @return array<mixed>
      */
-    public function onMessage(array $message): array
+    public function onMessage(Message $message): array
     {
-        if (! is_string($message['body'] ?? null)) {
-            return $message;
+        $shown = [...$message->toArray(), 'guild_mentions' => $this->in($message->body)];
+
+        if (is_array($shown['reply_to'] ?? null) && $message->replyTo instanceof Message) {
+            $shown['reply_to']['guild_mentions'] = $this->in($message->replyTo->body);
         }
 
-        $message['guild_mentions'] = $this->in($message['body']);
-
-        if (is_array($message['reply_to'] ?? null) && is_string($message['reply_to']['body'] ?? null)) {
-            $message['reply_to']['guild_mentions'] = $this->in($message['reply_to']['body']);
-        }
-
-        return $message;
+        return $shown;
     }
 
     /**

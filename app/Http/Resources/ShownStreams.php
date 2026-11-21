@@ -69,10 +69,10 @@ final class ShownStreams
      */
     public static function commits(iterable $commits): array
     {
-        $commits = collect($commits);
+        $cards = self::cards($commits);
         $badges = GuildBadges::forCommits($commits, request()->user());
 
-        return array_map($badges->onCommit(...), self::cards($commits));
+        return array_map($badges->onCommit(...), $cards);
     }
 
     /**
