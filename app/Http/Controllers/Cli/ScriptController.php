@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Cli;
 
+use App\Services\SignedCommits;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
@@ -15,7 +16,7 @@ final readonly class ScriptController
      */
     public function show(): Response
     {
-        $script = Str::replace('__DEVNULL_URL__', url('/'), File::get(resource_path('scripts/commit.sh')));
+        $script = Str::replace('__DEVNULL_URL__', SignedCommits::server(), File::get(resource_path('scripts/commit.sh')));
 
         return response($script)->header('Content-Type', 'text/plain; charset=utf-8');
     }

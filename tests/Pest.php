@@ -118,9 +118,10 @@ function gitHubContributor(string $login, int $commits, string $type = 'User', ?
  * @param  list<string>  $imageHashes
  * @return array{payload: string, signature: string}
  */
-function signedCommit(SshKeyPair $keyPair, string $body, ?int $timestamp = null, ?string $nonce = null, string $replyTo = '', array $imageHashes = []): array
+function signedCommit(SshKeyPair $keyPair, string $body, ?int $timestamp = null, ?string $nonce = null, string $replyTo = '', array $imageHashes = [], ?string $server = null): array
 {
     $lines = [
+        $server ?? SignedCommits::server(),
         $timestamp ?? now()->getTimestamp(),
         $nonce ?? bin2hex(random_bytes(16)),
         $replyTo,
