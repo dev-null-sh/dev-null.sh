@@ -8,6 +8,7 @@ use App\Models\Commit;
 use App\Models\PollOption;
 use App\Models\User;
 use App\Rules\OpenPoll;
+use Illuminate\Auth\Access\Response;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -15,9 +16,9 @@ use Illuminate\Validation\Rules\Exists;
 
 final class CreateCommitPollVoteRequest extends FormRequest
 {
-    public function authorize(): bool
+    public function authorize(): Response
     {
-        return $this->commit()->isVisibleTo($this->voter());
+        return $this->commit()->isVisibleTo($this->voter()) ? Response::allow() : Response::denyAsNotFound();
     }
 
     /**

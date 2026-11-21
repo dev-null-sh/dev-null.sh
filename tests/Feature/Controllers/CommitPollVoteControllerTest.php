@@ -156,3 +156,22 @@ it('requires authentication to vote', function (): void {
 
     expect(PollVote::query()->count())->toBe(0);
 });
+
+it('may not vote on a commit that is not visible, nor learn that it exists', function (string $state): void {
+    $poll = Poll::factory()->withOptions('Tabs', 'Spaces')->create();
+    $poll->commit->update(['status' => $state]);
+
+    $this->actingAs(User::factory()->create())
+        ->postJson(route('commit-poll-vote.store', $poll->commit), ['option' => $poll->options[0]->id])
+        ->assertNotFound();
+})->with(['pending', 'rejected']);
+
+it('may not vote on a commit across a block', function (): void {
+    $user = User::factory()->create();
+    $poll = Poll::factory()->withOptions('Tabs', 'Spaces')->create();
+    $poll->commit->user->blocking()->attach($user);
+
+    $this->actingAs($user)
+        ->postJson(route('commit-poll-vote.store', $poll->commit), ['option' => $poll->options[0]->id])
+        ->assertNotFound();
+});
