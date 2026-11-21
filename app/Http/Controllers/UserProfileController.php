@@ -28,6 +28,7 @@ final readonly class UserProfileController
             'automaticLane' => $user->automaticLane(),
             'githubSyncedAt' => $user->github_synced_at?->toIso8601String(),
             'activityGraphUrl' => route('user-activity-graph.show', $user),
+            'badgeUrl' => route('user-badge.svg', $user),
             'profileUrl' => route('user.show', $user),
         ]);
     }
