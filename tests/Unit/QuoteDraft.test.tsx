@@ -317,6 +317,45 @@ test('quotes submit restored images and clear the complete draft only on success
     }
 });
 
+test('passes slash command context to the quote composer textarea', () => {
+    const commit = {
+        id: 'quoted',
+        author: { id: 'author', handle: 'author' },
+        status: 'approved',
+    } as Commit;
+    const button = CommitQuoteButton({ commit })!;
+    const dialog = React.Children.toArray(
+        button.props.children,
+    )[1] as ReactElement<{
+        children: ReactElement<{ commit: Commit; onClose: () => void }>;
+    }>;
+    const composer = dialog.props.children;
+    const renderComposer = composer.type as (
+        props: typeof composer.props,
+    ) => ReactElement;
+    const form = elements(renderComposer(composer.props)).find(
+        (element) => element.type === Form,
+    )!;
+    const renderFields = form.props.children as (props: {
+        processing: boolean;
+        errors: Record<string, string>;
+    }) => ReactNode;
+    const fields = elements(renderFields({ processing: false, errors: {} }));
+    const textarea = fields.find(
+        (element) => element.type === MentionTextarea,
+    )!;
+
+    assert.deepEqual(textarea.props.commandContext, {
+        surface: 'quote',
+        hasPoll: false,
+        imageCount: 1,
+        isScheduling: false,
+        processing: false,
+        reading: false,
+    });
+    assert.equal(textarea.props.onPoll, undefined);
+    assert.equal(typeof textarea.props.onImage, 'function');
+});
 test('escape in the preview returns to writing without closing the quote', () => {
     const commit = {
         id: 'quoted',

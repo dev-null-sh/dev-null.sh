@@ -150,6 +150,7 @@ function QuoteComposer({
     );
     const linkCard = useLinkCard(body);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const imageInputRef = useRef<HTMLInputElement>(null);
     const commitRules = useCommitRules();
     const keys = useKeyLabels();
 
@@ -195,7 +196,7 @@ function QuoteComposer({
             onEscapeKeyDown={(event) => {
                 if (
                     document.querySelector(
-                        '[data-mention-suggestions], [role="dialog"].yarl__root',
+                        '[data-mention-suggestions], [data-slash-suggestions], [role="dialog"].yarl__root',
                     ) ||
                     (typeof Element !== 'undefined' &&
                         event.target instanceof Element &&
@@ -209,7 +210,7 @@ function QuoteComposer({
                     typeof Element !== 'undefined' &&
                     event.target instanceof Element &&
                     event.target.closest(
-                        '[data-mention-suggestions], [role="dialog"].yarl__root',
+                        '[data-mention-suggestions], [data-slash-suggestions], [role="dialog"].yarl__root',
                     )
                 ) {
                     event.preventDefault();
@@ -313,6 +314,17 @@ function QuoteComposer({
                                     value={body}
                                     onValueChange={updateBody}
                                     onKeyDown={submitOnModEnter}
+                                    onImage={() =>
+                                        imageInputRef.current?.click()
+                                    }
+                                    commandContext={{
+                                        surface: 'quote',
+                                        hasPoll: false,
+                                        imageCount: images.length,
+                                        isScheduling: false,
+                                        processing,
+                                        reading: attachments.reading,
+                                    }}
                                     onPaste={attachments.onPaste}
                                     onFocus={
                                         isRestored ? moveCaretToEnd : undefined
@@ -399,6 +411,7 @@ function QuoteComposer({
                                         disabled={processing}
                                         reading={attachments.reading}
                                         onPick={attachments.pick}
+                                        inputRef={imageInputRef}
                                         className="size-8"
                                     />
                                     <PreviewToggle

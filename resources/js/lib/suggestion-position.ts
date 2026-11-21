@@ -2,10 +2,14 @@ export function suggestionPosition(
     character: { left: number; top: number; bottom: number },
     viewport: { left: number; top: number; width: number; height: number },
     layoutHeight: number,
+    preferredWidth = 288,
 ) {
     const margin = 8;
     const gap = 6;
-    const width = Math.min(288, Math.max(0, viewport.width - margin * 2));
+    const width = Math.min(
+        preferredWidth,
+        Math.max(0, viewport.width - margin * 2),
+    );
     const left = Math.max(
         viewport.left + margin,
         Math.min(

@@ -1,4 +1,5 @@
 import { ImagePlus, X } from 'lucide-react';
+import type { RefObject } from 'react';
 import { useId, useLayoutEffect, useRef, useState } from 'react';
 import { ActionTooltip } from '@/components/action-tooltip';
 import type { ShownImage } from '@/components/commit-images';
@@ -112,19 +113,22 @@ export function ImagePickerButton({
     reading = false,
     onPick,
     className,
+    inputRef,
 }: {
     count: number;
     disabled?: boolean;
     reading?: boolean;
     onPick: (files: File[]) => Promise<void>;
     className?: string;
+    inputRef?: RefObject<HTMLInputElement | null>;
 }) {
-    const inputRef = useRef<HTMLInputElement>(null);
+    const fallbackRef = useRef<HTMLInputElement>(null);
+    const ref = inputRef ?? fallbackRef;
 
     return (
         <>
             <input
-                ref={inputRef}
+                ref={ref}
                 type="file"
                 accept={acceptedImageTypes.join(',')}
                 multiple
@@ -146,7 +150,7 @@ export function ImagePickerButton({
                     variant="ghost"
                     size="icon"
                     disabled={disabled || reading || count >= maxImages}
-                    onClick={() => inputRef.current?.click()}
+                    onClick={() => ref.current?.click()}
                     aria-label={reading ? 'Reading images' : 'Attach images'}
                     aria-busy={reading}
                     className={cn('text-muted-foreground', className)}
