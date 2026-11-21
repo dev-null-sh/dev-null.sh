@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Http\Requests;
 
 use App\Actions\CreateCommitImages;
+use App\Enums\GifProvider;
+use App\Http\Concerns\HasGifInput;
 use App\Models\Commit;
 use App\Models\Organization;
 use App\Models\User;
@@ -17,12 +19,15 @@ use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Dimensions;
+use Illuminate\Validation\Rules\Enum;
 use Illuminate\Validation\Rules\File;
 use Illuminate\Validation\Rules\In;
 use Illuminate\Validation\Validator;
 
 final class CreateCommitReplyRequest extends FormRequest
 {
+    use HasGifInput;
+
     public const int MAX_REPLY_RECIPIENTS = 100;
 
     public function authorize(): Response
@@ -44,13 +49,15 @@ final class CreateCommitReplyRequest extends FormRequest
     /**
      * Images are checked by their contents, not their extension, and SVG is never accepted since it can carry scripts.
      *
-     * @return array<string, array<int, string|ValidationRule|File|Dimensions|In>>
+     * @return array<string, array<int, string|ValidationRule|File|Dimensions|Enum|In>>
      */
     public function rules(): array
     {
         $user = $this->user();
         assert($user instanceof User);
         $body = $this->input('body');
+        $rawProvider = $this->input('gif_provider');
+        $provider = is_string($rawProvider) ? (GifProvider::tryFrom($rawProvider) ?? GifProvider::Giphy) : GifProvider::Giphy;
         $parent = $this->route('commit');
         assert($parent instanceof Commit);
 
@@ -71,6 +78,7 @@ final class CreateCommitReplyRequest extends FormRequest
             ],
             'image_descriptions' => ['nullable', 'list', 'max:'.CreateCommitImages::MAX_IMAGES],
             'image_descriptions.*' => ['nullable', 'string', 'max:'.CreateCommitImages::MAX_DESCRIPTION_LENGTH],
+            ...CreateCommitRequest::gifRules($provider),
         ];
     }
 

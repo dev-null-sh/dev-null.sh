@@ -1,7 +1,7 @@
 import { Form, usePage } from '@inertiajs/react';
 import { Quote } from 'lucide-react';
 import type { KeyboardEvent } from 'react';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import { ActionTooltip } from '@/components/action-tooltip';
 import { AuthorSwitcher, useAuthor } from '@/components/author-switcher';
@@ -10,12 +10,13 @@ import {
     ColorSwatchHint,
     useColorSwatchHint,
 } from '@/components/color-swatch-hint';
+import { CommitGif, GifAttachmentPreview } from '@/components/commit-gif';
 import {
     ImageDropOverlay,
-    ImagePickerButton,
     ImagePickerPreviews,
     imageErrorFrom,
 } from '@/components/commit-image-picker';
+import { ComposerMediaButton } from '@/components/commit-image-picker';
 import { CommitRulesDialog, useCommitRules } from '@/components/commit-rules';
 import {
     ComposerPreviewBody,
@@ -52,6 +53,8 @@ import {
     maxRawBodyLength,
     minBodyLength,
 } from '@/lib/commit';
+import { useGifProviderKey } from '@/lib/gif-provider-key';
+import { gifFormFields, toCommitGif } from '@/lib/gif-providers';
 import { hasModKey, useKeyLabels } from '@/lib/keyboard';
 import { characterCount, cn, isRejectedSubmission } from '@/lib/utils';
 import type { Commit } from '@/types';
@@ -130,16 +133,20 @@ function QuoteComposer({
 }) {
     const { user } = useUser();
     const { author, picked, setAuthor } = useAuthor();
+    const gifKey = useGifProviderKey(user.id);
+    const [gifOpen, setGifOpen] = useState(false);
     const markCommitDeleted = useMarkCommitDeleted();
     const id = `quote-${commit.id}`;
     const {
         body,
         images,
         descriptions,
+        gif,
         isRestored,
         key: stashKey,
         updateBody,
         updateImages,
+        updateGif,
         drop,
     } = useStash(user.id, id);
     const attachments = useImageAttachments(
@@ -152,6 +159,12 @@ function QuoteComposer({
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const commitRules = useCommitRules();
     const keys = useKeyLabels();
+
+    useEffect(() => {
+        if (attachments.images.length > 0 && gif !== null) {
+            updateGif(null);
+        }
+    }, [attachments.images.length, gif, updateGif]);
 
     const isQuotable =
         (images.length > 0 || characterCount(body.trim()) >= minBodyLength) &&
@@ -241,10 +254,14 @@ function QuoteComposer({
                     human_verification_token:
                         commitRules.humanVerificationToken(),
                     ...(author !== null && { author: author.handle }),
-                    ...(images.length > 0 && {
-                        images,
-                        image_descriptions: descriptions,
-                    }),
+                    ...(gif !== null
+                        ? gifFormFields(gif)
+                        : images.length > 0
+                          ? {
+                                images,
+                                image_descriptions: descriptions,
+                            }
+                          : {}),
                 })}
                 options={{ preserveScroll: true }}
                 onError={(errors) => {
@@ -357,6 +374,10 @@ function QuoteComposer({
                                 )}
                             </div>
 
+                            {preview.isPreviewing && gif !== null && (
+                                <CommitGif gif={toCommitGif(gif)} />
+                            )}
+
                             <ColorSwatchHint
                                 hint={colorHint}
                                 disabled={processing}
@@ -376,12 +397,18 @@ function QuoteComposer({
                             />
 
                             {!preview.isPreviewing && (
-                                <ImagePickerPreviews
-                                    images={images}
-                                    descriptions={descriptions}
-                                    onDescribe={attachments.describe}
-                                    onRemove={attachments.remove}
-                                />
+                                <>
+                                    <ImagePickerPreviews
+                                        images={images}
+                                        descriptions={descriptions}
+                                        onDescribe={attachments.describe}
+                                        onRemove={attachments.remove}
+                                    />
+                                    <GifAttachmentPreview
+                                        gif={gif}
+                                        onRemove={() => updateGif(null)}
+                                    />
+                                </>
                             )}
                             <InputError
                                 message={
@@ -394,11 +421,19 @@ function QuoteComposer({
 
                             <div className="sticky -bottom-4 -mb-4 flex flex-wrap items-center justify-end gap-x-3 gap-y-2 bg-background pt-3 pb-4 sm:-bottom-5 sm:-mb-5 sm:pb-5">
                                 <div className="mr-auto flex min-w-0 items-center gap-2">
-                                    <ImagePickerButton
+                                    <ComposerMediaButton
+                                        gifKey={gifKey}
+                                        gifOpen={gifOpen}
+                                        onGifOpenChange={setGifOpen}
+                                        hasGif={gif !== null}
                                         count={images.length}
                                         disabled={processing}
                                         reading={attachments.reading}
-                                        onPick={attachments.pick}
+                                        onPickImages={attachments.pick}
+                                        onPickGif={(picked) => {
+                                            attachments.clear();
+                                            updateGif(picked);
+                                        }}
                                         className="size-8"
                                     />
                                     <PreviewToggle

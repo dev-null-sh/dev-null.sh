@@ -30,7 +30,7 @@ final readonly class SuggestedCommitsQuery
             ->unique('author_id')
             ->take($limit)
             ->values()
-            ->load('author')
+            ->load(['author', 'gif'])
             ->toBase());
     }
 }

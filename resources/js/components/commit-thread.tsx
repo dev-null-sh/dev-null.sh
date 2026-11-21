@@ -28,9 +28,10 @@ import {
     useColorSwatchHint,
 } from '@/components/color-swatch-hint';
 import { FoldedCommitBody } from '@/components/commit-body';
+import { CommitGif, GifAttachmentPreview } from '@/components/commit-gif';
 import {
+    ComposerMediaButton,
     ImageDropOverlay,
-    ImagePickerButton,
     ImagePickerPreviews,
     imageErrorFrom,
 } from '@/components/commit-image-picker';
@@ -99,6 +100,9 @@ import {
 } from '@/lib/commit';
 import { changesSince, readAt } from '@/lib/commit-changes';
 import { changeCountLocally, commitStateKey } from '@/lib/commit-state';
+import { useGifProviderKey } from '@/lib/gif-provider-key';
+import { gifFormFields, toCommitGif } from '@/lib/gif-providers';
+import type { GifProviderId } from '@/lib/gif-providers';
 import { hasModKey } from '@/lib/keyboard';
 import { exactCountTitle, formatCount } from '@/lib/numbers';
 import {
@@ -1750,6 +1754,8 @@ function ReplyComposer({
 }) {
     const { user } = useUser();
     const { author, picked, setAuthor } = useAuthor();
+    const gifKey = useGifProviderKey(user.id);
+    const [gifOpen, setGifOpen] = useState(false);
     const commitNotFound = useCommitNotFound();
     const participants = Array.from(
         new Map(
@@ -1771,12 +1777,14 @@ function ReplyComposer({
         body,
         images,
         descriptions,
+        gif,
         isRestored,
         key: stashKey,
         excludedRecipientIds,
         updateExcludedRecipientIds,
         updateBody,
         updateImages,
+        updateGif,
         drop,
     } = useStash(user.id, `reply-${parent.id}`);
     const attachments = useImageAttachments(
@@ -1795,6 +1803,14 @@ function ReplyComposer({
             reply_recipients: string[];
             link_preview_url?: string;
             commit_rules_accepted?: boolean;
+            gif_provider?: GifProviderId;
+            gif_id?: string;
+            gif_url?: string;
+            gif_page_url?: string;
+            gif_title?: string;
+            gif_username?: string;
+            gif_width?: number;
+            gif_height?: number;
             human_verification_token?: string;
             author?: string;
         },
@@ -1815,6 +1831,12 @@ function ReplyComposer({
         textareaRef,
         isSubmittable: isReplyable,
     });
+
+    useEffect(() => {
+        if (attachments.images.length > 0 && gif !== null) {
+            updateGif(null);
+        }
+    }, [attachments.images.length, gif, updateGif]);
 
     const colorHint = useColorSwatchHint({
         body,
@@ -1875,8 +1897,9 @@ function ReplyComposer({
 
         request.setData(() => ({
             body,
-            images,
-            image_descriptions: descriptions,
+            images: gif === null ? images : [],
+            image_descriptions: gif === null ? descriptions : [],
+            ...(gif !== null ? gifFormFields(gif) : {}),
             reply_recipients: participants
                 .filter(
                     ({ id }) =>
@@ -1994,6 +2017,9 @@ function ReplyComposer({
                     />
                 )}
             </div>
+            {preview.isPreviewing && gif !== null && (
+                <CommitGif gif={toCommitGif(gif)} />
+            )}
             <ColorSwatchHint
                 hint={colorHint}
                 disabled={processing}
@@ -2017,6 +2043,12 @@ function ReplyComposer({
                     descriptions={attachments.descriptions}
                     onDescribe={attachments.describe}
                     onRemove={attachments.remove}
+                />
+            )}
+            {!preview.isPreviewing && (
+                <GifAttachmentPreview
+                    gif={gif}
+                    onRemove={() => updateGif(null)}
                 />
             )}
             <CommitRulesDialog rules={commitRules} textarea={textareaRef} />
@@ -2046,11 +2078,19 @@ function ReplyComposer({
                             />
                         )}
                     </AuthorSwitcher>
-                    <ImagePickerButton
+                    <ComposerMediaButton
+                        gifKey={gifKey}
+                        gifOpen={gifOpen}
+                        onGifOpenChange={setGifOpen}
+                        hasGif={gif !== null}
                         count={images.length}
                         disabled={processing}
                         reading={attachments.reading}
-                        onPick={attachments.pick}
+                        onPickImages={attachments.pick}
+                        onPickGif={(picked) => {
+                            attachments.clear();
+                            updateGif(picked);
+                        }}
                         className="size-8"
                     />
                     <PreviewToggle preview={preview} className="-ml-2 size-8" />

@@ -1,11 +1,24 @@
 export type IssueKind = 'feature' | 'bug';
 
-export type IssueCommand = {
-    kind: IssueKind;
+type CommandShape = {
     name: string;
     description: string;
+};
+
+export type IssueCommand = CommandShape & {
+    kind: IssueKind;
     placeholder: string;
 };
+
+export type GifCommand = CommandShape & {
+    kind: 'gif';
+};
+
+export type SlashCommand = IssueCommand | GifCommand;
+
+export type SlashCommandKind = SlashCommand['kind'];
+
+type CommandOptions = { canAttachGif?: boolean };
 
 export const issueCommands: IssueCommand[] = [
     {
@@ -24,21 +37,44 @@ export const issueCommands: IssueCommand[] = [
     },
 ];
 
+export const gifCommand: GifCommand = {
+    kind: 'gif',
+    name: '/gif',
+    description: 'Attach a GIF',
+};
+
+function availableCommands({
+    canAttachGif = false,
+}: CommandOptions): SlashCommand[] {
+    return canAttachGif ? [...issueCommands, gifCommand] : issueCommands;
+}
+
 /**
  * The commands a draft could still become while it is only a slash and the start of a name.
  */
-export function suggestedCommands(body: string): IssueCommand[] {
+export function suggestedCommands(
+    body: string,
+    options: CommandOptions = {},
+): SlashCommand[] {
     return /^\/[a-z]*$/.test(body)
-        ? issueCommands.filter((command) => command.name.startsWith(body))
+        ? availableCommands(options).filter((command) =>
+              command.name.startsWith(body),
+          )
         : [];
 }
 
 /**
- * A complete command followed by a space or a new line turns the draft into an issue, without the command.
+ * A complete command followed by a space or a new line. Issue commands keep the rest of the draft as their body;
+ * `/gif` only matches on its own so it can never discard text.
  */
 export function typedCommand(
     body: string,
-): { kind: IssueKind; body: string } | null {
+    { canAttachGif = false }: CommandOptions = {},
+): { kind: SlashCommandKind; body: string } | null {
+    if (canAttachGif && /^\/gif\s+$/.test(body)) {
+        return { kind: 'gif', body: '' };
+    }
+
     const match = /^\/(feature|bug)\s/.exec(body);
 
     return match

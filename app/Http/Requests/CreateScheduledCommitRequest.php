@@ -43,6 +43,7 @@ final class CreateScheduledCommitRequest extends FormRequest
             'link_preview_url' => ['nullable', 'string', Rule::in(is_string($body) ? resolve(Urls::class)->all($body) : [])],
             ...CreateCommitRequest::guildRules($this),
             ...CreateCommitRequest::attachmentRules(),
+            'gif_id' => ['prohibited'],
         ];
     }
 

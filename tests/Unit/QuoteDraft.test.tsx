@@ -15,14 +15,17 @@ const draft = {
     body: 'A restored quote',
     images: [image],
     descriptions: ['A restored screenshot'],
+    gif: null,
     isRestored: true,
     updateBody: vi.fn(),
     updateImages,
+    updateGif: vi.fn(),
     drop,
 };
 
 vi.doMock('react', () => ({
     ...React,
+    useEffect: () => {},
     useId: () => 'quote',
     useLayoutEffect: (effect: () => void | (() => void)) => effect(),
     useMemo: (factory: () => unknown) => factory(),
@@ -36,7 +39,7 @@ vi.doMock('react', () => ({
 }));
 vi.doMock('@inertiajs/react', async () => ({
     ...(await vi.importActual('@inertiajs/react')),
-    usePage: () => ({ props: { auth: { organizations: [], user } } }),
+    usePage: () => ({ props: { auth: { organizations: [], user }, gif: null } }),
 }));
 vi.doMock('../../resources/js/hooks/use-user', () => ({
     useUser: () => ({ user }),
@@ -61,8 +64,12 @@ const { ColorSwatchHint } =
     await import('../../resources/js/components/color-swatch-hint');
 const { CommitQuoteButton } =
     await import('../../resources/js/components/commit-quote-button');
-const { ImagePickerButton, ImagePickerPreviews } =
-    await import('../../resources/js/components/commit-image-picker');
+const { ComposerMediaButton } = await import(
+    '../../resources/js/components/commit-image-picker'
+);
+const { ImagePickerPreviews } = await import(
+    '../../resources/js/components/commit-image-picker'
+);
 const { StashLabel } =
     await import('../../resources/js/components/stash-label');
 const { LinkCardPicker } =
@@ -257,14 +264,16 @@ test('quotes submit restored images and clear the complete draft only on success
     assert.deepEqual(previews.props.images, [image]);
 
     const picker = fields.find(
-        (element) => element.type === ImagePickerButton,
+        (element) => element.type === ComposerMediaButton,
     )!;
     assert.equal(picker.props.count, 1);
     const added = new File(['new'], 'new.png', {
         type: 'image/png',
         lastModified: 1,
     });
-    await (picker.props.onPick as (files: File[]) => Promise<void>)([added]);
+    await (picker.props.onPickImages as (files: File[]) => Promise<void>)([
+        added,
+    ]);
     const [pickedImages, descriptions] = updateImages.mock.lastCall as [
         File[],
         string[],
