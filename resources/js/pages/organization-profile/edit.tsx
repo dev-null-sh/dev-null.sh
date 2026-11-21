@@ -1,7 +1,9 @@
 import { Form, Head, router } from '@inertiajs/react';
 import type { CSSProperties } from 'react';
 import { useState } from 'react';
+import OrganizationEmbedsController from '@/actions/App/Http/Controllers/OrganizationEmbedsController';
 import OrganizationLaneController from '@/actions/App/Http/Controllers/OrganizationLaneController';
+import { EmbedsSetting } from '@/components/embeds-setting';
 import Heading from '@/components/heading';
 import InputError from '@/components/input-error';
 import { LaneOptions } from '@/components/lane-picker';
@@ -12,7 +14,13 @@ import OrganizationSettingsLayout from '@/layouts/organization-settings/layout';
 import { organizationLaneColor, withViewTransition } from '@/lib/utils';
 import type { Lane, Organization } from '@/types';
 
-export default function Edit({ organization }: { organization: Organization }) {
+export default function Edit({
+    organization,
+    allowsEmbeds,
+}: {
+    organization: Organization;
+    allowsEmbeds: boolean;
+}) {
     const { lane } = organization;
     const [selected, setSelected] = useState<Lane | null>(lane);
 
@@ -98,6 +106,16 @@ export default function Edit({ organization }: { organization: Organization }) {
                     )}
                 </Form>
             </section>
+
+            <div className="border-t">
+                <EmbedsSetting
+                    enabled={allowsEmbeds}
+                    url={OrganizationEmbedsController.update.url(
+                        organization.id,
+                    )}
+                    owner={`@${organization.handle}'s`}
+                />
+            </div>
         </>
     );
 }

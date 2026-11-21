@@ -28,6 +28,7 @@ use LogicException;
  * @property-read string|null $website
  * @property-read CarbonInterface|null $github_synced_at
  * @property-read int|null $preferred_lane
+ * @property-read bool $allows_embeds
  * @property-read string|null $lane_color
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
@@ -61,6 +62,13 @@ final class Organization extends Model
     protected $with = ['profile'];
 
     /**
+     * @var array<string, mixed>
+     */
+    protected $attributes = [
+        'allows_embeds' => true,
+    ];
+
+    /**
      * @return array<string, string>
      */
     public function casts(): array
@@ -69,6 +77,7 @@ final class Organization extends Model
             'id' => 'string',
             'preferred_lane' => 'integer',
             'lane_color' => 'string',
+            'allows_embeds' => 'boolean',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
         ];
