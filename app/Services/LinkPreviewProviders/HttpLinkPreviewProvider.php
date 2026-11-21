@@ -10,6 +10,7 @@ use Dom\HTMLDocument;
 use GuzzleHttp\Exception\ResponseException;
 use GuzzleHttp\Psr7\Utils;
 use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\HttpClientException;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
@@ -93,7 +94,7 @@ final readonly class HttpLinkPreviewProvider implements LinkPreviewProvider
 
             if (! $response->redirect()) {
                 return $response->successful() && $this->isHtml($response)
-                    ? $this->parse($this->body($response), $page)
+                    ? $this->preferRepositoryImage($this->parse($this->body($response), $page), $page)
                     : self::NO_METADATA;
             }
 
@@ -101,6 +102,34 @@ final readonly class HttpLinkPreviewProvider implements LinkPreviewProvider
         }
 
         return self::NO_METADATA;
+    }
+
+    /**
+     * GitHub release tags use generated cards even when the repository has a custom social image.
+     *
+     * @param  Metadata  $metadata
+     * @return Metadata
+     */
+    private function preferRepositoryImage(array $metadata, Url $page): array
+    {
+        if ($page->getScheme() !== 'https'
+            || $page->getAsciiHost() !== 'github.com'
+            || preg_match('#^/([^/]+/[^/]+)/releases/tag/.+$#', $page->getPath(), $matches) !== 1
+            || Url::parse($metadata['image_url'] ?? '')?->getAsciiHost() !== 'opengraph.githubassets.com') {
+            return $metadata;
+        }
+
+        try {
+            $repository = $this->metadata('https://github.com/'.$matches[1]);
+        } catch (HttpClientException) {
+            return $metadata;
+        }
+
+        if (Url::parse($repository['image_url'] ?? '')?->getAsciiHost() === 'repository-images.githubusercontent.com') {
+            $metadata['image_url'] = $repository['image_url'];
+        }
+
+        return $metadata;
     }
 
     /**
