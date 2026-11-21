@@ -11,6 +11,7 @@ export function ModerationTabs({
 }: {
     active: 'pending' | 'reports' | 'people' | 'bulk' | 'guilds';
 }) {
+    const { auth } = usePage().props;
     const hasGuilds = usePage().props.guilds != null;
     return (
         <PageTabs
@@ -27,17 +28,24 @@ export function ModerationTabs({
                     href: index(),
                     isActive: active === 'reports',
                 },
-                {
-                    title: 'Timeouts & bans',
-                    shortTitle: 'People',
-                    href: people(),
-                    isActive: active === 'people',
-                },
-                {
-                    title: 'Bulk',
-                    href: bulk(),
-                    isActive: active === 'bulk',
-                },
+                ...(auth.canModerate
+                    ? [
+                          {
+                              title: 'Timeouts & bans',
+                              href: people(),
+                              isActive: active === 'people',
+                          },
+                      ]
+                    : []),
+                ...(auth.isAdmin
+                    ? [
+                          {
+                              title: 'Bulk',
+                              href: bulk(),
+                              isActive: active === 'bulk',
+                          },
+                      ]
+                    : []),
                 ...(hasGuilds
                     ? [
                           {

@@ -52,6 +52,7 @@ export type Auth = {
      */
     organizations: OrganizationAuthor[];
     isAdmin: boolean;
+    canModerate: boolean;
     automaticTranslation: boolean;
     /**
      * The language the reader reads translations in, saved or from the browser.
