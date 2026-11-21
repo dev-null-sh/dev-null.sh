@@ -140,8 +140,9 @@ final readonly class CreateExport
             'dismissed_suggestions' => $this->handles($user->dismissedSuggestions()),
             'organizations' => $this->organizations($user),
             'followed_organizations' => $this->followedOrganizations($user),
-            'guilds' => Guild::query()->where('user_id', $user->id)->orderBy('handle')->get()->map(fn (Guild $guild): array => [
+            'guilds' => Guild::query()->with('aliases')->where('user_id', $user->id)->orderBy('handle')->get()->map(fn (Guild $guild): array => [
                 ...$guild->toArray(),
+                'aliases' => $guild->aliases->pluck('handle')->all(),
                 'icon' => $guild->icon_path === null ? null : route('guild-icon.show', $guild->handle),
                 'pinned_commit_id' => $guild->pinned_commit_id,
                 'created_at' => $guild->created_at->toIso8601String(),

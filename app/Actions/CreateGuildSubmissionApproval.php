@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Exceptions\GuildHandleTaken;
 use App\Exceptions\GuildModeratorRemoved;
 use App\Models\Guild;
 use App\Models\GuildSubmission;
@@ -20,7 +21,7 @@ final readonly class CreateGuildSubmissionApproval
     /**
      * Publishes the submission as if it had passed the moderation: an edit when its author still moderates the guild,
      * otherwise a new guild, which claims a paused one and leaves one someone else moderates alone. An author removed
-     * from the guild meanwhile gets nothing.
+     * from the guild meanwhile gets nothing, and neither does a hashtag that became another guild's alias.
      */
     public function handle(?GuildSubmission $submission): void
     {
@@ -43,7 +44,7 @@ final readonly class CreateGuildSubmissionApproval
                 } else {
                     $this->createGuild->handle($submission->user, $submission->handle, $submission->name, $submission->description, $submission->emoji, $submission->icon_path);
                 }
-            } catch (GuildModeratorRemoved) {
+            } catch (GuildHandleTaken|GuildModeratorRemoved) {
                 //
             }
 

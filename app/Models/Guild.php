@@ -6,13 +6,17 @@ namespace App\Models;
 
 use Carbon\CarbonInterface;
 use Database\Factories\GuildFactory;
+use Illuminate\Contracts\Database\Eloquent\Builder as BuilderContract;
 use Illuminate\Database\Eloquent\Attributes\Visible;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Facades\URL;
+use Override;
 
 /**
  * @property-read string $id
@@ -41,6 +45,38 @@ final class Guild extends Model
     public function commits(): HasMany
     {
         return $this->hasMany(Commit::class);
+    }
+
+    /** @return HasMany<GuildAlias, $this> */
+    public function aliases(): HasMany
+    {
+        return $this->hasMany(GuildAlias::class)->orderBy('handle');
+    }
+
+    /**
+     * The hashtags that bring a commit to the guild: its handle, then its aliases.
+     *
+     * @return list<string>
+     */
+    public function hashtags(): array
+    {
+        return [$this->handle, ...$this->aliases->map(fn (GuildAlias $alias): string => $alias->handle)->all()];
+    }
+
+    /**
+     * Resolves "guilds/{handle}" URLs by the guild's handle or by one of its aliases.
+     *
+     * @param  Model|BuilderContract|Relation<Model, Model, mixed>  $query
+     * @param  mixed  $value
+     * @param  string|null  $field
+     */
+    #[Override]
+    public function resolveRouteBindingQuery($query, $value, $field = null): BuilderContract
+    {
+        return $field === 'handle'
+            ? parent::resolveRouteBindingQuery($query, self::query()->select('id')->where('handle', $value)
+                ->orWhereHas('aliases', fn (Builder $aliases): Builder => $aliases->where('guild_aliases.handle', $value))->limit(1), 'id')
+            : parent::resolveRouteBindingQuery($query, $value, $field);
     }
 
     /** @return BelongsToMany<User, $this> */

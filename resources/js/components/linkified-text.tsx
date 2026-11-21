@@ -16,6 +16,7 @@ import { UserPreview } from '@/components/user-preview';
 import { typedProse, withoutCode } from '@/lib/code';
 import type { Color } from '@/lib/colors';
 import { colorsIn } from '@/lib/colors';
+import { guildFor } from '@/lib/guilds';
 import { hashtagPattern } from '@/lib/hashtags';
 import { mentionPattern } from '@/lib/mentions';
 import { pasteisParts } from '@/lib/pasteis';
@@ -635,10 +636,7 @@ export function Hashtag({
 }) {
     const { auth, guilds } = usePage().props;
     const guild =
-        postedGuild ??
-        guilds?.find(
-            (guild) => guild.handle === hashtag.slice(1).toLowerCase(),
-        );
+        postedGuild ?? guildFor(guilds, hashtag.slice(1).toLowerCase());
 
     if (guild) {
         const canOpenGuild = !!auth.user && !!guilds;

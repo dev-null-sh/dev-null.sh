@@ -14,6 +14,7 @@ import { rememberSearch, useRecentSearches } from '@/hooks/use-recent-searches';
 import AppLayout from '@/layouts/app-layout';
 import { searchCommits } from '@/lib/commit-search';
 import { CommitSearchResults } from '@/lib/commit-search-results';
+import { guildFor } from '@/lib/guilds';
 
 const skeletonDelay = 300;
 
@@ -159,7 +160,7 @@ function HashtagGuild({ term }: { term: string }) {
         return null;
     }
 
-    const guild = guilds.find((guild) => guild.handle === handle);
+    const guild = guildFor(guilds, handle);
 
     return (
         <div className="flex items-center justify-between gap-3 border-b px-4 py-4 sm:px-6">
@@ -175,7 +176,7 @@ function HashtagGuild({ term }: { term: string }) {
                         </span>
                     </div>
                     <Button asChild variant="outline">
-                        <Link prefetch href={showGuild(handle)}>
+                        <Link prefetch href={showGuild(guild.handle)}>
                             View guild
                         </Link>
                     </Button>
