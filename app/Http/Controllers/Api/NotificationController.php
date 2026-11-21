@@ -22,20 +22,22 @@ final readonly class NotificationController
     /**
      * The notifications grouped and filtered by ?type= like the web does it. As on the web, listing them marks every
      * notification as read, whatever the filter, and read_at says when, so the ones read since then are the new ones.
-     * A commit comes with its author and the commit it replies to, when the user may see it.
+     * A commit comes with its author and the commit it replies to, when the user may see it. As on the web, a quote
+     * comes with the user's own commit it quotes, and a starred commit with its images.
      */
     public function index(ListNotificationsRequest $request, #[CurrentUser] User $user, NotificationGroupsQuery $query, UpdateNotificationsReadAt $action): AnonymousResourceCollection
     {
         $readAt = $action->handle($user, CarbonImmutable::now());
         $type = $request->type($user);
 
-        $notifications = $query->paginate($user, $type, $request->through());
+        $notifications = $query->withStarredCommitImages($query->withQuotedCommits($user, $query->paginate($user, $type, $request->through())));
 
         /** @var array<int, Notification> $items */
         $items = $notifications->items();
 
         new Collection($items)->loadMissing([
             'commit.author',
+            'commit.quotedCommit.author',
             'timeout',
             'commit.parent' => fn (BelongsTo $query): BelongsTo => $query
                 ->where(fn (CommitBuilder $query): CommitBuilder => $query->visibleTo($user))

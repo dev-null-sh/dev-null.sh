@@ -7,6 +7,7 @@ use App\Actions\DeleteUserFollow;
 use App\Enums\CommitStatus;
 use App\Enums\NotificationType;
 use App\Models\Commit;
+use App\Models\CommitImage;
 use App\Models\Notification;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -91,6 +92,7 @@ it('lists the notifications of the user, newest first', function (): void {
                     'quoted_commit_id' => null,
                 ],
                 'quoted_commit_id' => null,
+                'quoted_commit' => null,
             ],
         ])
         ->assertJsonPath('data.1.id', $followed->id)
@@ -216,12 +218,53 @@ it('does not query each notification', function (): void {
     // Two followers make a group with stacked actors, which takes the same queries however many there are...
     Notification::factory()->for($this->user, 'recipient')->count(2)->create();
     Notification::factory()->for($this->user, 'recipient')->replied()->create();
+    Notification::factory()->for($this->user, 'recipient')->quoted()->create();
+    Notification::factory()->for($this->user, 'recipient')->starred()->create();
     $few = $queries();
 
     Notification::factory()->for($this->user, 'recipient')->count(3)->create();
     Notification::factory()->for($this->user, 'recipient')->replied()->count(3)->create();
+    Notification::factory()->for($this->user, 'recipient')->quoted()->count(3)->create();
+    Notification::factory()->for($this->user, 'recipient')->starred()->count(3)->create();
 
     expect($queries())->toBe($few);
+});
+
+it('shows quotes with the users own commit they quote, as the web does, and never commits quoted by others', function (): void {
+    $quote = Notification::factory()->for($this->user, 'recipient')->quoted()->create();
+    $deleted = Notification::factory()->for($this->user, 'recipient')->quoted()->create(['created_at' => now()->subMinute()]);
+    $deleted->commit->quotedCommit->delete();
+
+    $reply = Notification::factory()->for($this->user, 'recipient')->replied()->create(['created_at' => now()->subMinutes(2)]);
+    $reply->commit->update(['quoted_commit_id' => Commit::factory()->pending()->create()->id]);
+
+    signedApiRequest($this->keyPair, 'GET', route('api-notification.index'))
+        ->assertOk()
+        ->assertJsonCount(3, 'data')
+        ->assertJsonPath('data.0.commit.quoted_commit.id', $quote->commit->quoted_commit_id)
+        ->assertJsonPath('data.0.commit.quoted_commit.body', $quote->commit->quotedCommit->body)
+        ->assertJsonPath('data.0.commit.quoted_commit.author.id', $this->user->id)
+        ->assertJsonPath('data.1.commit.quoted_commit.id', $deleted->commit->quoted_commit_id)
+        ->assertJsonPath('data.1.commit.quoted_commit.deleted_at', fn (?string $deletedAt): bool => $deletedAt !== null)
+        ->assertJsonMissingPath('data.1.commit.quoted_commit.body')
+        ->assertJsonPath('data.2.commit.quoted_commit_id', $reply->commit->quoted_commit_id)
+        ->assertJsonPath('data.2.commit.quoted_commit', null);
+});
+
+it('shows the images of a starred commit, as the web does', function (): void {
+    $commit = Commit::factory()->for($this->user)->create(['body' => '']);
+    $image = CommitImage::factory()->for($commit)->create();
+    resolve(CreateCommitStar::class)->handle(User::factory()->create(), $commit);
+    Notification::factory()->for($this->user, 'recipient')->replied()->create(['created_at' => now()->subMinute()]);
+
+    signedApiRequest($this->keyPair, 'GET', route('api-notification.index'))
+        ->assertOk()
+        ->assertJsonPath('data.0.type', 'starred')
+        ->assertJsonCount(1, 'data.0.commit.images')
+        ->assertJsonPath('data.0.commit.images.0.id', $image->id)
+        ->assertJsonPath('data.0.commit.images.0.url', route('commit-image.show', $image))
+        ->assertJsonPath('data.1.type', 'replied')
+        ->assertJsonMissingPath('data.1.commit.images');
 });
 
 it('groups stars per commit, newest stargazer first, like the web', function (): void {
