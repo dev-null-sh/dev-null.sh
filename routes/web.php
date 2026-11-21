@@ -60,6 +60,7 @@ use App\Http\Controllers\FailedJobRetryController;
 use App\Http\Controllers\FailedJobsController;
 use App\Http\Controllers\FeatureController;
 use App\Http\Controllers\ForecastController;
+use App\Http\Controllers\GuildAliasController;
 use App\Http\Controllers\GuildCommitPinController;
 use App\Http\Controllers\GuildController;
 use App\Http\Controllers\GuildIconController;
@@ -379,6 +380,8 @@ Route::middleware('auth')->group(function (): void {
     Route::get('guilds/{guild:handle}/icon', [GuildIconController::class, 'show'])->name('guild-icon.show');
     Route::post('guilds', [GuildController::class, 'store'])->middleware([PreventPostingInTimeout::class, 'throttle:10,1'])->name('guild.store');
     Route::put('guilds/{guild:handle}', [GuildController::class, 'update'])->middleware([PreventPostingInTimeout::class, 'throttle:10,1'])->name('guild.update');
+    Route::post('guilds/{guild:handle}/aliases', [GuildAliasController::class, 'store'])->middleware([PreventPostingInTimeout::class, 'throttle:10,1'])->name('guild-alias.store');
+    Route::delete('guilds/{guild:handle}/aliases/{alias:handle}', [GuildAliasController::class, 'destroy'])->middleware('throttle:10,1')->name('guild-alias.destroy');
     Route::put('guilds/{guild:handle}/commits/{commit}/pin', [GuildCommitPinController::class, 'update'])
         ->whereUuid('commit')->withTrashed()->middleware('throttle:pins')->name('guild-commit-pin.update');
     Route::put('guild-memberships/{guild}', [GuildMembershipController::class, 'update'])->whereUuid('guild')->middleware('throttle:follows')->name('guild-membership.update');

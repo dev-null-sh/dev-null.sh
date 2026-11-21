@@ -10,7 +10,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
  * A guild as the web's Guilds page shows it, with whether the user joined or muted it. A guild without a moderator is
- * paused.
+ * paused. Its aliases are the other hashtags that lead to it.
  *
  * On API routes, icon_url is signed for the user, as the app has no web session, and stays the same all day so the app
  * can cache it.
@@ -26,6 +26,7 @@ final class GuildResource extends JsonResource
     {
         return [
             'handle' => $this->handle,
+            'aliases' => $this->aliases->pluck('handle')->all(),
             'name' => $this->name,
             'description' => $this->description,
             'emoji' => $this->emoji,
