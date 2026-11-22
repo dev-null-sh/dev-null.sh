@@ -663,6 +663,19 @@ test('a restored slash only opens the command menu while the composer is focused
     assert.equal(hasSuggestions(), false);
 });
 
+test('the command menu floats from the field it belongs to', () => {
+    draft.body = '/';
+    focus(render());
+    const view = render();
+    const suggestions = view.fields.find(
+        (element) => element.type === IssueCommandSuggestions,
+    )!;
+    const textarea = view.fields.find(
+        (element) => element.type === MentionTextarea,
+    )!;
+    assert.equal(suggestions.props.anchor, textarea.props.ref);
+});
+
 test('typing a command and a space turns the draft into an issue, and backspace turns it back into a commit', () => {
     draft.body = '/bu';
     focus(render());
