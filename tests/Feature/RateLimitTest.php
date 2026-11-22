@@ -6,6 +6,8 @@ use App\Models\Commit;
 use App\Models\Message;
 use App\Models\Organization;
 use App\Models\User;
+use Illuminate\Routing\Route as RoutingRoute;
+use Illuminate\Support\Facades\Route;
 
 dataset('rate limits', [
     'stars' => [
@@ -194,6 +196,29 @@ it('keeps each signed-in action’s minute limit apart from the others', functio
     $this->postJson(route('push-subscription.store'))->assertForbidden();
     $this->postJson(route('organization-admin.store', $organization))->assertRedirect();
     $this->postJson(route('organization-member.store', $organization))->assertNotFound();
+});
+
+it('keeps the guild and export minute limits apart from each other', function (): void {
+    $this->actingAs(User::factory()->create());
+
+    foreach (range(1, 10) as $attempt) {
+        $this->postJson(route('guild-report.store', '019a0000-0000-7000-8000-000000000001'))->assertNotFound();
+    }
+
+    $this->get(route('export'))->assertOk();
+    $this->postJson(route('guild.store'))->assertNotFound();
+    $this->putJson(route('guild.update', 'nobody'))->assertNotFound();
+});
+
+it('gives every per-minute limit its own counter', function (): void {
+    $shared = collect(Route::getRoutes()->getRoutes())
+        ->filter(fn (RoutingRoute $route): bool => collect($route->gatherMiddleware())
+            ->contains(fn (mixed $middleware): bool => is_string($middleware) && preg_match('/^throttle:\d+,\d+$/', $middleware) === 1))
+        ->map(fn (RoutingRoute $route): string => $route->getName() ?? $route->uri())
+        ->values()
+        ->all();
+
+    expect($shared)->toBe([]);
 });
 
 it('keeps each guest route’s minute limit apart from the others', function (): void {
