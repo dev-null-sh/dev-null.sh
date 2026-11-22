@@ -38,6 +38,7 @@ use App\Http\Controllers\CommitStarController;
 use App\Http\Controllers\CommitStarCountController;
 use App\Http\Controllers\CommitStatusController;
 use App\Http\Controllers\CommitTranslationController;
+use App\Http\Controllers\ContributorRequestController;
 use App\Http\Controllers\ConversationArchiveController;
 use App\Http\Controllers\ConversationCallController;
 use App\Http\Controllers\ConversationCallIceServerController;
@@ -372,7 +373,13 @@ Route::get('search', [SearchController::class, 'index'])
     ->middleware('auth')
     ->name('search.index');
 
+Route::get('help-wanted', [ContributorRequestController::class, 'index'])->name('contributor-request.index');
 Route::middleware('auth')->group(function (): void {
+    Route::get('help-wanted/create', [ContributorRequestController::class, 'create'])->name('contributor-request.create');
+    Route::post('help-wanted', [ContributorRequestController::class, 'store'])
+        ->middleware([PreventPostingInTimeout::class, RequireCommitRules::class, ThrottleCommits::class])->name('contributor-request.store');
+    Route::put('help-wanted/{contributorRequest}', [ContributorRequestController::class, 'update'])
+        ->whereUuid('contributorRequest')->middleware([PreventPostingInTimeout::class, 'throttle:20,1,contributor-requests:'])->name('contributor-request.update');
     Route::get('guilds', [GuildController::class, 'index'])->name('guild.index');
     Route::get('guilds/{guild:handle}', [GuildController::class, 'show'])->name('guild.show');
     Route::get('guilds/{guild:handle}/members', [GuildMembershipController::class, 'index'])->name('guild-membership.index');

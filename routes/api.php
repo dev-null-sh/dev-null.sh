@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\CommitRestorationController;
 use App\Http\Controllers\Api\CommitSearchController;
 use App\Http\Controllers\Api\CommitStarController;
 use App\Http\Controllers\Api\CommitTranslationController;
+use App\Http\Controllers\Api\ContributorRequestController;
 use App\Http\Controllers\Api\ConversationArchiveController;
 use App\Http\Controllers\Api\ConversationCallController;
 use App\Http\Controllers\Api\ConversationCallIceServerController;
@@ -120,6 +121,7 @@ Route::prefix('cli')->group(function (): void {
 Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
     // Public, or as the web shows them to the user when signed by the mobile app...
     Route::middleware(AuthenticateSignedRequest::optional())->group(function (): void {
+        Route::get('help-wanted', [ContributorRequestController::class, 'index'])->name('api-contributor-request.index');
         Route::get('users/{user:handle}', [UserController::class, 'show'])
             ->name('api-user.show');
         Route::get('users/{user:handle}/commits', [UserCommitController::class, 'index'])
@@ -160,6 +162,10 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
 
     // Signed by the mobile app with an SSH key that the user approved as a device...
     Route::middleware(AuthenticateSignedRequest::class)->group(function (): void {
+        Route::post('help-wanted', [ContributorRequestController::class, 'store'])
+            ->middleware([PreventPostingInTimeout::class, RequireCommitRules::class, ThrottleCommits::class])->name('api-contributor-request.store');
+        Route::put('help-wanted/{contributorRequest}', [ContributorRequestController::class, 'update'])
+            ->whereUuid('contributorRequest')->middleware([PreventPostingInTimeout::class, 'throttle:20,1,contributor-requests:'])->name('api-contributor-request.update');
         Route::get('me', [CurrentUserController::class, 'show'])->name('api-current-user.show');
 
         // Live updates, on the user's own private channel...

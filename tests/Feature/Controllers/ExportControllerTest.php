@@ -97,7 +97,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
     $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
 
     expect($data)->toBe([
-        'schema_version' => 9,
+        'schema_version' => 10,
         'exported_at' => now()->toIso8601String(),
         'profile' => [
             'github_id' => $user->github_id,
@@ -139,6 +139,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
             'updated_at' => $user->updated_at->toIso8601String(),
         ],
         'active_days' => [['date' => now()->toDateString(), 'web_app' => true, 'native_mobile_app' => false, 'lite_mobile_app' => false, 'mac_app' => false, 'other_app' => false]],
+        'contributor_requests' => [],
         'commits' => [],
         'organization_commits' => [],
         'polls' => [],
