@@ -224,6 +224,30 @@ test('suggests text expansions for the slash command being typed and inserts the
     assert.deepEqual(target.setSelectionRange.mock.calls, [[13, 13]]);
 });
 
+test('puts the caret right after the text picked when the space after it would go over the limit', () => {
+    state[0] = { kind: 'expansion', start: 3, query: 'sh' };
+    cursor = 0;
+    effects = [];
+    const onValueChange = vi.fn();
+    const fields = elements(
+        MentionTextarea({ value: 'ok /sh!', onValueChange, maxLength: 13 }),
+    );
+    const option = fields.find((element) => element.props.role === 'option')!;
+    const textarea = fields.find((element) => element.type === 'textarea')!;
+    const target = {
+        selectionStart: 6,
+        focus: vi.fn(),
+        setSelectionRange: vi.fn(),
+    };
+    (textarea.props.ref as (element: unknown) => void)(target);
+    vi.stubGlobal('requestAnimationFrame', (callback: () => void) =>
+        callback(),
+    );
+    (option.props.onClick as () => void)();
+    assert.deepEqual(onValueChange.mock.calls, [['ok ¯\\_(ツ)_/¯!']]);
+    assert.deepEqual(target.setSelectionRange.mock.calls, [[12, 12]]);
+});
+
 test('keeps the text expansions closed as soon as the field opts out, even with a command already found', () => {
     state[0] = { kind: 'expansion', start: 0, query: '' };
     cursor = 0;

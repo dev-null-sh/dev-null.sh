@@ -595,9 +595,12 @@ export function MentionTextarea({
         const after = value.slice(caret);
         const spacing = /^\s/u.test(after) ? '' : separator;
         let next = `${value.slice(0, trigger.start)}${text}${spacing}${after}`;
+        // The caret skips the separator only when the text keeps one: added here, or already there.
+        let skipped = separator.length;
 
         if (maxLength !== undefined && characterCount(next) > maxLength) {
             next = `${value.slice(0, trigger.start)}${text}${after}`;
+            skipped = spacing === '' ? skipped : 0;
         }
 
         if (maxLength !== undefined && characterCount(next) > maxLength) {
@@ -609,7 +612,7 @@ export function MentionTextarea({
         const nextCaret =
             trigger.kind === 'issue'
                 ? textarea.selectionStart + next.length - value.length
-                : trigger.start + text.length + separator.length;
+                : trigger.start + text.length + skipped;
 
         onValueChange(next);
         close();
