@@ -66,6 +66,7 @@ final class CreateApiScheduledCommitRequest extends FormRequest
     {
         return [
             'image_descriptions.*' => 'image description',
+            'poll.options.*' => 'option :position',
         ];
     }
 
