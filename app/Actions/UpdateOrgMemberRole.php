@@ -6,6 +6,7 @@ namespace App\Actions;
 
 use App\Enums\OrgEvent;
 use App\Enums\OrgRole;
+use App\Exceptions\OrgNeedsMaintainer;
 use App\Models\Conversation;
 use App\Models\ConversationParticipant;
 use App\Models\User;
@@ -18,9 +19,24 @@ final readonly class UpdateOrgMemberRole
         //
     }
 
+    /**
+     * The org is locked first, as messages, reactions and new members lock it. Without it, two maintainers stepping
+     * down at the same moment both pass the request's check, and the events they record deadlock on each other's
+     * rows. So the last maintainer is checked again here, and the second one to step down is refused.
+     *
+     * @throws OrgNeedsMaintainer
+     */
     public function handle(User $actor, Conversation $org, User $member, OrgRole $role): void
     {
         DB::transaction(function () use ($actor, $org, $member, $role): void {
+            Conversation::query()->whereKey($org->id)->lockForUpdate()->firstOrFail();
+
+            $otherMaintainers = $org->participants()->where('role', OrgRole::Maintainer)->where('user_id', '!=', $member->id);
+
+            if ($role === OrgRole::Contributor && $otherMaintainers->doesntExist()) {
+                throw new OrgNeedsMaintainer;
+            }
+
             $updated = ConversationParticipant::query()
                 ->where('conversation_id', $org->id)
                 ->where('user_id', $member->id)
