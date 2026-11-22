@@ -348,3 +348,19 @@ it('names which commits a queue loaded were decided or deleted since, so a queue
     ])->assertOk()
         ->assertJsonPath('props.decidedCommitIds', fn (array $ids): bool => collect($ids)->sort()->values()->all() === collect([$approved->id, $deleted->id])->sort()->values()->all());
 });
+
+it('renders the pending queue for a moderator', function (): void {
+    config(['app.moderators' => ['maude']]);
+
+    $moderator = User::factory()->create(['handle' => 'maude']);
+    Commit::factory()->pending()->checkedByAi()->create(['body' => 'Needs review']);
+
+    $response = $this->actingAs($moderator)
+        ->get(route('moderation.show'));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('moderation/show')
+            ->has('commits.data', 1)
+            ->where('commits.data.0.body', 'Needs review'));
+});

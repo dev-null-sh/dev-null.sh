@@ -13,7 +13,7 @@ final class ListGuildReportsRequest extends FormRequest
 {
     public function authorize(Features $features): Response
     {
-        return $this->user()?->isAdmin() && $features->available(Feature::Guilds, $this->user())
+        return $this->user()?->canModerate() && $features->available(Feature::Guilds, $this->user())
             ? Response::allow() : Response::denyAsNotFound();
     }
 

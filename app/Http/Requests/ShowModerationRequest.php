@@ -15,7 +15,7 @@ final class ShowModerationRequest extends FormRequest
         $user = $this->user();
         assert($user instanceof User);
 
-        return $user->isAdmin();
+        return $user->canModerate();
     }
 
     /**

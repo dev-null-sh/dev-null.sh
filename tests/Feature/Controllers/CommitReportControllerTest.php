@@ -285,6 +285,20 @@ it('restricts the reports queue and resolution to moderators including the repor
     expect($report->refresh()->dismissed_at)->toBeNull();
 });
 
+it('lets a moderator dismiss a report without touching bans', function (): void {
+    config(['app.moderators' => ['maude']]);
+
+    $report = CommitReport::factory()->create();
+    $moderator = User::factory()->create(['handle' => 'maude']);
+
+    $this->actingAs($moderator)
+        ->fromRoute('reported-commit.index')
+        ->delete(route('commit-report.destroy', $report))
+        ->assertRedirectToRoute('reported-commit.index');
+
+    expect($report->refresh()->dismissed_at)->not->toBeNull();
+});
+
 it('lists only unresolved reports on live published content oldest first without reporter identity', function (): void {
     $admin = User::factory()->create(['handle' => 'moderator-demo']);
     $older = CommitReport::factory()->create(['created_at' => now()->subHour(), 'details' => 'Review this context.']);

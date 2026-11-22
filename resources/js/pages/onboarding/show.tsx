@@ -994,7 +994,7 @@ export default function Show({
             <KeyboardShortcutsDialog
                 open={isShowingShortcuts}
                 onOpenChange={setIsShowingShortcuts}
-                canModerate={auth.isAdmin}
+                canModerate={auth.canModerate}
                 hasRemotes={auth.remotes !== null}
             />
         </>

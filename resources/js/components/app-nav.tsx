@@ -119,7 +119,7 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
         ...(guilds !== null && guilds !== undefined
             ? [{ title: 'Guilds', href: guildIndex(), icon: UsersRound }]
             : []),
-        ...(auth.isAdmin
+        ...(auth.canModerate
             ? [
                   {
                       title: 'Moderation',
@@ -127,11 +127,15 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
                       icon: ShieldCheck,
                       hasIndicator: hasUnmoderatedCommits,
                   },
-                  {
-                      title: 'Operations',
-                      href: OperationsController.show(),
-                      icon: Activity,
-                  },
+                  ...(auth.isAdmin
+                      ? [
+                            {
+                                title: 'Operations',
+                                href: OperationsController.show(),
+                                icon: Activity,
+                            },
+                        ]
+                      : []),
               ]
             : []),
         {
