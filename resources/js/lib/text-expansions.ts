@@ -51,31 +51,41 @@ export function suggestedExpansions(body: string): TextExpansion[] {
     return /^\/[a-z0-9-]*$/.test(body) ? expansionsStartingWith(body) : [];
 }
 
-function expand(text: string): string {
-    if (!text.includes('/')) {
-        return text;
-    }
-
-    return mapTypedProse(text, (prose) =>
-        prose.replace(
-            commandPattern,
-            (_, before: string, name: string) => before + textByName.get(name),
-        ),
-    );
-}
-
 /**
  * A command typed at the start of the text or after a space becomes its text once a space or a new line ends it, as on
- * Slack. Code is left as typed.
+ * Slack. Code is left as typed. A caret after a command moves with its text, and one inside it goes to the text's end.
  */
 export function expandTextCommands(
     text: string,
     caret: number,
 ): { text: string; caret: number } {
-    const next = text.charAt(caret);
+    if (!text.includes('/')) {
+        return { text, caret };
+    }
 
-    return {
-        text: expand(text),
-        caret: expand(text.slice(0, caret) + next).length - next.length,
-    };
+    let shift = 0;
+    let movedCaret = caret;
+
+    const expanded = mapTypedProse(text, (prose, offset) =>
+        prose.replace(
+            commandPattern,
+            (_, before: string, name: string, index: number) => {
+                const replacement = textByName.get(name) ?? name;
+                const start = offset + index + before.length;
+                const end = start + name.length;
+
+                if (caret >= end) {
+                    movedCaret += replacement.length - name.length;
+                } else if (caret > start) {
+                    movedCaret = start + shift + replacement.length;
+                }
+
+                shift += replacement.length - name.length;
+
+                return before + replacement;
+            },
+        ),
+    );
+
+    return { text: expanded, caret: movedCaret };
 }

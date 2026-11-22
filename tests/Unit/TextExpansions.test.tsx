@@ -83,6 +83,28 @@ test('keeps the caret after the text when the command is typed before a space al
     });
 });
 
+test('moves the caret after the text when the letter typed completes the command it is in', () => {
+    assert.deepEqual(expandTextCommands('/shrug later', 3), {
+        text: '¯\\_(ツ)_/¯ later',
+        caret: 9,
+    });
+});
+
+test('shifts the caret by every text before it, code included', () => {
+    assert.deepEqual(expandTextCommands('/shrug and /tableflip ', 22), {
+        text: '¯\\_(ツ)_/¯ and (╯°□°)╯︵ ┻━┻ ',
+        caret: 27,
+    });
+    assert.deepEqual(expandTextCommands('run `x` /shrug ', 15), {
+        text: 'run `x` ¯\\_(ツ)_/¯ ',
+        caret: 18,
+    });
+    assert.deepEqual(expandTextCommands('/shrug then', 0), {
+        text: '¯\\_(ツ)_/¯ then',
+        caret: 0,
+    });
+});
+
 test('keeps the command being typed until a space or a new line ends it', () => {
     assert.deepEqual(expandTextCommands('/shrug', 6), {
         text: '/shrug',
