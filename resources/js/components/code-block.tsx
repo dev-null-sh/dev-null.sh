@@ -63,6 +63,7 @@ export function CodeBlock({
 
     return (
         <div
+            dir="ltr"
             className={cn(
                 'relative isolate my-2 rounded-md border border-transparent before:pointer-events-none before:absolute before:-inset-px before:-z-10 before:rounded-md before:border before:border-border before:bg-muted/60',
                 fullHtml !== undefined &&
