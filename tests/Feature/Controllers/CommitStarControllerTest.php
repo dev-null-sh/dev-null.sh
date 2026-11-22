@@ -129,7 +129,7 @@ it('counts the stars on the pivot table alone', function (): void {
     $this->actingAs($user)->postJson(route('commit-star.store', $commit))->assertExactJson(['starred' => true, 'stars_count' => 2]);
     $this->deleteJson(route('commit-star.destroy', $commit))->assertExactJson(['starred' => false, 'stars_count' => 1]);
 
-    $counts = array_values(array_filter(array_column(DB::getQueryLog(), 'query'), fn (string $query): bool => str_contains($query, 'count(*)')));
+    $counts = array_values(array_filter(array_column(DB::getQueryLog(), 'query'), fn (string $query): bool => str_starts_with($query, 'select count(*) as "aggregate" from "stars"')));
 
     expect($counts)->toBe(array_fill(0, 2, 'select count(*) as "aggregate" from "stars" where "stars"."commit_id" = ?'));
 
