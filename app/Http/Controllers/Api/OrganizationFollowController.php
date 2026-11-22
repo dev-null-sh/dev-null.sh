@@ -15,6 +15,10 @@ use Illuminate\Http\Response;
 
 final readonly class OrganizationFollowController
 {
+    /**
+     * Follows the organization, as on the web. Following again changes nothing; an organization without a page yet is a
+     * 404.
+     */
     public function store(CreateApiOrganizationFollowRequest $request, #[CurrentUser] User $user, CreateOrganizationFollow $action): Response
     {
         $organization = $request->organization();
@@ -25,6 +29,10 @@ final readonly class OrganizationFollowController
         return response()->noContent();
     }
 
+    /**
+     * Stops following the organization. Unfollowing one the user doesn't follow changes nothing; an organization without
+     * a page yet is a 404.
+     */
     public function destroy(DeleteApiOrganizationFollowRequest $request, #[CurrentUser] User $user, DeleteOrganizationFollow $action): Response
     {
         $organization = $request->organization();

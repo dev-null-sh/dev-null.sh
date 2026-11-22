@@ -2026,6 +2026,7 @@
         "/guilds": {
             "get": {
                 "operationId": "api-guild.index",
+                "summary": "The directory of guilds as the web's Guilds page lists it: 24 a page, the most members first, searched with ?q= in\ntheir handle, name and description. Guilds are in preview: an account they aren't open to gets a 404",
                 "tags": [
                     "Guilds"
                 ],
@@ -4133,6 +4134,7 @@
         "/starred": {
             "get": {
                 "operationId": "api-starred.index",
+                "summary": "The commits the user starred, last starred first, 20 a page, as the web's Starred page lists them. Commits the user can\nno longer see are left out",
                 "tags": [
                     "Me"
                 ],
@@ -5338,6 +5340,7 @@
         "/organizations/{handle}/follow": {
             "post": {
                 "operationId": "api-organization-follow.store",
+                "summary": "Follows the organization, as on the web. Following again changes nothing; an organization without a page yet is a\n404",
                 "tags": [
                     "Organizations"
                 ],
@@ -5390,6 +5393,7 @@
             },
             "delete": {
                 "operationId": "api-organization-follow.destroy",
+                "summary": "Stops following the organization. Unfollowing one the user doesn't follow changes nothing; an organization without\na page yet is a 404",
                 "tags": [
                     "Organizations"
                 ],
@@ -10545,6 +10549,7 @@
         "/users/{handle}/follow": {
             "post": {
                 "operationId": "api-user-follow.store",
+                "summary": "Follows the user, as on the web, and lets them know the first time, unless they mute the follower. Following again\nchanges nothing; following yourself, or someone you blocked or who blocked you, is a 403",
                 "tags": [
                     "Users"
                 ],
@@ -10601,6 +10606,7 @@
             },
             "delete": {
                 "operationId": "api-user-follow.destroy",
+                "summary": "Stops following the user. Unfollowing someone the user doesn't follow changes nothing",
                 "tags": [
                     "Users"
                 ],
@@ -10791,6 +10797,7 @@
             },
             "delete": {
                 "operationId": "api-user-mute.destroy",
+                "summary": "Unmutes the user, as on the web, and answers with them and that they are no longer muted",
                 "tags": [
                     "Users"
                 ],

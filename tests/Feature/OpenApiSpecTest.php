@@ -129,6 +129,18 @@ it('answers too many requests with a message, and a code only a signed request g
         ->and($error['properties']['code']['description'])->toBe('Only a signed request gets it, and never from the pings and commit search limits.');
 });
 
+it('says what each endpoint of guilds, organizations, users and the starred commits does', function (string $method, string $path, string $summary): void {
+    expect(openApiOperation($method, $path)['summary'] ?? '')->toStartWith($summary);
+})->with([
+    'the guilds' => ['get', '/guilds', 'The directory of guilds'],
+    'following an organization' => ['post', '/organizations/{handle}/follow', 'Follows the organization'],
+    'unfollowing an organization' => ['delete', '/organizations/{handle}/follow', 'Stops following the organization'],
+    'following a user' => ['post', '/users/{handle}/follow', 'Follows the user'],
+    'unfollowing a user' => ['delete', '/users/{handle}/follow', 'Stops following the user'],
+    'unmuting a user' => ['delete', '/users/{handle}/mute', 'Unmutes the user'],
+    'the starred commits' => ['get', '/starred', 'The commits the user starred'],
+]);
+
 it('describes an author as the user or the organization it is', function (): void {
     $variants = freshOpenApiSpec()['components']['schemas']['ProfileResource']['anyOf'];
 
