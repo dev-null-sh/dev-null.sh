@@ -73,7 +73,7 @@ it('reports malformed cleanup records without deleting them', function (object $
 
     $query = Mockery::mock(Builder::class);
     $query->shouldReceive('find')->once()->with(1)->andReturn($pending);
-    DB::shouldReceive('table')->once()->with('pending_file_deletions')->andReturn($query);
+    DB::partialMock()->shouldReceive('table')->once()->with('pending_file_deletions')->andReturn($query);
 
     resolve(DeleteStoredFiles::class)->handle(1);
 
