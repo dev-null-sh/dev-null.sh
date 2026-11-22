@@ -125,3 +125,36 @@ test('shows a small poll total in full without a hover', () => {
     assert.match(summary, /<span aria-hidden="true">4 votes<\/span>/);
     assert.match(summary, /<span class="sr-only">4 votes<\/span>/);
 });
+
+test('leads to /dev/null to vote, from a poll shown on another site', () => {
+    const voteUrl = 'https://dev-null.sh/@mira/commits/019a2b3c';
+    const markup = renderPage(
+        <CommitPoll
+            commit={commit}
+            poll={pollWith(false)}
+            isStatic
+            voteUrl={voteUrl}
+        />,
+    );
+
+    assert.equal(
+        markup.match(new RegExp(`<a[^>]*href="${voteUrl}"`, 'g'))?.length,
+        labels.length,
+    );
+    assert.ok(!markup.includes('type="radio"'));
+    assert.match(markup, /Vote on \/dev\/null · /);
+});
+
+test('shows a closed poll results on another site, without a vote link', () => {
+    const markup = renderPage(
+        <CommitPoll
+            commit={commit}
+            poll={{ ...pollWith(true), is_closed: true }}
+            isStatic
+            voteUrl="https://dev-null.sh/@mira/commits/019a2b3c"
+        />,
+    );
+
+    assert.ok(markup.includes('data-test="poll-summary"'));
+    assert.doesNotMatch(markup, /Vote on \/dev\/null/);
+});

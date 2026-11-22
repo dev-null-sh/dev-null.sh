@@ -19,6 +19,11 @@ final readonly class PreventFraming
     {
         $response = $next($request);
 
+        // Commit embeds are made to be framed by other sites, and send their own policy...
+        if ($request->routeIs('commit-embed.show')) {
+            return $response;
+        }
+
         $response->headers->set('X-Frame-Options', 'DENY');
         $response->headers->set('Content-Security-Policy', implode('; ', array_filter([
             $response->headers->get('Content-Security-Policy'),

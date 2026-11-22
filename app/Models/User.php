@@ -44,6 +44,7 @@ use LogicException;
  * @property-read string|null $lane_color
  * @property-read bool $pasteis_mode
  * @property-read bool $remotes_enabled
+ * @property-read bool $allows_embeds
  * @property-read RemotesFrom $remotes_from
  * @property-read bool $pull_receipts
  * @property-read bool $push_follows
@@ -106,6 +107,7 @@ use LogicException;
     'lane_color',
     'pasteis_mode',
     'remotes_enabled',
+    'allows_embeds',
     'pushSubscriptions',
     'remotes_from',
     'pull_receipts',
@@ -173,6 +175,7 @@ final class User extends Authenticatable
         'push_mentions' => true,
         'push_direct_remotes' => true,
         'push_org_remotes' => true,
+        'allows_embeds' => true,
         'pasteis_received' => 0,
         'pasteis_given_today' => 0,
         'pasteis_given_on' => null,
@@ -216,6 +219,7 @@ final class User extends Authenticatable
             'push_mentions' => 'boolean',
             'push_direct_remotes' => 'boolean',
             'push_org_remotes' => 'boolean',
+            'allows_embeds' => 'boolean',
             'pasteis_received' => 'integer',
             'pasteis_given_today' => 'integer',
             'pasteis_given_on' => 'date',
