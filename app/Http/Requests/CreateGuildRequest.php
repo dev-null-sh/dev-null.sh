@@ -10,6 +10,7 @@ use App\Models\GuildSubmission;
 use App\Rules\FlaggedGuild;
 use App\Services\EmojiShortcodes;
 use App\Services\Features;
+use App\Services\Hashtags;
 use Closure;
 use Illuminate\Auth\Access\Response;
 use Illuminate\Foundation\Http\FormRequest;
@@ -35,7 +36,7 @@ final class CreateGuildRequest extends FormRequest
     public function rules(EmojiShortcodes $emoji): array
     {
         return [
-            'handle' => ['required', 'string', 'max:60', 'regex:/^\p{L}[\p{L}\p{M}\p{N}_]*$/uD', Rule::unique('guilds', 'handle')->whereNotNull('user_id')],
+            'handle' => ['required', 'string', 'max:60', 'regex:/^'.Hashtags::HANDLE.'$/uD', Rule::unique('guilds', 'handle')->whereNotNull('user_id')],
             'name' => ['required', 'string', 'max:60'],
             'description' => ['required', 'string', 'max:500'],
             'emoji' => ['required', 'string', Rule::in($emoji->emoji())],
@@ -52,7 +53,7 @@ final class CreateGuildRequest extends FormRequest
                 return;
             }
 
-            if ($this->string('name')->replaceMatches('/[^\p{L}\p{M}\p{N}_]+/u', '')->lower()->value() !== $this->string('handle')->value()) {
+            if (Hashtags::handleFor($this->string('name')->value()) !== $this->string('handle')->value()) {
                 $validator->errors()->add('name', "Guild display name doesn't match hashtag");
             }
 
@@ -87,14 +88,14 @@ final class CreateGuildRequest extends FormRequest
     {
         return [
             'handle.unique' => 'A guild already uses this hashtag. Choose a different display name.',
-            'handle.regex' => 'Use a display name whose hashtag starts with a letter and contains only letters, numbers and underscores.',
+            'handle.regex' => 'Use a display name whose hashtag starts with letters or numbers followed by a letter, contains only letters, numbers and underscores, and is not a hex color that starts with a number.',
         ];
     }
 
     public function prepareForValidation(): void
     {
         if (! $this->has('handle') && is_string($this->input('name'))) {
-            $this->merge(['handle' => $this->string('name')->replaceMatches('/[^\p{L}\p{M}\p{N}_]+/u', '')->lower()->value()]);
+            $this->merge(['handle' => Hashtags::handleFor($this->string('name')->value())]);
         }
 
         if (is_string($this->input('handle'))) {
