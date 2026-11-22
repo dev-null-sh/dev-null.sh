@@ -2333,6 +2333,7 @@
         "/headlines": {
             "get": {
                 "operationId": "api-headline.index",
+                "summary": "The hot topics the web's aside shows the user: each headline with its recap while it's fresh and safe to show",
                 "tags": [
                     "Headlines"
                 ],
@@ -2346,7 +2347,28 @@
                                     "properties": {
                                         "data": {
                                             "type": "array",
-                                            "items": {}
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "id": {
+                                                        "type": "string"
+                                                    },
+                                                    "name": {
+                                                        "type": "string"
+                                                    },
+                                                    "summary": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    }
+                                                },
+                                                "required": [
+                                                    "id",
+                                                    "name",
+                                                    "summary"
+                                                ]
+                                            }
                                         }
                                     },
                                     "required": [
@@ -2387,6 +2409,7 @@
         "/headlines/{headline}": {
             "get": {
                 "operationId": "api-headline.show",
+                "summary": "A headline's page as the web shows it: its name, its recap while it's fresh and safe to show, and the commits\nabout it from the past week that the user may see, newest first",
                 "tags": [
                     "Headlines"
                 ],

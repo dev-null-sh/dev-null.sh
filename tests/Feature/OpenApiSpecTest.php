@@ -129,6 +129,16 @@ it('answers too many requests with a message, and a code only a signed request g
         ->and($error['properties']['code']['description'])->toBe('Only a signed request gets it, and never from the pings and commit search limits.');
 });
 
+it('describes the hot topics, each with its fields, and a headline\'s page', function (): void {
+    $index = openApiOperation('get', '/headlines');
+    $topic = $index['responses']['200']['content']['application/json']['schema']['properties']['data']['items'];
+
+    expect($index['summary'])->toStartWith('The hot topics')
+        ->and(array_keys($topic['properties']))->toBe(['id', 'name', 'summary'])
+        ->and($topic['required'])->toBe(['id', 'name', 'summary'])
+        ->and(openApiOperation('get', '/headlines/{headline}')['summary'])->toStartWith("A headline's page");
+});
+
 it('describes an author as the user or the organization it is', function (): void {
     $variants = freshOpenApiSpec()['components']['schemas']['ProfileResource']['anyOf'];
 
