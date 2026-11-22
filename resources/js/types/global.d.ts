@@ -17,6 +17,7 @@ declare module '@inertiajs/core' {
             achievementsUnlocked?: string[];
             committed?: CommittedFlash;
             deleted?: DeletedFlash;
+            intent?: string;
             restored?: Commit;
             scheduled?: boolean;
             submitted?: string;
