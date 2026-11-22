@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Exceptions\GuildHandleTaken;
 use App\Exceptions\GuildModeratorRemoved;
 use App\Models\Guild;
+use App\Models\GuildAlias;
 use App\Models\GuildSubmission;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
@@ -19,7 +21,8 @@ final readonly class CreateGuild
     }
 
     /**
-     * The icon is an upload, or the path of one already stored, such as a reviewed submission's.
+     * The icon is an upload, or the path of one already stored, such as a reviewed submission's. A hashtag that became
+     * another guild's alias meanwhile is taken.
      */
     public function handle(User $user, string $handle, string $name, string $description, string $emoji, UploadedFile|string|null $icon, bool $flagged = false): Guild|GuildSubmission
     {
@@ -28,6 +31,12 @@ final readonly class CreateGuild
 
             if (DB::table('guild_moderator_removals')->where('github_id', $user->github_id)->where('handle', mb_strtolower($handle))->exists()) {
                 throw new GuildModeratorRemoved;
+            }
+
+            DB::select('select pg_advisory_xact_lock(hashtextextended(?, 0))', [CreateGuildAlias::HANDLE_LOCK.mb_strtolower($handle)]);
+
+            if (GuildAlias::query()->where('handle', mb_strtolower($handle))->exists()) {
+                throw new GuildHandleTaken;
             }
 
             if ($flagged) {

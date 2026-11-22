@@ -10,6 +10,7 @@ import { CommitComposer } from '@/components/commit-composer';
 import { EmptyFeed } from '@/components/commit-feed';
 import { GraphCanvas } from '@/components/graph-canvas';
 import { RailSegment } from '@/components/graph-rail';
+import { GuildAliasesButton } from '@/components/guild-aliases';
 import { GuildDialog } from '@/components/guild-dialog';
 import { GuildIcon } from '@/components/guild-icon';
 import {
@@ -175,6 +176,8 @@ export default function Show({
         );
     }
 
+    const aliases = guild.aliases.map((alias) => `#${alias}`).join(' ');
+
     return (
         <>
             <Head title={`${guild.name} · Guild`} />
@@ -213,6 +216,15 @@ export default function Show({
                     <span className="min-w-0 truncate" title={`#${handle}`}>
                         #{handle}
                     </span>
+                    {aliases && (
+                        <span
+                            className="min-w-0 truncate"
+                            title={`also ${aliases}`}
+                            data-test="guild-aliases"
+                        >
+                            also {aliases}
+                        </span>
+                    )}
                     <span aria-hidden>·</span>
                     <span>
                         {guild.is_paused
@@ -227,6 +239,7 @@ export default function Show({
                 </p>
                 <div className="mt-4 flex flex-wrap items-center gap-3">
                     {!canModerate && <GuildReportButton guild={guild} />}
+                    {canModerate && <GuildAliasesButton guild={guild} />}
                     {auth.isAdmin && !guild.is_paused && (
                         <GuildRemovalButton guild={guild} />
                     )}

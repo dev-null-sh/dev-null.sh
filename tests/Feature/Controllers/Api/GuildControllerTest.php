@@ -7,6 +7,7 @@ use App\Actions\UpdateGuildMute;
 use App\Enums\Feature;
 use App\Models\Commit;
 use App\Models\Guild;
+use App\Models\GuildAlias;
 use App\Models\User;
 use App\Queries\GuildsQuery;
 use App\Services\Features;
@@ -20,6 +21,8 @@ beforeEach(function (): void {
 
 it('lists guilds by member count then handle, with whether the user joined or muted each one', function (): void {
     $rust = Guild::factory()->create(['handle' => 'rust', 'name' => 'Rust', 'description' => 'Fearless concurrency', 'emoji' => '🦀', 'icon_path' => 'guild-icons/rust.webp']);
+    GuildAlias::factory()->for($rust)->create(['handle' => 'rustlang']);
+    GuildAlias::factory()->for($rust)->create(['handle' => 'rs']);
     Guild::factory()->create(['handle' => 'go', 'user_id' => null]);
     $php = Guild::factory()->create(['handle' => 'php']);
     resolve(UpdateGuildMembership::class)->handle($this->user, $rust, true);
@@ -32,6 +35,7 @@ it('lists guilds by member count then handle, with whether the user joined or mu
         ->assertJsonPath('data.*.handle', ['rust', 'php', 'go'])
         ->assertJsonPath('data.0', [
             'handle' => 'rust',
+            'aliases' => ['rs', 'rustlang'],
             'name' => 'Rust',
             'description' => 'Fearless concurrency',
             'emoji' => '🦀',
@@ -43,6 +47,7 @@ it('lists guilds by member count then handle, with whether the user joined or mu
             'html_url' => route('guild.show', 'rust'),
         ])
         ->assertJsonStructure(['data' => ['*' => ['icon_url']]])
+        ->assertJsonPath('data.1.aliases', [])
         ->assertJsonPath('data.1.icon_url', null)
         ->assertJsonPath('data.1.is_joined', false)
         ->assertJsonPath('data.1.is_muted', true)
@@ -50,15 +55,17 @@ it('lists guilds by member count then handle, with whether the user joined or mu
         ->assertJsonPath('data.2.is_paused', true);
 });
 
-it('finds guilds by handle, name or description, ignoring case and a leading hashtag', function (string $query): void {
-    Guild::factory()->create(['handle' => 'laravel', 'name' => 'Artisans', 'description' => 'Elegant web apps']);
-    Guild::factory()->create(['handle' => 'symfony', 'name' => 'Symfony', 'description' => 'Components']);
+it('finds guilds by handle, alias, name or description, ignoring case and a leading hashtag', function (string $query): void {
+    $laravel = Guild::factory()->create(['handle' => 'laravel', 'name' => 'Artisans', 'description' => 'Elegant web apps']);
+    GuildAlias::factory()->for($laravel)->create(['handle' => 'eloquent']);
+    GuildAlias::factory()->for(Guild::factory()->create(['handle' => 'symfony', 'name' => 'Symfony', 'description' => 'Components']))->create(['handle' => 'twig']);
 
     signedApiRequest($this->keyPair, 'GET', route('api-guild.index', ['q' => $query]))
         ->assertOk()
         ->assertJsonPath('data.*.handle', ['laravel']);
 })->with([
     'handle' => '#LARAVEL',
+    'alias' => '#Eloquent',
     'name' => 'artisans',
     'description' => 'elegant',
 ]);
@@ -127,6 +134,20 @@ it('shows a guild with its board, newest first, with reply previews', function (
         ->assertJsonStructure(['pinned_commit'])
         ->assertJsonPath('pinned_commit', null)
         ->assertJsonPath('can_moderate', false);
+});
+
+it('shows a guild by its alias, with the commits tagging the alias on its board', function (): void {
+    $go = Guild::factory()->create(['handle' => 'go']);
+    GuildAlias::factory()->for($go)->create(['handle' => 'golang']);
+    $aliased = Commit::factory()->create(['body' => 'Learning #GoLang']);
+    Commit::factory()->create(['body' => 'Learning #golanguage']);
+
+    signedApiRequest($this->keyPair, 'GET', route('api-guild.show', 'golang'))
+        ->assertOk()
+        ->assertJsonPath('data.*.id', [$aliased->id])
+        ->assertJsonPath('guild.handle', 'go')
+        ->assertJsonPath('guild.aliases', ['golang'])
+        ->assertJsonPath('guild.html_url', route('guild.show', 'go'));
 });
 
 it('pages the board 30 roots at a time', function (): void {

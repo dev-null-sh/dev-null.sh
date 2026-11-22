@@ -46,7 +46,7 @@ final readonly class JoinedGuildsQuery
 
         $commits = $this->commitsSince($user, array_keys($readFrom), min($readFrom));
         $ownCommits = $this->ownCommits($user, array_keys($readFrom));
-        $guilds = Guild::query()->whereKey(array_keys($readFrom))->get();
+        $guilds = Guild::query()->with('aliases')->whereKey(array_keys($readFrom))->get();
         $ownCommitCounts = $guilds->mapWithKeys(fn (Guild $guild): array => [
             $guild->handle => $ownCommits->filter(fn (array $commit): bool => $this->isPostedIn($guild, $commit))->count(),
         ]);
@@ -133,6 +133,6 @@ final readonly class JoinedGuildsQuery
     private function isPostedIn(Guild $guild, array $commit): bool
     {
         return $commit['guild_id'] === $guild->id
-            || ($commit['guild_id'] === null && in_array($guild->handle, $commit['handles'], true));
+            || ($commit['guild_id'] === null && array_intersect($guild->hashtags(), $commit['handles']) !== []);
     }
 }

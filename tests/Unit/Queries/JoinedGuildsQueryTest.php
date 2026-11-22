@@ -6,6 +6,7 @@ use App\Enums\CommitStatus;
 use App\Enums\Feature;
 use App\Models\Commit;
 use App\Models\Guild;
+use App\Models\GuildAlias;
 use App\Models\User;
 use App\Queries\JoinedGuildsQuery;
 use App\Services\Features;
@@ -103,6 +104,18 @@ it('leaves the commits of other people and the unapproved commits of the reader 
     Commit::factory()->for($reader)->create(['guild_id' => $beta->id, 'status' => CommitStatus::Rejected]);
 
     expect(array_column(resolve(JoinedGuildsQuery::class)->get($reader), 'handle'))->toBe(['alpha', 'beta']);
+});
+
+it('counts a commit tagging an alias of a joined guild as missed', function (): void {
+    resolve(Features::class)->update(Feature::Guilds, true, adminOnly: false);
+    $reader = User::factory()->create();
+    $guild = Guild::factory()->create(['handle' => 'go']);
+    GuildAlias::factory()->for($guild)->create(['handle' => 'golang']);
+    DB::table('guild_preferences')->insert(['guild_id' => $guild->id, 'user_id' => $reader->id, 'joined_at' => now()->subDay()]);
+    Commit::factory()->create(['body' => 'Learning #GoLang']);
+    Commit::factory()->create(['body' => 'Learning #golanguage']);
+
+    expect(array_column(resolve(JoinedGuildsQuery::class)->get($reader), 'missed_commits', 'handle'))->toBe(['go' => 1]);
 });
 
 it('reads the order with the same number of queries for more commits of the reader', function (): void {

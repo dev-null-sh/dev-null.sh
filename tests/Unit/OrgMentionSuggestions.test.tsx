@@ -108,6 +108,7 @@ test('suggests loaded guilds and inserts a hex-shaped hashtag without fetching',
             ({
                 id: handle,
                 handle,
+                aliases: [] as string[],
                 name: handle,
                 emoji: '💻',
                 icon_url: null,
@@ -142,6 +143,31 @@ test('suggests loaded guilds and inserts a hex-shaped hashtag without fetching',
     assert.equal(fetchMock.mock.calls.length, 0);
 });
 
+test('suggests a guild by one of its aliases', () => {
+    guilds = [
+        {
+            id: 'laravel',
+            handle: 'laravel',
+            aliases: ['artisan'],
+            name: 'Laravel',
+            emoji: '💻',
+            icon_url: null,
+        } as Guild,
+    ];
+    state[0] = { kind: 'guild', start: 6, query: 'ART' };
+    cursor = 0;
+    effects = [];
+    const fields = elements(
+        MentionTextarea({ value: 'Hello #ART', onValueChange: () => {} }),
+    );
+    assert.deepEqual(
+        fields
+            .filter((element) => element.props.role === 'option')
+            .map((option) => option.props.id),
+        ['mentions-guild-laravel'],
+    );
+});
+
 test('does not suggest guilds inside code, URLs, partial handles or when preview data is absent', () => {
     for (const value of [
         '`#rust',
@@ -152,7 +178,14 @@ test('does not suggest guilds inside code, URLs, partial handles or when preview
         '##rust',
         'color(#dead',
     ]) {
-        guilds = [{ id: 'rust', handle: 'rust', name: 'Rust' } as Guild];
+        guilds = [
+            {
+                id: 'rust',
+                handle: 'rust',
+                aliases: [] as string[],
+                name: 'Rust',
+            } as Guild,
+        ];
         cursor = 0;
         state[0] = null;
         const fields = elements(

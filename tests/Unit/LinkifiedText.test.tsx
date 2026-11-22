@@ -108,7 +108,7 @@ test('renders only matching prose hashtags as guilds when the preview is availab
     const content = (
         <CommitBody
             segments={bodySegments(
-                'Hiring #JoBs, exploring #rust. `#jobs` https://example.com/#jobs',
+                'Hiring #JoBs, exploring #rust and #Work. `#jobs` https://example.com/#jobs',
             )}
             mentions={null}
         />
@@ -119,6 +119,7 @@ test('renders only matching prose hashtags as guilds when the preview is availab
         guilds: [
             {
                 handle: 'jobs',
+                aliases: ['work'],
                 name: 'Job Board',
                 description: 'Hiring',
                 emoji: '💼',
@@ -127,8 +128,9 @@ test('renders only matching prose hashtags as guilds when the preview is availab
         ],
     });
 
-    assert.equal((markup.match(/href="\/guilds\/jobs"/g) ?? []).length, 1);
+    assert.equal((markup.match(/href="\/guilds\/jobs"/g) ?? []).length, 2);
     assert.match(markup, /aria-label="Job Board, #JoBs guild"/);
+    assert.match(markup, /aria-label="Job Board, #Work guild"/);
     assert.match(markup, /href="\/search\?q=%23rust"/);
     assert.match(markup, /<code[^>]*>#jobs<\/code>/);
     assert.match(markup, /href="https:\/\/example.com\/#jobs"/);
@@ -787,7 +789,15 @@ test('gives a bare hex-shaped hashtag its guild or search link and renders an ex
     const auth = { user: { id: 'viewer' }, pasteis: null };
     const html = renderPage(content, {
         auth,
-        guilds: [{ handle: 'dead', name: 'Dead', emoji: '💻', icon_url: null }],
+        guilds: [
+            {
+                handle: 'dead',
+                aliases: [],
+                name: 'Dead',
+                emoji: '💻',
+                icon_url: null,
+            },
+        ],
     });
 
     assert.equal((html.match(/href="\/guilds\/dead"/g) ?? []).length, 1);

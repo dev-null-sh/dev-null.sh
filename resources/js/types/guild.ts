@@ -1,6 +1,7 @@
 export type Guild = {
     id: string;
     handle: string;
+    aliases: string[];
     name: string;
     description: string;
     emoji: string;

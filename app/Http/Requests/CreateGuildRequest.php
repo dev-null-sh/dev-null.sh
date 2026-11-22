@@ -35,7 +35,7 @@ final class CreateGuildRequest extends FormRequest
     public function rules(EmojiShortcodes $emoji): array
     {
         return [
-            'handle' => ['required', 'string', 'max:60', 'regex:/^\p{L}[\p{L}\p{M}\p{N}_]*$/uD', Rule::unique('guilds', 'handle')->whereNotNull('user_id')],
+            'handle' => ['required', 'string', 'max:60', 'regex:/^\p{L}[\p{L}\p{M}\p{N}_]*$/uD', Rule::unique('guilds', 'handle')->whereNotNull('user_id'), Rule::unique('guild_aliases', 'handle')],
             'name' => ['required', 'string', 'max:60'],
             'description' => ['required', 'string', 'max:500'],
             'emoji' => ['required', 'string', Rule::in($emoji->emoji())],
