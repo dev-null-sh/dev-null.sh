@@ -112,6 +112,25 @@ it('replies only to messages in the history the member can see', function (): vo
         ->assertJsonPath('message.reply_to.body', 'welcome taylor');
 });
 
+it('hides what a reply points to when it predates the history the member can see', function (): void {
+    $mark = User::factory()->create();
+    [$nuno, $taylor] = followersOf($mark, 2);
+    $org = createOrg($mark, [$nuno]);
+    $before = pushToOrg($nuno, $org, 'from before taylor joined');
+    $this->actingAs($mark)->postJson(route('org-member.store', $org), ['members' => [$taylor->username], 'share_history' => false])->assertNoContent();
+    $reply = $this->postJson(route('org-message.store', $org), ['body' => 'on it', 'client_id' => Str::uuid()->toString(), 'reply_to_id' => $before->id])
+        ->assertCreated()->json('message.id');
+
+    $messages = collect($this->actingAs($taylor)->getJson(route('org-message.index', $org))->assertOk()->json('messages'))->keyBy('id');
+
+    expect($messages->has($before->id))->toBeFalse()
+        ->and($messages[$reply]['reply_to'])->toBeNull();
+
+    $this->actingAs($nuno)->getJson(route('org-message.index', $org))
+        ->assertJsonPath('messages.3.id', $reply)
+        ->assertJsonPath('messages.3.reply_to.body', 'from before taylor joined');
+});
+
 it('pushes images and the link card the member chose', function (?string $choice, ?string $url): void {
     Queue::fake();
     Storage::fake();
