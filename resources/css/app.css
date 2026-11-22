@@ -384,7 +384,9 @@
     }
 }
 
-:root {
+/* data-theme-scope gives an element the regular light or dark tokens, as in the guild icon preview. */
+:root,
+[data-theme-scope='light'] {
     --background: #f6f7f8;
     --foreground: #121417;
     --card: #ffffff;
@@ -432,7 +434,9 @@
     --sidebar-ring: var(--ring);
 }
 
-.dark {
+/* data-theme-scope gives an element the regular light or dark tokens, as in the guild icon preview. */
+.dark,
+[data-theme-scope='dark'] {
     --background: #111112;
     --foreground: #ececec;
     --card: #18181a;
