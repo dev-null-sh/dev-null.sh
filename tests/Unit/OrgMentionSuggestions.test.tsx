@@ -179,6 +179,100 @@ test('does not suggest guilds inside code, URLs, partial handles or when preview
     assert.equal(state[0], null);
 });
 
+function selectAt(value: string, props: Record<string, unknown> = {}) {
+    cursor = 0;
+    state[0] = null;
+    const textarea = elements(
+        MentionTextarea({ value, onValueChange: () => {}, ...props }),
+    ).find((element) => element.type === 'textarea')!;
+    (textarea.props.onSelect as (event: unknown) => void)({
+        currentTarget: {
+            value,
+            selectionStart: value.length,
+            selectionEnd: value.length,
+        },
+    });
+
+    return state[0];
+}
+
+test('suggests text expansions for the slash command being typed and inserts the text picked', () => {
+    state[0] = { kind: 'expansion', start: 3, query: 'sh' };
+    cursor = 0;
+    effects = [];
+    const onValueChange = vi.fn();
+    const fields = elements(
+        MentionTextarea({ value: 'ok /sh', onValueChange }),
+    );
+    const options = fields.filter((element) => element.props.role === 'option');
+    assert.deepEqual(
+        options.map((option) => option.props.id),
+        ['mentions-expansion-shrug'],
+    );
+    const textarea = fields.find((element) => element.type === 'textarea')!;
+    const target = {
+        selectionStart: 6,
+        focus: vi.fn(),
+        setSelectionRange: vi.fn(),
+    };
+    (textarea.props.ref as (element: unknown) => void)(target);
+    vi.stubGlobal('requestAnimationFrame', (callback: () => void) =>
+        callback(),
+    );
+    (options[0].props.onClick as () => void)();
+    assert.deepEqual(onValueChange.mock.calls, [['ok ¯\\_(ツ)_/¯ ']]);
+    assert.deepEqual(target.setSelectionRange.mock.calls, [[13, 13]]);
+});
+
+test('keeps the text expansions closed as soon as the field opts out, even with a command already found', () => {
+    state[0] = { kind: 'expansion', start: 0, query: '' };
+    cursor = 0;
+    effects = [];
+    const fields = elements(
+        MentionTextarea({
+            value: '/',
+            onValueChange: () => {},
+            suggestsExpansions: false,
+        }),
+    );
+    assert.equal(
+        fields.filter((element) => element.props.role === 'option').length,
+        0,
+    );
+});
+
+test('leaves a command as typed when its text would go over the length limit', () => {
+    cursor = 0;
+    state[0] = null;
+    const onValueChange = vi.fn();
+    const textarea = elements(
+        MentionTextarea({ value: '', onValueChange, maxLength: 12 }),
+    ).find((element) => element.type === 'textarea')!;
+    (textarea.props.onChange as (event: unknown) => void)({
+        currentTarget: {
+            value: 'ab /shrug x',
+            selectionStart: 10,
+            selectionEnd: 10,
+        },
+        nativeEvent: {},
+    });
+    assert.deepEqual(onValueChange.mock.calls, [['ab /shrug x']]);
+});
+
+test('does not suggest text expansions inside code, words or URLs, for unknown commands, or when the field opts out', () => {
+    for (const value of [
+        '`/sh',
+        '```\n/sh',
+        'and/sh',
+        'https://example.com/sh',
+        '/deploy',
+        '/shrug ',
+    ]) {
+        assert.equal(selectAt(value), null, value);
+    }
+    assert.equal(selectAt('/sh', { suggestsExpansions: false }), null);
+});
+
 test('suggests loaded org members immediately without scheduling a search request', () => {
     const fields = render([member('taylor'), member('jess', 'Jess', true)]);
 

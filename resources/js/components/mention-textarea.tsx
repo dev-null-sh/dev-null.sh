@@ -14,12 +14,17 @@ import type { EmojiSuggestion } from '@/lib/emoji';
 import { emojifyInput, searchEmoji } from '@/lib/emoji';
 import { issueReferenceBeforeCaret } from '@/lib/issue-reference';
 import { suggestionPosition } from '@/lib/suggestion-position';
+import {
+    expandTextCommands,
+    expansionCommandBeforeCaret,
+    expansionsStartingWith,
+} from '@/lib/text-expansions';
 import { toastWhenThrottled } from '@/lib/throttle';
 import { characterCount, cn, laneColor, limitCharacters } from '@/lib/utils';
 import type { Organization, OrgMember, User } from '@/types';
 
 type Trigger = {
-    kind: 'mention' | 'emoji' | 'issue' | 'guild';
+    kind: 'mention' | 'emoji' | 'expansion' | 'issue' | 'guild';
     start: number;
     query: string;
 };
@@ -86,6 +91,7 @@ function triggerAt(
     suggestsMentions: boolean,
     suggestsIssues: boolean,
     suggestsGuilds: boolean,
+    suggestsExpansions: boolean,
 ): Trigger | null {
     if (textarea.selectionStart !== textarea.selectionEnd) {
         return null;
@@ -115,6 +121,14 @@ function triggerAt(
             start: caret - emoji[1].length,
             query: emoji[2],
         };
+    }
+
+    const expansion = suggestsExpansions
+        ? expansionCommandBeforeCaret(before)
+        : null;
+
+    if (expansion) {
+        return { kind: 'expansion', ...expansion };
     }
 
     if (isTypingExplicitColor(before)) {
@@ -263,8 +277,8 @@ function Highlighted({ text, query }: { text: string; query: string }) {
 
 /**
  * A textarea that suggests developers to mention as soon as "@" is typed, right under the "@", unless it doesn't
- * suggest mentions, suggests emoji for the ":shortcode" being typed, and turns emoji shortcodes into emoji as they
- * are typed. Within an org, it only suggests the org's members.
+ * suggest mentions, suggests emoji for the ":shortcode" being typed and text expansions for the "/command" being typed, and
+ * turns both into what they stand for as they are typed. Within an org, it only suggests the org's members.
  */
 export function MentionTextarea({
     ref,
@@ -276,6 +290,7 @@ export function MentionTextarea({
     maxLength,
     suggestsMentions = true,
     suggestsIssues = suggestsMentions,
+    suggestsExpansions = true,
     org,
     members,
     reply,
@@ -287,6 +302,7 @@ export function MentionTextarea({
     onValueChange: (value: string) => void;
     suggestsMentions?: boolean;
     suggestsIssues?: boolean;
+    suggestsExpansions?: boolean;
     org?: string;
     members?: OrgMember[];
     reply?: string;
@@ -336,6 +352,7 @@ export function MentionTextarea({
             suggestsMentions,
             suggestsIssues,
             suggestsIssues && !!guilds?.length,
+            suggestsExpansions,
         );
 
         if (
@@ -508,6 +525,11 @@ export function MentionTextarea({
     const emojiQuery =
         trigger?.kind === 'emoji' ? trigger.query.toLowerCase() : '';
     const emojis = emojiQuery === '' ? [] : searchEmoji(emojiQuery);
+    // The prop can turn off between a keystroke and the next render, so it is read here too, not only when tracking.
+    const expansions =
+        suggestsExpansions && trigger?.kind === 'expansion'
+            ? expansionsStartingWith(`/${trigger.query}`)
+            : [];
     const guildQuery =
         trigger?.kind === 'guild' ? trigger.query.toLowerCase() : '';
     const matchingGuilds =
@@ -534,7 +556,9 @@ export function MentionTextarea({
                   : 0
               : trigger?.kind === 'emoji'
                 ? emojis.length
-                : suggestions.length + organizations.length;
+                : trigger?.kind === 'expansion'
+                  ? expansions.length
+                  : suggestions.length + organizations.length;
     const selectedIndex = Math.min(activeIndex, Math.max(0, optionCount - 1));
     const isOpen =
         trigger !== null &&
@@ -545,8 +569,10 @@ export function MentionTextarea({
               ? issue !== null
               : trigger.kind === 'emoji'
                 ? emojis.length > 0
-                : suggestions.length + organizations.length > 0 ||
-                  query !== '');
+                : trigger.kind === 'expansion'
+                  ? expansions.length > 0
+                  : suggestions.length + organizations.length > 0 ||
+                    query !== '');
 
     const insert = (text: string, separator: string) => {
         const textarea = textareaRef.current;
@@ -633,6 +659,8 @@ export function MentionTextarea({
                     insert(`#${matchingGuilds[selectedIndex].handle}`, ' ');
                 } else if (trigger?.kind === 'emoji') {
                     selectEmoji(emojis[selectedIndex]);
+                } else if (trigger?.kind === 'expansion') {
+                    insert(expansions[selectedIndex].text, ' ');
                 } else {
                     select(
                         selectedIndex < suggestions.length
@@ -670,10 +698,12 @@ export function MentionTextarea({
             : trigger?.kind === 'emoji'
               ? emojis[selectedIndex] &&
                 `${id}-emoji-${emojis[selectedIndex].name}`
-              : selectedIndex < suggestions.length
-                ? `${id}-mention-${suggestions[selectedIndex].id}`
-                : organizations[selectedIndex - suggestions.length] &&
-                  `${id}-mention-${organizations[selectedIndex - suggestions.length].handle}`;
+              : trigger?.kind === 'expansion'
+                ? `${id}-expansion-${expansions[selectedIndex].name.slice(1)}`
+                : selectedIndex < suggestions.length
+                  ? `${id}-mention-${suggestions[selectedIndex].id}`
+                  : organizations[selectedIndex - suggestions.length] &&
+                    `${id}-mention-${organizations[selectedIndex - suggestions.length].handle}`;
 
     const isSearching = current?.key !== key;
     const listId =
@@ -683,7 +713,9 @@ export function MentionTextarea({
               ? `${id}-issues`
               : trigger?.kind === 'emoji'
                 ? `${id}-emojis`
-                : `${id}-mentions`;
+                : trigger?.kind === 'expansion'
+                  ? `${id}-expansions`
+                  : `${id}-mentions`;
 
     return (
         <>
@@ -693,10 +725,19 @@ export function MentionTextarea({
                 value={value}
                 onChange={(event) => {
                     const target = event.currentTarget;
-                    const { text, caret } = emojifyInput(
+                    const emojified = emojifyInput(
                         target.value,
                         target.selectionStart ?? target.value.length,
                     );
+                    const expanded = expandTextCommands(
+                        emojified.text,
+                        emojified.caret,
+                    );
+                    const { text, caret } =
+                        maxLength !== undefined &&
+                        characterCount(expanded.text) > maxLength
+                            ? emojified
+                            : expanded;
 
                     const limited =
                         maxLength === undefined
@@ -830,6 +871,43 @@ export function MentionTextarea({
                                         {repository}#{issue.number}
                                     </span>
                                 </li>
+                            </ul>
+                        ) : trigger?.kind === 'expansion' ? (
+                            <ul
+                                ref={listRef}
+                                id={listId}
+                                role="listbox"
+                                aria-label="Insert a text"
+                                className="min-h-0 overflow-y-auto overscroll-contain p-1.5"
+                            >
+                                {expansions.map((expansion, index) => (
+                                    <li
+                                        key={expansion.name}
+                                        id={`${id}-expansion-${expansion.name.slice(1)}`}
+                                        role="option"
+                                        aria-selected={index === selectedIndex}
+                                        onMouseMove={() =>
+                                            setActiveIndex(index)
+                                        }
+                                        onClick={() =>
+                                            insert(expansion.text, ' ')
+                                        }
+                                        className={cn(
+                                            'flex cursor-pointer items-center gap-3 rounded-sm px-2.5 py-1.5',
+                                            {
+                                                'bg-accent':
+                                                    index === selectedIndex,
+                                            },
+                                        )}
+                                    >
+                                        <span className="w-24 shrink-0 font-mono text-[13px] text-muted-foreground">
+                                            {expansion.name}
+                                        </span>
+                                        <span className="max-w-64 min-w-0 truncate whitespace-nowrap">
+                                            {expansion.text}
+                                        </span>
+                                    </li>
+                                ))}
                             </ul>
                         ) : trigger?.kind === 'emoji' ? (
                             <ul

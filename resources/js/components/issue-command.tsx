@@ -1,5 +1,5 @@
 import { useHttp, usePage } from '@inertiajs/react';
-import { Bug, Lightbulb, X } from 'lucide-react';
+import { Bug, Lightbulb, Smile, X } from 'lucide-react';
 import type { KeyboardEvent } from 'react';
 import { useState } from 'react';
 import { toast } from 'sonner';
@@ -16,7 +16,11 @@ import {
     typedCommand,
 } from '@/lib/issue-commands';
 import { hasModKey } from '@/lib/keyboard';
+import type { TextExpansion } from '@/lib/text-expansions';
+import { suggestedExpansions } from '@/lib/text-expansions';
 import { cn } from '@/lib/utils';
+
+export type ComposerCommand = IssueCommand | TextExpansion;
 
 const hintDismissedKey = 'issue-command-hint-dismissed';
 
@@ -57,10 +61,13 @@ export function useIssueCommand({
     >({ command: '', body: '' });
     const command =
         issueCommands.find((candidate) => candidate.kind === kind) ?? null;
+    // While the draft is a lone command, this menu lists the text expansions too, so the field doesn't open its own.
+    const ownsExpansions =
+        enabled && kind === null && suggestedExpansions(body).length > 0;
     // A draft restored from the stash can be a lone slash: the menu only opens while the user is typing in it.
-    const suggestions =
+    const suggestions: ComposerCommand[] =
         enabled && kind === null && !dismissed && focused
-            ? suggestedCommands(body)
+            ? [...suggestedCommands(body), ...suggestedExpansions(body)]
             : [];
     const hint =
         enabled && kind === null && !hintDismissed ? hintedCommand(body) : null;
@@ -69,6 +76,14 @@ export function useIssueCommand({
         setKind(next);
         setSelected(0);
         updateBody(rest);
+    };
+
+    const pick = (picked: ComposerCommand) => {
+        if ('kind' in picked) {
+            start(picked.kind, '');
+        } else {
+            updateBody(`${picked.text} `);
+        }
     };
 
     const change = (value: string) => {
@@ -164,7 +179,7 @@ export function useIssueCommand({
                 !hasModKey(event)
             ) {
                 event.preventDefault();
-                start(suggestions[selected % suggestions.length].kind, '');
+                pick(suggestions[selected % suggestions.length]);
                 return true;
             }
 
@@ -202,6 +217,7 @@ export function useIssueCommand({
     return {
         command,
         suggestions,
+        ownsExpansions,
         hint,
         dismissHint: () => {
             setHintDismissed(true);
@@ -217,6 +233,7 @@ export function useIssueCommand({
         focus: () => setFocused(true),
         blur: () => setFocused(false),
         start,
+        pick,
         exit: () => setKind(null),
         submit,
         handleKeyDown,
@@ -264,9 +281,9 @@ export function IssueCommandSuggestions({
     selected,
     onPick,
 }: {
-    suggestions: IssueCommand[];
+    suggestions: ComposerCommand[];
     selected: number;
-    onPick: (kind: IssueKind) => void;
+    onPick: (command: ComposerCommand) => void;
 }) {
     return (
         <div
@@ -276,17 +293,17 @@ export function IssueCommandSuggestions({
             className="mt-1 w-full max-w-sm rounded-md border bg-popover p-1 text-popover-foreground shadow-md"
         >
             {suggestions.map((command, index) => {
-                const Icon = icons[command.kind];
+                const Icon = 'kind' in command ? icons[command.kind] : Smile;
 
                 return (
                     <button
-                        key={command.kind}
+                        key={command.name}
                         type="button"
                         role="option"
                         aria-selected={selected === index}
                         tabIndex={-1}
                         onMouseDown={(event) => event.preventDefault()}
-                        onClick={() => onPick(command.kind)}
+                        onClick={() => onPick(command)}
                         className={cn(
                             'flex w-full items-center gap-3 rounded-sm px-2 py-1.5 text-left text-sm',
                             selected === index && 'bg-accent',
@@ -296,11 +313,13 @@ export function IssueCommandSuggestions({
                             className="size-4 shrink-0 text-muted-foreground"
                             aria-hidden="true"
                         />
-                        <span className="w-20 shrink-0 font-mono">
+                        <span className="w-24 shrink-0 font-mono">
                             {command.name}
                         </span>
                         <span className="min-w-0 truncate text-muted-foreground">
-                            {command.description}
+                            {'kind' in command
+                                ? command.description
+                                : command.text}
                         </span>
                     </button>
                 );
