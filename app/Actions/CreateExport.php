@@ -9,6 +9,7 @@ use App\Models\BanEvent;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\CommitReport;
+use App\Models\CommitVideo;
 use App\Models\Conversation;
 use App\Models\ConversationParticipant;
 use App\Models\Device;
@@ -46,6 +47,7 @@ use Traversable;
  *     active_days: Generator<int, ExportActiveDay>,
  *     commits: Generator<int, array<string, mixed>>,
  *     organization_commits: Generator<int, array<string, mixed>>,
+ *     videos: Generator<int, array<mixed>>,
  *     polls: Generator<int, ExportPoll>,
  *     poll_votes: Generator<int, ExportPollVote>,
  *     stars: Generator<int, string>,
@@ -130,6 +132,7 @@ final readonly class CreateExport
             'active_days' => $this->activeDays($user),
             'commits' => $this->commits($user),
             'organization_commits' => $this->organizationCommits($user),
+            'videos' => $this->videos($user),
             'polls' => $this->polls($user),
             'poll_votes' => $this->pollVotes($user),
             'stars' => $this->stars($user),
@@ -258,6 +261,20 @@ final readonly class CreateExport
                     'deleted_at' => $commit->deleted_at?->toIso8601String(),
                 ];
             }
+        }
+    }
+
+    /** @return Generator<int, array<mixed>> */
+    private function videos(User $user): Generator
+    {
+        foreach (CommitVideo::query()->where('user_id', $user->id)->lazyById(500) as $video) {
+            yield [
+                ...$video->toArray(),
+                'commit_id' => $video->commit_id,
+                'size' => $video->size,
+                'created_at' => $video->created_at->toIso8601String(),
+                'updated_at' => $video->updated_at->toIso8601String(),
+            ];
         }
     }
 

@@ -19,6 +19,10 @@ import {
 } from '@/components/commit-image-picker';
 import { CommitRulesDialog, useCommitRules } from '@/components/commit-rules';
 import {
+    CommitVideoPicker,
+    VideoPickerButton,
+} from '@/components/commit-video-picker';
+import {
     ComposerPollPreview,
     ComposerPreviewBody,
     PreviewToggle,
@@ -44,6 +48,7 @@ import {
 } from '@/components/schedule-picker';
 import { StashLabel } from '@/components/stash-label';
 import { Button } from '@/components/ui/button';
+import { useCommitVideo } from '@/hooks/use-commit-video';
 import { useEmojiInsertion } from '@/hooks/use-emoji-insertion';
 import { useImageAttachments } from '@/hooks/use-image-attachments';
 import { useLinkCard } from '@/hooks/use-link-card';
@@ -107,6 +112,7 @@ function CommitComposerBody({
     stash,
     guildHandle,
     attachments,
+    video,
     linkCard,
     schedule,
     poll,
@@ -127,6 +133,7 @@ function CommitComposerBody({
     stash: UseStashReturn;
     guildHandle?: string;
     attachments: ReturnType<typeof useImageAttachments>;
+    video: ReturnType<typeof useCommitVideo>;
     linkCard: UseLinkCardReturn;
     schedule: ReturnType<typeof useCommitSchedule>;
     poll: PollDraft | null;
@@ -156,7 +163,10 @@ function CommitComposerBody({
             ? characterCount(body)
             : bodyCharacterCount(body),
     );
-    const isFilled = hasImages || characterCount(body.trim()) >= minBodyLength;
+    const isFilled =
+        !!video.file ||
+        hasImages ||
+        characterCount(body.trim()) >= minBodyLength;
     const error = errors.body ?? errors.link_preview_url ?? errors.author;
     const scheduleError =
         errors.scheduled_at ??
@@ -225,7 +235,7 @@ function CommitComposerBody({
     return (
         <div
             className={cn('relative flex', { 'min-h-0': isInDialog })}
-            {...(poll === null ? attachments.dropzone : {})}
+            {...(poll === null && !video.file ? attachments.dropzone : {})}
         >
             {attachments.isDraggingFiles && (
                 <ImageDropOverlay className="inset-2" />
@@ -240,20 +250,27 @@ function CommitComposerBody({
                 isFilled={isFilled}
                 hasTail={!isInDialog}
                 node={
-                    <AuthorSwitcher
-                        user={user}
-                        author={author}
-                        onChange={onAuthorChange}
-                        fallback={ownNode}
-                        // The rail frames an organization's avatar in a larger square, which the focus ring follows.
-                        className={author === null ? undefined : 'rounded-lg'}
-                    >
-                        {author === null ? (
-                            <RailAvatar user={user} progress={progress} />
-                        ) : (
-                            <RailAvatar user={author} progress={progress} />
-                        )}
-                    </AuthorSwitcher>
+                    // Videos are only for personal commits, so the switcher steps aside while one is attached.
+                    video.file ? (
+                        ownNode
+                    ) : (
+                        <AuthorSwitcher
+                            user={user}
+                            author={author}
+                            onChange={onAuthorChange}
+                            fallback={ownNode}
+                            // The rail frames an organization's avatar in a larger square, which the focus ring follows.
+                            className={
+                                author === null ? undefined : 'rounded-lg'
+                            }
+                        >
+                            {author === null ? (
+                                <RailAvatar user={user} progress={progress} />
+                            ) : (
+                                <RailAvatar user={author} progress={progress} />
+                            )}
+                        </AuthorSwitcher>
+                    )
                 }
             />
 
@@ -303,7 +320,9 @@ function CommitComposerBody({
                             value={body}
                             onValueChange={issue.change}
                             onPaste={
-                                poll === null ? attachments.onPaste : undefined
+                                poll === null && !video.file
+                                    ? attachments.onPaste
+                                    : undefined
                             }
                             onKeyDown={(event) =>
                                 preview.handleShortcut(event) ||
@@ -402,6 +421,15 @@ function CommitComposerBody({
                         textarea={textareaRef}
                     />
                     <InputError message={error} />
+                    {!isIssue && (
+                        <CommitVideoPicker
+                            attachment={video}
+                            processing={processing}
+                        />
+                    )}
+                    <InputError
+                        message={errors.video_id ?? errors.video_description}
+                    />
 
                     {!preview.isPreviewing && (
                         <ImagePickerPreviews
@@ -492,10 +520,27 @@ function CommitComposerBody({
                                 <>
                                     <ImagePickerButton
                                         count={attachments.images.length}
-                                        disabled={processing || poll !== null}
+                                        disabled={
+                                            processing ||
+                                            poll !== null ||
+                                            !!video.file
+                                        }
                                         reading={attachments.reading}
                                         onPick={attachments.pick}
                                         className="-ml-2"
+                                    />
+                                    <VideoPickerButton
+                                        onPick={video.pick}
+                                        disabled={
+                                            processing ||
+                                            hasImages ||
+                                            attachments.reading ||
+                                            poll !== null ||
+                                            isScheduling ||
+                                            author !== null ||
+                                            !!guildHandle ||
+                                            !!video.file
+                                        }
                                     />
                                     <ActionTooltip
                                         label={
@@ -511,6 +556,7 @@ function CommitComposerBody({
                                             disabled={
                                                 processing ||
                                                 attachments.reading ||
+                                                !!video.file ||
                                                 poll !== null ||
                                                 hasImages
                                             }
@@ -545,7 +591,9 @@ function CommitComposerBody({
                                             aria-label="Schedule"
                                             aria-expanded={isScheduling}
                                             aria-controls={`${id}-schedule`}
-                                            disabled={processing}
+                                            disabled={
+                                                processing || !!video.file
+                                            }
                                             onClick={() => {
                                                 setTimezone(
                                                     Intl.DateTimeFormat().resolvedOptions()
@@ -662,9 +710,11 @@ export function CommitComposer({
         guildHandle ? `guild:${guildHandle}` : 'commit',
     );
     const { body } = stash;
+    const video = useCommitVideo();
     const linkCard = useLinkCard(body);
     const [draftVersion, setDraftVersion] = useState(0);
     const drop = () => {
+        video.remove();
         stash.drop();
         linkCard.reset();
         setDraftVersion((version) => version + 1);
@@ -687,6 +737,7 @@ export function CommitComposer({
             !guildHandle &&
             !attachments.reading &&
             !hasImages &&
+            !video.file &&
             poll === null &&
             !isScheduling,
         initialKind: initialIssue,
@@ -698,7 +749,11 @@ export function CommitComposer({
 
     const isCommittable =
         !attachments.reading &&
-        (hasImages || characterCount(body.trim()) >= minBodyLength) &&
+        (!video.file ||
+            (video.ready && !hasImages && !poll && !isScheduling)) &&
+        (video.ready ||
+            hasImages ||
+            characterCount(body.trim()) >= minBodyLength) &&
         (issue.command !== null
             ? characterCount(body)
             : bodyCharacterCount(body)) <= maxBodyLength &&
@@ -773,6 +828,10 @@ export function CommitComposer({
                 commit_rules_accepted: commitRules.hasAccepted(),
                 human_verification_token: commitRules.humanVerificationToken(),
                 ...(author !== null && { author: author.handle }),
+                ...(video.ready && {
+                    video_id: video.video!.id,
+                    video_description: video.description,
+                }),
                 ...(hasImages && {
                     images: attachments.images,
                     image_descriptions: attachments.descriptions,
@@ -789,6 +848,7 @@ export function CommitComposer({
                     return;
                 }
 
+                video.attached();
                 drop();
                 setAuthor(null);
                 setScheduledAt('');
@@ -816,6 +876,7 @@ export function CommitComposer({
                         stash={stash}
                         guildHandle={guildHandle}
                         attachments={attachments}
+                        video={video}
                         linkCard={linkCard}
                         schedule={schedule}
                         poll={poll}

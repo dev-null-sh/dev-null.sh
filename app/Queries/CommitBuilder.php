@@ -226,7 +226,7 @@ final class CommitBuilder extends Builder
             'quotedCommit' => fn (BelongsTo $query): BelongsTo => $query
                 ->withTrashed()
                 ->where(fn (self $query): self => $query->visibleTo($viewer))
-                ->with(['author', 'linkPreview' => $this->linkPreviewWithTopicFor($viewer), 'images', 'guild'])
+                ->with(['author', 'linkPreview' => $this->linkPreviewWithTopicFor($viewer), 'images', 'video', 'guild'])
                 ->withPollFor($viewer),
         ]);
     }
@@ -256,7 +256,7 @@ final class CommitBuilder extends Builder
         return $this
             ->withVisibleReplyCount(null)
             ->withCount('stars')
-            ->with(['author', 'linkPreview', 'images', 'guild', 'parent' => fn (BelongsTo $query): BelongsTo => $query->where('status', CommitStatus::Approved)]);
+            ->with(['author', 'linkPreview', 'images', 'video', 'guild', 'parent' => fn (BelongsTo $query): BelongsTo => $query->where('status', CommitStatus::Approved)]);
     }
 
     public function pending(): self
@@ -269,9 +269,11 @@ final class CommitBuilder extends Builder
      */
     public function awaitingModerator(): self
     {
+        // Video commits skip the ai check, so they wait for a moderator right away.
         return $this->pending()->where(fn (self $query): self => $query
             ->whereNotNull('ai_decision')
-            ->orWhere('created_at', '<=', now()->subMinutes(Commit::CHECKING_MINUTES)));
+            ->orWhere('created_at', '<=', now()->subMinutes(Commit::CHECKING_MINUTES))
+            ->orWhereHas('video'));
     }
 
     /**
@@ -324,7 +326,7 @@ final class CommitBuilder extends Builder
     public function withCardDataFor(?User $viewer): self
     {
         return $this
-            ->with(['author', 'linkPreview' => $this->linkPreviewWithTopicFor($viewer), 'images', 'guild'])
+            ->with(['author', 'linkPreview' => $this->linkPreviewWithTopicFor($viewer), 'images', 'video', 'guild'])
             ->withQuotedCommitFor($viewer)
             ->withStarsFor($viewer)
             ->withPollFor($viewer)

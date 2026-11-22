@@ -26,10 +26,10 @@ if ((${#legacy_packages[@]})); then
     sudo env DEBIAN_FRONTEND=noninteractive apt-get remove -y "${legacy_packages[@]}"
 fi
 
-step 'Checking system packages (PHP 8.5 and PostgreSQL 18)'
+step 'Checking system packages (PHP 8.5, PostgreSQL 18 and FFmpeg)'
 packages=(php8.5-cli php8.5-curl php8.5-gd php8.5-intl php8.5-mbstring
     php8.5-pgsql php8.5-xml php8.5-zip php8.5-pcov postgresql-18
-    postgresql-18-pgvector)
+    postgresql-18-pgvector ffmpeg)
 missing=()
 for package in "${packages[@]}"; do
     if ! dpkg-query -W -f='${Status}' "$package" 2>/dev/null | grep -qx 'install ok installed'; then

@@ -31,6 +31,8 @@ composer dev
 
 Run `composer test` before opening a pull request.
 
+Video uploads also need FFmpeg and FFprobe, both locally and in the tests. Videos are encoded on the `videos` queue, so run `php artisan queue:work --queue=videos` alongside `composer dev`. Locally, uploads go through PHP, so set `post_max_size` and `upload_max_filesize` above 100M in your `php.ini`.
+
 ### Live updates
 
 Pages hear about changes through any server speaking the Pusher protocol, such as Laravel Cloud's WebSockets or a self-hosted Reverb. By default `BROADCAST_CONNECTION=log` sends nothing anywhere and every page polls as before. To try them locally, run a Pusher-protocol server on your machine, set `BROADCAST_CONNECTION=reverb` with the `REVERB_*` variables pointing at it, set the matching `VITE_REVERB_*` variables, and rebuild the assets: the `VITE_` ones are read at build time. Tests always use the `null` broadcaster.

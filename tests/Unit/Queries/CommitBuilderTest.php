@@ -2,8 +2,10 @@
 
 declare(strict_types=1);
 
+use App\Enums\CommitVideoStatus;
 use App\Enums\Feature;
 use App\Models\Commit;
+use App\Models\CommitVideo;
 use App\Models\Guild;
 use App\Models\LinkPreview;
 use App\Models\Organization;
@@ -86,14 +88,17 @@ it('scopes commits to pending ones', function (): void {
     expect(Commit::query()->pending()->sole()->is($pending))->toBeTrue();
 });
 
-it('scopes commits to the pending ones the ai checked or gave up on', function (): void {
+it('scopes commits to the pending ones the ai checked or gave up on, and pending video commits', function (): void {
     Commit::factory()->pending()->create(['created_at' => now()->subMinutes(Commit::CHECKING_MINUTES - 1)]);
     $givenUpOn = Commit::factory()->pending()->create(['created_at' => now()->subMinutes(Commit::CHECKING_MINUTES)]);
     $checked = Commit::factory()->pending()->checkedByAi()->create();
     Commit::factory()->checkedByAi()->create();
+    $video = Commit::factory()->pending()->create();
+    CommitVideo::factory()->for($video)->create(['status' => CommitVideoStatus::Ready]);
+    CommitVideo::factory()->for(Commit::factory()->create())->create(['status' => CommitVideoStatus::Ready]);
 
     expect(Commit::query()->awaitingModerator()->pluck('id')->sort()->values()->all())
-        ->toBe(collect([$givenUpOn->id, $checked->id])->sort()->values()->all());
+        ->toBe(collect([$givenUpOn->id, $checked->id, $video->id])->sort()->values()->all());
 });
 
 it('scopes commits to top-level ones', function (): void {
