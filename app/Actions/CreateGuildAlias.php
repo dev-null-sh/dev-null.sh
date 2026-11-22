@@ -21,6 +21,9 @@ final readonly class CreateGuildAlias
     /**
      * The alias is checked again under the lock, and left out when its hashtag was taken meanwhile or the user no
      * longer moderates the guild.
+     *
+     * The request checks the cap before this runs, but aliases added at the same moment each see the others missing.
+     * So the cap is counted again here, under the guild's lock: an alias past it is left out.
      */
     public function handle(Guild $guild, User $user, string $handle): void
     {
@@ -29,6 +32,10 @@ final readonly class CreateGuildAlias
             $guild = Guild::query()->whereKey($guild->id)->lockForUpdate()->firstOrFail();
 
             if ($guild->user_id !== $user->id || Guild::query()->where('handle', $handle)->exists() || GuildAlias::query()->where('handle', $handle)->exists()) {
+                return;
+            }
+
+            if ($guild->aliases()->count() >= GuildAlias::MAX_PER_GUILD) {
                 return;
             }
 

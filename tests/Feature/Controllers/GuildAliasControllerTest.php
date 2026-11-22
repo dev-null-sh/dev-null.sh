@@ -158,15 +158,16 @@ it('leaves the alias out when it stops being allowed after validation', function
                 'guild' => Guild::factory()->create(['handle' => 'golang']),
                 'alias' => GuildAlias::factory()->create(['handle' => 'golang']),
                 'moderator' => Guild::query()->whereKey($guild->id)->update(['user_id' => null]),
+                'limit' => GuildAlias::factory()->for($guild)->count(GuildAlias::MAX_PER_GUILD)->create(),
             };
         }
     });
 
     $this->actingAs($moderator)->post(route('guild-alias.store', 'go'), ['handle' => 'golang'])->assertRedirectToRoute('guild.show', 'go');
 
-    expect($changed)->toBeTrue()->and($guild->aliases()->exists())->toBeFalse();
+    expect($changed)->toBeTrue()->and($guild->aliases()->where('handle', 'golang')->exists())->toBeFalse();
     Event::assertNotDispatched(UsersUpdated::class, fn (UsersUpdated $event): bool => $event->update === UserUpdate::Guilds);
-})->with(['guild', 'alias', 'moderator']);
+})->with(['guild', 'alias', 'moderator', 'limit']);
 
 it('lets the moderator remove an alias, which takes its commits off the board', function (): void {
     $moderator = User::factory()->create();

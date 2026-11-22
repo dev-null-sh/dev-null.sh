@@ -6,6 +6,7 @@ namespace App\Http\Requests;
 
 use App\Enums\Feature;
 use App\Models\Guild;
+use App\Models\GuildAlias;
 use App\Rules\FlaggedGuild;
 use App\Services\Features;
 use Closure;
@@ -17,8 +18,6 @@ use Illuminate\Validation\Validator;
 
 final class CreateGuildAliasRequest extends FormRequest
 {
-    private const int MAX_PER_GUILD = 10;
-
     public function authorize(Features $features): Response
     {
         $guild = $this->route('guild');
@@ -47,8 +46,8 @@ final class CreateGuildAliasRequest extends FormRequest
             $guild = $this->route('guild');
             assert($guild instanceof Guild);
 
-            if ($guild->aliases()->count() >= self::MAX_PER_GUILD) {
-                $validator->errors()->add('handle', 'A guild can have up to '.self::MAX_PER_GUILD.' aliases.');
+            if ($guild->aliases()->count() >= GuildAlias::MAX_PER_GUILD) {
+                $validator->errors()->add('handle', 'A guild can have up to '.GuildAlias::MAX_PER_GUILD.' aliases.');
 
                 return;
             }
