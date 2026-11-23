@@ -2,14 +2,21 @@
 
 declare(strict_types=1);
 
+use App\Actions\CreateGuild;
 use App\Actions\UpdateGuildMembership;
 use App\Actions\UpdateGuildMute;
+use App\Contracts\Services\ModerationProvider;
 use App\Enums\Feature;
 use App\Models\Commit;
 use App\Models\Guild;
+use App\Models\GuildSubmission;
 use App\Models\User;
+use App\Models\UserTimeout;
 use App\Queries\GuildsQuery;
 use App\Services\Features;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 beforeEach(function (): void {
     resolve(Features::class)->update(Feature::Guilds, true, adminOnly: false);
@@ -242,3 +249,138 @@ it('does not find a board for an unknown guild or while guilds are not available
     'unknown guild' => [false, 'go'],
     'admin preview' => [true, 'rust'],
 ]);
+
+it('creates a guild from its display name, with the user as its moderator and first member', function (): void {
+    Storage::fake();
+
+    signedApiRequestWithImages($this->keyPair, 'POST', route('api-guild.store'), [
+        'name' => 'Jo bs', 'description' => 'Hiring and freelance work.', 'emoji' => '💼',
+    ], [UploadedFile::fake()->image('icon.png', 80, 60)])
+        ->assertCreated()
+        ->assertJsonPath('data.handle', 'jobs')
+        ->assertJsonPath('data.name', 'Jo bs')
+        ->assertJsonPath('data.member_count', 1)
+        ->assertJsonPath('data.is_joined', true)
+        ->assertJsonPath('data.is_paused', false);
+
+    $guild = Guild::query()->sole();
+    expect($guild->user_id)->toBe($this->user->id)
+        ->and($guild->icon_path)->toEndWith('.webp');
+    Storage::assertExists($guild->icon_path);
+    signedApiRequest($this->keyPair, 'GET', route('api-guild.show', 'jobs'))->assertJsonPath('can_moderate', true);
+});
+
+it('claims a paused guild', function (): void {
+    $go = Guild::factory()->create(['handle' => 'go', 'user_id' => null]);
+
+    signedApiRequest($this->keyPair, 'POST', route('api-guild.store'), ['name' => 'Go', 'description' => 'Gophers.', 'emoji' => '🐹'])
+        ->assertCreated()->assertJsonPath('data.handle', 'go')->assertJsonPath('data.is_paused', false);
+
+    expect($go->fresh()->user_id)->toBe($this->user->id);
+});
+
+it('holds a flagged guild for review instead of creating it', function (): void {
+    $moderation = $this->mock(ModerationProvider::class);
+    $moderation->shouldReceive('moderate')->andReturn(['harassment' => 0.7]);
+    $moderation->shouldReceive('isHarmful')->andReturn(false);
+
+    signedApiRequest($this->keyPair, 'POST', route('api-guild.store'), ['name' => 'Jobs', 'description' => 'Flagged words.', 'emoji' => '💼'])
+        ->assertAccepted()
+        ->assertExactJson(['message' => 'Your guild is waiting for review. It goes live once an admin approves it.']);
+
+    $this->assertDatabaseCount('guilds', 0);
+    expect(GuildSubmission::query()->sole())->handle->toBe('jobs')->user_id->toBe($this->user->id);
+});
+
+it('rejects invalid guild details without creating a guild', function (array $payload, string $field): void {
+    signedApiRequest($this->keyPair, 'POST', route('api-guild.store'), ['name' => 'Jobs', 'description' => 'Hiring.', 'emoji' => '💼', ...$payload])
+        ->assertUnprocessable()->assertJsonValidationErrors($field);
+
+    $this->assertDatabaseCount('guilds', 0);
+})->with([
+    'missing name' => [['name' => null], 'name'],
+    'name without a hashtag' => [['name' => '!!!'], 'handle'],
+    'unrelated name' => [['handle' => 'jobs', 'name' => 'Job Board'], 'name'],
+]);
+
+it('rejects an icon that is not an image', function (): void {
+    signedApiRequestWithImages($this->keyPair, 'POST', route('api-guild.store'), ['name' => 'Jobs', 'description' => 'Hiring.', 'emoji' => '💼'], [
+        UploadedFile::fake()->createWithContent('icon.svg', '<svg xmlns="http://www.w3.org/2000/svg"/>'),
+    ])->assertUnprocessable()->assertJsonValidationErrors('images.0');
+
+    $this->assertDatabaseCount('guilds', 0);
+});
+
+it('refuses a taken hashtag, a guild the user was removed from, and more than a hundred guilds', function (string $case): void {
+    match ($case) {
+        'taken' => Guild::factory()->create(['handle' => 'jobs']),
+        'removed' => DB::table('guild_moderator_removals')->insert(['github_id' => $this->user->github_id, 'handle' => 'jobs', 'created_at' => now()]),
+        'limit' => Guild::factory()->count(100)->create(['user_id' => $this->user->id]),
+    };
+
+    signedApiRequest($this->keyPair, 'POST', route('api-guild.store'), ['name' => 'Jobs', 'description' => 'Hiring.', 'emoji' => '💼'])
+        ->assertUnprocessable()->assertJsonValidationErrors('handle');
+
+    expect(Guild::query()->where('handle', 'jobs')->where('user_id', $this->user->id)->exists())->toBeFalse();
+})->with(['taken', 'removed', 'limit']);
+
+it('refuses the claim when a removal wins the race after validation', function (): void {
+    $this->app->beforeResolving(CreateGuild::class, function (): void {
+        DB::table('guild_moderator_removals')->insert(['github_id' => $this->user->github_id, 'handle' => 'jobs', 'created_at' => now()]);
+    });
+
+    signedApiRequest($this->keyPair, 'POST', route('api-guild.store'), ['name' => 'Jobs', 'description' => 'Hiring.', 'emoji' => '💼'])
+        ->assertUnprocessable()
+        ->assertJsonPath('errors.handle', ['You cannot reclaim a guild you were removed from.']);
+
+    $this->assertDatabaseCount('guilds', 0);
+});
+
+it('refuses the claim when another creation of the hashtag wins the race after validation', function (bool $flagged): void {
+    if ($flagged) {
+        $moderation = $this->mock(ModerationProvider::class);
+        $moderation->shouldReceive('moderate')->andReturn(['harassment' => 0.7]);
+        $moderation->shouldReceive('isHarmful')->andReturn(false);
+    }
+
+    $other = User::factory()->create();
+    $this->app->beforeResolving(CreateGuild::class, function () use ($other): void {
+        Guild::factory()->create(['handle' => 'jobs', 'user_id' => $other->id]);
+    });
+
+    signedApiRequest($this->keyPair, 'POST', route('api-guild.store'), ['name' => 'Jobs', 'description' => 'Hiring.', 'emoji' => '💼'])
+        ->assertUnprocessable()
+        ->assertJsonPath('errors.handle', ['A guild already uses this hashtag. Choose a different display name.']);
+
+    expect(Guild::query()->sole()->user_id)->toBe($other->id);
+    $this->assertDatabaseCount('guild_submissions', 0);
+})->with(['published' => false, 'flagged' => true]);
+
+it('does not create guilds while they are not available to the user', function (): void {
+    resolve(Features::class)->update(Feature::Guilds, true, adminOnly: true);
+
+    signedApiRequest($this->keyPair, 'POST', route('api-guild.store'), ['name' => 'Jobs', 'description' => 'Hiring.', 'emoji' => '💼'])->assertNotFound();
+
+    $this->assertDatabaseCount('guilds', 0);
+});
+
+it('requires a signed request to create a guild', function (): void {
+    $this->postJson(route('api-guild.store'), ['name' => 'Jobs', 'description' => 'Hiring.', 'emoji' => '💼'])->assertUnauthorized();
+});
+
+it('refuses to create a guild while the user is in timeout', function (): void {
+    UserTimeout::factory()->for($this->user)->create();
+
+    signedApiRequest($this->keyPair, 'POST', route('api-guild.store'), ['name' => 'Jobs', 'description' => 'Hiring.', 'emoji' => '💼'])
+        ->assertForbidden()->assertJsonPath('code', 'timed_out');
+
+    $this->assertDatabaseCount('guilds', 0);
+});
+
+it('limits how often the user creates guilds', function (): void {
+    foreach (range(1, 10) as $attempt) {
+        signedApiRequest($this->keyPair, 'POST', route('api-guild.store'), ['name' => 'Jobs', 'description' => '', 'emoji' => '💼'])->assertUnprocessable();
+    }
+
+    signedApiRequest($this->keyPair, 'POST', route('api-guild.store'), ['name' => 'Jobs', 'description' => 'Hiring.', 'emoji' => '💼'])->assertTooManyRequests();
+});

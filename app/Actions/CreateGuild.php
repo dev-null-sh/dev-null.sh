@@ -31,6 +31,13 @@ final readonly class CreateGuild
             }
 
             if ($flagged) {
+                // A guild another creation published after validation keeps its hashtag, so nothing waits for review...
+                $taken = Guild::query()->where('handle', mb_strtolower($handle))->whereNotNull('user_id')->first();
+
+                if ($taken instanceof Guild) {
+                    return $taken;
+                }
+
                 assert($icon instanceof UploadedFile || $icon === null);
 
                 return $this->submit->handle($user, mb_strtolower($handle), $name, $description, $emoji, $icon, false);
