@@ -38,9 +38,21 @@ export function expansionCommandBeforeCaret(
         /(?:^|\s)(\/([a-z0-9-]*))$/,
     );
 
-    return match && expansionsStartingWith(match[1]).length > 0
-        ? { start: before.length - match[1].length, query: match[2] }
+    const start = before.length - (match?.[1].length ?? 0);
+
+    return match &&
+        startsAtBoundary(before, start) &&
+        expansionsStartingWith(match[1]).length > 0
+        ? { start, query: match[2] }
         : null;
+}
+
+/**
+ * Whether a slash starts the text or follows a space in it. A prose part can start right after code, so its own start
+ * is no boundary.
+ */
+function startsAtBoundary(text: string, slash: number): boolean {
+    return slash === 0 || /\s/u.test(text.charAt(slash - 1));
 }
 
 /**
@@ -69,9 +81,14 @@ export function expandTextCommands(
     const expanded = mapTypedProse(text, (prose, offset) =>
         prose.replace(
             commandPattern,
-            (_, before: string, name: string, index: number) => {
-                const replacement = textByName.get(name) ?? name;
+            (match: string, before: string, name: string, index: number) => {
                 const start = offset + index + before.length;
+
+                if (!startsAtBoundary(text, start)) {
+                    return match;
+                }
+
+                const replacement = textByName.get(name) ?? name;
                 const end = start + name.length;
 
                 if (caret >= end) {

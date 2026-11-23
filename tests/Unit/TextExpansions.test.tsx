@@ -131,6 +131,22 @@ test('leaves commands inside a word, a link or a longer command untouched', () =
     }
 });
 
+test('leaves a command glued to code untouched, and expands one a space away from it', () => {
+    assert.deepEqual(expandTextCommands('`x`/shrug ', 10), {
+        text: '`x`/shrug ',
+        caret: 10,
+    });
+    assert.deepEqual(expandTextCommands('`x` /shrug ', 11), {
+        text: '`x` ¯\\_(ツ)_/¯ ',
+        caret: 14,
+    });
+    assert.equal(expansionCommandBeforeCaret('`x`/sh'), null);
+    assert.deepEqual(expansionCommandBeforeCaret('`x` /sh'), {
+        start: 4,
+        query: 'sh',
+    });
+});
+
 test('leaves commands in code untouched', () => {
     const text = 'run `/shrug ` or\n```\n/tableflip \n```\n';
     assert.deepEqual(expandTextCommands(text, text.length), {
