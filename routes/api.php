@@ -34,6 +34,7 @@ use App\Http\Controllers\Api\DevicePushTokenController;
 use App\Http\Controllers\Api\GuildController;
 use App\Http\Controllers\Api\GuildIconController;
 use App\Http\Controllers\Api\GuildMembershipController;
+use App\Http\Controllers\Api\GuildReportController;
 use App\Http\Controllers\Api\HeadlineController;
 use App\Http\Controllers\Api\IssueController;
 use App\Http\Controllers\Api\IssueSuggestionController;
@@ -369,6 +370,11 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         Route::delete('guilds/{guild:handle}/membership', [GuildMembershipController::class, 'destroy'])
             ->middleware('throttle:follows')
             ->name('api-guild-membership.destroy');
+
+        // Guild Report: a private report to the admins, as the web's Report button sends...
+        Route::post('guilds/{guild:handle}/reports', [GuildReportController::class, 'store'])
+            ->middleware('throttle:10,1,guild-reports:')
+            ->name('api-guild-report.store');
 
         // Who to Follow...
         Route::get('me/suggested-users', [SuggestedUserController::class, 'index'])->name('api-suggested-user.index');
