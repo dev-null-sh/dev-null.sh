@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Http\Requests\CreateCommitPreviewRequest;
+use App\Http\Resources\ShownGuildMentions;
 use App\Queries\MentionedOrganizationsQuery;
 use App\Queries\MentionedUsersQuery;
 use App\Services\CodeSpans;
@@ -26,11 +27,13 @@ final readonly class CommitPreviewController
     ): JsonResponse {
         $body = $request->string('body')->value();
         $mentions = $mentionedUsers->get($body);
+        $expanded = $emojiShortcodes->replace($body);
 
         return response()->json([
-            'segments' => $codeSpans->highlight($emojiShortcodes->replace($body)),
+            'segments' => $codeSpans->highlight($expanded),
             'mentions' => $mentions,
             'organization_mentions' => $mentionedOrganizations->get($body, $mentions),
+            'guild_mentions' => ShownGuildMentions::get([$expanded], $request->user()),
         ]);
     }
 }

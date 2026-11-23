@@ -624,7 +624,10 @@ function headingBefore(options: Option[], index: number): ReactNode {
         return previous?.kind === 'commit' &&
             previous.commit.guild_handle ===
                 option.commit.guild_handle ? null : (
-            <GuildSearchHeading handle={option.commit.guild_handle} />
+            <GuildSearchHeading
+                handle={option.commit.guild_handle}
+                guild={option.commit.guild}
+            />
         );
     }
 

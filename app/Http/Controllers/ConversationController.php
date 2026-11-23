@@ -7,6 +7,7 @@ namespace App\Http\Controllers;
 use App\Actions\UpdateConversationReadThrough;
 use App\Http\Requests\ListConversationsRequest;
 use App\Http\Requests\ShowConversationRequest;
+use App\Http\Resources\ShownGuildMentions;
 use App\Models\Conversation;
 use App\Models\User;
 use App\Queries\ConversationsQuery;
@@ -20,7 +21,7 @@ final readonly class ConversationController
     public function index(ListConversationsRequest $request, #[CurrentUser] User $user, ConversationsQuery $conversations): Response
     {
         return Inertia::render('conversation/index', [
-            'inbox' => fn (): array => $conversations->get($user),
+            'inbox' => fn (): array => ShownGuildMentions::of($conversations->get($user), $user),
             'partner' => null,
             'thread' => null,
         ]);
@@ -42,9 +43,9 @@ final readonly class ConversationController
                     $action->handle($user, $conversation, $thread['messages']->last()->id ?? 0);
                 }
 
-                return $thread;
+                return ShownGuildMentions::of($thread, $user);
             },
-            'inbox' => fn (): array => $conversations->get($user),
+            'inbox' => fn (): array => ShownGuildMentions::of($conversations->get($user), $user),
             'partner' => $partner,
         ]);
     }

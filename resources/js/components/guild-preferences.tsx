@@ -1,4 +1,4 @@
-import { Link, router } from '@inertiajs/react';
+import { Link, router, usePage } from '@inertiajs/react';
 import { UserPlus, Volume2, VolumeX } from 'lucide-react';
 import { useState } from 'react';
 import {
@@ -33,10 +33,13 @@ export function GuildMemberCount({ guild }: { guild: Guild }) {
 export function GuildPreferences({
     guild,
     showMute = true,
+    onChange,
 }: {
     guild: Guild;
     showMute?: boolean;
+    onChange?: (guild: Guild) => void;
 }) {
+    const { component } = usePage();
     const [processing, setProcessing] = useState(false);
     const { isJustToggled, markToggled, onMouseLeave } = useFollowHover();
 
@@ -45,30 +48,70 @@ export function GuildPreferences({
         const value = !guild[key];
         markToggled();
         setProcessing(true);
+        let succeeded = false;
+        const change = (item: Guild): Guild =>
+            item.id === guild.id
+                ? {
+                      ...item,
+                      [key]: value,
+                      ...(kind === 'joined' && value && { is_muted: false }),
+                      member_count:
+                          item.member_count +
+                          (kind === 'joined'
+                              ? Number(value) - Number(item.is_joined)
+                              : 0),
+                  }
+                : item;
+        onChange?.(change(guild));
         router
-            .optimistic<{ guilds: Guild[] | null }>((props) => ({
-                guilds: props.guilds?.map((item) =>
-                    item.id === guild.id
-                        ? {
-                              ...item,
-                              [key]: value,
-                              ...(kind === 'joined' &&
-                                  value && { is_muted: false }),
-                              member_count:
-                                  item.member_count +
-                                  (kind === 'joined' ? (value ? 1 : -1) : 0),
-                          }
-                        : item,
-                ),
-            }))
+            .optimistic<{
+                guild?: Guild;
+                guilds?: Guild[];
+                profileGuilds?: Guild[] | null;
+                guildPage?: { data: Guild[] };
+            }>((props) => {
+                return {
+                    ...(props.guild && { guild: change(props.guild) }),
+                    ...(props.profileGuilds && {
+                        profileGuilds: props.profileGuilds.map(change),
+                    }),
+                    ...(props.guildPage && {
+                        guilds: props.guildPage.data.map((item) =>
+                            change(
+                                props.guilds?.find(
+                                    (fresh) => fresh.id === item.id,
+                                ) ?? item,
+                            ),
+                        ),
+                        guildPage: {
+                            ...props.guildPage,
+                            data: props.guildPage.data.map(change),
+                        },
+                    }),
+                };
+            })
             .put(
                 (kind === 'joined' ? membership : mute).url(guild.id),
                 { [kind]: value },
                 {
-                    only: ['guilds'],
+                    only: [
+                        component === 'user/show'
+                            ? 'profileGuilds'
+                            : component === 'guild/index'
+                              ? 'guilds'
+                              : 'guild',
+                    ],
                     preserveScroll: true,
-                    onSuccess: () => router.flushAll(),
-                    onFinish: () => setProcessing(false),
+                    onSuccess: () => {
+                        succeeded = true;
+                        router.flushAll();
+                    },
+                    onFinish: () => {
+                        if (!succeeded) {
+                            onChange?.(guild);
+                        }
+                        setProcessing(false);
+                    },
                 },
             );
     }

@@ -2,12 +2,16 @@
 
 declare(strict_types=1);
 
+use App\Enums\Feature;
 use App\Jobs\UnfurlLink;
 use App\Models\Commit;
+use App\Models\Guild;
 use App\Models\User;
 use App\Rules\CommitBodyLength;
+use App\Services\Features;
 use App\Services\Urls;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Storage;
 
 beforeEach(function (): void {
     $this->user = User::factory()->create();
@@ -15,6 +19,8 @@ beforeEach(function (): void {
 });
 
 it('previews a draft the way the commit it becomes is shown', function (string $body): void {
+    resolve(Features::class)->update(Feature::Guilds, true, false);
+    Guild::factory()->create(['handle' => 'rust', 'name' => 'Rust']);
     $preview = signedApiRequest($this->keyPair, 'POST', route('api-commit-preview.store'), ['body' => $body]);
 
     $commit = signedApiRequest($this->keyPair, 'POST', route('api-commit.store'), ['body' => $body])->json('data');
@@ -25,12 +31,35 @@ it('previews a draft the way the commit it becomes is shown', function (string $
             'body_segments' => $commit['body_segments'],
             'preview_segments' => $commit['preview_segments'],
             'mentions' => $commit['mentions'],
+            'guild_mentions' => $commit['guild_mentions'],
         ]]);
+    if (str_contains($body, '#rust')) {
+        $preview->assertJsonPath('data.guild_mentions.rust.name', 'Rust');
+    }
 })->with([
     'code, mentions and emoji' => "  shipped :rocket: with @nunomaduro\n```php\n\$name = 'devnull';\n```\nrun `composer test` :fire:  ",
     'runs of blank lines' => "Shipped it.\n\n\n\nFinally.",
+    'guild mention' => 'Learning #rust',
     'too long to show whole in a list' => implode("\n", array_fill(0, 12, 'One more line of the changelog.')),
 ]);
+
+it('serves mentioned guild icons from previews and commits without a web session', function (): void {
+    Storage::fake();
+    Storage::put('guild-icons/rust.webp', 'rust icon');
+    resolve(Features::class)->update(Feature::Guilds, true, false);
+    Guild::factory()->create(['handle' => 'rust', 'icon_path' => 'guild-icons/rust.webp']);
+
+    $preview = signedApiRequest($this->keyPair, 'POST', route('api-commit-preview.store'), ['body' => 'Learning #rust']);
+    $commit = signedApiRequest($this->keyPair, 'POST', route('api-commit.store'), ['body' => 'Learning #rust']);
+
+    $url = $preview->assertOk()->json('data.guild_mentions.rust.icon_url');
+    $commit->assertCreated()->assertJsonPath('data.guild_mentions.rust.icon_url', $url);
+    auth()->forgetGuards();
+
+    $response = $this->get($url)->assertOk()->assertHeader('Content-Type', 'image/webp');
+
+    expect($response->streamedContent())->toBe('rust icon');
+});
 
 it('previews publishable text longer than 4000 raw characters when it contains links', function (): void {
     Queue::fake([UnfurlLink::class]);

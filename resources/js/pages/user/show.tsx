@@ -65,6 +65,7 @@ import type {
     Profile,
     Streaks,
 } from '@/types';
+import type { Guild } from '@/types/guild';
 
 function pluralize(count: number, singular: string, plural: string) {
     return count === 1 ? singular : plural;
@@ -91,7 +92,7 @@ export default function Show({
     readme,
 }: {
     user: Profile;
-    profileGuilds: string[] | null;
+    profileGuilds: Guild[] | null;
     bioProfiles: Record<string, string>;
     pasteisReceived: number | null;
     isFollowing: boolean;
@@ -522,7 +523,7 @@ export default function Show({
                             <dt className="sr-only">Guild memberships</dt>
                             <dd>
                                 <ProfileGuilds
-                                    handles={profileGuilds}
+                                    guilds={profileGuilds}
                                     handle={user.handle}
                                 />
                             </dd>

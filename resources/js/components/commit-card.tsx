@@ -437,6 +437,15 @@ export function CommitCard({
                                         because you joined{' '}
                                         <Hashtag
                                             hashtag={`#${commit.joined_guild}`}
+                                            guild={
+                                                commit.guild?.handle ===
+                                                commit.joined_guild
+                                                    ? commit.guild
+                                                    : undefined
+                                            }
+                                            guildMentions={
+                                                commit.guild_mentions
+                                            }
                                         />
                                     </p>
                                 )}
@@ -486,6 +495,7 @@ export function CommitCard({
                             <div ref={bodyRef} style={translation.bodyStyle}>
                                 <FoldedCommitBody
                                     segments={translation.segments}
+                                    guildMentions={translation.guildMentions}
                                     mentions={commit.mentions}
                                     organizationMentions={
                                         commit.organization_mentions

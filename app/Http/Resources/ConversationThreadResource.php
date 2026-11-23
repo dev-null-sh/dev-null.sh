@@ -42,10 +42,10 @@ final class ConversationThreadResource extends JsonResource
         /** @var ThreadWithPartner $thread */
         $thread = $this->resource;
 
-        return [
+        return ShownGuildMentions::of([
             ...$thread,
             'partner' => UserResource::make($thread['partner']),
             'messages' => MessageResource::collection($thread['messages']),
-        ];
+        ], $request->user());
     }
 }

@@ -71,6 +71,7 @@ use App\Http\Controllers\GuildReportController;
 use App\Http\Controllers\GuildSubmissionApprovalController;
 use App\Http\Controllers\GuildSubmissionController;
 use App\Http\Controllers\GuildSubmissionIconController;
+use App\Http\Controllers\GuildSuggestionController;
 use App\Http\Controllers\HeadlineController;
 use App\Http\Controllers\HumanVerificationController;
 use App\Http\Controllers\InboxController;
@@ -373,6 +374,7 @@ Route::get('search', [SearchController::class, 'index'])
     ->name('search.index');
 
 Route::middleware('auth')->group(function (): void {
+    Route::get('search/guilds', [GuildSuggestionController::class, 'index'])->middleware('throttle:people')->name('guild-suggestions.index');
     Route::get('guilds', [GuildController::class, 'index'])->name('guild.index');
     Route::get('guilds/{guild:handle}', [GuildController::class, 'show'])->name('guild.show');
     Route::get('guilds/{guild:handle}/members', [GuildMembershipController::class, 'index'])->name('guild-membership.index');

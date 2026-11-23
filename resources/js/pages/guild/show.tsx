@@ -26,11 +26,12 @@ import { WordmarkText } from '@/components/wordmark-text';
 import AppLayout from '@/layouts/app-layout';
 import { firstReadCommit } from '@/lib/guild-read-marker';
 import type { Commit } from '@/types';
-import type { JoinedGuild } from '@/types/guild';
+import type { Guild, JoinedGuild } from '@/types/guild';
 
 export default function Show({
     handle,
     readFrom,
+    guild,
     canModerate,
     pinnedCommit,
     commits,
@@ -39,13 +40,14 @@ export default function Show({
 }: {
     handle: string;
     readFrom: string | null;
+    guild: Guild;
     canModerate: boolean;
     pinnedCommit: Commit | null;
     commits: Commit[];
     page: number;
     hasMore: boolean;
 }) {
-    const { guilds, auth } = usePage().props;
+    const { auth } = usePage().props;
     const [isLoading, setIsLoading] = useState(false);
     const [isPinning, setIsPinning] = useState(false);
     const pinnedCommitId = pinnedCommit?.id;
@@ -61,9 +63,8 @@ export default function Show({
         scrollY: number;
         overflowAnchor: string;
     } | null>(null);
-    const guild = guilds?.find((guild) => guild.handle === handle);
-    const guildId = guild?.id;
-    const isJoined = guild?.is_joined === true;
+    const guildId = guild.id;
+    const isJoined = guild.is_joined;
     const firstReadCommitId = firstReadCommit(
         commits.filter((commit) => commit.id !== pinnedCommitId),
         readFrom,
@@ -71,7 +72,7 @@ export default function Show({
     )?.id;
 
     useEffect(() => {
-        if (guildId === undefined || !isJoined) {
+        if (!isJoined) {
             return;
         }
 

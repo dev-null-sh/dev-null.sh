@@ -1,7 +1,10 @@
 /// <reference types="node" />
 import assert from 'node:assert/strict';
+import * as Inertia from '@inertiajs/react';
 import { App } from '@inertiajs/react';
 import type { ComponentProps, KeyboardEvent, ReactElement } from 'react';
+import { act } from 'react';
+import { createRoot } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { test, vi } from 'vite-plus/test';
 import { CommitBody } from '../../resources/js/components/commit-body';
@@ -19,10 +22,365 @@ import { TooltipProvider } from '../../resources/js/components/ui/tooltip';
 import { bodySegments } from '../../resources/js/lib/code';
 import { minBodyLength } from '../../resources/js/lib/commit';
 
+vi.mock('@inertiajs/react', async () => {
+    const actual = await vi.importActual<typeof Inertia>('@inertiajs/react');
+
+    return {
+        ...actual,
+        useHttp: vi.fn(actual.useHttp),
+        usePage: vi.fn(actual.usePage),
+    };
+});
+
+function mountedPreview(body: string, guildHandle?: string) {
+    vi.stubGlobal('window', globalThis);
+    vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+    const focus = vi.fn();
+    const editorFocus = vi.fn();
+    vi.stubGlobal('document', { getElementById: () => ({ focus }) });
+    vi.stubGlobal('requestAnimationFrame', (callback: () => void) =>
+        callback(),
+    );
+    const page = vi.spyOn(Inertia, 'usePage').mockReturnValue({
+        props: { guildsEnabled: true, auth: { user: null, pasteis: null } },
+    } as ReturnType<typeof Inertia.usePage>);
+    const node = {
+        nodeType: 1,
+        nodeName: 'DIV',
+        tagName: 'DIV',
+        addEventListener: () => {},
+        removeEventListener: () => {},
+    };
+    const root = createRoot({
+        ...node,
+        ownerDocument: {
+            ...node,
+            defaultView: {
+                document: { activeElement: null },
+                HTMLIFrameElement: class {},
+            },
+        },
+    } as unknown as Element);
+    let preview!: ComposerPreview;
+
+    function Composer(props: { body: string; guildHandle?: string }) {
+        preview = useComposerPreview({
+            ...props,
+            isSubmittable: false,
+            textareaRef: {
+                current: {
+                    focus: editorFocus,
+                } as unknown as HTMLTextAreaElement,
+            },
+        });
+        return null;
+    }
+
+    act(() => root.render(<Composer body={body} guildHandle={guildHandle} />));
+
+    return {
+        get preview() {
+            return preview;
+        },
+        focus,
+        editorFocus,
+        update: (body: string, guildHandle?: string) =>
+            act(() =>
+                root.render(<Composer body={body} guildHandle={guildHandle} />),
+            ),
+        unmount: () => {
+            act(() => root.unmount());
+            page.mockRestore();
+            vi.unstubAllGlobals();
+        },
+    };
+}
+
+for (const change of ['draft', 'guild', 'unmount']) {
+    test(`changing ${change} cancels the request and obsolete completion cannot end a newer lookup`, async () => {
+        const responses: ((value: unknown) => void)[] = [];
+        const cancel = vi.fn();
+        const http = vi.spyOn(Inertia, 'useHttp').mockReturnValue({
+            submit: () => new Promise((resolve) => responses.push(resolve)),
+            cancel,
+            transform: vi.fn(),
+        } as unknown as ReturnType<typeof Inertia.useHttp>);
+        const mounted = mountedPreview('#rust', 'rust');
+        let opening!: Promise<void>;
+
+        try {
+            act(() => {
+                opening = mounted.preview.toggle(true);
+            });
+            assert.equal(mounted.preview.isResolving, true);
+            const calls = cancel.mock.calls.length;
+            if (change === 'unmount') {
+                mounted.unmount();
+            } else {
+                mounted.update(change === 'draft' ? '#jobs' : '#rust', 'jobs');
+                assert.equal(mounted.preview.isResolving, false);
+            }
+            assert.equal(cancel.mock.calls.length, calls + 1);
+            if (change !== 'unmount') {
+                act(() => {
+                    void mounted.preview.toggle(true);
+                });
+                assert.equal(mounted.preview.isResolving, true);
+            }
+            await act(async () => {
+                responses[0]({
+                    segments: bodySegments('#rust'),
+                    mentions: {},
+                    organization_mentions: {},
+                    guild_mentions: {
+                        rust: {
+                            handle: 'rust',
+                            name: 'Rust',
+                            emoji: '🦀',
+                            icon_url: null,
+                        },
+                    },
+                });
+                await opening;
+            });
+            assert.equal(mounted.focus.mock.calls.length, 0);
+            if (change !== 'unmount') {
+                assert.equal(mounted.preview.isResolving, true);
+                assert.equal(mounted.preview.guildMentions, undefined);
+                await act(async () =>
+                    responses[1]({
+                        segments: bodySegments('#jobs'),
+                        mentions: {},
+                        organization_mentions: {},
+                        guild_mentions: {},
+                    }),
+                );
+                assert.equal(mounted.preview.isResolving, false);
+                assert.equal(mounted.preview.isPreviewing, true);
+                assert.equal(mounted.focus.mock.calls.length, 1);
+            }
+        } finally {
+            if (change !== 'unmount') {
+                mounted.unmount();
+            }
+            http.mockRestore();
+        }
+    });
+}
+
+test('validation rejection previews an oversized draft locally and reopening does not retry', async () => {
+    const body = 'a'.repeat(4000) + ' #rust';
+    let finishOld!: (response: unknown) => void;
+    const submit = vi.fn(
+        (
+            _route: unknown,
+            options: { onError: (errors: Record<string, string>) => void },
+        ) => {
+            if (submit.mock.calls.length === 1) {
+                return new Promise((resolve) => {
+                    finishOld = resolve;
+                });
+            }
+
+            options.onError({ body: 'The body is too long.' });
+            return Promise.reject(new Error('Validation failed'));
+        },
+    );
+    const http = vi.spyOn(Inertia, 'useHttp').mockReturnValue({
+        submit,
+        cancel: vi.fn(),
+        transform: vi.fn(),
+    } as unknown as ReturnType<typeof Inertia.useHttp>);
+    const mounted = mountedPreview('#rust');
+
+    try {
+        let oldOpening!: Promise<void>;
+        act(() => {
+            oldOpening = mounted.preview.toggle(true);
+        });
+        mounted.update(body);
+        await act(async () => {
+            await mounted.preview.toggle(true);
+        });
+        assert.equal(mounted.preview.isPreviewing, true);
+        assert.equal(mounted.preview.isResolving, false);
+        await act(async () => {
+            finishOld({
+                segments: bodySegments('#rust'),
+                mentions: {},
+                organization_mentions: {},
+                guild_mentions: {
+                    rust: {
+                        handle: 'rust',
+                        name: 'Rust',
+                        emoji: '🦀',
+                        icon_url: null,
+                    },
+                },
+            });
+            await oldOpening;
+        });
+        assert.deepEqual(mounted.preview.segments, bodySegments(body));
+        assert.deepEqual(mounted.preview.guildMentions, {});
+        assert.equal(mounted.focus.mock.calls.length, 1);
+        const markup = renderToStaticMarkup(
+            <ComposerPreviewBody
+                preview={mounted.preview}
+                images={[]}
+                url={null}
+            />,
+        );
+        assert.doesNotMatch(markup, /data-test="guild-mention"/);
+        assert.match(markup, /#rust/);
+        act(() => mounted.preview.close());
+        await act(async () => {
+            await mounted.preview.toggle(true);
+        });
+        assert.equal(submit.mock.calls.length, 2);
+    } finally {
+        mounted.unmount();
+        http.mockRestore();
+    }
+});
+
+test('a no-space quoted hashtag waits for its guild badge before opening preview', async () => {
+    let finish!: (response: unknown) => void;
+    const submit = vi.fn(
+        () =>
+            new Promise((resolve) => {
+                finish = resolve;
+            }),
+    );
+    const http = vi.spyOn(Inertia, 'useHttp').mockReturnValue({
+        submit,
+        cancel: vi.fn(),
+        transform: vi.fn(),
+    } as unknown as ReturnType<typeof Inertia.useHttp>);
+    const mounted = mountedPreview('>#rust');
+
+    try {
+        let opening!: Promise<void>;
+        act(() => {
+            opening = mounted.preview.toggle(true);
+        });
+        assert.equal(mounted.preview.isResolving, true);
+        assert.equal(mounted.preview.isPreviewing, false);
+        const guild = {
+            handle: 'rust',
+            name: 'Rustaceans',
+            emoji: '🦀',
+            icon_url: null,
+        };
+        await act(async () => {
+            finish({
+                segments: bodySegments('>#rust'),
+                mentions: {},
+                organization_mentions: {},
+                guild_mentions: { rust: guild },
+            });
+            await opening;
+        });
+        assert.equal(mounted.preview.isPreviewing, true);
+        assert.equal(mounted.focus.mock.calls.length, 1);
+        const markup = renderToStaticMarkup(
+            <ComposerPreviewBody
+                preview={mounted.preview}
+                images={[]}
+                url={null}
+            />,
+        );
+        assert.match(markup, /<blockquote/);
+        assert.match(markup, /data-test="guild-mention"/);
+        assert.match(markup, /Rustaceans/);
+    } finally {
+        mounted.unmount();
+        http.mockRestore();
+    }
+});
+
+test('network failure returns focus to writing and permits a deliberate retry without duplicate activations', async () => {
+    let reject!: (reason: Error) => void;
+    const submit = vi.fn(
+        () =>
+            new Promise((_resolve, fail) => {
+                reject = fail;
+            }),
+    );
+    const http = vi.spyOn(Inertia, 'useHttp').mockReturnValue({
+        submit,
+        cancel: vi.fn(),
+        transform: vi.fn(),
+    } as unknown as ReturnType<typeof Inertia.useHttp>);
+    const mounted = mountedPreview('#rust');
+
+    try {
+        let opening!: Promise<void>;
+        act(() => {
+            opening = mounted.preview.toggle(true);
+        });
+        const markup = renderToStaticMarkup(
+            <TooltipProvider>
+                <PreviewToggle preview={mounted.preview} />
+            </TooltipProvider>,
+        );
+        assert.match(markup, /aria-disabled="true"/);
+        assert.doesNotMatch(markup, / disabled="/);
+        await act(async () => {
+            await mounted.preview.toggle(true);
+        });
+        assert.equal(submit.mock.calls.length, 1);
+        await act(async () => {
+            reject(new Error('Offline'));
+            await opening;
+        });
+        assert.equal(mounted.preview.isPreviewing, false);
+        assert.equal(mounted.preview.isResolving, false);
+        assert.equal(mounted.editorFocus.mock.calls.length, 1);
+        assert.equal(mounted.focus.mock.calls.length, 0);
+        act(() => {
+            void mounted.preview.toggle(true);
+        });
+        assert.equal(submit.mock.calls.length, 2);
+    } finally {
+        mounted.unmount();
+        http.mockRestore();
+    }
+});
+
+for (const body of [
+    'https://example.com/#rust',
+    'example.com?q=#jobs',
+    'color(#abc) color(#abcd) color(#abcdef) color(#abcdefab)',
+    '>color(#fff)',
+]) {
+    test(`preview opens without a guild lookup for renderer-consumed text: ${body}`, async () => {
+        const submit = vi.fn();
+        const http = vi.spyOn(Inertia, 'useHttp').mockReturnValue({
+            submit,
+            cancel: vi.fn(),
+            transform: vi.fn(),
+        } as unknown as ReturnType<typeof Inertia.useHttp>);
+        const mounted = mountedPreview(body);
+
+        try {
+            await act(async () => {
+                await mounted.preview.toggle(true);
+            });
+            assert.equal(submit.mock.calls.length, 0);
+            assert.equal(mounted.preview.isPreviewing, true);
+            assert.equal(mounted.focus.mock.calls.length, 1);
+        } finally {
+            mounted.unmount();
+            http.mockRestore();
+        }
+    });
+}
+
 function renderPage(
     content: ReactElement,
     pasteisMode = false,
     isAdmin = false,
+    guildsEnabled = false,
 ): string {
     return renderToStaticMarkup(
         <App
@@ -36,7 +394,9 @@ function renderPage(
                     version: null,
                     props: {
                         errors: {},
-                        auth: { organizations: [],
+                        guildsEnabled,
+                        auth: {
+                            organizations: [],
                             user: null,
                             pasteis: pasteisMode
                                 ? { remaining: 0, day: '2026-10-16' }
@@ -52,10 +412,13 @@ function renderPage(
     );
 }
 
-function previewFor(options: {
-    body?: string;
-    isSubmittable: boolean;
-}): ComposerPreview {
+function previewFor(
+    options: {
+        body?: string;
+        isSubmittable: boolean;
+    },
+    guildsEnabled = false,
+): ComposerPreview {
     const previews: ComposerPreview[] = [];
 
     function Composer() {
@@ -70,12 +433,128 @@ function previewFor(options: {
         return null;
     }
 
-    renderToStaticMarkup(<Composer />);
+    renderPage(<Composer />, false, false, guildsEnabled);
     const preview = previews[0];
     assert.ok(preview);
 
     return preview;
 }
+
+test('pasted hashtag preview waits for metadata and close discards a stale response', async () => {
+    let finish!: (response: unknown) => void;
+    const submit = vi.fn(
+        () =>
+            new Promise((resolve) => {
+                finish = resolve;
+            }),
+    );
+    const cancel = vi.fn();
+    const http = vi.spyOn(Inertia, 'useHttp').mockReturnValue({
+        submit,
+        cancel,
+        transform: vi.fn(),
+    } as unknown as ReturnType<typeof Inertia.useHttp>);
+    const focus = vi.fn();
+    vi.stubGlobal('requestAnimationFrame', (callback: () => void) =>
+        callback(),
+    );
+
+    try {
+        const preview = previewFor(
+            { body: '#JoBs', isSubmittable: true },
+            true,
+        );
+        vi.stubGlobal('document', { getElementById: () => ({ focus }) });
+        const opening = preview.toggle(true);
+
+        assert.equal(focus.mock.calls.length, 0);
+        assert.equal(submit.mock.calls.length, 1);
+        preview.close();
+        assert.equal(cancel.mock.calls.length, 2);
+        finish({
+            segments: bodySegments('#jobs'),
+            mentions: {},
+            organization_mentions: {},
+            guild_mentions: {
+                jobs: {
+                    handle: 'jobs',
+                    name: 'Jobs',
+                    emoji: '💼',
+                    icon_url: null,
+                },
+            },
+        });
+        await opening;
+        assert.equal(focus.mock.calls.length, 0);
+    } finally {
+        http.mockRestore();
+        vi.unstubAllGlobals();
+    }
+});
+
+test('pasted hashtag preview moves focus only after successful metadata lookup', async () => {
+    let finish!: (response: unknown) => void;
+    const http = vi.spyOn(Inertia, 'useHttp').mockReturnValue({
+        submit: () =>
+            new Promise((resolve) => {
+                finish = resolve;
+            }),
+        cancel: vi.fn(),
+        transform: vi.fn(),
+    } as unknown as ReturnType<typeof Inertia.useHttp>);
+    const focus = vi.fn();
+    vi.stubGlobal('requestAnimationFrame', (callback: () => void) =>
+        callback(),
+    );
+
+    try {
+        const preview = previewFor(
+            { body: '#jobs', isSubmittable: true },
+            true,
+        );
+        vi.stubGlobal('document', { getElementById: () => ({ focus }) });
+        const opening = preview.toggle(true);
+
+        assert.equal(focus.mock.calls.length, 0);
+        finish({
+            segments: bodySegments('#jobs'),
+            mentions: {},
+            organization_mentions: {},
+            guild_mentions: {},
+        });
+        await opening;
+        assert.equal(focus.mock.calls.length, 1);
+    } finally {
+        http.mockRestore();
+        vi.unstubAllGlobals();
+    }
+});
+
+test('failed metadata lookup keeps the editor instead of revealing unresolved badges', async () => {
+    const focus = vi.fn();
+    const http = vi.spyOn(Inertia, 'useHttp').mockReturnValue({
+        submit: () => Promise.reject(new Error('Unavailable')),
+        cancel: vi.fn(),
+        transform: vi.fn(),
+    } as unknown as ReturnType<typeof Inertia.useHttp>);
+    vi.stubGlobal('requestAnimationFrame', (callback: () => void) =>
+        callback(),
+    );
+
+    try {
+        const preview = previewFor(
+            { body: '#jobs', isSubmittable: true },
+            true,
+        );
+        vi.stubGlobal('document', { getElementById: () => ({ focus }) });
+        await preview.toggle(true);
+
+        assert.equal(focus.mock.calls.length, 0);
+    } finally {
+        http.mockRestore();
+        vi.unstubAllGlobals();
+    }
+});
 
 for (const modifier of ['ctrlKey', 'metaKey'] as const) {
     for (const shiftKey of [false, true]) {
@@ -145,7 +624,8 @@ function renderComposer(body: string, isInDialog = false): string {
                         version: null,
                         props: {
                             errors: {},
-                            auth: { organizations: [],
+                            auth: {
+                                organizations: [],
                                 user: {
                                     id: 'preview-user',
                                     name: 'Preview User',
@@ -411,7 +891,10 @@ test('links mentions by handle until the server has found them', () => {
     );
 
     assert.equal(preview.mentions, null);
-    assert.match(markup, /Pairing with <a[^>]*href="\/@alice"[^>]*>@alice<\/a>/);
+    assert.match(
+        markup,
+        /Pairing with <a[^>]*href="\/@alice"[^>]*>@alice<\/a>/,
+    );
     assert.ok(!markup.includes('data-test="mention"'));
 });
 
