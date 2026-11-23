@@ -128,9 +128,11 @@ export default function Show({
 
                 <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-sm text-muted-foreground">
                     {organization.location && (
-                        <li className="flex items-center gap-1.5">
-                            <MapPin className="size-4" />
-                            {organization.location}
+                        <li className="flex min-w-0 items-center gap-1.5">
+                            <MapPin className="size-4 shrink-0" />
+                            <span className="min-w-0 wrap-anywhere">
+                                {organization.location}
+                            </span>
                         </li>
                     )}
                     {organization.website && (
