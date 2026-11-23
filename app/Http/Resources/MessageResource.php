@@ -14,7 +14,6 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\URL;
-use Illuminate\Support\Str;
 
 /**
  * A message as the web's thread shows it: its body, also split into prose, inline code and highlighted code blocks,
@@ -47,8 +46,8 @@ final class MessageResource extends JsonResource
             'client_id' => $this->client_id,
             'body' => $this->body,
             'body_segments' => resolve(CodeSpans::class)->highlight($this->body),
-            'mentions' => collect(resolve(Mentions::class)->positions($this->body))
-                ->filter(fn (array $mention): bool => array_key_exists(Str::lower($mention['handle']), $this->mentions ?? []))
+            'mentions' => collect(resolve(Mentions::class)->positions($this->body, users: $this->mentions ?? []))
+                ->filter(fn (array $mention): bool => $mention['id'] !== null)
                 ->values(),
             'reply_to_id' => $this->when(! in_array('reply_to_id', $this->getHidden(), true), $this->reply_to_id),
             'reply_to' => $this->whenLoaded('replyTo', fn (Message $replyTo): array => [
