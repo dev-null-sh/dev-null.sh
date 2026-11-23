@@ -36,10 +36,12 @@ use App\Http\Controllers\Api\GuildController;
 use App\Http\Controllers\Api\GuildIconController;
 use App\Http\Controllers\Api\GuildMembershipController;
 use App\Http\Controllers\Api\GuildMuteController;
+use App\Http\Controllers\Api\GuildReadController;
 use App\Http\Controllers\Api\GuildReportController;
 use App\Http\Controllers\Api\HeadlineController;
 use App\Http\Controllers\Api\IssueController;
 use App\Http\Controllers\Api\IssueSuggestionController;
+use App\Http\Controllers\Api\JoinedGuildController;
 use App\Http\Controllers\Api\LiveFollowingController;
 use App\Http\Controllers\Api\LogController;
 use App\Http\Controllers\Api\MentionSuggestionController;
@@ -264,6 +266,12 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             ->middleware([PreventPostingInTimeout::class, 'throttle:10,1,guilds:'])
             ->name('api-guild.update');
         Route::get('guilds/{guild:handle}/members', [GuildMembershipController::class, 'index'])->name('api-guild-membership.index');
+
+        // Joined guilds: the ones the web's left navigation lists, with the number of commits missed since the last visit...
+        Route::get('me/guilds', [JoinedGuildController::class, 'index'])->name('api-joined-guild.index');
+        Route::put('guilds/{guild:handle}/read', [GuildReadController::class, 'update'])
+            ->middleware('throttle:120,1,guild-reads:')
+            ->name('api-guild-read.update');
 
         // Composer suggestions: people to mention and /dev/null issues to reference, as the web's composer suggests them...
         Route::get('search/mentions', [MentionSuggestionController::class, 'index'])

@@ -604,6 +604,7 @@ A signed request sees what the web shows you, such as your own pending commits a
 - report a guild you don't moderate to the admins, privately, as the Report button does, where reporting it again keeps your first report until an admin dismisses it, while guilds are available to you;
 - mute or unmute a guild, which hides its commits from logs and search, Following included, even while you stay a member, while guilds are available to you;
 - pin or unpin a commit on the board of a guild you moderate, as Pin to board does, which replaces the previous pin, where a pin the board no longer shows can still be unpinned, while guilds are available to you;
+- list the guilds you joined as the left navigation does, with the commits you missed in each and when that count starts, and mark a guild read as opening its board does, sharing the web's limit of 120 a minute;
 - star or unstar, and list who starred your own commit, newest first, 20 a page;
 - create polls on commits that are neither replies nor quotes, and vote on polls;
 - change Remotes settings, read and send messages with images, link cards, and voice notes in conversations and orgs, mark them pulled, react to messages and list your reactions, pin and unpin org messages as a maintainer, find people, and start orgs;
