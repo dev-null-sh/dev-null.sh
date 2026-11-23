@@ -3,12 +3,14 @@
 declare(strict_types=1);
 
 use App\Enums\CommitStatus;
+use App\Enums\Feature;
 use App\Enums\UserUpdate;
 use App\Events\UsersUpdated;
 use App\Models\Commit;
 use App\Models\Guild;
 use App\Models\User;
 use App\Queries\JoinedGuildsQuery;
+use App\Services\Features;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Inertia\Testing\AssertableInertia;
@@ -116,6 +118,9 @@ it('writes nothing for a guild that the reader did not join', function (): void 
 
 it('hides the endpoint without the guilds feature, from guests, and for a missing guild', function (): void {
     $guild = Guild::factory()->create();
+
+    // Guilds default to everyone; make them admin-only to check that setting still keeps members out.
+    resolve(Features::class)->update(Feature::Guilds, true, adminOnly: true);
 
     $this->actingAs($this->author)->put(route('guild-read.update', $guild->id))->assertNotFound();
     $this->actingAs($this->reader)->put(route('guild-read.update', '019a0000-0000-7000-8000-000000000000'))->assertNotFound();

@@ -155,7 +155,7 @@ test('fetches matching guilds on demand and inserts a hex-shaped hashtag', async
     cleanup();
 });
 
-test('does not suggest guilds inside code, URLs, partial handles or when preview data is absent', () => {
+test('does not suggest guilds inside code, URLs, partial handles or when guild data is absent', () => {
     for (const value of [
         '`#rust',
         '```\n#rust',

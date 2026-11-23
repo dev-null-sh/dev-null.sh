@@ -108,7 +108,9 @@ it('shows the guilds the profile owner joined rather than the viewers guilds or 
 
 it('does not expose profile guild memberships without access to guilds', function (?string $viewerHandle, bool $enabled): void {
     config(['app.admins' => ['admin']]);
-    resolve(Features::class)->update(Feature::Guilds, $enabled);
+
+    // Guilds default to everyone; make them admin-only to check that setting still keeps members out.
+    resolve(Features::class)->update(Feature::Guilds, $enabled, true);
     $user = User::factory()->create();
     Guild::factory()->create()->members()->attach($user, ['joined_at' => now()]);
 
@@ -122,7 +124,7 @@ it('does not expose profile guild memberships without access to guilds', functio
             ->where('profileGuilds', null));
 })->with([
     'guest' => [null, true],
-    'outside preview' => ['member', true],
+    'admins only' => ['member', true],
     'disabled' => ['admin', false],
 ]);
 

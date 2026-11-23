@@ -1103,7 +1103,7 @@ it('refuses a board post from a signed request that the web would refuse', funct
 
         return [];
     }],
-    'admin preview' => [function (): array {
+    'admins only' => [function (): array {
         resolve(Features::class)->update(Feature::Guilds, true, adminOnly: true);
 
         return [];

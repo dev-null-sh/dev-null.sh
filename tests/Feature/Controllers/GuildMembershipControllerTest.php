@@ -2,8 +2,10 @@
 
 declare(strict_types=1);
 
+use App\Enums\Feature;
 use App\Models\Guild;
 use App\Models\User;
+use App\Services\Features;
 
 beforeEach(function (): void {
     config(['app.admins' => ['admin']]);
@@ -57,10 +59,13 @@ it('keeps paused guild members accessible and supports an empty list', function 
         ->assertOk()->assertInertia(fn ($page) => $page->has('users.data', 1)->where('users.data.0.id', $viewer->id)->where('users.data.0.is_moderator', false));
 });
 
-it('requires sign in and the guild preview feature to list members', function (): void {
+it('requires sign in and guild access to list members', function (): void {
     $guild = Guild::factory()->create();
 
     $this->get(route('guild-membership.index', $guild->handle))->assertRedirectToRoute('home');
+
+    // Guilds default to everyone; make them admin-only to check that setting still keeps members out.
+    resolve(Features::class)->update(Feature::Guilds, true, adminOnly: true);
     $this->actingAs(User::factory()->create())->get(route('guild-membership.index', $guild->handle))->assertNotFound();
 });
 
