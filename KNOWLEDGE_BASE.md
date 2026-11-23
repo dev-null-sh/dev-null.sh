@@ -263,7 +263,7 @@ Sources: [translation endpoint](app/Http/Controllers/CommitTranslationController
 
 Commit and reply text supports inline code in backticks and fenced code blocks with syntax highlighting, a **Wrap lines** toggle, and a copy control. A title after the language, as in ```` ```php title="app/Models/User.php" ````, labels the block in place of the language. Text outside code supports emoji shortcodes, clickable URLs, `@username` mentions, and `#hashtags`, which open commit search for signed-in members and stay plain text for guests. This is developer-oriented text formatting, not a full rich-text editor.
 
-In commits, replies, quotes, poll options and remotes, `/shrug` and `/tableflip` typed at the start of the text or after a space become `¯\_(ツ)_/¯` and `(╯°□°)╯︵ ┻━┻` once a space or a new line follows. Typing `/` suggests them; in a fresh commit draft they are listed after `/bug` and `/feature`. Code keeps them as typed. They are expanded in the browser: text sent through the API stays as written.
+In commits, replies, quotes, poll options and remotes, `/shrug` and `/tableflip` typed at the start of the text or after a space become `¯\_(ツ)_/¯` and `(╯°□°)╯︵ ┻━┻` once a space or a new line follows. Typing `/` suggests them; in a fresh commit draft they are listed after `/bug` and `/feature`. Code keeps them as typed, and so does a field whose length limit has no room left for the face; it is expanded as soon as there is. They are expanded in the browser: text sent through the API stays as written.
 
 The smiley button in the commit, reply and quote composers opens the same searchable emoji picker as reactions in remotes. Picking an emoji inserts it where the caret was, or over the selected text, and puts the caret right after it.
 

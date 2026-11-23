@@ -248,6 +248,45 @@ test('puts the caret right after the text picked when the space after it would g
     assert.deepEqual(target.setSelectionRange.mock.calls, [[12, 12]]);
 });
 
+test('expands a command whose text lands exactly on the length limit', () => {
+    cursor = 0;
+    state[0] = null;
+    const onValueChange = vi.fn();
+    const textarea = elements(
+        MentionTextarea({ value: '', onValueChange, maxLength: 13 }),
+    ).find((element) => element.type === 'textarea')!;
+    vi.stubGlobal('requestAnimationFrame', () => 0);
+    (textarea.props.onChange as (event: unknown) => void)({
+        currentTarget: {
+            value: 'ab /shrug ',
+            selectionStart: 10,
+            selectionEnd: 10,
+        },
+        nativeEvent: {},
+    });
+    assert.deepEqual(onValueChange.mock.calls, [['ab ¯\\_(ツ)_/¯ ']]);
+});
+
+test('leaves the draft as it is when even the text picked would go over the limit', () => {
+    state[0] = { kind: 'expansion', start: 3, query: 'sh' };
+    cursor = 0;
+    effects = [];
+    const onValueChange = vi.fn();
+    const fields = elements(
+        MentionTextarea({ value: 'ok /sh', onValueChange, maxLength: 10 }),
+    );
+    const option = fields.find((element) => element.props.role === 'option')!;
+    const textarea = fields.find((element) => element.type === 'textarea')!;
+    (textarea.props.ref as (element: unknown) => void)({
+        selectionStart: 6,
+        focus: vi.fn(),
+        setSelectionRange: vi.fn(),
+    });
+    (option.props.onClick as () => void)();
+    assert.deepEqual(onValueChange.mock.calls, []);
+    assert.equal(state[0], null);
+});
+
 test('keeps the text expansions closed as soon as the field opts out, even with a command already found', () => {
     state[0] = { kind: 'expansion', start: 0, query: '' };
     cursor = 0;
