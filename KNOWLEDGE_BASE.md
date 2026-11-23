@@ -598,6 +598,7 @@ A signed request sees what the web shows you, such as your own pending commits a
 - read a guild's board as its page does, 30 threads a page with reply previews, with the guild, its pinned commit and whether you moderate it, while guilds are available to you. The pinned commit also keeps its place in the list, so an app that shows it apart skips it there by its id;
 - list a guild's members as its members page does, the moderator first and then the newest joins, 50 a page, with whether you follow each one and whether each one follows you, and the moderator's id, while guilds are available to you;
 - create a guild, or claim a paused one, as the Guilds page does, with the same rules and limit of 100, where a guild the moderation flags waits for an admin's review instead, while guilds are available to you;
+- edit the display name, description, emoji and icon of a guild you moderate, as Edit guild does, where an edit the moderation flags waits for an admin's review and the guild stays as it was, while guilds are available to you;
 - join or leave a guild, where joining clears your mute of it, as the Join button does, while guilds are available to you;
 - report a guild you don't moderate to the admins, privately, as the Report button does, where reporting it again keeps your first report until an admin dismisses it, while guilds are available to you;
 - mute or unmute a guild, which hides its commits from logs and search, Following included, even while you stay a member, while guilds are available to you;
