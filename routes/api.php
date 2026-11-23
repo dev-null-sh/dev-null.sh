@@ -31,6 +31,7 @@ use App\Http\Controllers\Api\ConversationTypingController;
 use App\Http\Controllers\Api\CurrentUserController;
 use App\Http\Controllers\Api\DeviceController;
 use App\Http\Controllers\Api\DevicePushTokenController;
+use App\Http\Controllers\Api\GuildCommitPinController;
 use App\Http\Controllers\Api\GuildController;
 use App\Http\Controllers\Api\GuildIconController;
 use App\Http\Controllers\Api\GuildMembershipController;
@@ -387,6 +388,18 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         Route::delete('guilds/{guild:handle}/mute', [GuildMuteController::class, 'destroy'])
             ->middleware('throttle:follows')
             ->name('api-guild-mute.destroy');
+
+        // Guild Pin: the moderator featuring one commit on the guild's board, as the web's Pin to board does...
+        Route::put('guilds/{guild:handle}/commits/{commit}/pin', [GuildCommitPinController::class, 'update'])
+            ->whereUuid('commit')
+            ->withTrashed()
+            ->middleware('throttle:pins')
+            ->name('api-guild-commit-pin.update');
+        Route::delete('guilds/{guild:handle}/commits/{commit}/pin', [GuildCommitPinController::class, 'destroy'])
+            ->whereUuid('commit')
+            ->withTrashed()
+            ->middleware('throttle:pins')
+            ->name('api-guild-commit-pin.destroy');
 
         // Who to Follow...
         Route::get('me/suggested-users', [SuggestedUserController::class, 'index'])->name('api-suggested-user.index');
