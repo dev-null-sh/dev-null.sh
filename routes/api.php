@@ -34,6 +34,7 @@ use App\Http\Controllers\Api\DevicePushTokenController;
 use App\Http\Controllers\Api\GuildController;
 use App\Http\Controllers\Api\GuildIconController;
 use App\Http\Controllers\Api\GuildMembershipController;
+use App\Http\Controllers\Api\GuildMuteController;
 use App\Http\Controllers\Api\GuildReportController;
 use App\Http\Controllers\Api\HeadlineController;
 use App\Http\Controllers\Api\IssueController;
@@ -375,6 +376,14 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         Route::post('guilds/{guild:handle}/reports', [GuildReportController::class, 'store'])
             ->middleware('throttle:10,1,guild-reports:')
             ->name('api-guild-report.store');
+
+        // Guild Mute: hiding a guild's commits from logs and search, as the web's Mute button does...
+        Route::post('guilds/{guild:handle}/mute', [GuildMuteController::class, 'store'])
+            ->middleware('throttle:follows')
+            ->name('api-guild-mute.store');
+        Route::delete('guilds/{guild:handle}/mute', [GuildMuteController::class, 'destroy'])
+            ->middleware('throttle:follows')
+            ->name('api-guild-mute.destroy');
 
         // Who to Follow...
         Route::get('me/suggested-users', [SuggestedUserController::class, 'index'])->name('api-suggested-user.index');
