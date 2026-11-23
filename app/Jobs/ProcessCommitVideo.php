@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Jobs;
 
+use App\Actions\DeleteStoredFiles;
 use App\Enums\CommitVideoStatus;
 use App\Models\CommitVideo;
 use App\Services\CommitVideos;
@@ -89,7 +90,7 @@ final class ProcessCommitVideo implements ShouldQueue
                 }
 
                 $current->update([...$metadata, 'status' => CommitVideoStatus::Ready]);
-                Storage::delete($video->path('source'));
+                resolve(DeleteStoredFiles::class)->retain([$video->path('source')]);
             });
         } catch (InvalidArgumentException) {
             $this->failed();
@@ -108,8 +109,7 @@ final class ProcessCommitVideo implements ShouldQueue
 
             if ($video !== null) {
                 $video->update(['status' => CommitVideoStatus::Failed]);
-                Storage::deleteDirectory('commit-videos/'.$video->id);
-                Storage::delete($video->path('source'));
+                resolve(DeleteStoredFiles::class)->retain($video->paths());
             }
         });
     }

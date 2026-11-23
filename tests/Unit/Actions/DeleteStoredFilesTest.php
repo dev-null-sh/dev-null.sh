@@ -3,10 +3,13 @@
 declare(strict_types=1);
 
 use App\Actions\CreateCommitReport;
+use App\Actions\DeleteCommitVideo;
 use App\Actions\DeleteStoredFiles;
 use App\Actions\DeleteUser;
+use App\Enums\CommitVideoStatus;
 use App\Models\Commit;
 use App\Models\CommitReport;
+use App\Models\CommitVideo;
 use App\Models\User;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Http\UploadedFile;
@@ -46,6 +49,32 @@ it('retains failed account cleanup and retries it after the report metadata is g
     $disk->assertMissing($path);
     expect(DB::table('pending_file_deletions')->count())->toBe(0);
 })->with([false, true])->with([false, true]);
+
+it('retains failed video cleanup and retries it after the video row is gone', function (): void {
+    Storage::fake();
+    $filesystem = Storage::getFacadeRoot();
+    $disk = Storage::disk();
+    $video = CommitVideo::factory()->create(['status' => CommitVideoStatus::Ready]);
+    foreach ($video->paths() as $path) {
+        $disk->put($path, 'video');
+    }
+
+    Storage::shouldReceive('disk')->andReturnSelf();
+    Storage::shouldReceive('delete')->once()->andReturn(false);
+
+    resolve(DeleteCommitVideo::class)->handle($video);
+
+    $this->assertModelMissing($video);
+    $pending = DB::table('pending_file_deletions')->sole();
+    expect(json_decode($pending->paths, true))->toBe($video->paths());
+    $disk->assertExists($video->paths());
+
+    Storage::swap($filesystem);
+    resolve(DeleteStoredFiles::class)->handle($pending->id);
+
+    $disk->assertMissing($video->paths());
+    expect(DB::table('pending_file_deletions')->count())->toBe(0);
+});
 
 it('rolls back retained cleanup without deleting files', function (): void {
     Storage::fake();

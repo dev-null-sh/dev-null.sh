@@ -31,8 +31,7 @@ final readonly class DeleteCommitContent
             $imagePaths = $commit->images()->pluck('path')->all();
 
             CommitVideo::query()->where('commit_id', $commit->id)->lockForUpdate()->each(function (CommitVideo $video): void {
-                Storage::delete($video->path('source'));
-                Storage::deleteDirectory('commit-videos/'.$video->id);
+                resolve(DeleteStoredFiles::class)->retain($video->paths());
                 $video->delete();
             });
 

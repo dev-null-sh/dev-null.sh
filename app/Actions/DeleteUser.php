@@ -83,7 +83,7 @@ final readonly class DeleteUser
                 ->where(fn (Builder $query) => $query->where('user_id', $user->id)->orWhereIn('commit_id', $this->touchedCommits($user)->select('id')))
                 ->lockForUpdate()
                 ->get()
-                ->flatMap(fn (CommitVideo $video): array => [$video->path('source'), $video->path('video.mp4'), $video->path('poster.jpg')])
+                ->flatMap(fn (CommitVideo $video): array => $video->paths())
                 ->all();
             $imagePaths = [...$this->reportImagePaths($user), ...$this->imagePaths($user), ...$this->scheduledImagePaths($user), ...$this->messageImagePaths($user), ...$this->messageVoicePaths($user), ...$this->guildSubmissionIconPaths($user), ...$videoPaths];
             resolve(DeleteStoredFiles::class)->retain($imagePaths);

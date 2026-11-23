@@ -39,6 +39,8 @@ export function CommitVideo({
         }
         try {
             setError(null);
+            // A failed load keeps rejecting play() until the element loads again, which also fetches a fresh storage URL.
+            if (media.error) media.load();
             await media.play();
         } catch {
             setError('Video could not play. Please try again.');

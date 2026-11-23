@@ -56,6 +56,12 @@ final class CommitVideo extends Model
         return $file === 'source' ? 'video-uploads/'.$this->id : 'commit-videos/'.$this->id.'/'.$file;
     }
 
+    /** @return list<string> */
+    public function paths(): array
+    {
+        return [$this->path('source'), $this->path('video.mp4'), $this->path('poster.jpg')];
+    }
+
     /** @return array<mixed> */
     public function toArray(): array
     {
