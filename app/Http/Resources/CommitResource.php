@@ -77,6 +77,7 @@ final class CommitResource extends JsonResource
             'created_at' => $this->created_at->toIso8601ZuluString(),
             'stars_count' => $this->whenCounted('stars'),
             'replies_count' => $this->whenCounted('replies'),
+            'continuation_id' => $this->whenHas('continuation_id'),
             'link_preview' => $this->whenLoaded('linkPreview'),
             'images' => $this->whenLoaded('images', fn (): mixed => $this->status === CommitStatus::Approved || ! $this->imagesAreVisibleTo($request->user())
                 ? $this->images
