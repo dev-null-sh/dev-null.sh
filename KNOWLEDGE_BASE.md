@@ -263,6 +263,8 @@ Sources: [translation endpoint](app/Http/Controllers/CommitTranslationController
 
 Commit and reply text supports inline code in backticks and fenced code blocks with syntax highlighting, a **Wrap lines** toggle, and a copy control. A title after the language, as in ```` ```php title="app/Models/User.php" ````, labels the block in place of the language. Text outside code supports emoji shortcodes, clickable URLs, `@username` mentions, and `#hashtags`, which open commit search for signed-in members and stay plain text for guests. This is developer-oriented text formatting, not a full rich-text editor.
 
+In commits, replies, quotes, poll options and remotes, `/shrug` and `/tableflip` typed at the start of the text or after a space become `¯\_(ツ)_/¯` and `(╯°□°)╯︵ ┻━┻` once a space or a new line follows. Typing `/` suggests them; in a fresh commit draft they are listed after `/bug` and `/feature`. Code keeps them as typed, and so does a field whose length limit has no room left for the face; it is expanded as soon as there is. They are expanded in the browser: text sent through the API stays as written.
+
 The smiley button in the commit, reply and quote composers opens the same searchable emoji picker as reactions in remotes. Picking an emoji inserts it where the caret was, or over the selected text, and puts the caret right after it.
 
 In commits, replies, and remotes, start a line with `>` to render a quote block. Consecutive quoted lines stay together; an unquoted line ends the block. Quotes keep inline code, links, mentions, and emoji formatting. A `>` inside code or in the middle of a line stays literal.
@@ -273,7 +275,7 @@ Typing **#123** in a composer looks up that exact issue or pull request in the /
 
 Write `color(#ff8a4c)` or `color(#fff)` outside code to show the hex value with a small color swatch. The `color(...)` markup stays in the draft and is hidden in the rendered commit. It accepts 3, 4, 6 or 8 hex digits. A bare `#` followed by a letter is a hashtag. On the web, if the text of a commit, reply, quote, or Remotes message contains a hashtag that could be a color, the composer shows the swatch syntax and offers to apply it. Colors that start with a digit can still show a swatch without the markup: `#000`, `#000000` and `#333333` are colors, while `#123` and `#333` stay plain text. The full-width `＃` also works for automatic swatches, as in `＃fff`. A swatch written with `color(...)` does not add the commit to a guild.
 
-Sources: [body renderer](resources/js/components/commit-body.tsx), [emoji picker button](resources/js/components/emoji-picker.tsx), [colors](resources/js/lib/colors.ts), [code blocks](resources/js/components/code-block.tsx), [mention suggestions](app/Http/Controllers/MentionSuggestionController.php), [mention parsing](app/Services/Mentions.php).
+Sources: [body renderer](resources/js/components/commit-body.tsx), [emoji picker button](resources/js/components/emoji-picker.tsx), [colors](resources/js/lib/colors.ts), [text expansions](resources/js/lib/text-expansions.ts), [code blocks](resources/js/components/code-block.tsx), [mention suggestions](app/Http/Controllers/MentionSuggestionController.php), [mention parsing](app/Services/Mentions.php).
 
 ### Draft previews
 

@@ -93,10 +93,17 @@ export function withoutTypedCode(text: string): string {
  */
 export function mapTypedProse(
     text: string,
-    callback: (prose: string) => string,
+    callback: (prose: string, offset: number) => string,
 ): string {
+    let offset = 0;
+
     return splitCode(text, typedCodePattern)
-        .map((part, index) => (index % 2 === 0 ? callback(part) : part))
+        .map((part, index) => {
+            const start = offset;
+            offset += part.length;
+
+            return index % 2 === 0 ? callback(part, start) : part;
+        })
         .join('');
 }
 

@@ -761,6 +761,53 @@ test('picking a suggestion with Enter starts an empty issue, and the shortcut op
     }
 });
 
+test('the command menu lists the text expansions after the issue commands, and picking one puts its text in the draft', () => {
+    draft.body = '/';
+    focus(render());
+    const view = render();
+    const suggestions = view.fields.find(
+        (element) => element.type === IssueCommandSuggestions,
+    )!;
+    assert.deepEqual(
+        (suggestions.props.suggestions as { name: string }[]).map(
+            (command) => command.name,
+        ),
+        ['/feature', '/bug', '/shrug', '/tableflip'],
+    );
+    const textarea = view.fields.find(
+        (element) => element.type === MentionTextarea,
+    )!;
+    assert.equal(textarea.props.suggestsExpansions, false);
+
+    keyDown(render(), 'ArrowDown');
+    keyDown(render(), 'ArrowDown');
+    keyDown(render(), 'Enter');
+    assert.deepEqual(draft.updateBody.mock.calls.at(-1), ['¯\\_(ツ)_/¯ ']);
+
+    draft.body = '/ta';
+    const picked = render().fields.find(
+        (element) => element.type === IssueCommandSuggestions,
+    )!;
+    vi.stubGlobal('requestAnimationFrame', () => 0);
+
+    try {
+        (picked.props.onPick as (command: unknown) => void)(
+            (picked.props.suggestions as unknown[])[0],
+        );
+    } finally {
+        vi.unstubAllGlobals();
+    }
+    assert.deepEqual(draft.updateBody.mock.calls.at(-1), ['(╯°□°)╯︵ ┻━┻ ']);
+});
+
+test('the field suggests text expansions itself once the draft is more than a lone command', () => {
+    draft.body = 'it broke /';
+    const textarea = render().fields.find(
+        (element) => element.type === MentionTextarea,
+    )!;
+    assert.equal(textarea.props.suggestsExpansions, true);
+});
+
 test('a draft that mentions a bug suggests /bug, keeps the text when used, and can be dismissed', () => {
     draft.body = 'The search has a bug when going back';
     let hint = render().fields.find(

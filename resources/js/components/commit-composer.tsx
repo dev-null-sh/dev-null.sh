@@ -302,6 +302,7 @@ function CommitComposerBody({
                             rows={1}
                             value={body}
                             onValueChange={issue.change}
+                            suggestsExpansions={!issue.ownsExpansions}
                             onPaste={
                                 poll === null ? attachments.onPaste : undefined
                             }
@@ -390,8 +391,8 @@ function CommitComposerBody({
                         <IssueCommandSuggestions
                             suggestions={issue.suggestions}
                             selected={issue.selected}
-                            onPick={(kind) => {
-                                issue.start(kind, '');
+                            onPick={(command) => {
+                                issue.pick(command);
                                 focusBody(id);
                             }}
                         />
