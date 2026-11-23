@@ -242,9 +242,10 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             ->whereUuid('headline')
             ->name('api-headline.show');
 
-        // Guilds: the directory the web's Guilds page lists, and a guild's board...
+        // Guilds: the directory the web's Guilds page lists, a guild's board and its members...
         Route::get('guilds', [GuildController::class, 'index'])->name('api-guild.index');
         Route::get('guilds/{guild:handle}', [GuildController::class, 'show'])->name('api-guild.show');
+        Route::get('guilds/{guild:handle}/members', [GuildMembershipController::class, 'index'])->name('api-guild-membership.index');
 
         // Composer suggestions: people to mention and /dev/null issues to reference, as the web's composer suggests them...
         Route::get('search/mentions', [MentionSuggestionController::class, 'index'])
