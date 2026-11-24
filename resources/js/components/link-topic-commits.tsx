@@ -234,6 +234,7 @@ function LinkTopicCommit({
                     <div ref={bodyRef} style={translation.bodyStyle}>
                         <FoldedCommitBody
                             segments={translation.segments}
+                            guildMentions={translation.guildMentions}
                             mentions={commit.mentions}
                             organizationMentions={commit.organization_mentions}
                             previewSegments={translation.previewSegments}

@@ -3,9 +3,10 @@ import assert from 'node:assert/strict';
 import * as React from 'react';
 import type { ReactElement, ReactNode } from 'react';
 import { beforeEach, test, vi } from 'vite-plus/test';
+import type { ComposerPreview } from '../../resources/js/components/composer-preview';
 import { cancelImageReads } from '../../resources/js/lib/draft-image-reads';
-import type { GifAttachment } from '../../resources/js/lib/gif-providers';
 import type { GifProviderKey } from '../../resources/js/lib/gif-provider-key';
+import type { GifAttachment } from '../../resources/js/lib/gif-providers';
 
 const image = new File(['restored'], 'draft.png', { type: 'image/png' });
 const gif: GifAttachment = {
@@ -46,10 +47,12 @@ const http = {
     processing: false,
     transform: vi.fn(),
     submit: vi.fn(() => new Promise(() => {})),
+    cancel: vi.fn(),
 };
 
 vi.doMock('react', () => ({
     ...React,
+    useEffectEvent: (callback: () => void) => callback,
     useEffect: (effect: () => void) => {
         effects.push(effect);
     },
@@ -92,6 +95,7 @@ vi.doMock('@inertiajs/react', async () => ({
         props: {
             auth: { user, isAdmin: false, organizations },
             gif: { provider: 'giphy', key: 'test' },
+            guildsEnabled: true,
         },
         flash,
     }),
@@ -165,9 +169,7 @@ function render(
             ? errorsOrGuildHandle
             : undefined;
     const fieldErrors =
-        typeof errorsOrGuildHandle === 'string'
-            ? errors
-            : errorsOrGuildHandle;
+        typeof errorsOrGuildHandle === 'string' ? errors : errorsOrGuildHandle;
     cursor = 0;
     const form = CommitComposer({ guildHandle });
     const fields = elements(
@@ -187,6 +189,58 @@ beforeEach(() => {
     draft.descriptions = [];
     draft.gif = null;
     gifKey = null;
+});
+
+test('reveals pasted hashtag preview with resolved metadata using one preview request', async () => {
+    draft.body = 'Learning #rust';
+    const guildMentions = {
+        rust: {
+            handle: 'rust',
+            name: 'Rustaceans',
+            emoji: '🦀',
+            icon_url: null,
+        },
+    };
+    let finish!: (response: unknown) => void;
+    http.submit.mockReturnValueOnce(
+        new Promise((resolve) => {
+            finish = resolve;
+        }),
+    );
+    let view = render();
+    const preview = view.fields.find(
+        (element) => element.type === PreviewToggle,
+    )!.props.preview as ComposerPreview;
+
+    const opening = preview.toggle();
+    view = render();
+    assert.equal(
+        view.fields.some((element) => element.type === ComposerPreviewBody),
+        false,
+    );
+    assert.equal(
+        (
+            view.fields.find((element) => element.type === PreviewToggle)!.props
+                .preview as ComposerPreview
+        ).isResolving,
+        true,
+    );
+    finish({
+        segments: [{ type: 'text', text: draft.body }],
+        mentions: {},
+        organization_mentions: {},
+        guild_mentions: guildMentions,
+    });
+    await opening;
+    view = render();
+
+    const shown = view.fields.find(
+        (element) => element.type === ComposerPreviewBody,
+    )!.props.preview as ComposerPreview;
+    assert.equal(shown.isPreviewing, true);
+    assert.equal(shown.isResolving, false);
+    assert.deepEqual(shown.guildMentions, guildMentions);
+    assert.equal(http.submit.mock.calls.length, 1);
 });
 
 test('previews guild text unchanged and uses the full draft character budget', () => {

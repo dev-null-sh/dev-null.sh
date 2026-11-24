@@ -1,6 +1,6 @@
-import { Form, Head, Link, usePage } from '@inertiajs/react';
+import { Form, Head, Link, router } from '@inertiajs/react';
 import { ChevronLeft, ChevronRight, Plus, Search } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { index, show } from '@/actions/App/Http/Controllers/GuildController';
 import { GuildDialog } from '@/components/guild-dialog';
 import { GuildIcon } from '@/components/guild-icon';
@@ -11,26 +11,48 @@ import {
 import { Button } from '@/components/ui/button';
 import { WordmarkText } from '@/components/wordmark-text';
 import AppLayout from '@/layouts/app-layout';
+import type { Guild } from '@/types/guild';
 
 export default function Index({
     query,
     guildPage,
+    guilds = [],
 }: {
     query: string;
+    guilds?: Guild[];
     guildPage: {
-        data: string[];
+        data: Guild[];
         current_page: number;
         last_page: number;
         total: number;
     };
 }) {
-    const { guilds } = usePage().props;
     const [search, setSearch] = useState({ query, value: query });
     if (search.query !== query) {
         setSearch({ query, value: query });
     }
-    const ranked = guildPage.data.flatMap(
-        (id) => guilds?.find((guild) => guild.id === id) ?? [],
+    const ranked = guildPage.data.map(
+        (guild) => guilds.find((fresh) => fresh.id === guild.id) ?? guild,
+    );
+
+    useEffect(
+        () =>
+            router.on('before', ({ detail: { visit } }) => {
+                if (
+                    !visit.prefetch &&
+                    visit.only.includes('guilds') &&
+                    !visit.only.includes('guildPage')
+                ) {
+                    visit.headers['X-Guild-Handles'] = JSON.stringify(
+                        guildPage.data.map((guild) => guild.handle),
+                    ).replace(
+                        /[\u007f-\uffff]/g,
+                        (character) =>
+                            `\\u${character.charCodeAt(0).toString(16).padStart(4, '0')}`,
+                    );
+                }
+            }),
+        [guildPage.data],
     );
 
     return (

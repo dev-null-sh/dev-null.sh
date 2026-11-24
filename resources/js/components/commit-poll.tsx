@@ -16,6 +16,7 @@ import { exactCountTitle, formatCount, formatExactCount } from '@/lib/numbers';
 import { coalesce, commitChannel, listen } from '@/lib/realtime';
 import { cn } from '@/lib/utils';
 import type { Commit, Poll } from '@/types';
+import type { GuildMentions } from '@/types/guild';
 
 function timeLeft(closesAt: string, now: Date): string {
     const minutes = Math.ceil(
@@ -47,16 +48,19 @@ function percentage(votes: number, total: number): number {
 function OptionLabel({
     label,
     mentions,
+    guildMentions,
     isStatic,
 }: {
     label: string;
     mentions: Commit['mentions'];
+    guildMentions?: GuildMentions;
     isStatic: boolean;
 }) {
     return (
         <BodySegments
             segments={bodySegments(label)}
             mentions={mentions}
+            guildMentions={guildMentions}
             isStatic={isStatic}
         />
     );
@@ -78,7 +82,23 @@ export function CommitPoll({
     const commitNotFound = useCommitNotFound();
     const now = useNow();
     const id = useId();
-    const [poll, setPoll] = useState(initialPoll);
+    const [snapshot, setSnapshot] = useState({
+        source: initialPoll,
+        poll: initialPoll,
+    });
+    // Parent refreshes update option badges, but unchanged props must not replace a newer read or vote.
+    const poll =
+        snapshot.source === initialPoll
+            ? snapshot.poll
+            : {
+                  ...snapshot.poll,
+                  options: snapshot.poll.options.map((option) => ({
+                      ...option,
+                      guild_mentions: initialPoll.options.find(
+                          (fresh) => fresh.id === option.id,
+                      )?.guild_mentions,
+                  })),
+              };
     const request = useHttp<{ option: string }, { poll: Poll }>({
         option: '',
     });
@@ -103,7 +123,10 @@ export function CommitPoll({
 
         if (response.ok && started === latest.current && !request.processing) {
             readSince.current = startedAt;
-            setPoll(((await response.json()) as { poll: Poll }).poll);
+            setSnapshot({
+                source: initialPoll,
+                poll: ((await response.json()) as { poll: Poll }).poll,
+            });
         }
     });
     const isApproved = commit.status === 'approved';
@@ -191,7 +214,7 @@ export function CommitPoll({
             }
 
             latest.current++;
-            setPoll(response.poll);
+            setSnapshot({ source: initialPoll, poll: response.poll });
             router.flushAll();
         } catch {
             if (!isNotFound) {
@@ -213,6 +236,7 @@ export function CommitPoll({
                                 <OptionLabel
                                     label={option.label}
                                     mentions={commit.mentions ?? null}
+                                    guildMentions={option.guild_mentions}
                                     isStatic
                                 />
                             </li>
@@ -245,6 +269,7 @@ export function CommitPoll({
                                     <OptionLabel
                                         label={option.label}
                                         mentions={commit.mentions ?? null}
+                                        guildMentions={option.guild_mentions}
                                         isStatic={false}
                                     />
                                 </span>
@@ -305,6 +330,9 @@ export function CommitPoll({
                                                 label={option.label}
                                                 mentions={
                                                     commit.mentions ?? null
+                                                }
+                                                guildMentions={
+                                                    option.guild_mentions
                                                 }
                                                 isStatic={isStatic}
                                             />

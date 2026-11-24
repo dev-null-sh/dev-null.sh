@@ -2,7 +2,20 @@
 
 declare(strict_types=1);
 
+use App\Enums\Feature;
+use App\Models\Guild;
 use App\Models\User;
+use App\Services\Features;
+
+it('resolves guild badges from the rendered emoji-expanded draft', function (): void {
+    $user = User::factory()->create();
+    resolve(Features::class)->update(Feature::Guilds, true, false);
+    Guild::factory()->create(['handle' => 'linux1️⃣', 'name' => 'Linux']);
+
+    $this->actingAs($user)->postJson(route('commit-preview.store'), ['body' => '#linux:one:'])
+        ->assertOk()->assertJsonPath('segments.0.text', '#linux1️⃣')
+        ->assertJsonPath('guild_mentions.linux1️⃣.name', 'Linux');
+});
 
 it('renders a draft the way the commit it becomes is rendered', function (): void {
     $user = User::factory()->create();
@@ -16,7 +29,7 @@ it('renders a draft the way the commit it becomes is rendered', function (): voi
     $commit = $user->commits()->sole();
 
     $preview->assertOk()
-        ->assertExactJson(['segments' => $commit->toArray()['body_segments'], 'mentions' => $commit->mentions, 'organization_mentions' => []]);
+        ->assertExactJson(['segments' => $commit->toArray()['body_segments'], 'mentions' => $commit->mentions, 'organization_mentions' => [], 'guild_mentions' => []]);
 });
 
 it('links the mentions of a draft to the people the commit would link', function (): void {

@@ -346,6 +346,7 @@ it('shows a signed request the commit as its page shows it to its user', functio
                 'id' => '019a2b3c-4d5e-7f60-8a9b-0c1d2e3f4a5b',
                 'short_hash' => 'e3f4a5b',
                 'body' => 'Ask @nunomaduro about `@Override`',
+                'guild_mentions' => [],
                 'guild_handle' => null,
                 'guild' => null,
                 'parent_id' => $root->id,
@@ -364,7 +365,7 @@ it('shows a signed request the commit as its page shows it to its user', functio
                     ['type' => 'code', 'code' => '@Override'],
                 ],
                 'preview_segments' => null,
-                'mentions' => [['handle' => 'nunomaduro', 'offset' => 4, 'length' => 11, 'kind' => 'user']],
+                'mentions' => [['handle' => 'nunomaduro', 'offset' => 4, 'length' => 11, 'kind' => 'user', 'id' => null]],
                 'status' => 'approved',
                 'is_pinned' => false,
                 'starred' => true,
@@ -378,6 +379,7 @@ it('shows a signed request the commit as its page shows it to its user', functio
                 'id' => $root->id,
                 'short_hash' => mb_substr(str_replace('-', '', $root->id), -7),
                 'body' => 'Who broke prod?',
+                'guild_mentions' => [],
                 'guild_handle' => 'rust',
                 'guild' => ['handle' => 'rust', 'name' => $root->guild->name, 'emoji' => $root->guild->emoji, 'icon_url' => null],
                 'parent_id' => null,
@@ -418,6 +420,7 @@ it('shows a signed request the poll of a commit as the web does, with each share
         'votes_count' => $votes,
         'voted' => $voted,
         'percentage' => $percentage,
+        'guild_mentions' => [],
     ];
 
     signedApiRequest($keyPair, 'GET', route('api-commit.show', $commit))

@@ -12,17 +12,20 @@ use Illuminate\Pagination\LengthAwarePaginator;
 
 final readonly class GuildsQuery
 {
-    /** @return list<string> */
-    public function joinedHandles(User $user): array
+    /** @return Collection<int, Guild> */
+    public function joined(User $user, User $viewer): Collection
     {
-        return array_values(Guild::query()->whereHas('members', fn (Builder $query): Builder => $query->whereKey($user->id))
-            ->orderBy('handle')->get(['handle'])->map(fn (Guild $guild): string => $guild->handle)->all());
+        return $this->withPreferencesOf($viewer)->whereHas('members', fn (Builder $query): Builder => $query->whereKey($user->id))
+            ->orderBy('handle')->get();
     }
 
-    /** @return Collection<int, Guild> */
-    public function get(User $user): Collection
+    /**
+     * @param  list<string>  $handles
+     * @return Collection<int, Guild>
+     */
+    public function get(User $user, array $handles): Collection
     {
-        return $this->withPreferencesOf($user)->orderByDesc('members_count')->orderBy('handle')->get();
+        return $this->withPreferencesOf($user)->whereIn('handle', $handles)->get();
     }
 
     public function find(Guild $guild, User $user): Guild
@@ -42,6 +45,30 @@ final readonly class GuildsQuery
                 ->orWhereRaw('TRANSLATE(LOWER(description COLLATE "pg_c_utf8"), \'ς\', \'σ\') LIKE TRANSLATE(LOWER(? COLLATE "pg_c_utf8"), \'ς\', \'σ\') ESCAPE \'!\'', ["%{$escaped}%"])))
             ->orderByDesc('members_count')->orderBy('handle')
             ->paginate(24, page: $page);
+    }
+
+    /**
+     * @param  list<string>  $handles
+     * @return Collection<int, Guild>
+     */
+    public function references(array $handles): Collection
+    {
+        return new Collection(collect(array_chunk($handles, 65535))->flatMap(fn (array $chunk): Collection => Guild::query()
+            ->select(['handle', 'name', 'emoji', 'icon_path', 'updated_at'])
+            ->whereIn('handle', $chunk)->orderBy('handle')->get())->all());
+    }
+
+    /** @return Collection<int, Guild> */
+    public function suggestions(string $term): Collection
+    {
+        $escaped = str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $term);
+
+        return Guild::query()->select(['handle', 'name', 'emoji', 'icon_path', 'updated_at'])->withCount('members')
+            ->where(fn (Builder $query): Builder => $query
+                ->whereRaw('TRANSLATE(LOWER(handle COLLATE "pg_c_utf8"), \'ς\', \'σ\') LIKE TRANSLATE(LOWER(? COLLATE "pg_c_utf8"), \'ς\', \'σ\') ESCAPE \'!\'', ["%{$escaped}%"])
+                ->orWhereRaw('TRANSLATE(LOWER(name COLLATE "pg_c_utf8"), \'ς\', \'σ\') LIKE TRANSLATE(LOWER(? COLLATE "pg_c_utf8"), \'ς\', \'σ\') ESCAPE \'!\'', ["%{$escaped}%"]))
+            ->orderByRaw('CASE WHEN TRANSLATE(LOWER(handle COLLATE "pg_c_utf8"), \'ς\', \'σ\') LIKE TRANSLATE(LOWER(? COLLATE "pg_c_utf8"), \'ς\', \'σ\') ESCAPE \'!\' THEN 0 ELSE 1 END', ["{$escaped}%"])
+            ->orderByDesc('members_count')->orderBy('handle')->limit(6)->get();
     }
 
     /**

@@ -1664,6 +1664,7 @@ function CommitReply({
                     <div ref={bodyRef} style={translation.bodyStyle}>
                         <FoldedCommitBody
                             segments={translation.segments}
+                            guildMentions={translation.guildMentions}
                             mentions={reply.mentions}
                             organizationMentions={reply.organization_mentions}
                             previewSegments={translation.previewSegments}

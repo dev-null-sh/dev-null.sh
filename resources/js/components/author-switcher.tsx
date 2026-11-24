@@ -56,7 +56,12 @@ export function AuthorSwitcher({
         <DropdownMenu>
             <DropdownMenuTrigger
                 aria-label={`Posting as @${(author ?? user).handle}. Choose who to post as`}
-                className={cn('relative flex rounded-full', className)}
+                className={cn(
+                    'relative flex',
+                    // Follows the avatar's shape, so the focus ring it gets back when the menu closes fits around it.
+                    author === null ? 'rounded-full' : 'rounded-md',
+                    className,
+                )}
                 data-test="author-switcher"
             >
                 {children}

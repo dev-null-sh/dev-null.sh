@@ -1,6 +1,6 @@
 import type { GifProviderId } from '@/lib/gif-providers';
 import type { User } from '@/types/auth';
-import type { Guild } from '@/types/guild';
+import type { GuildBadge, GuildMentions } from '@/types/guild';
 import type { Organization } from '@/types/organization';
 
 export type CommitStatus = 'pending' | 'approved' | 'rejected';
@@ -36,6 +36,7 @@ export type LinkTopic = {
 export type PollOption = {
     id: string;
     label: string;
+    guild_mentions?: GuildMentions;
     votes_count: number | null;
     voted: boolean;
 };
@@ -88,6 +89,7 @@ export type CommitTranslation = {
     translated: {
         body_segments: BodySegment[];
         preview_segments: BodySegment[] | null;
+        guild_mentions?: GuildMentions;
     } | null;
 };
 
@@ -108,7 +110,8 @@ export type Commit = {
     id: string;
     joined_guild?: string | null;
     guild_handle?: string | null;
-    guild?: Pick<Guild, 'handle' | 'name' | 'emoji' | 'icon_url'> | null;
+    guild?: GuildBadge | null;
+    guild_mentions?: GuildMentions;
     parent_id: string | null;
     hot_score: number;
     body: string;
@@ -154,6 +157,7 @@ export type QuotedCommit = Pick<
     | 'body'
     | 'body_segments'
     | 'preview_segments'
+    | 'guild_mentions'
     | 'status'
     | 'is_checking'
     | 'created_at'

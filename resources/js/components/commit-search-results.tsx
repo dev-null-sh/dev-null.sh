@@ -6,18 +6,27 @@ import { GraphCanvas } from '@/components/graph-canvas';
 import { GuildIcon } from '@/components/guild-icon';
 import { groupSearchCommits } from '@/lib/commit-search-results';
 import type { Commit } from '@/types';
+import type { GuildBadge } from '@/types/guild';
 
 export type SearchResultSet = { term: string; commits: Commit[] };
 
-export function GuildSearchHeading({ handle }: { handle: string }) {
-    const { guilds } = usePage().props;
-    const guild = guilds?.find((guild) => guild.handle === handle);
+export function GuildSearchHeading({
+    handle,
+    guild,
+}: {
+    handle: string;
+    guild?: GuildBadge | null;
+}) {
+    const visibleGuild = usePage().props.guildsEnabled ? guild : null;
 
     return (
         <span className="flex min-w-0 items-center gap-2 font-sans text-sm font-semibold">
-            <GuildIcon guild={guild ?? { emoji: '#', icon_url: null }} />
-            <span className="truncate" title={guild?.name ?? `#${handle}`}>
-                {guild?.name ?? `#${handle}`}
+            <GuildIcon guild={visibleGuild ?? { emoji: '#', icon_url: null }} />
+            <span
+                className="truncate"
+                title={visibleGuild?.name ?? `#${handle}`}
+            >
+                {visibleGuild?.name ?? `#${handle}`}
             </span>
         </span>
     );
@@ -75,7 +84,10 @@ export function SearchResults({
                     <Fragment key={handle ? `guild:${handle}` : 'commits'}>
                         {handle && (
                             <h3 className="flex h-11 items-center border-y bg-muted/40 px-4 sm:px-6">
-                                <GuildSearchHeading handle={handle} />
+                                <GuildSearchHeading
+                                    handle={handle}
+                                    guild={commits[0].guild}
+                                />
                             </h3>
                         )}
                         <GraphCanvas>

@@ -18,12 +18,19 @@ use Illuminate\Http\Resources\Json\JsonResource;
  */
 final class ScheduledCommitResource extends JsonResource
 {
+    public bool $withGuildMentions = true;
+
+    public static function newCollection(mixed $resource): GuildMentionCollection
+    {
+        return new GuildMentionCollection($resource, self::class);
+    }
+
     /**
      * @return array<string, mixed>
      */
     public function toArray(Request $request): array
     {
-        return [
+        $shown = [
             'id' => $this->id,
             'author' => $this->author === null ? null : ProfileResource::make($this->author)->resolve($request),
             ...($this->submitted_at === null && $this->body !== null
@@ -35,5 +42,7 @@ final class ScheduledCommitResource extends JsonResource
             'submitted_at' => $this->submitted_at?->toIso8601String(),
             'status' => $this->submitted_at === null ? 'scheduled' : ($this->commit === null || $this->commit->trashed() ? 'deleted' : $this->commit->status->value),
         ];
+
+        return $this->withGuildMentions ? ShownGuildMentions::of($shown, $request->user()) : $shown;
     }
 }
