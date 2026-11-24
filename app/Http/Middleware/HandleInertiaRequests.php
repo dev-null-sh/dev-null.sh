@@ -12,16 +12,13 @@ use App\Enums\Log;
 use App\Enums\RepliesPerPage;
 use App\Enums\UserUpdate;
 use App\Http\Requests\ListNotificationsRequest;
-use App\Http\Resources\GuildResource;
 use App\Http\Resources\ShownStreams;
 use App\Models\Commit;
-use App\Models\Guild;
 use App\Models\Organization;
 use App\Models\User;
 use App\Queries\BioProfilesQuery;
 use App\Queries\ConversationsQuery;
 use App\Queries\DevelopersCountQuery;
-use App\Queries\GuildsQuery;
 use App\Queries\HotTopicsQuery;
 use App\Queries\JoinedGuildsQuery;
 use App\Queries\LiveFollowingQuery;
@@ -33,7 +30,6 @@ use Carbon\CarbonInterface;
 use Closure;
 use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\PrivateChannel;
-use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\LiveProp;
@@ -59,24 +55,23 @@ final class HandleInertiaRequests extends Middleware
     }
 
     /**
-     * A deploy sends a page built for the previous version back for a full reload. That page already took the flashed
-     * data off the session, so it is flashed again for the reload: the composer learns its commit went through.
-     * The reload replaces the response that carried `Vary: X-Inertia`, so it is set again: without it a browser
-     * restoring the tab can serve this empty 409 as the page itself.
+     * A deploy sends a page built for the previous version back for a full reload before the page is built, as its
+     * props would be thrown away: a tab left open keeps asking in the background until it reloads. The flashed data
+     * stays on the session for the reload, so the composer learns its commit went through. Without `Vary: X-Inertia`
+     * a browser restoring the tab can serve this empty 409 as the page itself.
      */
-    public function onVersionChange(Request $request, Response $response): Response
+    public function handle(Request $request, Closure $next): Response
     {
-        /** @var array{flash?: array<string, mixed>} $page */
-        $page = $response instanceof JsonResponse ? $response->getData(true) : [];
+        Inertia::version(fn (): ?string => $this->version($request));
 
-        $response = parent::onVersionChange($request, $response);
-        $response->setVary(Header::INERTIA);
+        if ($request->header(Header::INERTIA) && $request->isMethod('GET') && $request->header(Header::VERSION, '') !== Inertia::getVersion()) {
+            $response = $this->onVersionChange($request, new Response());
+            $response->setVary(Header::INERTIA);
 
-        if (($page['flash'] ?? []) !== []) {
-            Inertia::flash($page['flash']);
+            return $response;
         }
 
-        return $response;
+        return parent::handle($request, $next);
     }
 
     /**
@@ -169,12 +164,7 @@ final class HandleInertiaRequests extends Middleware
             'isLiteMobileApp' => str_contains((string) $request->userAgent(), 'DevNullLite/'),
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'showsWhoToFollow' => $showsWhoToFollow,
-            'guilds' => $user instanceof User
-                ? Inertia::once(fn (): ?array => resolve(Features::class)->available(Feature::Guilds, $user) ? resolve(GuildsQuery::class)->get($user)->map(fn (Guild $guild): array => [
-                    'id' => $guild->id,
-                    ...GuildResource::make($guild)->resolve($request),
-                ])->all() : null)->until(60)->fresh($request->routeIs('guild.*', 'search.index'))->live(UserUpdate::Guilds->value, new PrivateChannel($user))
-                : null,
+            'guildsEnabled' => $live(fn (): bool => $user instanceof User && resolve(Features::class)->available(Feature::Guilds, $user), UserUpdate::Guilds),
             'joinedGuilds' => $user instanceof User
                 ? Inertia::once(fn (): array => resolve(JoinedGuildsQuery::class)->get($user))->until(60)->live(UserUpdate::Guilds->value, new PrivateChannel($user))
                 : [],

@@ -180,6 +180,21 @@ it('shows a signed request the profile as the web shows it to its user', functio
     expect(json_decode($response->getContent(), flags: JSON_THROW_ON_ERROR)->bio_profiles)->toBeInstanceOf(stdClass::class);
 });
 
+it('keeps API clients on the year for a profile whose first visible commit is two months old', function (): void {
+    $this->travelTo(now()->setDate(2026, 10, 15)->setTime(12, 0));
+
+    $keyPair = apiKeyPairFor(User::factory()->create());
+    $user = User::factory()->create();
+
+    Commit::factory()->for($user)->create(['created_at' => '2026-08-15 09:00:00']);
+
+    signedApiRequest($keyPair, 'GET', route('api-user.show', $user))
+        ->assertOk()
+        ->assertJsonPath('activity.scale', 'year')
+        ->assertJsonCount(369, 'activity.buckets')
+        ->assertJsonPath('activity.buckets.0.date', '2025-10-12');
+});
+
 it('counts the pending commits of a signed-in user on their own profile', function (): void {
     $user = User::factory()->create();
     $keyPair = apiKeyPairFor($user);

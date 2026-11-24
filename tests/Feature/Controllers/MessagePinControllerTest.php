@@ -3,9 +3,12 @@
 declare(strict_types=1);
 
 use App\Actions\UpdateMessagePin;
+use App\Enums\Feature;
 use App\Models\Conversation;
+use App\Models\Guild;
 use App\Models\Message;
 use App\Models\User;
+use App\Services\Features;
 
 it('lets maintainers pin a message for the whole org, once', function (): void {
     $mark = User::factory()->create();
@@ -59,6 +62,38 @@ it('lets maintainers unpin a message, however often', function (): void {
         ->assertOk()
         ->assertJsonPath('pinned.*.id', [$kept->id])
         ->assertJsonPath('reactions_version', $version + 1);
+});
+
+it('keeps guild badges on surviving pins without exposing the unpinned reply target', function (): void {
+    $mark = User::factory()->create();
+    [$nuno] = followersOf($mark, 1);
+    $org = createOrg($mark, [$nuno]);
+    resolve(Features::class)->update(Feature::Guilds, true, false);
+    Guild::factory()->create(['handle' => 'rust', 'name' => 'Rust']);
+    Guild::factory()->create(['handle' => 'hidden']);
+    $hidden = pushToOrg($nuno, $org, '#hidden');
+    $kept = Message::factory()->create(['conversation_id' => $org, 'user_id' => $nuno->id, 'body' => '#rust', 'reply_to_id' => $hidden->id]);
+    $other = pushToOrg($nuno, $org, 'another pin');
+    $this->actingAs($mark)->putJson(route('message-pin.update', $kept))->assertOk()
+        ->assertJsonPath('pinned.0.guild_mentions.rust.name', 'Rust')
+        ->assertJsonCount(1, 'pinned.0.guild_mentions')
+        ->assertJsonMissingPath('pinned.0.reply_to_id')
+        ->assertJsonMissingPath('pinned.0.reply_to');
+
+    $pinned = $this->putJson(route('message-pin.update', $other))
+        ->assertOk()->assertJsonCount(2, 'pinned')->json('pinned');
+    $shown = collect($pinned)->firstWhere('id', $kept->id);
+
+    expect($shown['guild_mentions'])->toHaveCount(1)->toHaveKey('rust')
+        ->and($shown)->not->toHaveKeys(['reply_to_id', 'reply_to']);
+
+    $this->deleteJson(route('message-pin.destroy', $other))
+        ->assertOk()
+        ->assertJsonPath('pinned.0.id', $kept->id)
+        ->assertJsonPath('pinned.0.guild_mentions.rust.name', 'Rust')
+        ->assertJsonCount(1, 'pinned.0.guild_mentions')
+        ->assertJsonMissingPath('pinned.0.reply_to_id')
+        ->assertJsonMissingPath('pinned.0.reply_to');
 });
 
 it('only lets maintainers pin and unpin', function (): void {

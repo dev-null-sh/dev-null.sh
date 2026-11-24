@@ -88,6 +88,7 @@ it('lists the latest commits of everyone, newest first', function (): void {
         'quoted_commit_id' => null,
         'quoted_commit' => null,
         'poll' => null,
+        'guild_mentions' => [],
     ]);
 
     $response->assertJsonPath('links.next', null)
@@ -123,7 +124,7 @@ it('shows what the web shows on a commit', function (): void {
         ->assertJsonPath('data.0.stars_count', 2)
         ->assertJsonPath('data.0.starred', true)
         ->assertJsonPath('data.0.is_pinned', true)
-        ->assertJsonPath('data.0.mentions', [['handle' => 'NunoMaduro', 'offset' => 4, 'length' => 11, 'kind' => 'user']])
+        ->assertJsonPath('data.0.mentions', [['handle' => 'NunoMaduro', 'offset' => 4, 'length' => 11, 'kind' => 'user', 'id' => null]])
         ->assertJsonPath('data.0.link_preview', [
             'url' => 'https://laravel.com',
             'title' => $linkPreview->title,

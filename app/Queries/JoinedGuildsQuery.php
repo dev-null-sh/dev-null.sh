@@ -19,7 +19,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 /**
- * @phpstan-type JoinedGuild array{handle: string, name: string, emoji: string, icon_url: string|null, missed_commits: int}
+ * @phpstan-type JoinedGuild array{handle: string, name: string, emoji: string, icon_url: string|null, missed_commits: int, read_from: string}
  */
 final readonly class JoinedGuildsQuery
 {
@@ -30,8 +30,12 @@ final readonly class JoinedGuildsQuery
         //
     }
 
-    /** @return list<JoinedGuild> */
-    public function get(User $user): array
+    /**
+     * With apiIcons, icon_url is the signed URL API clients load the icon from, as they send no web session.
+     *
+     * @return list<JoinedGuild>
+     */
+    public function get(User $user, bool $apiIcons = false): array
     {
         if (! $this->features->available(Feature::Guilds, $user)) {
             return [];
@@ -52,16 +56,17 @@ final readonly class JoinedGuildsQuery
         ]);
 
         return array_values($guilds
-            ->map(function (Guild $guild) use ($commits, $readFrom): array {
+            ->map(function (Guild $guild) use ($commits, $readFrom, $user, $apiIcons): array {
                 $guildReadFrom = CarbonImmutable::parse($readFrom[$guild->id]);
 
                 return [
                     'handle' => $guild->handle,
                     'name' => $guild->name,
                     'emoji' => $guild->emoji,
-                    'icon_url' => $guild->iconUrl(),
+                    'icon_url' => $apiIcons ? $guild->apiIconUrl($user) : $guild->iconUrl(),
                     'missed_commits' => $commits->filter(fn (array $commit): bool => $this->isPostedIn($guild, $commit)
                         && $commit['created_at']->greaterThan($guildReadFrom))->count(),
+                    'read_from' => $guildReadFrom->toIso8601ZuluString(),
                 ];
             })
             ->sortBy([

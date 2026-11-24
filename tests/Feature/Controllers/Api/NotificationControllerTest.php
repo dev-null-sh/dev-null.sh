@@ -89,8 +89,10 @@ it('lists the notifications of the user, newest first', function (): void {
                     'pasteis_count' => 0,
                     'deleted_at' => null,
                     'quoted_commit_id' => null,
+                    'guild_mentions' => [],
                 ],
                 'quoted_commit_id' => null,
+                'guild_mentions' => [],
             ],
         ])
         ->assertJsonPath('data.1.id', $followed->id)

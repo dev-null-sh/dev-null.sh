@@ -533,7 +533,7 @@ Sources: [web app manifest](public/site.webmanifest), [service worker](public/sw
 
 ### Activity graphs and README embeds
 
-Profiles display commit activity with current and longest streaks. The profile graph adapts to how long someone has been committing: the last 24 hours, 7 days, 30 days, or a year. Hovering a cell highlights that period's commits. Settings → Profile includes a live preview and copyable Markdown for embedding your /dev/null activity graph in a GitHub profile README. The graph is public at `/@{handle}/graph.svg`, uses your lane color, and supports `?theme=light`, `dark`, or `auto` (light by default). The SVG is cached for an hour, so a new commit may not appear in an external embed immediately.
+Profiles display commit activity with current and longest streaks. The profile graph adapts to how long someone has been committing: the last 24 hours, 7 days, 30 days, 6 months, or a year. Hovering a cell highlights that period's commits. Settings → Profile includes a live preview and copyable Markdown for embedding your /dev/null activity graph in a GitHub profile README. The graph is public at `/@{handle}/graph.svg`, always shows the full year, uses your lane color, and supports `?theme=light`, `dark`, or `auto` (light by default). The SVG is cached for an hour, so a new commit may not appear in an external embed immediately.
 
 Sources: [graph embed settings](resources/js/components/activity-graph-embed.tsx), [graph controller](app/Http/Controllers/UserActivityGraphController.php), [graph route and cache](routes/web.php).
 
@@ -590,6 +590,7 @@ A signed request sees what the web shows you, such as your own pending commits a
 
 - read your account, logs, replies, notifications (including grouped activity), and starred commits;
 - read the organizations you are a member of, your role in each, and whether posting as an organization is switched on;
+- open the person or organization a mention in a commit or message captured, by the id each mention carries, as the web's mention links do, so it still leads to them after they rename and someone else takes the handle;
 - commit, reply, and quote, with images, and delete your commits, with the same undo window as the web;
 - preview commit drafts without publishing them;
 - request a feature or report a bug as `/feature` and `/bug` do, with the same limit of 10 opened issues a day;
@@ -598,6 +599,14 @@ A signed request sees what the web shows you, such as your own pending commits a
 - read the hot topics, and each one's commits from the past week with its recap;
 - list guilds as the Guilds page does, 24 a page, searched by name, handle or description, with whether you joined or muted each one and whether it is paused, while guilds are available to you;
 - read a guild's board as its page does, 30 threads a page with reply previews, with the guild, its pinned commit and whether you moderate it, while guilds are available to you. The pinned commit also keeps its place in the list, so an app that shows it apart skips it there by its id;
+- list a guild's members as its members page does, the moderator first and then the newest joins, 50 a page, with whether you follow each one and whether each one follows you, and the moderator's id, while guilds are available to you;
+- create a guild, or claim a paused one, as the Guilds page does, with the same rules and limit of 100, where a guild the moderation flags waits for an admin's review instead, while guilds are available to you;
+- edit the display name, description, emoji and icon of a guild you moderate, as Edit guild does, where an edit the moderation flags waits for an admin's review and the guild stays as it was, while guilds are available to you;
+- join or leave a guild, where joining clears your mute of it, as the Join button does, while guilds are available to you;
+- report a guild you don't moderate to the admins, privately, as the Report button does, where reporting it again keeps your first report until an admin dismisses it, while guilds are available to you;
+- mute or unmute a guild, which hides its commits from logs and search, Following included, even while you stay a member, while guilds are available to you;
+- pin or unpin a commit on the board of a guild you moderate, as Pin to board does, which replaces the previous pin, where a pin the board no longer shows can still be unpinned, while guilds are available to you;
+- list the guilds you joined as the left navigation does, with the commits you missed in each and when that count starts, and mark a guild read as opening its board does, sharing the web's limit of 120 a minute;
 - star or unstar, and list who starred your own commit, newest first, 20 a page;
 - create polls on commits that are neither replies nor quotes, and vote on polls;
 - change Remotes settings, read and send messages with images, link cards, and voice notes in conversations and orgs, mark them pulled, react to messages and list your reactions, pin and unpin org messages as a maintainer, find people, and start orgs;

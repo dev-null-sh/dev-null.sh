@@ -16,6 +16,7 @@ export function useCommitTranslation(commit: Commit) {
     const [bodyHeight, setBodyHeight] = useState<number>();
     const [generated, setGenerated] = useState<{
         body: string;
+        source: Commit['translation'];
         translation: CommitTranslation | null;
     } | null>(null);
     const [display, setDisplay] = useState<'original' | 'translated' | null>(
@@ -74,7 +75,11 @@ export function useCommitTranslation(commit: Commit) {
 
                 readSince.current = since;
                 needsRead = false;
-                setGenerated({ body, translation: fresh.translation });
+                setGenerated({
+                    body,
+                    source: commit.translation,
+                    translation: fresh.translation,
+                });
             }
         }, 500);
         const refresh = () => {
@@ -123,6 +128,7 @@ export function useCommitTranslation(commit: Commit) {
     }, [
         commit.id,
         commit.body,
+        commit.translation,
         isApproved,
         language,
         isTranslated,
@@ -170,6 +176,7 @@ export function useCommitTranslation(commit: Commit) {
             );
             setGenerated({
                 body: commit.body,
+                source: commit.translation,
                 translation: response.translation,
             });
             setDisplay('translated');
@@ -187,6 +194,14 @@ export function useCommitTranslation(commit: Commit) {
         previewSegments: translated
             ? translated.preview_segments
             : commit.preview_segments,
+        guildMentions: translated
+            ? generated?.translation === translation &&
+              generated.source !== commit.translation &&
+              commit.translation?.language === language &&
+              commit.translation.translated
+                ? commit.translation.translated.guild_mentions
+                : translated.guild_mentions
+            : commit.guild_mentions,
         notice: translation?.available ? (
             <div className="flex min-h-5 min-w-0 items-center gap-1 text-xs text-muted-foreground">
                 {translated && (

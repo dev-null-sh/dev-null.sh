@@ -27,6 +27,7 @@ import { emojify } from '@/lib/emoji';
 import { userChannel } from '@/lib/realtime';
 import { formatClockDateTime, readerClock } from '@/lib/utils';
 import type { BodySegment, OrganizationAuthor } from '@/types';
+import type { GuildMentions } from '@/types/guild';
 
 type ScheduledCommit = {
     id: string;
@@ -35,6 +36,7 @@ type ScheduledCommit = {
     body: string | null;
     body_segments: BodySegment[];
     preview_segments: BodySegment[] | null;
+    guild_mentions: GuildMentions;
     poll_options: string[] | null;
     image_count: number;
     scheduled_at: string;
@@ -332,6 +334,7 @@ export default function Index({
                                     <FoldedCommitBody
                                         segments={scheduled.body_segments}
                                         mentions={null}
+                                        guildMentions={scheduled.guild_mentions}
                                         previewSegments={
                                             scheduled.preview_segments
                                         }

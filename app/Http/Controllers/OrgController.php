@@ -10,6 +10,7 @@ use App\Actions\UpdateOrgName;
 use App\Http\Requests\CreateOrgRequest;
 use App\Http\Requests\ShowOrgRequest;
 use App\Http\Requests\UpdateOrgRequest;
+use App\Http\Resources\ShownGuildMentions;
 use App\Models\Conversation;
 use App\Models\User;
 use App\Queries\ConversationsQuery;
@@ -34,9 +35,9 @@ final readonly class OrgController
 
                 $action->handle($user, $org, $thread['messages']->last()->id ?? 0);
 
-                return $thread;
+                return ShownGuildMentions::of($thread, $user);
             },
-            'inbox' => fn (): array => $conversations->get($user),
+            'inbox' => fn (): array => ShownGuildMentions::of($conversations->get($user), $user),
             'partner' => null,
             'org' => ['id' => $org->id, 'name' => $org->name],
         ]);

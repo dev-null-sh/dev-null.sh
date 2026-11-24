@@ -17,3 +17,7 @@ export type JoinedGuild = Pick<
 > & {
     missed_commits: number;
 };
+
+export type GuildBadge = Pick<Guild, 'handle' | 'name' | 'emoji' | 'icon_url'>;
+
+export type GuildMentions = Record<string, GuildBadge>;

@@ -29,7 +29,7 @@ import { cn, shortHash } from '@/lib/utils';
 import { show } from '@/routes/mention';
 import { show as showOrganizationMention } from '@/routes/organization-mention';
 import type { BodySegment, Commit } from '@/types';
-import type { Guild } from '@/types/guild';
+import type { GuildBadge, GuildMentions } from '@/types/guild';
 
 // A link to a commit on dev/null itself, nothing after its id, so it can show as the author and the commit's hash.
 const commitLinkPattern =
@@ -155,6 +155,40 @@ export function hasMention(segments: BodySegment[]): boolean {
             segment.type === 'text' &&
             segment.text.search(mentionPattern) !== -1,
     );
+}
+
+export function typedGuildHandles(text: string): string[] {
+    return [
+        ...new Set(
+            typedProse(text).flatMap((part, index) => {
+                const prose = part.replace(
+                    index === 0 ? /^> ?|(?<=\n)> ?/g : /(?<=\n)> ?/g,
+                    '',
+                );
+                const ranges = [
+                    ...colorsIn(prose, index === 0),
+                    ...[...prose.matchAll(urlPattern)].flatMap((match) => {
+                        const url = withoutTrailingPunctuation(match[0]);
+
+                        return hrefFor(url) === null
+                            ? []
+                            : [{ index: match.index, length: url.length }];
+                    }),
+                ];
+
+                return [...prose.matchAll(hashtagPattern)]
+                    .filter(
+                        (match) =>
+                            !ranges.some(
+                                (range) =>
+                                    match.index >= range.index &&
+                                    match.index < range.index + range.length,
+                            ),
+                    )
+                    .map((match) => match[0].slice(1).toLowerCase());
+            }),
+        ),
+    ];
 }
 
 // Like X, the hidden parts of a shortened URL stay in the text, so copying it or a screen reader gets the whole URL.
@@ -629,19 +663,22 @@ function withWordmarks(
 export function Hashtag({
     hashtag,
     guild: postedGuild,
+    guildMentions,
 }: {
     hashtag: string;
-    guild?: Pick<Guild, 'handle' | 'name' | 'emoji' | 'icon_url'> | null;
+    guild?: GuildBadge | null;
+    guildMentions?: GuildMentions;
 }) {
-    const { auth, guilds } = usePage().props;
+    const { auth, guildsEnabled } = usePage().props;
+    const handle = hashtag.slice(1).toLowerCase();
     const guild =
         postedGuild ??
-        guilds?.find(
-            (guild) => guild.handle === hashtag.slice(1).toLowerCase(),
-        );
+        (guildMentions && Object.hasOwn(guildMentions, handle)
+            ? guildMentions[handle]
+            : undefined);
 
     if (guild) {
-        const canOpenGuild = !!auth.user && !!guilds;
+        const canOpenGuild = !!auth.user && guildsEnabled;
         const className =
             'inline-flex max-w-full items-baseline gap-[0.3em] rounded-sm bg-muted px-1 py-0.5 align-baseline font-mono text-[0.875em] leading-none font-normal text-foreground';
         const content = (
@@ -707,6 +744,7 @@ function withHashtags(
     offset: number,
     hashtags: RegExpExecArray[],
     pasteisMode: boolean,
+    guildMentions: GuildMentions | undefined,
 ): ReactNode[] {
     const parts: ReactNode[] = [];
     let position = 0;
@@ -724,7 +762,11 @@ function withHashtags(
                 offset + position,
                 pasteisMode,
             ),
-            <Hashtag key={`hashtag-${hashtag.index}`} hashtag={hashtag[0]} />,
+            <Hashtag
+                key={`hashtag-${hashtag.index}`}
+                hashtag={hashtag[0]}
+                guildMentions={guildMentions}
+            />,
         );
 
         position = index + hashtag[0].length;
@@ -746,6 +788,7 @@ function withColors(
     colors: Color[],
     hashtags: RegExpExecArray[],
     pasteisMode: boolean,
+    guildMentions: GuildMentions | undefined,
 ): ReactNode[] {
     const parts: ReactNode[] = [];
     let position = 0;
@@ -763,6 +806,7 @@ function withColors(
                 offset + position,
                 hashtags,
                 pasteisMode,
+                guildMentions,
             ),
             <span
                 key={`color-${color.index}`}
@@ -787,6 +831,7 @@ function withColors(
             offset + position,
             hashtags,
             pasteisMode,
+            guildMentions,
         ),
     );
 
@@ -803,6 +848,7 @@ function withMentions(
     pasteisMode: boolean,
     isStatic: boolean,
     linksEveryMention: boolean,
+    guildMentions: GuildMentions | undefined,
 ): ReactNode[] {
     const parts: ReactNode[] = [];
     let position = 0;
@@ -825,6 +871,7 @@ function withMentions(
                 colors,
                 hashtags,
                 pasteisMode,
+                guildMentions,
             ),
             isStatic ? (
                 match[0]
@@ -880,6 +927,7 @@ function withMentions(
             colors,
             hashtags,
             pasteisMode,
+            guildMentions,
         ),
     );
 
@@ -890,6 +938,7 @@ export function LinkifiedText({
     text,
     mentions,
     organizationMentions = null,
+    guildMentions,
     pasteisMode = false,
     isStatic = false,
     linksEveryMention = true,
@@ -898,6 +947,7 @@ export function LinkifiedText({
     text: string;
     mentions: Commit['mentions'];
     organizationMentions?: Commit['organization_mentions'];
+    guildMentions?: GuildMentions;
     pasteisMode?: boolean;
     isStatic?: boolean;
     linksEveryMention?: boolean;
@@ -933,6 +983,7 @@ export function LinkifiedText({
                 pasteisMode,
                 isStatic,
                 linksEveryMention,
+                guildMentions,
             ),
             commitLink ? (
                 <CommitLink
@@ -980,6 +1031,7 @@ export function LinkifiedText({
             pasteisMode,
             isStatic,
             linksEveryMention,
+            guildMentions,
         ),
     );
 

@@ -6,11 +6,13 @@ namespace App\Http\Controllers;
 
 use App\Actions\CreateGuild;
 use App\Actions\UpdateGuild;
+use App\Enums\UserUpdate;
 use App\Exceptions\GuildModeratorRemoved;
 use App\Http\Requests\CreateGuildRequest;
 use App\Http\Requests\ListGuildsRequest;
 use App\Http\Requests\ShowGuildRequest;
 use App\Http\Requests\UpdateGuildRequest;
+use App\Http\Resources\GuildResource;
 use App\Http\Resources\ShownStreams;
 use App\Models\Guild;
 use App\Models\GuildSubmission;
@@ -18,6 +20,7 @@ use App\Models\User;
 use App\Queries\GuildCommitsQuery;
 use App\Queries\GuildsQuery;
 use App\Queries\JoinedGuildsQuery;
+use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\UploadedFile;
@@ -31,7 +34,9 @@ final readonly class GuildController
         return Inertia::render('guild/index', [
             'query' => $request->term(),
             'guildPage' => fn () => $query->paginate($request->term(), $request->integer('page', 1), $user)
-                ->through(fn (Guild $guild): string => $guild->id),
+                ->through(fn (Guild $guild): array => ['id' => $guild->id, ...GuildResource::make($guild)->resolve($request)]),
+            'guilds' => Inertia::live(fn (): array => $query->get($user, $request->visibleGuilds())
+                ->map(fn (Guild $guild): array => ['id' => $guild->id, ...GuildResource::make($guild)->resolve($request)])->all(), UserUpdate::Guilds->value, new PrivateChannel($user)),
         ])->withViewData(['robots' => 'noindex, follow']);
     }
 
@@ -43,7 +48,7 @@ final readonly class GuildController
         try {
             $guild = $action->handle($user, $request->string('handle')->value(), $request->string('name')->value(), $request->string('description')->value(), $request->string('emoji')->value(), $icon, $request->isFlagged());
         } catch (GuildModeratorRemoved) {
-            return back()->withErrors(['handle' => 'You cannot reclaim a guild you were removed from.']);
+            return back()->withErrors(['handle' => CreateGuildRequest::RECLAIM_REFUSED]);
         }
 
         if ($guild instanceof GuildSubmission) {
@@ -55,13 +60,14 @@ final readonly class GuildController
         return to_route('guild.show', $guild->handle);
     }
 
-    public function show(ShowGuildRequest $request, Guild $guild, #[CurrentUser] User $user, GuildCommitsQuery $query, JoinedGuildsQuery $joinedGuilds): Response
+    public function show(ShowGuildRequest $request, Guild $guild, #[CurrentUser] User $user, GuildCommitsQuery $query, JoinedGuildsQuery $joinedGuilds, GuildsQuery $guilds): Response
     {
         $commits = $query->get($guild, $user, $request->integer('page', 1));
 
         return Inertia::render('guild/show', [
             'handle' => $guild->handle,
             'readFrom' => $joinedGuilds->readFrom($guild, $user),
+            'guild' => Inertia::live(fn (): array => ['id' => $guild->id, ...GuildResource::make($guilds->get($user, [$guild->handle])->firstOrFail())->resolve($request)], UserUpdate::Guilds->value, new PrivateChannel($user)),
             'canModerate' => $guild->user_id === $user->id,
             'pinnedCommit' => ShownStreams::commit($query->pinned($guild, $user)),
             'commits' => $commits->currentPage() > 1

@@ -73,7 +73,7 @@ const navLabelClassName =
  * Guests see the same items, each taking them to sign in.
  */
 function useNavItems(): (NavItem & { isActive: boolean })[] {
-    const { auth, hasUnmoderatedCommits, guilds } = usePage().props;
+    const { auth, hasUnmoderatedCommits, guildsEnabled } = usePage().props;
     const { isCurrentUrl, isCurrentOrParentUrl } = useCurrentUrl();
     const { user, log } = auth;
     const unreadMessages = useUnreadMessages();
@@ -116,7 +116,7 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
             href: hrefFor(() => StarredCommitController.index()),
             icon: Star,
         },
-        ...(guilds !== null && guilds !== undefined
+        ...(guildsEnabled
             ? [{ title: 'Guilds', href: guildIndex(), icon: UsersRound }]
             : []),
         ...(auth.isAdmin
