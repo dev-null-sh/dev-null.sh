@@ -116,7 +116,7 @@ function Previews() {
 }
 
 for (const preview of [false, true]) {
-    test(`log previews defer relationship recovery to their log (guild preview ${preview})`, async () => {
+    test(`log previews defer relationship recovery to their log (guilds available ${preview})`, async () => {
         component = 'log/show';
         guildPreview = preview;
         server = ['r1', 'r2'];

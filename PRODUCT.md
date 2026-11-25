@@ -40,7 +40,7 @@ What exists, one line each (details in the knowledge base):
 - **Remotes:** private one-to-one and group messages (orgs), and calls, one-to-one or in an org.
 - **Notifications:** in-app activity and on-site Remotes alerts by default; off-site browser and PWA notifications require a separate opt-in. Sound is controlled independently and plays while the site is open.
 - **Search:** developers by name, commits by meaning.
-- **Guilds (preview):** public communities around hashtags; creators maintain their display name, icon and description. Not generally available yet.
+- **Guilds:** public communities around hashtags; creators maintain their display name, icon and description.
 - **Emails:** an occasional update the admins write to everyone, or to a filtered audience, with one-click unsubscribe. Never per-activity notifications.
 - **Safety:** mute, block, reports, and moderation.
 - **Bots:** Tom answers questions about /dev/null from the knowledge base, the public repository, and aggregate community statistics; World answers "hello world". They use @tom and @world until those GitHub owners sign in, then keep working as @devnull-tom and @devnull-world.

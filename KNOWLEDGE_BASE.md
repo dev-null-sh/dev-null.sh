@@ -52,6 +52,7 @@ This file documents the platform's features, stack, and stories. Feature entries
   - [Signed API and devices](#signed-api-and-devices)
   - [Terminal app](#terminal-app)
   - [Bug reports and feature requests](#bug-reports-and-feature-requests)
+  - [Guilds](#guilds)
   - [Exporting your data](#exporting-your-data)
   - [Deleting your account](#deleting-your-account)
   - [Moderation](#moderation)
@@ -658,9 +659,13 @@ Successful issue creation is limited to **ten issues per day per user**, shared 
 
 Sources: [issue command UI](resources/js/components/issue-command.tsx), [issue validation](app/Http/Requests/CreateIssueRequest.php), [issue controller](app/Http/Controllers/IssueController.php), [daily limit](app/Http/Middleware/ThrottleIssues.php), [API issue controller](app/Http/Controllers/Api/IssueController.php).
 
-### Guilds (preview)
+### Guilds
 
-Guilds are public groups around hashtags and are not generally available yet. In the preview, matching hashtags become small clickable guild labels; ordinary hashtags still open search. Create a guild from the Guilds overview or a hashtag's search page. From the overview, its display name determines the hashtag: “Laravel 4ever” becomes `#laravel4ever`. Display names and handles each allow up to 60 characters. When claiming a hashtag, the display name must match its letters, numbers and underscores, ignoring case; spaces, punctuation and decorative symbols are ignored, so `/dev/null` is valid for `#devnull`. Accents and underscores remain significant. Its creator joins automatically and maintains its display name, icon and description; a new display name must still match the hashtag, so `#adhd` can become “ADHD” but never another hashtag. Each person can create up to 100 guilds. A guild's name, description and icon pass the same automated moderation as commits before the guild is published or edited. When the moderation flags a new guild or an edit, it waits for an admin to review it instead: nothing of it is public until it is approved, the guild keeps its current details meanwhile, and a rejected submission is discarded. Submitting again for the same hashtag replaces the one still waiting, and new guilds waiting for review count toward the creation limit.
+Guilds are public groups around hashtags, where matching hashtags become small clickable guild labels; ordinary hashtags still open search. Create a guild from the Guilds overview or a hashtag's search page.
+
+From the overview, a guild's display name determines the hashtag: “Laravel 4ever” becomes `#laravel4ever`. Display names and handles each allow up to 60 characters. When claiming a hashtag, the display name must match its letters, numbers and underscores, ignoring case; spaces, punctuation and decorative symbols are ignored, so `/dev/null` is valid for `#devnull`. Accents and underscores remain significant.
+
+The guild's creator joins automatically and maintains its display name, icon and description; a new display name must still match the hashtag, so `#adhd` can become “ADHD” but never another hashtag. Each person can create up to 100 guilds. A guild's name, description and icon pass the same automated moderation as commits before the guild is published or edited. When the moderation flags a new guild or an edit to an existing guild, it waits for an admin to review it instead: nothing of it is public until it is approved, the guild keeps its current details meanwhile, and a rejected submission is discarded. Submitting again for the same hashtag replaces the one still waiting, and new guilds waiting for review count toward the per-user guild creation limit.
 
 The Guilds page lists groups by member count, with 24 guilds per page. Search matches keywords in guild names, handles, and descriptions, ignoring case; a leading `#` is optional. This directory search is keyword-based, not semantic. Click a guild's member count to browse its members: the moderator appears first, labeled “(moderator)”, followed by newest joins, with 50 people per page and Load more for the next page. Joining adds matching commits to Following without following every author and clears any existing mute. When a commit appears only because of a joined guild, it says “because you joined” beside the guild label. Leave a guild to reveal its Mute control. Muting hides matching commits from logs and search, including commits by followed authors. You can still open the guild or a commit directly.
 
@@ -701,7 +706,7 @@ You can sign in with GitHub again later, but start from a new account rather tha
 
 As the privacy policy explains, timeout and ban records retain your GitHub account id, reason, and dates after account deletion, so deleting and recreating an account cannot evade those restrictions. Your GitHub account id is also kept until you sign in again, only so that your page doesn't come back as one of a developer not on /dev/null yet. Deleted content may also remain in backups and logs for a period.
 
-For guilds, which are not generally available yet, a moderator removal retains only the GitHub account ID, hashtag and removal date after account deletion, so the same GitHub account cannot reclaim that guild. Guild descriptions, icons and reports are not retained by that restriction.
+For guilds, a moderator removal retains only the GitHub account ID, hashtag and removal date after account deletion, so the same GitHub account cannot reclaim that guild. Guild descriptions, icons and reports are not retained by that restriction.
 
 Sources: [account deletion confirmation](resources/js/components/delete-user.tsx), [account deletion](app/Actions/DeleteUser.php), [privacy policy](resources/js/pages/privacy/show.tsx).
 

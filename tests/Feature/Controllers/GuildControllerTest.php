@@ -29,6 +29,7 @@ use App\Models\Organization;
 use App\Models\ScheduledCommit;
 use App\Models\User;
 use App\Queries\LogCommitsQuery;
+use App\Services\Features;
 use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -91,6 +92,11 @@ it('keeps board posts on their guild counts them but leaves them off profile and
 });
 
 it('does not let bulletin board context bypass validation', function (string $route, array $payload, bool $admin, string $field): void {
+    if (! $admin) {
+        // Guilds default to everyone; make them admin-only to check that setting still keeps members out.
+        resolve(Features::class)->update(Feature::Guilds, true, true);
+    }
+
     Guild::factory()->create(['handle' => 'rust']);
     $this->actingAs(User::factory()->create(['handle' => $admin ? 'admin' : 'member']))
         ->postJson(route($route), ['body' => 'Hello', 'guild_handle' => 'rust', 'scheduled_at' => now()->addHour()->toIso8601String(), ...$payload])
@@ -102,7 +108,7 @@ it('does not let bulletin board context bypass validation', function (string $ro
     'empty text' => [['body' => ''], true, 'body'],
     'missing guild' => [['guild_handle' => 'missing'], true, 'guild_handle'],
     'invalid context' => [['guild_handle' => ['rust']], true, 'guild_handle'],
-    'not available' => [[], false, 'guild_handle'],
+    'admins only' => [[], false, 'guild_handle'],
 ]);
 
 it('creates a public guild and gives only its creator moderation controls', function (): void {
@@ -126,7 +132,9 @@ it('creates a public guild and gives only its creator moderation controls', func
         ->get(route('guild.show', 'jobs'))->assertOk()->assertInertia(fn ($page) => $page->where('canModerate', false));
 });
 
-it('hides guild data and every guild endpoint from ordinary members', function (): void {
+it('hides guild data and every guild endpoint from ordinary members while guilds are admin-only', function (): void {
+    // Guilds default to everyone; make them admin-only to check that setting still keeps members out.
+    resolve(Features::class)->update(Feature::Guilds, true, true);
     $user = User::factory()->create();
     $guild = Guild::factory()->create(['user_id' => $user->id]);
 
@@ -173,7 +181,7 @@ it('requires sign in and exposes no guild data to guests', function (): void {
     $this->putJson(route('guild.update', $guild->handle), [])->assertUnauthorized();
 });
 
-it('switches off the entire preview even for its admin creator', function (): void {
+it('switches off guilds entirely, even for an admin creator', function (): void {
     $admin = User::factory()->create(['handle' => 'admin']);
     $guild = Guild::factory()->create(['user_id' => $admin->id]);
     $this->actingAs($admin)->put(route('feature.update', Feature::Guilds), ['enabled' => false])->assertRedirect();
@@ -468,8 +476,13 @@ it('returns a claim error if removal wins the race after validation', function (
     $this->assertDatabaseCount('guilds', 0);
 });
 
-it('gates reporting removal and review behind the admin preview', function (bool $disabled): void {
+it('gates reporting removal and review behind guild access', function (bool $disabled): void {
     $user = User::factory()->create(['handle' => $disabled ? 'admin' : 'ordinary']);
+    if (! $disabled) {
+        // Guilds default to everyone; make them admin-only to check that setting still keeps members out.
+        resolve(Features::class)->update(Feature::Guilds, true, true);
+    }
+
     $guild = Guild::factory()->create();
     resolve(CreateGuildReport::class)->handle($user, $guild, 'Unrelated description.');
     $report = GuildReport::query()->sole();
@@ -710,7 +723,9 @@ it('validates guild directory search and page inputs', function (array $input, s
     'large page' => [['page' => 10001], 'page'],
 ]);
 
-it('guards guild discovery and preferences with the preview flag and validates boolean inputs', function (): void {
+it('guards guild discovery and preferences with the guilds flag and validates boolean inputs', function (): void {
+    // Guilds default to everyone; make them admin-only to check that setting still keeps members out.
+    resolve(Features::class)->update(Feature::Guilds, true, true);
     $guild = Guild::factory()->create();
     $this->get(route('guild.index'))->assertRedirectToRoute('home');
     $this->putJson(route('guild-membership.update', $guild), ['joined' => true])->assertUnauthorized();
@@ -1083,7 +1098,7 @@ it('publishes nothing for a submission whose hashtag changed hands while it wait
     Storage::assertMissing('guild-icons/pending.webp');
 })->with(['removed moderator' => true, 'claimed by someone else' => false]);
 
-it('leaves reviewing guild submissions to admins with the preview', function (bool $disabled): void {
+it('leaves reviewing guild submissions to admins while guilds are on', function (bool $disabled): void {
     Storage::fake();
     $admin = User::factory()->create(['handle' => 'admin']);
     $user = $disabled ? $admin : User::factory()->create(['handle' => 'ordinary']);

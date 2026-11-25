@@ -71,7 +71,8 @@ it('resolves followed users in a subquery instead of loading their ids', functio
 
     $builder = resolve(FollowingLogQuery::class)->builder($user);
 
-    expect(DB::getQueryLog())->toBeEmpty()
+    // Joined guilds may be looked up early; followed users must not be.
+    expect(collect(DB::getQueryLog())->pluck('query')->filter(fn (string $query): bool => str_contains($query, '"follows"')))->toBeEmpty()
         ->and($builder->toSql())->toContain('select "followed_id" from "follows"');
 });
 

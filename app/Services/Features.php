@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Only explicit overrides are stored; guilds default to an admin preview, other features to everyone.
+ * Only explicit overrides are stored; every feature defaults to everyone, unless adminOnlyByDefault() lists it.
  */
 final readonly class Features
 {
@@ -24,7 +24,7 @@ final readonly class Features
 
     public function adminOnly(Feature $feature): bool
     {
-        return $this->switched()[$feature->value]['admin_only'] ?? $feature === Feature::Guilds;
+        return $this->switched()[$feature->value]['admin_only'] ?? in_array($feature, $this->adminOnlyByDefault(), true);
     }
 
     public function available(Feature $feature, ?User $user): bool
@@ -51,6 +51,18 @@ final readonly class Features
         );
 
         Cache::memo()->forget(self::CACHE_KEY);
+    }
+
+    /**
+     * Features that default to admins only until an override opens them.
+     *
+     * @return list<Feature>
+     */
+    private function adminOnlyByDefault(): array
+    {
+        return [
+            // e.g. Feature::Guilds
+        ];
     }
 
     /** @return array<string, array{enabled: bool, admin_only: bool}> */

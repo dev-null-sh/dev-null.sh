@@ -21,7 +21,7 @@ const FEATURES: Record<
     guilds: {
         label: 'guilds',
         description:
-            'Public guild pages, creation, editing, and inline hashtag chips. Choose who can use the preview.',
+            'Public guild pages, creation, editing, and inline hashtag chips. Choose who can use them.',
     },
 };
 

@@ -88,11 +88,11 @@ it('hides the directory while guilds are not available to the user', function (b
 
     signedApiRequest($this->keyPair, 'GET', route('api-guild.index'))->assertNotFound();
 })->with([
-    'admin preview' => [true, true],
+    'admins only' => [true, true],
     'switched off' => [false, false],
 ]);
 
-it('lists guilds for admins during the admin preview', function (): void {
+it('lists guilds for admins while guilds are admin-only', function (): void {
     config(['app.admins' => [$this->user->handle]]);
     resolve(Features::class)->update(Feature::Guilds, true, adminOnly: true);
     Guild::factory()->create(['handle' => 'rust']);
@@ -248,7 +248,7 @@ it('does not find a board for an unknown guild or while guilds are not available
     signedApiRequest($this->keyPair, 'GET', route('api-guild.show', $handle))->assertNotFound();
 })->with([
     'unknown guild' => [false, 'go'],
-    'admin preview' => [true, 'rust'],
+    'admins only' => [true, 'rust'],
 ]);
 
 it('creates a guild from its display name, with the user as its moderator and first member', function (): void {

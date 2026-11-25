@@ -20,7 +20,10 @@ it('lists the features to admins', function (): void {
         ->assertOk()
         ->assertInertia(fn ($page) => $page
             ->component('operations/features')
-            ->where('features', [['name' => 'translations', 'enabled' => true, 'admin_only' => false], ['name' => 'guilds', 'enabled' => true, 'admin_only' => true]]));
+            ->where('features', [
+                ['name' => 'translations', 'enabled' => true, 'admin_only' => false],
+                ['name' => 'guilds', 'enabled' => true, 'admin_only' => false],
+            ]));
 });
 
 it('hides the features from non admins', function (): void {
@@ -37,7 +40,7 @@ it('lets admins switch a feature off and back on for everyone', function (): voi
     $admin = User::factory()->create(['handle' => 'admin']);
 
     $this->actingAs($admin)->get(route('feature.index'))
-        ->assertInertia(fn ($page) => $page->where('features', [['name' => 'translations', 'enabled' => true, 'admin_only' => false], ['name' => 'guilds', 'enabled' => true, 'admin_only' => true]]));
+        ->assertInertia(fn ($page) => $page->where('features', [['name' => 'translations', 'enabled' => true, 'admin_only' => false], ['name' => 'guilds', 'enabled' => true, 'admin_only' => false]]));
 
     $this->fromRoute('feature.index')
         ->put(route('feature.update', 'translations'), ['enabled' => false])
@@ -46,7 +49,7 @@ it('lets admins switch a feature off and back on for everyone', function (): voi
     expect(resolve(Features::class)->enabled(Feature::Translations))->toBeFalse();
     $this->assertDatabaseHas('features', ['name' => 'translations', 'enabled' => false]);
     $this->get(route('feature.index'))
-        ->assertInertia(fn ($page) => $page->where('features', [['name' => 'translations', 'enabled' => false, 'admin_only' => false], ['name' => 'guilds', 'enabled' => true, 'admin_only' => true]]));
+        ->assertInertia(fn ($page) => $page->where('features', [['name' => 'translations', 'enabled' => false, 'admin_only' => false], ['name' => 'guilds', 'enabled' => true, 'admin_only' => false]]));
 
     $this->put(route('feature.update', 'translations'), ['enabled' => true])->assertRedirect();
 
@@ -91,7 +94,20 @@ it('switches guild availability between everyone admins and nobody', function ()
     $guild = Guild::factory()->create();
     Event::fake([UsersUpdated::class]);
 
+    // Open by default
+    $this->actingAs($member)->get(route('guild.show', $guild->handle))->assertOk();
+
+    // Switch to Admins only
+    $this->actingAs($admin)->put(route('feature.update', Feature::Guilds), ['enabled' => true, 'admin_only' => true])->assertRedirect();
+    $this->get(route('guild.show', $guild->handle))->assertOk();
     $this->actingAs($member)->get(route('guild.show', $guild->handle))->assertNotFound();
+
+    // Switch off, keeping Admins for when it's back on
+    $this->actingAs($admin)->put(route('feature.update', Feature::Guilds), ['enabled' => false])->assertRedirect();
+    $this->get(route('guild.show', $guild->handle))->assertNotFound();
+    $this->assertDatabaseHas('features', ['name' => 'guilds', 'enabled' => false, 'admin_only' => true]);
+
+    // Switch back to everyone (reopened)
     $this->actingAs($admin)->put(route('feature.update', Feature::Guilds), ['enabled' => true, 'admin_only' => false])->assertRedirect();
     $this->actingAs($member)->get(route('guild.show', $guild->handle))->assertOk();
     $this->post(route('guild.store'), ['name' => 'New Guild', 'description' => 'Open to everyone.', 'emoji' => '💻'])->assertRedirectToRoute('guild.show', 'newguild');
@@ -99,13 +115,11 @@ it('switches guild availability between everyone admins and nobody', function ()
     Event::assertDispatched(UsersUpdated::class, fn (UsersUpdated $event): bool => $event->update === UserUpdate::Guilds && in_array($member->id, $event->userIds, true));
     Event::assertDispatched(UsersUpdated::class, fn (UsersUpdated $event): bool => $event->update === UserUpdate::Relationships && in_array($member->id, $event->userIds, true));
 
-    $this->actingAs($admin)->put(route('feature.update', Feature::Guilds), ['enabled' => true, 'admin_only' => true])->assertRedirect();
-    $this->get(route('guild.show', $guild->handle))->assertOk();
-    $this->actingAs($member)->get(route('guild.show', $guild->handle))->assertNotFound();
+    // Switch to Disabled
     $this->actingAs($admin)->put(route('feature.update', Feature::Guilds), ['enabled' => false])->assertRedirect();
     $this->get(route('guild.show', $guild->handle))->assertNotFound();
     $this->actingAs($member)->get(route('guild.show', $guild->handle))->assertNotFound();
-    $this->assertDatabaseHas('features', ['name' => 'guilds', 'enabled' => false, 'admin_only' => true]);
+    $this->assertDatabaseHas('features', ['name' => 'guilds', 'enabled' => false, 'admin_only' => false]);
 });
 
 it('rejects an invalid audience without changing access', function (): void {
