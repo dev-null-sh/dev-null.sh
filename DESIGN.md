@@ -194,7 +194,7 @@ A cool, nearly colorless shell with one working blue and six author lanes reserv
 - **Author Lanes** (`lane-0` through `lane-5`, burnt orange, green, violet, teal, rose, ochre; each with a `-dark` lift): chosen by the user in Settings → Profile, otherwise assigned by hashing the user id (`User::automaticLane()`); every serialized user carries the effective `lane` (0–5) and the frontend paints it with `laneColor(user.lane)`. Used only for graph nodes, rail segments, the staged composer node, the 8px dot before a handle in profile contexts, and the 2px ring around a profile avatar. Never text, never fills behind text, never buttons.
 
 ### Tertiary
-- **Rm Red** (`destructive`): delete affordances (trash icon on hover, inline confirm wash at 8% opacity, destructive button), "Unfollow" on hover, the composer counter at 0.
+- **Rm Red** (`destructive`): delete affordances (trash icon on hover, inline confirm wash at 8% opacity, destructive button), "Unfollow" on hover, the composer counter at 0, and the border and warning status ("Hard to see", "Hard to see (WCAG)" or "Partly hard to see") on a guild icon preview.
 
 ### Neutral
 - **Cool Shell** (`shell`): page background around the feed column and side columns; also the hole punched in each node.

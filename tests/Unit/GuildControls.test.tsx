@@ -65,6 +65,10 @@ const { ProfileGuilds } =
 const { Dialog, DialogClose } =
     await import('../../resources/js/components/ui/dialog');
 const { HashtagGuild } = await import('../../resources/js/pages/search/index');
+const { EmojiPickerButton } =
+    await import('../../resources/js/components/emoji-picker');
+const { ImageContrastPreview } =
+    await import('../../resources/js/components/image-contrast-preview');
 type Element = ReactElement<Record<string, unknown>>;
 function elements(node: ReactNode): Element[] {
     if (!React.isValidElement(node)) return [];
@@ -607,3 +611,34 @@ test.each([true, false])(
         assert.equal(rows(view).length, 1);
     },
 );
+
+test('previews the icon a guild already has until an emoji replaces it', () => {
+    const guild = {
+        handle: 'rust',
+        name: 'Rust',
+        emoji: '🦀',
+        icon_url: '/guilds/rust/icon?v=1',
+    } as unknown as Guild;
+    const fields = () => {
+        cursor = 0;
+        const form = elements(GuildDialog({ guild, children: 'Edit' })).find(
+            (element) => element.type === Form,
+        )!;
+        return elements(
+            (form.props.children as (props: unknown) => ReactNode)({
+                processing: false,
+                errors: {},
+            }),
+        );
+    };
+    const preview = () =>
+        fields().find((element) => element.type === ImageContrastPreview)?.props
+            .src;
+
+    assert.equal(preview(), '/guilds/rust/icon?v=1');
+    (
+        fields().find((element) => element.type === EmojiPickerButton)!.props
+            .onPick as (emoji: string) => void
+    )('🔥');
+    assert.equal(preview(), undefined);
+});

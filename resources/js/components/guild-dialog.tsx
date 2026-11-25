@@ -1,10 +1,11 @@
 import type { FormComponentRef } from '@inertiajs/core';
 import { Form, router } from '@inertiajs/react';
 import { LoaderCircle, Plus, Save } from 'lucide-react';
-import { type ReactNode, useRef, useState } from 'react';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { store, update } from '@/actions/App/Http/Controllers/GuildController';
 import { EmojiPickerButton } from '@/components/emoji-picker';
 import { GuildIcon } from '@/components/guild-icon';
+import { ImageContrastPreview } from '@/components/image-contrast-preview';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import {
@@ -36,7 +37,30 @@ export function GuildDialog({
     const [emoji, setEmoji] = useState(guild?.emoji ?? '💻');
     const [removeIcon, setRemoveIcon] = useState(false);
     const [name, setName] = useState(guild?.name ?? handle ?? '');
+    const [preview, setPreview] = useState<string | null>(null);
     const form = useRef<FormComponentRef>(null);
+
+    const previewUrl = useRef<string | null>(null);
+
+    function showPreview(file: File | null) {
+        if (previewUrl.current) {
+            URL.revokeObjectURL(previewUrl.current);
+        }
+        previewUrl.current = file ? URL.createObjectURL(file) : null;
+        setPreview(previewUrl.current);
+    }
+
+    useEffect(
+        () => () => {
+            if (previewUrl.current) {
+                URL.revokeObjectURL(previewUrl.current);
+            }
+        },
+        [],
+    );
+    // A new upload, or else the icon the guild has unless an emoji replaces it.
+    const previewSrc =
+        preview ?? (removeIcon ? null : (guild?.icon_url ?? null));
     const nameHandle = name.replace(/[^\p{L}\p{M}\p{N}_]+/gu, '').toLowerCase();
     const hashtag = guild?.handle ?? handle ?? nameHandle;
 
@@ -48,6 +72,7 @@ export function GuildDialog({
                 onCloseAutoFocus={() => {
                     setEmoji(guild?.emoji ?? '💻');
                     setRemoveIcon(false);
+                    showPreview(null);
                     setName(guild?.name ?? handle ?? '');
                 }}
             >
@@ -215,9 +240,23 @@ export function GuildDialog({
                                         name="images[]"
                                         type="file"
                                         accept="image/jpeg,image/png,image/webp"
+                                        onChange={(event) =>
+                                            showPreview(
+                                                event.target.files?.[0] ?? null,
+                                            )
+                                        }
                                         className={`${fieldClass} file:mr-3 file:text-sm`}
                                         aria-describedby="guild-icon-help guild-icon-error"
                                     />
+                                    {previewSrc && (
+                                        // Guild icons show at 13–48px. The check runs near the small end, where they fade
+                                        // most; the tiles show 40px, the most common size.
+                                        <ImageContrastPreview
+                                            src={previewSrc}
+                                            label="Icon"
+                                            size={20}
+                                        />
+                                    )}
                                     <p
                                         id="guild-icon-help"
                                         className="text-xs text-muted-foreground"
