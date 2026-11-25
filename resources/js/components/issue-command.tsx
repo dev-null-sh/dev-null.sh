@@ -1,7 +1,8 @@
 import { useHttp, usePage } from '@inertiajs/react';
 import { Bug, Lightbulb, X } from 'lucide-react';
-import type { KeyboardEvent } from 'react';
-import { useState } from 'react';
+import type { KeyboardEvent, RefObject } from 'react';
+import { useLayoutEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import { store } from '@/actions/App/Http/Controllers/IssueController';
 import { showTimeout, timeoutFrom } from '@/components/timeout-dialog';
@@ -16,6 +17,8 @@ import {
     typedCommand,
 } from '@/lib/issue-commands';
 import { hasModKey } from '@/lib/keyboard';
+import type { SuggestionPosition } from '@/lib/suggestion-position';
+import { suggestionPositionAt } from '@/lib/suggestion-position';
 import { cn } from '@/lib/utils';
 
 const hintDismissedKey = 'issue-command-hint-dismissed';
@@ -259,21 +262,78 @@ export function IssueCommandBadge({
     );
 }
 
+/**
+ * Where the menu floats: under the slash that starts the draft, kept there while the page scrolls or resizes.
+ */
+function useSlashPosition(
+    anchor: RefObject<HTMLTextAreaElement | null>,
+): SuggestionPosition | null {
+    const [position, setPosition] = useState<SuggestionPosition | null>(null);
+
+    useLayoutEffect(() => {
+        const textarea = anchor.current;
+
+        if (!textarea) {
+            return;
+        }
+
+        const reposition = () => setPosition(suggestionPositionAt(textarea, 0));
+
+        reposition();
+        window.addEventListener('scroll', reposition, {
+            capture: true,
+            passive: true,
+        });
+        window.addEventListener('resize', reposition);
+        const viewport = window.visualViewport;
+        viewport?.addEventListener('resize', reposition);
+        viewport?.addEventListener('scroll', reposition);
+        // A dialog opening on a restored slash is still zooming in when the menu first measures it.
+        document.addEventListener('animationend', reposition, true);
+
+        return () => {
+            window.removeEventListener('scroll', reposition, {
+                capture: true,
+            });
+            window.removeEventListener('resize', reposition);
+            viewport?.removeEventListener('resize', reposition);
+            viewport?.removeEventListener('scroll', reposition);
+            document.removeEventListener('animationend', reposition, true);
+        };
+    }, [anchor]);
+
+    return position;
+}
+
+/**
+ * The commands a draft that is a lone slash could become, floating over the composer like the other suggestions so
+ * nothing moves when it opens.
+ */
 export function IssueCommandSuggestions({
     suggestions,
     selected,
     onPick,
+    anchor,
 }: {
     suggestions: IssueCommand[];
     selected: number;
     onPick: (kind: IssueKind) => void;
+    anchor: RefObject<HTMLTextAreaElement | null>;
 }) {
-    return (
+    const position = useSlashPosition(anchor);
+
+    if (position === null) {
+        return null;
+    }
+
+    return createPortal(
         <div
             data-command-suggestions
             role="listbox"
             aria-label="Commands"
-            className="mt-1 w-full max-w-sm rounded-md border bg-popover p-1 text-popover-foreground shadow-md"
+            style={position}
+            onMouseDown={(event) => event.preventDefault()}
+            className="pointer-events-auto fixed z-50 overflow-y-auto overscroll-contain rounded-lg border bg-popover p-1.5 text-popover-foreground shadow-[0_12px_32px_-12px_rgb(0_0_0/0.35)] motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95"
         >
             {suggestions.map((command, index) => {
                 const Icon = icons[command.kind];
@@ -305,10 +365,13 @@ export function IssueCommandSuggestions({
                     </button>
                 );
             })}
-            <p className="px-2 pt-1 pb-0.5 font-mono text-xs text-muted-foreground">
-                ↑↓ select · Tab or Enter pick · Esc dismiss
+            <p className="flex flex-wrap gap-x-1.5 px-2 pt-1 pb-0.5 font-mono text-xs text-muted-foreground">
+                <span className="whitespace-nowrap">↑↓ select</span>
+                <span className="whitespace-nowrap">· Tab or Enter pick</span>
+                <span className="whitespace-nowrap">· Esc dismiss</span>
             </p>
-        </div>
+        </div>,
+        document.body,
     );
 }
 

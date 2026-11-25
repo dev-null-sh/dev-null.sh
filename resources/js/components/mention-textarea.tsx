@@ -14,7 +14,8 @@ import type { EmojiSuggestion } from '@/lib/emoji';
 import { emojifyInput, searchEmoji } from '@/lib/emoji';
 import { fetchGuilds } from '@/lib/guilds';
 import { issueReferenceBeforeCaret } from '@/lib/issue-reference';
-import { suggestionPosition } from '@/lib/suggestion-position';
+import type { SuggestionPosition } from '@/lib/suggestion-position';
+import { suggestionPositionAt } from '@/lib/suggestion-position';
 import { toastWhenThrottled } from '@/lib/throttle';
 import { characterCount, cn, laneColor, limitCharacters } from '@/lib/utils';
 import type { Organization, OrgMember, User } from '@/types';
@@ -39,7 +40,7 @@ type MentionResults = {
 
 type Suggestions = MentionResults & { key: string };
 
-type Position = ReturnType<typeof suggestionPosition>;
+type Position = SuggestionPosition;
 
 const debounce = 120;
 const cache = new Map<string, MentionResults>();
@@ -55,33 +56,6 @@ const mentionBeforeCaretPattern =
 // The ":shortcode" being typed in prose right before the caret, from two characters on so times like 10:30 stay quiet.
 const emojiBeforeCaretPattern =
     /(?:^|[^\p{L}\p{N}_:])(:([A-Za-z0-9_+-]{2,}))$/u;
-
-// Every style that changes where text wraps, so the mirror below wraps exactly like the textarea.
-const mirroredProperties = [
-    'box-sizing',
-    'width',
-    'border-top-width',
-    'border-right-width',
-    'border-bottom-width',
-    'border-left-width',
-    'padding-top',
-    'padding-right',
-    'padding-bottom',
-    'padding-left',
-    'font-family',
-    'font-size',
-    'font-weight',
-    'font-style',
-    'font-stretch',
-    'font-feature-settings',
-    'font-variant',
-    'line-height',
-    'letter-spacing',
-    'word-spacing',
-    'text-transform',
-    'text-indent',
-    'tab-size',
-];
 
 function triggerAt(
     textarea: HTMLTextAreaElement,
@@ -138,57 +112,6 @@ function triggerAt(
     return guild && !/^[\p{L}\p{M}\p{N}_/#-]/u.test(textarea.value.slice(caret))
         ? { kind: 'guild', start: caret - guild[1].length - 1, query: guild[1] }
         : null;
-}
-
-/**
- * Where a character of the textarea is drawn, measured on a hidden copy of it that wraps the same way.
- */
-function characterRect(textarea: HTMLTextAreaElement, index: number) {
-    const style = window.getComputedStyle(textarea);
-    const mirror = document.createElement('div');
-    const marker = document.createElement('span');
-
-    mirroredProperties.forEach((property) =>
-        mirror.style.setProperty(property, style.getPropertyValue(property)),
-    );
-    mirror.style.position = 'absolute';
-    mirror.style.visibility = 'hidden';
-    mirror.style.top = '0';
-    mirror.style.left = '-9999px';
-    mirror.style.whiteSpace = 'pre-wrap';
-    mirror.style.overflowWrap = 'break-word';
-
-    mirror.textContent = textarea.value.slice(0, index);
-    marker.textContent = textarea.value.slice(index) || '.';
-    mirror.appendChild(marker);
-    document.body.appendChild(mirror);
-
-    const rect = textarea.getBoundingClientRect();
-    const lineHeight =
-        Number.parseFloat(style.lineHeight) ||
-        Number.parseFloat(style.fontSize) * 1.4;
-    const top = rect.top + marker.offsetTop - textarea.scrollTop;
-    const left = rect.left + marker.offsetLeft - textarea.scrollLeft;
-
-    mirror.remove();
-
-    return { top, left, bottom: top + lineHeight };
-}
-
-function positionFor(textarea: HTMLTextAreaElement, index: number): Position {
-    const character = characterRect(textarea, index);
-    const viewport = window.visualViewport;
-
-    return suggestionPosition(
-        character,
-        {
-            left: viewport?.offsetLeft ?? 0,
-            top: viewport?.offsetTop ?? 0,
-            width: viewport?.width ?? window.innerWidth,
-            height: viewport?.height ?? window.innerHeight,
-        },
-        window.innerHeight,
-    );
 }
 
 async function fetchSuggestions(
@@ -379,7 +302,7 @@ export function MentionTextarea({
         }
 
         setTrigger(next);
-        setPosition(positionFor(textarea, next.start));
+        setPosition(suggestionPositionAt(textarea, next.start));
     };
 
     useEffect(() => {
@@ -482,7 +405,9 @@ export function MentionTextarea({
 
         const reposition = () => {
             if (textareaRef.current) {
-                setPosition(positionFor(textareaRef.current, trigger.start));
+                setPosition(
+                    suggestionPositionAt(textareaRef.current, trigger.start),
+                );
             }
         };
 

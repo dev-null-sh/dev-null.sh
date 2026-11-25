@@ -390,6 +390,7 @@ function CommitComposerBody({
                         <IssueCommandSuggestions
                             suggestions={issue.suggestions}
                             selected={issue.selected}
+                            anchor={textareaRef}
                             onPick={(kind) => {
                                 issue.start(kind, '');
                                 focusBody(id);
