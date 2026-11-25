@@ -52,6 +52,7 @@ use App\Http\Controllers\Api\MessageReactionController;
 use App\Http\Controllers\Api\MessageVoiceController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\NotificationGroupController;
+use App\Http\Controllers\Api\OpenApiController;
 use App\Http\Controllers\Api\OrganizationAdminController;
 use App\Http\Controllers\Api\OrganizationCommitController;
 use App\Http\Controllers\Api\OrganizationController;
@@ -150,6 +151,11 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             ->whereUuid('organization')
             ->name('api-mentioned-organization.show');
     });
+
+    // This API's OpenAPI spec, for anyone building on it...
+    Route::get('openapi.json', [OpenApiController::class, 'show'])
+        ->middleware('cache.headers:public;max_age=3600;etag')
+        ->name('api-openapi.show');
 
     // Signing in: the app redeems the code it got on the web, signed with a key that isn't approved yet...
     Route::post('devices', [DeviceController::class, 'store'])

@@ -13,6 +13,10 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 final readonly class StarredCommitController
 {
+    /**
+     * The commits the user starred, last starred first, 20 a page, as the web's Starred page lists them. Commits the user can
+     * no longer see are left out.
+     */
     public function index(#[CurrentUser] User $user, StarredCommitsQuery $starred, ReplyPreviewsQuery $replyPreviews): AnonymousResourceCollection
     {
         $commits = $starred->builder($user)->cursorPaginate(20);

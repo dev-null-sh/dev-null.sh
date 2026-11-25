@@ -16,6 +16,11 @@ use League\CommonMark\Parser\MarkdownParser;
 
 final readonly class CreateIssue
 {
+    /**
+     * How many issues someone may open on GitHub a day, however they open them.
+     */
+    public const int MAX_PER_DAY = 10;
+
     public function __construct(private GitHubProvider $github)
     {
         //

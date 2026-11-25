@@ -33,6 +33,9 @@ final readonly class UserMuteController
         return UserResource::make($user)->additional(['is_muting' => true]);
     }
 
+    /**
+     * Unmutes the user, as on the web, and answers with them and that they are no longer muted.
+     */
     public function destroy(DeleteApiUserMuteRequest $request, #[CurrentUser] User $currentUser, User $user, DeleteUserMute $action): UserResource
     {
         $action->handle($currentUser, $user);

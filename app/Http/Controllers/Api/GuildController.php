@@ -29,6 +29,10 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 final readonly class GuildController
 {
+    /**
+     * The directory of guilds as the web's Guilds page lists it: 24 a page, the most members first, searched with ?q= in
+     * their handle, name and description. Guilds are in preview: an account they aren't open to gets a 404.
+     */
     public function index(ListApiGuildsRequest $request, #[CurrentUser] User $user, GuildsQuery $query): AnonymousResourceCollection
     {
         return GuildResource::collection($query->paginate($request->term(), $request->integer('page', 1), $user)->withQueryString());
