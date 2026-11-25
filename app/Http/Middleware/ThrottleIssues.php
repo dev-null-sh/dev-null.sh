@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Middleware;
 
+use App\Actions\CreateIssue;
 use App\Enums\ApiErrorCode;
 use App\Exceptions\ApiException;
 use App\Models\User;
@@ -14,8 +15,6 @@ use Symfony\Component\HttpFoundation\Response;
 
 final readonly class ThrottleIssues
 {
-    private const int PER_DAY = 10;
-
     private const int DECAY_SECONDS = 86400;
 
     /**
@@ -31,7 +30,7 @@ final readonly class ThrottleIssues
 
         $key = "issues:{$user->id}";
 
-        if (RateLimiter::tooManyAttempts($key, self::PER_DAY)) {
+        if (RateLimiter::tooManyAttempts($key, CreateIssue::MAX_PER_DAY)) {
             return $this->tooMany($request, RateLimiter::availableIn($key));
         }
 
@@ -46,7 +45,7 @@ final readonly class ThrottleIssues
 
     private function tooMany(Request $request, int $retryAfter): Response
     {
-        $message = 'Issue limit reached: '.self::PER_DAY.' a day. Try again tomorrow.';
+        $message = 'Issue limit reached: '.CreateIssue::MAX_PER_DAY.' a day. Try again tomorrow.';
 
         // The apps read JSON with a code...
         if ($request->routeIs('api-issue.store')) {
