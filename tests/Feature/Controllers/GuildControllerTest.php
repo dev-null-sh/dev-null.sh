@@ -308,7 +308,7 @@ it('includes hex-shaped hashtags on their guild board and excludes explicit swat
         ->has('commits', 1)->where('commits.0.id', $tagged->id));
 });
 
-it('merges board posts and exact hashtags newest first with thirty roots per page', function (): void {
+it('merges board posts and exact hashtags newest first with thirty matching commits per page', function (): void {
     $admin = User::factory()->create(['handle' => 'admin']);
     $guild = Guild::factory()->create(['handle' => 'café_dev']);
     $old = Commit::factory()->create(['body' => 'An old regular commit', 'created_at' => now()->subYear()]);
@@ -316,18 +316,18 @@ it('merges board posts and exact hashtags newest first with thirty roots per pag
     $board = Commit::factory()->for($guild)->count(15)->create(['body' => 'Direct to the board']);
     Commit::factory()->count(122)->create(['body' => '`#café_dev` #café_developers']);
     Commit::factory()->for(Guild::factory())->create(['body' => 'Another board #café_dev']);
-    $reply = Commit::factory()->for($old, 'parent')->create(['body' => '#café_dev']);
-    Commit::factory()->for($reply, 'parent')->create(['body' => 'A nested #café_dev reply']);
+    $reply = Commit::factory()->for($old, 'parent')->create(['body' => '#café_dev', 'created_at' => now()->subMinute()]);
+    $nested = Commit::factory()->for($reply, 'parent')->create(['body' => 'A nested #café_dev reply']);
     $boardReply = Commit::factory()->for($board->last(), 'parent')->create(['body' => 'An ordinary reply']);
-    Commit::factory()->count(101)->for($board->last(), 'parent')->create(['body' => 'An older #café_dev match', 'created_at' => now()->subHour()]);
-    Commit::factory()->for($board->last(), 'parent')->create(['body' => 'Another #café_dev match']);
     $this->actingAs($admin)->get(route('guild.show', 'café_dev'))->assertOk()->assertInertia(fn ($page) => $page
         ->has('commits', 30)->where('hasMore', true)->where('page', 1)
-        ->where('commits.0.id', $board->last()->id)->where('commits.15.id', $tagged->last()->id)
-        ->has('commits.0.reply_preview.data', 3)->where('commits.0.reply_preview.data.1.id', $boardReply->id));
+        ->where('commits.0.id', $nested->id)->where('commits.0.parent.id', $reply->id)
+        ->where('commits.1.id', $board->last()->id)->where('commits.16.id', $reply->id)
+        ->where('commits.17.id', $tagged->last()->id)
+        ->has('commits.1.reply_preview.data', 1)->where('commits.1.reply_preview.data.0.id', $boardReply->id));
     $this->get(route('guild.show', ['guild' => 'café_dev', 'page' => 2]))->assertOk()->assertInertia(fn ($page) => $page
-        ->has('commits', 1)->where('commits.0.id', $old->id)->where('hasMore', false)->where('page', 2)
-        ->where('commits.0.reply_preview.data.0.id', $reply->id));
+        ->has('commits', 2)->where('commits.0.id', $tagged[1]->id)->where('commits.1.id', $tagged[0]->id)
+        ->where('hasMore', false)->where('page', 2));
     $this->getJson(route('guild.show', ['guild' => 'café_dev', 'page' => 0]))->assertUnprocessable()->assertJsonValidationErrors('page');
 });
 
@@ -364,7 +364,7 @@ it('reads the roots of a guild page one more time for its pinned commit', functi
     DB::disableQueryLog();
 });
 
-it('includes roots matched only by nested replies without exposing hidden roots or replies', function (): void {
+it('shows nested guild mentions directly without exposing hidden roots or replies', function (): void {
     $admin = User::factory()->create(['handle' => 'admin']);
     Guild::factory()->create(['handle' => 'rust']);
     $root = Commit::factory()->create(['body' => 'A regular thread']);
@@ -381,10 +381,27 @@ it('includes roots matched only by nested replies without exposing hidden roots 
     Commit::factory()->for($muted)->for($unmatched, 'parent')->create(['body' => '#rust']);
 
     $this->actingAs($admin)->get(route('guild.show', 'rust'))->assertOk()->assertInertia(fn ($page) => $page
-        ->has('commits', 1)->where('commits.0.id', $root->id)->where('hasMore', false)
-        ->where('commits.0.reply_preview.data.0.id', $parent->id));
+        ->has('commits', 1)->where('commits.0.id', $match->id)->where('hasMore', false)
+        ->where('commits.0.parent.id', $parent->id)->where('commits.0.body', 'A nested #rust reply'));
     $this->getJson(route('commit-reply.index', $parent))->assertOk()->assertJsonPath('data.0.id', $match->id);
 });
+
+it('keeps an unavailable parent out of a matching guild reply', function (string $hidden): void {
+    $viewer = User::factory()->create(['handle' => 'admin']);
+    Guild::factory()->create(['handle' => 'rust']);
+    $root = Commit::factory()->create();
+    $parent = Commit::factory()->for($root, 'parent')->create(['body' => 'Private parent context']);
+    $match = Commit::factory()->for($parent, 'parent')->create(['body' => 'A public #rust reply']);
+
+    if ($hidden === 'pending') {
+        $parent->update(['status' => CommitStatus::Pending]);
+    } else {
+        $viewer->muting()->attach($parent->user_id);
+    }
+
+    $this->actingAs($viewer)->get(route('guild.show', 'rust'))->assertOk()->assertInertia(fn ($page) => $page
+        ->has('commits', 1)->where('commits.0.id', $match->id)->where('commits.0.parent', null));
+})->with(['pending', 'muted']);
 
 it('matches decorated names to their hashtag while preserving their display spelling', function (string $handle, string $name): void {
     $this->actingAs(User::factory()->create(['handle' => 'admin']))->post(route('guild.store'), [
@@ -541,7 +558,7 @@ it('hides muted guild replies in logs while keeping direct threads readable', fu
         ->assertJsonPath('props.refreshedCommits.0.id', $parent->id)
         ->assertJsonCount(0, 'props.refreshedCommits.0.reply_preview.data');
     $this->get(route('guild.show', 'rust'))->assertInertia(fn ($page) => $page
-        ->has('commits', 1)->where('commits.0.id', $parent->id)->where('commits.0.reply_preview.data.0.id', $reply->id));
+        ->has('commits', 1)->where('commits.0.id', $reply->id)->where('commits.0.parent.id', $parent->id));
     $this->getJson(route('commit-reply.index', [$parent, 'in_log' => true]))->assertOk()->assertJsonCount(0, 'data');
     $this->getJson(route('commit-reply.index', [$parent, 'in_log' => true, 'ids' => [$reply->id]]))->assertOk()->assertJsonCount(0, 'data');
     $this->getJson(route('commit-reply.index', $parent))->assertOk()->assertJsonPath('data.0.id', $reply->id);

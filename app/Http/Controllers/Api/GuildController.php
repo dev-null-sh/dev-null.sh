@@ -62,9 +62,9 @@ final readonly class GuildController
     }
 
     /**
-     * The guild's board as its page on the web shows it: 30 threads per page, newest first. Everyone gets the pin the
-     * moderator set beside them, and it keeps its place on the board, which the web's page skips. One snapshot reads the
-     * board, the pin and the guild, so they agree.
+     * The guild's board as its page on the web shows it: 30 matching commits per page, newest first. Everyone gets the
+     * moderator's pin beside them; when it also matches directly, the web skips its duplicate in the list. One snapshot
+     * reads the board, the pin and the guild, so they agree.
      */
     public function show(ShowApiGuildRequest $request, Guild $guild, #[CurrentUser] User $user, GuildsQuery $guilds, GuildCommitsQuery $commits, ReplyPreviewsQuery $replyPreviews): AnonymousResourceCollection
     {

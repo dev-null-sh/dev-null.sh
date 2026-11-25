@@ -137,7 +137,20 @@ it('shows a guild with its board, newest first, with reply previews', function (
         ->assertJsonPath('can_moderate', false);
 });
 
-it('pages the board 30 roots at a time', function (): void {
+it('shows a nested guild mention instead of its untagged root', function (): void {
+    Guild::factory()->create(['handle' => 'rust']);
+    $root = Commit::factory()->create(['body' => 'An older conversation', 'created_at' => now()->subYear()]);
+    $parent = Commit::factory()->for($root, 'parent')->create(['body' => 'An untagged reply']);
+    $match = Commit::factory()->for($parent, 'parent')->create(['body' => 'Learning #rust']);
+
+    signedApiRequest($this->keyPair, 'GET', route('api-guild.show', 'rust'))
+        ->assertOk()
+        ->assertJsonPath('data.*.id', [$match->id])
+        ->assertJsonPath('data.0.body', 'Learning #rust')
+        ->assertJsonPath('data.0.parent.id', $parent->id);
+});
+
+it('pages the board 30 matching commits at a time', function (): void {
     $rust = Guild::factory()->create(['handle' => 'rust']);
     $oldest = Commit::factory()->for($rust)->create(['created_at' => now()->subYear()]);
     Commit::factory()->for($rust)->count(30)->create();

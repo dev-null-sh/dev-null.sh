@@ -28,9 +28,9 @@ it('lets the moderator pin board posts hashtag commits and reply-matched threads
         'guild_id' => $kind === 'board' ? $guild->id : null,
         'created_at' => now()->subYear(),
     ]);
-    if ($kind === 'reply') {
-        Commit::factory()->for($commit, 'parent')->create(['body' => 'Discuss #rust here']);
-    }
+    $listed = $kind === 'reply'
+        ? Commit::factory()->for($commit, 'parent')->create(['body' => 'Discuss #rust here'])
+        : $commit;
 
     $newer = Commit::factory()->for($guild)->create();
     Event::fake([UsersUpdated::class]);
@@ -43,7 +43,7 @@ it('lets the moderator pin board posts hashtag commits and reply-matched threads
         && collect($event->userIds)->sort()->values()->all() === collect([$moderator->id, $member->id])->sort()->values()->all());
     $this->actingAs(User::factory()->create(['handle' => 'viewer']))->get(route('guild.show', $guild->handle))
         ->assertInertia(fn ($page) => $page->where('pinnedCommit.id', $commit->id)->where('canModerate', false)
-            ->where('commits.0.id', $newer->id)->where('commits.1.id', $commit->id)->has('commits', 2));
+            ->where('commits.0.id', $newer->id)->where('commits.1.id', $listed->id)->has('commits', 2));
 })->with(['board', 'hashtag', 'reply']);
 
 it('replaces pins and ignores stale unpins without changing profile pins', function (): void {
