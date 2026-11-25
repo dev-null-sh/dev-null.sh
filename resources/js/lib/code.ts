@@ -2,13 +2,62 @@ import type { BodySegment } from '@/types';
 
 // Keep in sync with app/Services/CodeSpans.php: a fenced code block, from a line starting with ``` or more (and maybe
 // a language) to a line that is only as many backticks or more, so a block can hold a shorter fence, or inline code
-// between two backticks on one line.
-const committedCode = String.raw`(?<![^\n])(\`{3,})[^\`\r\n]*\r?\n(?:[\s\S]*?\r?\n)?\2\`*[ \t]*(?![^\r\n])|\`[^\`\r\n]+\``;
+// between two backticks on one line. The fence run is group 2 inside the committed pattern (the outer group is 1)
+// and group 1 on its own, hence the two closings.
+const fenceOpen = String.raw`(?<![^\n])(\`{3,})`;
+const fenceRest = String.raw`[^\`\r\n]*\r?\n(?:[\s\S]*?\r?\n)?`;
+const fenceShut = String.raw`\`*[ \t]*(?![^\r\n])`;
+const inlineCode = String.raw`\`[^\`\r\n]+\``;
+const committedCode = `${fenceOpen}${fenceRest}\\2${fenceShut}|${inlineCode}`;
+const fencedBlock = `${fenceOpen}${fenceRest}\\1${fenceShut}`;
 const codePattern = new RegExp(`(${committedCode})`);
 // While typing, a block or inline code that isn't closed yet also runs to the end of the text.
 const typedCodePattern = new RegExp(
     `(${committedCode}|${String.raw`(?<![^\n])\`\`\`[\s\S]*$|\`[^\`\r\n]*$`})`,
 );
+
+/**
+ * Splits the text at committed fenced code blocks, keeping exact spans: each part is either prose or a whole fenced
+ * block, in order, with nothing dropped, so callers can leave code verbatim. Inline code stays prose here; the
+ * inline pass handles it. A fence that never closes runs to the end of the text, the way typing already treats it,
+ * so both whole-body paths agree.
+ */
+export function splitFencedCode(
+    text: string,
+): { code: boolean; text: string }[] {
+    const pattern = new RegExp(fencedBlock, 'g');
+    const unclosedPattern = /(?<![^\n])```[\s\S]*$/;
+    const parts: { code: boolean; text: string }[] = [];
+    let position = 0;
+
+    for (const match of text.matchAll(pattern)) {
+        if (match.index > position) {
+            parts.push({
+                code: false,
+                text: text.slice(position, match.index),
+            });
+        }
+
+        parts.push({ code: true, text: match[0] });
+        position = match.index + match[0].length;
+    }
+
+    if (position < text.length) {
+        const tail = text.slice(position);
+        const unclosed = unclosedPattern.exec(tail);
+
+        if (unclosed !== null && unclosed.index > 0) {
+            parts.push({ code: false, text: tail.slice(0, unclosed.index) });
+        }
+
+        parts.push({
+            code: unclosed !== null,
+            text: unclosed !== null ? tail.slice(unclosed.index) : tail,
+        });
+    }
+
+    return parts;
+}
 
 /**
  * Splits the text into prose and code, alternating: even indexes are prose (maybe empty), odd ones are code. The
