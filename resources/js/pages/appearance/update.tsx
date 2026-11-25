@@ -3,6 +3,7 @@ import AppearanceTabs from '@/components/appearance-tabs';
 import EventThemeSelect from '@/components/event-theme-select';
 import Heading from '@/components/heading';
 import LaneDimmingTabs from '@/components/lane-dimming-tabs';
+import LargeEmojiTabs from '@/components/large-emoji-tabs';
 import NavigationTabs from '@/components/navigation-tabs';
 import RepliesPerPageTabs from '@/components/replies-per-page-tabs';
 import WhoToFollowTabs from '@/components/who-to-follow-tabs';
@@ -44,6 +45,14 @@ export default function Update() {
                     description="Fade the other commits while your pointer rests on one, or on its author, so their lane stands out."
                 />
                 <LaneDimmingTabs />
+            </section>
+
+            <section className="border-t px-4 py-6 sm:px-6">
+                <Heading
+                    title="Large emoji"
+                    description="Show commits, replies and remotes of only one to three emoji large, like stickers."
+                />
+                <LargeEmojiTabs />
             </section>
 
             <section className="border-t px-4 py-6 sm:px-6">

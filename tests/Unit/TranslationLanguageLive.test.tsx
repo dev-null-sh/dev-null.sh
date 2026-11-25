@@ -105,6 +105,41 @@ test('a translation language saved elsewhere reaches the translations already sh
     assert.equal(text(), 'Hallo');
 });
 
+test('offers no translation for a body made only of emoji, and shows it as written', async () => {
+    const untranslatable = (body: string) =>
+        ({
+            ...commit,
+            body,
+            body_segments: [{ type: 'text', text: body }],
+        }) as Commit;
+    let shownAs: Record<string, [boolean, string | undefined]> = {};
+
+    function Bodies() {
+        for (const body of ['Olá', '🔥', '🎉🚀✨🙌', ':tada:']) {
+            const shown = useCommitTranslation(untranslatable(body));
+
+            // Whether it offers a translation (the button, or the room kept for its notice), and the text it shows: a
+            // translation kept from before never replaces the emoji, even for a reader with automatic translation.
+            shownAs[body] = [
+                shown.button !== null || shown.notice !== null,
+                (shown.segments as { text?: string }[])[0]?.text,
+            ];
+        }
+
+        return null;
+    }
+
+    void harness.render(Bodies, {});
+    await settle();
+
+    assert.deepEqual(shownAs, {
+        Olá: [true, 'Hello'],
+        '🔥': [false, '🔥'],
+        '🎉🚀✨🙌': [false, '🎉🚀✨🙌'],
+        ':tada:': [false, ':tada:'],
+    });
+});
+
 for (const source of ['read', 'translate']) {
     test(`a refreshed matching parent replaces ${source} badge metadata without discarding it for missing or other-language translations`, async () => {
         language = 'de';

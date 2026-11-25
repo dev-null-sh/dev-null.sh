@@ -11,7 +11,9 @@ import { CommitImages } from '@/components/commit-images';
 import type { ShownImage } from '@/components/commit-images';
 import { ImageViewer } from '@/components/image-viewer';
 import { LinkPreview } from '@/components/link-preview';
+import { useLargeEmoji } from '@/hooks/use-large-emoji';
 import { bodySegments } from '@/lib/code';
+import { jumboEmojiCount } from '@/lib/emoji';
 import { isReplySwipe, replyPull, replyThreshold } from '@/lib/reply-swipe';
 import { cn, laneTextColor } from '@/lib/utils';
 import type {
@@ -33,15 +35,38 @@ export type Author = { name: string; lane: Lane; isMe: boolean };
 const onPrimary =
     '[&_a]:text-primary-foreground [&_a]:underline [&_a]:decoration-primary-foreground/50 [&_a]:underline-offset-2 [&_.text-muted-foreground]:text-primary-foreground/70 [&_.fill-foreground]:fill-primary-foreground [&_blockquote]:border-neutral-200 [&_code]:bg-primary-foreground/15';
 
+/**
+ * Whether a message is nothing but one to three emoji, with no images or voice note beside them, so it shows them large
+ * and without its bubble.
+ */
+export function isJumboMessage(message: {
+    body: string;
+    body_segments?: BodySegment[] | null;
+    // Sent images and voice notes, or the files of ones still being pushed.
+    images?: readonly unknown[] | null;
+    voice?: unknown;
+}): boolean {
+    return (
+        (message.images ?? []).length === 0 &&
+        (message.voice ?? null) === null &&
+        jumboEmojiCount(message.body_segments ?? bodySegments(message.body)) > 0
+    );
+}
+
 export function MessageText({
     message,
     isMine,
+    isJumboable = true,
 }: {
     message: Pick<
         Message,
         'body' | 'body_segments' | 'mentions' | 'guild_mentions'
     >;
     isMine: boolean;
+    /**
+     * Whether a few emoji alone show large: not beside images or a voice note, nor in a small preview.
+     */
+    isJumboable?: boolean;
 }) {
     const segments: BodySegment[] =
         message.body_segments ?? bodySegments(message.body);
@@ -53,6 +78,7 @@ export function MessageText({
             guildMentions={message.guild_mentions}
             linksEveryMention={false}
             className={cn('flow-root leading-snug', { [onPrimary]: isMine })}
+            isJumboable={isJumboable}
         />
     );
 }
@@ -86,26 +112,39 @@ export function LiftedMessage({
     message: Message;
     isMine: boolean;
 }) {
+    const showsLargeEmoji = useLargeEmoji();
     const voice = message.voice ?? null;
 
     if (voice === null && message.body === '') {
         return null;
     }
 
+    // A few emoji alone lift as they show in the thread: large, without a bubble.
+    const isJumbo = showsLargeEmoji && isJumboMessage(message);
+
     return (
         <div
             className={cn(
-                'w-fit max-w-full rounded-lg shadow-[0_12px_30px_-12px_rgb(0_0_0/0.45)]',
+                'w-fit max-w-full rounded-lg',
                 voice === null
                     ? 'px-3.5 py-2 text-[15px] wrap-anywhere'
                     : 'p-2',
-                isMine
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-muted text-foreground',
+                isJumbo
+                    ? 'text-foreground drop-shadow-[0_12px_18px_rgb(0_0_0/0.35)]'
+                    : cn(
+                          'shadow-[0_12px_30px_-12px_rgb(0_0_0/0.45)]',
+                          isMine
+                              ? 'bg-primary text-primary-foreground'
+                              : 'bg-muted text-foreground',
+                      ),
             )}
         >
             {voice === null ? (
-                <MessageText message={message} isMine={isMine} />
+                <MessageText
+                    message={message}
+                    isMine={isMine && !isJumbo}
+                    isJumboable={isJumbo}
+                />
             ) : (
                 <VoiceNote voice={voice} />
             )}

@@ -263,6 +263,18 @@ Sources: [translation endpoint](app/Http/Controllers/CommitTranslationController
 
 Commit and reply text supports inline code in backticks and fenced code blocks with syntax highlighting, a **Wrap lines** toggle, and a copy control. A title after the language, as in ```` ```php title="app/Models/User.php" ````, labels the block in place of the language. Text outside code supports emoji shortcodes, clickable URLs, `@username` mentions, and `#hashtags`, which open commit search for signed-in members and stay plain text for guests. This is developer-oriented text formatting, not a full rich-text editor.
 
+A commit, reply, or remotes message made of only one to three emoji, shortcodes included, shows them large, as Apple's iMessage and Slack do: about three times the text size for one emoji, twice the text size for two or three emoji.
+
+In remotes, a message that only contains one to three emoji also drops its bubble, unless images or a voice note come with it. A quoted commit that only contains one to three emoji also shows those emoji large inside the quote. Notifications and pinned-message previews always show emoji at their normal size.
+
+A commit or reply that only contains emoji, however many, has no **Translate** button, because there is nothing to translate. On the website, a commit or reply that only contains emoji always shows its emoji as written, even for a reader who has automatic translation turned on.
+
+Large emoji are on by default. To show emoji at their normal size instead, open Settings → Appearance → **Large emoji** and choose **Off**. This choice is saved in that browser only, so other browsers and devices keep their own setting. The mobile apps don't follow this setting; each app decides whether it shows large emoji and whether it offers its own switch.
+
+Older browsers that lack the requirements to support this feature (Safari before 17, Firefox before 125) show the emoji at their normal size.
+
+The signed and public APIs send the count of emoji as `jumbo_emoji` (0 to 3, 0 meaning normal size) on commits and messages, so the apps can match the web.
+
 The smiley button in the commit, reply and quote composers opens the same searchable emoji picker as reactions in remotes. Picking an emoji inserts it where the caret was, or over the selected text, and puts the caret right after it.
 
 In commits, replies, and remotes, start a line with `>` to render a quote block. Consecutive quoted lines stay together; an unquoted line ends the block. Quotes keep inline code, links, mentions, and emoji formatting. A `>` inside code or in the middle of a line stays literal.
@@ -273,7 +285,7 @@ Typing **#123** in a composer looks up that exact issue or pull request in the /
 
 Write `color(#ff8a4c)` or `color(#fff)` outside code to show the hex value with a small color swatch. The `color(...)` markup stays in the draft and is hidden in the rendered commit. It accepts 3, 4, 6 or 8 hex digits. A bare `#` followed by a letter is a hashtag. On the web, if the text of a commit, reply, quote, or Remotes message contains a hashtag that could be a color, the composer shows the swatch syntax and offers to apply it. Colors that start with a digit can still show a swatch without the markup: `#000`, `#000000` and `#333333` are colors, while `#123` and `#333` stay plain text. The full-width `＃` also works for automatic swatches, as in `＃fff`. A swatch written with `color(...)` does not add the commit to a guild.
 
-Sources: [body renderer](resources/js/components/commit-body.tsx), [emoji picker button](resources/js/components/emoji-picker.tsx), [colors](resources/js/lib/colors.ts), [code blocks](resources/js/components/code-block.tsx), [mention suggestions](app/Http/Controllers/MentionSuggestionController.php), [mention parsing](app/Services/Mentions.php).
+Sources: [body renderer](resources/js/components/commit-body.tsx), [jumbo emoji](resources/js/lib/emoji.ts), [jumbo emoji for the API](app/Services/JumboEmoji.php), [emoji picker button](resources/js/components/emoji-picker.tsx), [colors](resources/js/lib/colors.ts), [code blocks](resources/js/components/code-block.tsx), [mention suggestions](app/Http/Controllers/MentionSuggestionController.php), [mention parsing](app/Services/Mentions.php).
 
 ### Draft previews
 
@@ -512,6 +524,7 @@ Settings → Appearance offers:
 - **Theme:** Light, Dark, or System.
 - **Navigation:** expanded or collapsed, on wide screens. The navigation also has its own collapse button.
 - **Lane dimming:** on by default; other commits fade while the pointer rests on a commit or its author.
+- **Large emoji:** on by default. A commit, reply, or remotes message made of only one to three emoji shows those emoji [large](#code-emoji-and-mentions). Choose **Off** to show them at their normal size.
 - **Replies:** how many replies show under a commit before "Show more": 1, 3, 5, 10, 15, 20, or 25 (3 by default).
 - **Who to follow:** show or hide the suggestions.
 

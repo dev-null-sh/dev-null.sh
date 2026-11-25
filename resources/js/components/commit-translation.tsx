@@ -6,6 +6,7 @@ import CommitTranslationController from '@/actions/App/Http/Controllers/CommitTr
 import { useCommitNotFound } from '@/hooks/use-deleted-resources';
 import { signIn } from '@/lib/auth';
 import { changesSince, readAt } from '@/lib/commit-changes';
+import { emojiOnlyCount } from '@/lib/emoji';
 import { coalesce, commitChannel, listen } from '@/lib/realtime';
 import type { Commit, CommitTranslation } from '@/types';
 
@@ -34,7 +35,11 @@ export function useCommitTranslation(commit: Commit) {
         { language: string },
         { translation: CommitTranslation | null }
     >({ language: language ?? 'en' });
+    // Emoji read the same in every language, so a body of only emoji has nothing to translate: it always shows as written,
+    // even where a translation was kept for it, and has no room kept for a notice.
+    const isEmojiOnly = emojiOnlyCount(commit.body_segments) > 0;
     const translated =
+        !isEmojiOnly &&
         (display === 'translated' ||
             (display === null && auth.automaticTranslation)) &&
         translation?.translated;
@@ -135,6 +140,8 @@ export function useCommitTranslation(commit: Commit) {
         isOtherLanguage,
     ]);
 
+    const isTranslatable = Boolean(translation?.available) && !isEmojiOnly;
+
     const translate = async () => {
         setBodyHeight(bodyRef.current?.getBoundingClientRect().height);
 
@@ -202,7 +209,7 @@ export function useCommitTranslation(commit: Commit) {
                 ? commit.translation.translated.guild_mentions
                 : translated.guild_mentions
             : commit.guild_mentions,
-        notice: translation?.available ? (
+        notice: isTranslatable ? (
             <div className="flex min-h-5 min-w-0 items-center gap-1 text-xs text-muted-foreground">
                 {translated && (
                     <>
@@ -230,7 +237,7 @@ export function useCommitTranslation(commit: Commit) {
                 )}
             </div>
         ) : null,
-        button: translation?.available ? (
+        button: isTranslatable ? (
             <button
                 type="button"
                 onClick={() => void translate()}

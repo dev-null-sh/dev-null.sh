@@ -1,5 +1,6 @@
 import { mapTypedProse } from '@/lib/code';
 import emojiShortcodes from '@/lib/emoji-shortcodes.json?raw';
+import type { BodySegment } from '@/types';
 
 const shortcodeEmoji = JSON.parse(emojiShortcodes) as Record<string, string>;
 
@@ -24,6 +25,88 @@ export function emojify(text: string): string {
         shortcodePattern,
         (_, name: string) => shortcodeEmoji[name],
     );
+}
+
+const maxJumboEmoji = 3;
+// Longer than any body of only emoji worth telling apart, so long prose is never split into graphemes.
+const maxEmojiOnlyLength = 128;
+// Letters outside a shortcode mean words, whatever else the body holds.
+const shortcodeLike = /:[a-z0-9_+-]+:/gi;
+
+let emojiSupport:
+    | { graphemes: Intl.Segmenter; singleEmoji: RegExp }
+    | null
+    | undefined;
+
+/**
+ * Built on first use, never on load: Safari before 17 lacks the `v` flag and Firefox before 125 lacks Intl.Segmenter,
+ * and either throwing while this module loads would take every page down with it. Without them, emoji stay small.
+ */
+function supportedEmoji(): typeof emojiSupport {
+    if (emojiSupport === undefined) {
+        try {
+            emojiSupport = {
+                graphemes: new Intl.Segmenter('en', {
+                    granularity: 'grapheme',
+                }),
+                // One whole emoji: a flag, a skin tone, a keycap or a ZWJ family each make one. Bare `1`, `#` or `©` don't.
+                singleEmoji: new RegExp('^\\p{RGI_Emoji}$', 'v'),
+            };
+        } catch {
+            emojiSupport = null;
+        }
+    }
+
+    return emojiSupport;
+}
+
+/**
+ * How many emoji a body is made of when it is nothing but emoji, with shortcodes counted as theirs; 0 otherwise.
+ */
+export function emojiOnlyCount(segments: BodySegment[]): number {
+    const [segment] = segments;
+
+    if (
+        segments.length !== 1 ||
+        segment.type !== 'text' ||
+        segment.text.length > maxEmojiOnlyLength ||
+        /[a-z]/i.test(segment.text.replace(shortcodeLike, ''))
+    ) {
+        return 0;
+    }
+
+    const support = supportedEmoji();
+
+    if (!support) {
+        return 0;
+    }
+
+    let count = 0;
+
+    for (const { segment: grapheme } of support.graphemes.segment(
+        emojify(segment.text),
+    )) {
+        if (grapheme.trim() === '') {
+            continue;
+        }
+
+        if (!support.singleEmoji.test(grapheme)) {
+            return 0;
+        }
+
+        count++;
+    }
+
+    return count;
+}
+
+/**
+ * How many emoji a body is made of when it is nothing but one to three of them, so it can show them large; 0 otherwise.
+ */
+export function jumboEmojiCount(segments: BodySegment[]): 0 | 1 | 2 | 3 {
+    const count = emojiOnlyCount(segments);
+
+    return count > maxJumboEmoji ? 0 : (count as 0 | 1 | 2 | 3);
 }
 
 export function emojifyInput(

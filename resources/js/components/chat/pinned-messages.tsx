@@ -842,7 +842,12 @@ function PinnedText({ message }: { message: Message }) {
                     'max-h-[3lh] overflow-hidden': !isExpanded,
                 })}
             >
-                <MessageText message={message} isMine={false} />
+                {/* A clipped preview, like a notification: a few emoji stay at their normal size. */}
+                <MessageText
+                    message={message}
+                    isMine={false}
+                    isJumboable={false}
+                />
             </div>
             {isLong && (
                 <button

@@ -292,6 +292,23 @@ it('does not dim lanes when disabled', function (): void {
     expect($shared['dimsLanes'])->toBeFalse();
 });
 
+it('shows large emoji by default or when enabled', function (string $cookie): void {
+    $request = Request::create('/', 'GET');
+
+    if ($cookie !== '') {
+        $request->cookies->set('large_emoji', $cookie);
+    }
+
+    expect(new HandleInertiaRequests()->share($request)['showsLargeEmoji'])->toBeTrue();
+})->with(['', 'true']);
+
+it('shows emoji at their normal size when large emoji are turned off on this device', function (): void {
+    $request = Request::create('/', 'GET');
+    $request->cookies->set('large_emoji', 'false');
+
+    expect(new HandleInertiaRequests()->share($request)['showsLargeEmoji'])->toBeFalse();
+});
+
 it('shares the moment the page is rendered, which relative times count from on the server and while hydrating', function (): void {
     $this->travelTo(Date::parse('2026-10-24T12:34:56.789Z'));
 

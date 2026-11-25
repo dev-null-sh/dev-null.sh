@@ -179,6 +179,8 @@ final class HandleInertiaRequests extends Middleware
             'eventYear' => EventTheme::greetedYear($request),
             'eventThemeChoice' => EventTheme::choiceFrom(is_string($request->cookie('event_theme')) ? $request->cookie('event_theme') : null),
             'dimsLanes' => $request->cookie('lane_dimming') !== 'false',
+            // Messages of only a few emoji show them large unless this device turned it off in Appearance.
+            'showsLargeEmoji' => $request->cookie('large_emoji') !== 'false',
             'repliesPerPage' => RepliesPerPage::of($request)->value,
             'clock' => ReaderClock::of($request)->toArray(),
             // Relative times count from it on the server and while the browser hydrates the page, so both agree.

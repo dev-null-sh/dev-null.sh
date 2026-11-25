@@ -11,6 +11,7 @@ use App\Models\Guild;
 use App\Models\Poll;
 use App\Models\User;
 use App\Services\CommitBodies;
+use App\Services\JumboEmoji;
 use App\Services\Mentions;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\Request;
@@ -65,6 +66,8 @@ final class CommitResource extends JsonResource
             'id' => $this->id,
             'short_hash' => mb_substr(str_replace('-', '', $this->id), -7),
             'body' => $this->body,
+            // How many emoji the body shows large, as the web does: 1 to 3 when it is nothing but them, 0 otherwise.
+            'jumbo_emoji' => resolve(JumboEmoji::class)->count($this->body),
             'guild_handle' => $this->whenLoaded('guild', fn (Guild $guild): string => $guild->handle),
             'guild' => $this->whenLoaded('guild', fn (Guild $guild): array => [
                 'handle' => $guild->handle,

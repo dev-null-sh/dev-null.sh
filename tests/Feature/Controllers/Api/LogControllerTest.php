@@ -51,6 +51,7 @@ it('lists the latest commits of everyone, newest first', function (): void {
         'id' => $older->id,
         'short_hash' => mb_substr(str_replace('-', '', $older->id), -7),
         'body' => 'It was DNS.',
+        'jumbo_emoji' => 0,
         'guild_handle' => null,
         'guild' => null,
         'parent_id' => null,

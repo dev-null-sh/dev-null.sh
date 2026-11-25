@@ -56,6 +56,9 @@ vi.doMock('../../resources/js/hooks/use-image-attachments', () => ({
 vi.doMock('../../resources/js/hooks/use-link-card', () => ({
     useLinkCard: () => ({}),
 }));
+vi.doMock('../../resources/js/hooks/use-large-emoji', () => ({
+    useLargeEmoji: () => true,
+}));
 const { ConversationThread } =
     await import('../../resources/js/components/chat/conversation-thread');
 const { ColorSwatchHint } =
