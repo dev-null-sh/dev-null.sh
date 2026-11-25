@@ -31,6 +31,7 @@ import { GitHubIcon } from '@/components/github-icon';
 import { JoinedGuildsNav } from '@/components/joined-guilds-nav';
 import { LogoMenu } from '@/components/logo-menu';
 import { MobileMenuIcon } from '@/components/mobile-menu-icon';
+import { PasteisBalance } from '@/components/pasteis-balance';
 import { Button } from '@/components/ui/button';
 import {
     DropdownMenu,
@@ -453,6 +454,10 @@ export function AppNav({
                                 @{auth.user.handle}
                             </span>
                         </span>
+                        <PasteisBalance
+                            isCompact
+                            className="hidden shrink-0 nav-wide:inline-flex"
+                        />
                     </DropdownMenuTrigger>
                     <DropdownMenuContent
                         className={
