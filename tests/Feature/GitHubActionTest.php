@@ -23,6 +23,9 @@ use Illuminate\Support\Str;
 beforeEach(function (): void {
     Process::preventStrayProcesses(false);
 
+    // The action signs for the server it commits to, so the commits it sends are for this one.
+    config(['app.url' => 'https://dev-null.sh']);
+
     $this->sandbox = sys_get_temp_dir().'/devnull-action-test-'.Str::random(10);
 
     File::makeDirectory("{$this->sandbox}/bin", recursive: true);
@@ -113,7 +116,7 @@ it('replies to a commit', function (): void {
     $result = ($this->runAction)(['DEVNULL_REPLY_TO' => '0be0130', 'DEVNULL_BODY' => 'Agreed!']);
 
     expect($result->exitCode())->toBe(0)
-        ->and(File::get("{$this->sandbox}/sent-commit"))->toMatch('/^\d+\n[0-9a-f]{32}\n0be0130\nAgreed!$/');
+        ->and(File::get("{$this->sandbox}/sent-commit"))->toMatch('/^https:\/\/dev-null\.sh\n\d+\n[0-9a-f]{32}\n0be0130\nAgreed!$/');
 });
 
 it('attaches the images, one path per line, signed so devnull accepts them', function (): void {
