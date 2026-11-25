@@ -5,10 +5,14 @@ declare(strict_types=1);
 use App\Contracts\Services\GitHubProvider;
 use App\Models\User;
 use GuzzleHttp\Psr7\Response as Psr7Response;
+use Illuminate\Contracts\Cache\Lock;
+use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\Client\Response;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\RateLimiter;
 
 it('opens the issue as the app, crediting the reporter, with the label of the command', function (string $command, string $label): void {
     $user = User::factory()->create(['handle' => 'taylor']);
@@ -175,6 +179,36 @@ it('refuses any draft once the daily limit is reached, before validating it', fu
     }
 
     $this->actingAs($user)->postJson(route('issue.store'), ['command' => '/deploy', 'body' => 'Nope.'])
+        ->assertTooManyRequests()
+        ->assertExactJson(['message' => 'Issue limit reached: 10 a day. Try again tomorrow.']);
+});
+
+it('keeps the daily limit when the last issue left is opened twice at the same moment', function (): void {
+    $user = User::factory()->create();
+    RateLimiter::increment("issues:{$user->id}", 86400, 9);
+    $second = null;
+    // While GitHub opens the tenth issue, the same draft comes in again from another tab...
+    $this->mock(GitHubProvider::class)->shouldReceive('createIssue')->once()->andReturnUsing(function () use ($user, &$second): array {
+        $second = $this->actingAs($user)->postJson(route('issue.store'), ['command' => '/bug', 'body' => 'Broken.']);
+
+        return ['number' => 10, 'url' => 'https://github.com/dev-null-sh/dev-null.sh/issues/10'];
+    });
+
+    $this->actingAs($user)->postJson(route('issue.store'), ['command' => '/bug', 'body' => 'Broken.'])->assertCreated();
+
+    $second->assertTooManyRequests();
+    expect(RateLimiter::attempts("issues:{$user->id}"))->toBe(10);
+});
+
+it('refuses the issue, without asking GitHub, when it cannot get its turn to be counted', function (): void {
+    $user = User::factory()->create();
+    $this->mock(GitHubProvider::class)->shouldNotReceive('createIssue');
+    // A worker that died while counting leaves the lock behind until it expires...
+    $lock = Mockery::mock(Lock::class);
+    $lock->shouldReceive('block')->andThrow(new LockTimeoutException);
+    Cache::shouldReceive('lock')->with("issues:{$user->id}:counting", 10)->andReturn($lock);
+
+    $this->actingAs($user)->postJson(route('issue.store'), ['command' => '/bug', 'body' => 'Broken.'])
         ->assertTooManyRequests()
         ->assertExactJson(['message' => 'Issue limit reached: 10 a day. Try again tomorrow.']);
 });
