@@ -1,5 +1,6 @@
 import type { User } from '@/types/auth';
 import type { BodySegment, LinkPreview } from '@/types/commit';
+import type { GuildMentions } from '@/types/guild';
 
 /**
  * The message a reply answers, as much as its ghost shows.
@@ -52,6 +53,7 @@ export type Message = {
     reply_to_id?: number | null;
     reply_to?: MessageReply | null;
     mentions?: Record<string, string> | null;
+    guild_mentions?: GuildMentions;
     link_preview?: LinkPreview | null;
     images?: MessageImage[];
     voice?: MessageVoice | null;

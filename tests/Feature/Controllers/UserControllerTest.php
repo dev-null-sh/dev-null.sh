@@ -3,15 +3,18 @@
 declare(strict_types=1);
 
 use App\Contracts\Services\GitHubProvider;
+use App\Enums\Feature;
 use App\Enums\Log;
 use App\Enums\ModerationReason;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\BanEvent;
 use App\Models\Commit;
+use App\Models\Guild;
 use App\Models\LinkPreview;
 use App\Models\Organization;
 use App\Models\User;
 use App\Models\UserTimeout;
+use App\Services\Features;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -53,6 +56,75 @@ it('renders a user profile', function (): void {
             ->where('commits.data.0.starred', false)
             ->where('commits.data.1.body', 'Older'));
 });
+
+it('shows the guilds the profile owner joined rather than the viewers guilds or mute-only preferences', function (): void {
+    config(['app.admins' => ['admin']]);
+    $viewer = User::factory()->create(['handle' => 'admin']);
+    $user = User::factory()->create();
+    $rust = Guild::factory()->create(['handle' => 'rust', 'name' => 'Rust Guild', 'emoji' => '🦀', 'icon_path' => 'guild-icons/rust.webp']);
+    $laravel = Guild::factory()->create(['handle' => 'laravel', 'name' => 'Laravel Guild', 'emoji' => '💻']);
+    $left = Guild::factory()->create();
+    $viewersGuild = Guild::factory()->create();
+    $rust->members()->attach($user, ['joined_at' => now(), 'muted_at' => now()]);
+    $laravel->members()->attach($user, ['joined_at' => now()]);
+    $left->muters()->attach($user, ['muted_at' => now()]);
+    $viewersGuild->members()->attach($viewer, ['joined_at' => now()]);
+    $laravel->members()->attach($viewer, ['joined_at' => now()]);
+
+    $response = $this->actingAs($viewer)->get(route('user.show', $user))
+        ->assertOk()
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
+            ->has('profileGuilds', 2)
+            ->where('profileGuilds.0.id', $laravel->id)
+            ->where('profileGuilds.0.handle', 'laravel')
+            ->where('profileGuilds.0.name', 'Laravel Guild')
+            ->where('profileGuilds.0.emoji', '💻')
+            ->where('profileGuilds.0.icon_url', null)
+            ->where('profileGuilds.0.is_joined', true)
+            ->where('profileGuilds.0.member_count', 2)
+            ->where('profileGuilds.1.id', $rust->id)
+            ->where('profileGuilds.1.handle', 'rust')
+            ->where('profileGuilds.1.name', 'Rust Guild')
+            ->where('profileGuilds.1.emoji', '🦀')
+            ->where('profileGuilds.1.icon_url', route('guild-icon.show', ['guild' => 'rust', 'v' => $rust->updated_at->getTimestampMs()]))
+            ->where('profileGuilds.1.is_joined', false)
+            ->where('profileGuilds.1.member_count', 1)
+            ->missing('profileGuilds.1.user_id')
+            ->missing('profileGuilds.1.icon_path')
+            ->missing('guilds'));
+
+    expect($response->viewData('page')['liveProps']['profileGuilds']['listeners'])->toBe([
+        ['channel' => ['name' => 'profiles.'.$user->id, 'type' => 'public'], 'events' => ['profile']],
+        ['channel' => ['name' => 'users.'.$viewer->id, 'type' => 'private'], 'events' => ['guilds']],
+    ]);
+
+    $rust->members()->detach($user);
+    $laravel->members()->detach($user);
+
+    $this->get(route('user.show', $user))
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
+            ->where('profileGuilds', []));
+});
+
+it('does not expose profile guild memberships without access to guilds', function (?string $viewerHandle, bool $enabled): void {
+    config(['app.admins' => ['admin']]);
+    resolve(Features::class)->update(Feature::Guilds, $enabled);
+    $user = User::factory()->create();
+    Guild::factory()->create()->members()->attach($user, ['joined_at' => now()]);
+
+    if ($viewerHandle !== null) {
+        $this->actingAs(User::factory()->create(['handle' => $viewerHandle]));
+    }
+
+    $this->get(route('user.show', $user))
+        ->assertOk()
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
+            ->where('profileGuilds', null));
+})->with([
+    'guest' => [null, true],
+    'outside preview' => ['member', true],
+    'disabled' => ['admin', false],
+]);
 
 it('shows the profile owner and site moderators the user moderation history', function (): void {
     $user = User::factory()->create(['handle' => 'octocat']);

@@ -2,19 +2,23 @@
 
 declare(strict_types=1);
 
+use App\Actions\CreateCommit;
 use App\Enums\CommitStatus;
+use App\Enums\Feature;
 use App\Enums\PollDuration;
 use App\Http\Requests\CreateApiCommitRequest;
 use App\Http\Requests\CreateCommitReplyRequest;
 use App\Jobs\ModerateCommit;
 use App\Models\Commit;
 use App\Models\CommitImage;
+use App\Models\Guild;
 use App\Models\LinkPreview;
 use App\Models\Organization;
 use App\Models\Poll;
 use App\Models\PollOption;
 use App\Models\PollVote;
 use App\Models\User;
+use App\Services\Features;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Queue;
@@ -65,6 +69,8 @@ it('shows an approved commit to anyone', function (): void {
             'id' => '019a2b3c-4d5e-7f60-8a9b-0c1d2e3f4a5b',
             'short_hash' => 'e3f4a5b',
             'body' => 'Shipped the public API',
+            'guild_handle' => null,
+            'guild' => null,
             'parent_id' => null,
             'html_url' => route('commit.show', [$user, $commit]),
             'created_at' => now()->toIso8601ZuluString(),
@@ -89,6 +95,31 @@ it('shows an approved commit to anyone', function (): void {
                 'live' => null,
             ],
         ]]);
+});
+
+it('includes the guild pill in a public commit preview', function (bool $image): void {
+    $guild = Guild::factory()->create(['handle' => 'adhd', 'name' => 'ADHD', 'emoji' => '🧠', 'icon_path' => $image ? 'guild-icons/example.webp' : null]);
+    $commit = Commit::factory()->for($guild)->create();
+
+    $this->getJson(route('api-commit.show', $commit))
+        ->assertOk()
+        ->assertJsonPath('data.guild_handle', 'adhd')
+        ->assertJsonPath('data.guild', [
+            'handle' => 'adhd', 'name' => 'ADHD', 'emoji' => '🧠',
+            'icon_url' => $guild->apiIconUrl(null),
+        ]);
+})->with([false, true]);
+
+it('includes the guild handle of a quoted commit for a signed request', function (): void {
+    $guild = Guild::factory()->create();
+    $quoted = Commit::factory()->for($guild)->create();
+    $quote = Commit::factory()->for($quoted, 'quotedCommit')->create();
+    $viewer = User::factory()->create();
+
+    signedApiRequest(apiKeyPairFor($viewer), 'GET', route('api-commit.show', $quote))
+        ->assertOk()
+        ->assertJsonPath('data.quoted_commit.id', $quoted->id)
+        ->assertJsonPath('data.quoted_commit.guild_handle', $guild->handle);
 });
 
 it('shows the organization a commit is from as its author', function (): void {
@@ -258,7 +289,7 @@ it('limits each address to 60 requests a minute', function (): void {
 it('shows a signed request the commit as its page shows it to its user', function (): void {
     $user = User::factory()->create(['handle' => 'octocat']);
     $keyPair = apiKeyPairFor($user);
-    $root = Commit::factory()->create(['body' => 'Who broke prod?', 'created_at' => now()->subMinute()]);
+    $root = Commit::factory()->for(Guild::factory()->state(['handle' => 'rust']))->create(['body' => 'Who broke prod?', 'created_at' => now()->subMinute()]);
     $commit = Commit::factory()->for($user)->for($root, 'parent')->create([
         'id' => '019a2b3c-4d5e-7f60-8a9b-0c1d2e3f4a5b',
         'body' => 'Ask @nunomaduro about `@Override`',
@@ -295,6 +326,9 @@ it('shows a signed request the commit as its page shows it to its user', functio
                 'id' => '019a2b3c-4d5e-7f60-8a9b-0c1d2e3f4a5b',
                 'short_hash' => 'e3f4a5b',
                 'body' => 'Ask @nunomaduro about `@Override`',
+                'guild_mentions' => [],
+                'guild_handle' => null,
+                'guild' => null,
                 'parent_id' => $root->id,
                 'html_url' => route('commit.show', [$user, $commit]),
                 'created_at' => now()->toIso8601ZuluString(),
@@ -310,7 +344,7 @@ it('shows a signed request the commit as its page shows it to its user', functio
                     ['type' => 'code', 'code' => '@Override'],
                 ],
                 'preview_segments' => null,
-                'mentions' => [['handle' => 'nunomaduro', 'offset' => 4, 'length' => 11, 'kind' => 'user']],
+                'mentions' => [['handle' => 'nunomaduro', 'offset' => 4, 'length' => 11, 'kind' => 'user', 'id' => null]],
                 'status' => 'approved',
                 'is_pinned' => false,
                 'starred' => true,
@@ -324,6 +358,9 @@ it('shows a signed request the commit as its page shows it to its user', functio
                 'id' => $root->id,
                 'short_hash' => mb_substr(str_replace('-', '', $root->id), -7),
                 'body' => 'Who broke prod?',
+                'guild_mentions' => [],
+                'guild_handle' => 'rust',
+                'guild' => ['handle' => 'rust', 'name' => $root->guild->name, 'emoji' => $root->guild->emoji, 'icon_url' => null],
                 'parent_id' => null,
                 'html_url' => route('commit.show', [$root->user, $root]),
                 'created_at' => now()->subMinute()->toIso8601ZuluString(),
@@ -361,6 +398,7 @@ it('shows a signed request the poll of a commit as the web does, with each share
         'votes_count' => $votes,
         'voted' => $voted,
         'percentage' => $percentage,
+        'guild_mentions' => [],
     ];
 
     signedApiRequest($keyPair, 'GET', route('api-commit.show', $commit))
@@ -1025,4 +1063,65 @@ it('rejects commits and deletes that are not signed', function (): void {
 
     expect(Commit::query()->count())->toBe(1);
     $this->assertNotSoftDeleted($commit);
+});
+
+it('posts a commit or a quote to a guild board from a signed request', function (bool $quote): void {
+    Queue::fake();
+    resolve(Features::class)->update(Feature::Guilds, true, adminOnly: false);
+    $guild = Guild::factory()->create(['handle' => 'rust', 'name' => 'Rust', 'emoji' => '🦀']);
+    $quoted = Commit::factory()->create();
+
+    signedApiRequest(apiKeyPairFor(User::factory()->create()), 'POST', route('api-commit.store'), [
+        'body' => 'Borrow checker wins again',
+        'guild_handle' => 'rust',
+        ...$quote ? ['quoted_commit_id' => $quoted->id] : [],
+    ])
+        ->assertCreated()
+        ->assertJsonPath('data.body', 'Borrow checker wins again')
+        ->assertJsonPath('data.guild_handle', 'rust')
+        ->assertJsonPath('data.guild.name', 'Rust');
+
+    expect(Commit::query()->where('body', 'Borrow checker wins again')->sole())
+        ->guild_id->toBe($guild->id)
+        ->quoted_commit_id->toBe($quote ? $quoted->id : null);
+})->with(['commit' => false, 'quote' => true]);
+
+it('refuses a board post from a signed request that the web would refuse', function (Closure $payload): void {
+    Queue::fake();
+    resolve(Features::class)->update(Feature::Guilds, true, adminOnly: false);
+    Guild::factory()->create(['handle' => 'rust']);
+
+    signedApiRequest(apiKeyPairFor(User::factory()->create()), 'POST', route('api-commit.store'), ['body' => 'Board post', 'guild_handle' => 'rust', ...$payload()])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('guild_handle');
+
+    expect(Commit::query()->where('body', 'Board post')->exists())->toBeFalse();
+})->with([
+    'unknown guild' => [fn (): array => ['guild_handle' => 'go']],
+    'paused guild' => [function (): array {
+        Guild::query()->update(['user_id' => null]);
+
+        return [];
+    }],
+    'admin preview' => [function (): array {
+        resolve(Features::class)->update(Feature::Guilds, true, adminOnly: true);
+
+        return [];
+    }],
+    'reply' => [fn (): array => ['parent_id' => Commit::factory()->create()->id]],
+]);
+
+it('refuses a board post from a signed request when the guild is paused after validation', function (): void {
+    Queue::fake();
+    resolve(Features::class)->update(Feature::Guilds, true, adminOnly: false);
+    $guild = Guild::factory()->create(['handle' => 'rust']);
+    $this->app->beforeResolving(CreateCommit::class, function () use ($guild): void {
+        $guild->update(['user_id' => null]);
+    });
+
+    signedApiRequest(apiKeyPairFor(User::factory()->create()), 'POST', route('api-commit.store'), ['body' => 'Board post', 'guild_handle' => 'rust'])
+        ->assertUnprocessable()
+        ->assertExactJson(['message' => 'This guild is paused until it has a moderator.', 'code' => 'guild_paused']);
+
+    expect(Commit::query()->where('body', 'Board post')->exists())->toBeFalse();
 });

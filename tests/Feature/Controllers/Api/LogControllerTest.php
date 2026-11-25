@@ -51,6 +51,8 @@ it('lists the latest commits of everyone, newest first', function (): void {
         'id' => $older->id,
         'short_hash' => mb_substr(str_replace('-', '', $older->id), -7),
         'body' => 'It was DNS.',
+        'guild_handle' => null,
+        'guild' => null,
         'parent_id' => null,
         'html_url' => route('commit.show', [$author, $older]),
         'created_at' => now()->subMinute()->toIso8601ZuluString(),
@@ -86,6 +88,7 @@ it('lists the latest commits of everyone, newest first', function (): void {
         'quoted_commit_id' => null,
         'quoted_commit' => null,
         'poll' => null,
+        'guild_mentions' => [],
     ]);
 
     $response->assertJsonPath('links.next', null)
@@ -121,7 +124,7 @@ it('shows what the web shows on a commit', function (): void {
         ->assertJsonPath('data.0.stars_count', 2)
         ->assertJsonPath('data.0.starred', true)
         ->assertJsonPath('data.0.is_pinned', true)
-        ->assertJsonPath('data.0.mentions', [['handle' => 'NunoMaduro', 'offset' => 4, 'length' => 11, 'kind' => 'user']])
+        ->assertJsonPath('data.0.mentions', [['handle' => 'NunoMaduro', 'offset' => 4, 'length' => 11, 'kind' => 'user', 'id' => null]])
         ->assertJsonPath('data.0.link_preview', [
             'url' => 'https://laravel.com',
             'title' => $linkPreview->title,

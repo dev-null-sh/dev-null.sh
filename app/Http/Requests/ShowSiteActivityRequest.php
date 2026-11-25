@@ -27,7 +27,7 @@ final class ShowSiteActivityRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'scale' => ['nullable', Rule::enum(ActivityScale::class)],
+            'scale' => ['nullable', Rule::enum(ActivityScale::class)->only([ActivityScale::Day, ActivityScale::Week, ActivityScale::Month, ActivityScale::Year])],
             'metric' => ['nullable', Rule::enum(ActivityMetric::class)],
         ];
     }

@@ -537,3 +537,24 @@ it('suggests the round of people the user refreshed to', function (string $cooki
     'not a number' => ['abc', 0],
     'negative' => ['-3', 0],
 ]);
+
+it('sends a background reload from before a deploy back for a full reload without building the page', function (): void {
+    $user = User::factory()->create();
+    Commit::factory()->count(3)->create();
+    $url = route('log.show', ['log' => 'following', 'since' => Commit::query()->value('id')]);
+
+    DB::enableQueryLog();
+
+    $this->actingAs($user)->get($url, [
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => 'before-the-deploy',
+        'X-Inertia-Partial-Component' => 'log/show',
+        'X-Inertia-Partial-Data' => 'newCommitsCount',
+    ])
+        ->assertConflict()
+        ->assertHeader('X-Inertia-Location', $url)
+        ->assertHeader('X-Inertia-Version', (string) resolve(HandleInertiaRequests::class)->version(request()))
+        ->assertHeader('Vary', 'X-Inertia');
+
+    expect(DB::getQueryLog())->toBe([]);
+});

@@ -6,6 +6,7 @@ namespace App\Http\Requests;
 
 use App\Dto\NewPoll;
 use App\Enums\PollDuration;
+use App\Models\Guild;
 use App\Models\Organization;
 use App\Models\User;
 use App\Rules\OrganizationToPostAs;
@@ -54,6 +55,7 @@ final class CreateApiScheduledCommitRequest extends FormRequest
             'quoted_commit_id' => ['prohibited'],
             'link_preview_url' => ['nullable', 'string', Rule::in(is_string($body) ? resolve(Urls::class)->all($body) : [])],
             ...CreateCommitRequest::attachmentRules(),
+            ...CreateCommitRequest::guildRules($this),
         ];
     }
 
@@ -98,6 +100,11 @@ final class CreateApiScheduledCommitRequest extends FormRequest
         assert($user instanceof User);
 
         return OrganizationToPostAs::of($user, $this->input('author'));
+    }
+
+    public function guild(): ?Guild
+    {
+        return CreateCommitRequest::guildOf($this);
     }
 
     public function poll(): ?NewPoll

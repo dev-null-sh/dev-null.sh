@@ -156,7 +156,7 @@ it("says when the stream of every commit card's author runs out, in pages and in
 it("says when the stream of each card's author runs out on every other page and read that shows commits", function (): void {
     $this->freezeSecond();
     $streamer = streamingFor(25);
-    $link = LinkPreview::factory()->fetched()->create();
+    $link = LinkPreview::factory()->fetched()->create(['url' => 'https://dev-null.sh']);
     $commit = Commit::factory()->for($streamer)->create(['link_preview_id' => $link->id, 'embedding' => embeddingVector(0)]);
     CommitImage::factory()->for($commit)->create(['position' => 0]);
     CommitReport::factory()->create(['commit_id' => $commit->id]);
@@ -167,7 +167,7 @@ it("says when the stream of each card's author runs out on every other page and 
     $this->actingAs($moderator);
 
     expect(inertiaGet(route('starred.index'))->json('props.commits.data.0.author.live'))->toBe(streamOf($streamer))
-        ->and(inertiaGet(route('link.index', ['url' => $link->url]))->json('props.commits.data.0.author.live'))->toBe(streamOf($streamer))
+        ->and(inertiaGet(url('link/dev-null.sh'))->json('props.commits.data.0.author.live'))->toBe(streamOf($streamer))
         ->and(inertiaGet(route('moderation.show'))->json('props.commits.data.0.author.live'))->toBe(streamOf($streamer))
         ->and(inertiaGet(route('reported-commit.index'))->json('props.reports.data.0.commit.author.live'))->toBe(streamOf($streamer))
         ->and(inertiaGet(route('commit-photo.show', [$streamer, $commit, 1]))->json('props.photo.commit.author.live'))->toBe(streamOf($streamer))

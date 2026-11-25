@@ -32,6 +32,7 @@ import { LocalTime } from '@/components/local-time';
 import { MembersLink } from '@/components/members-link';
 import { PageTabs } from '@/components/page-tabs';
 import { PinCommitButton } from '@/components/pin-commit-button';
+import { ProfileGuilds } from '@/components/profile-guilds';
 import { ProfileLiveButton } from '@/components/profile-live-button';
 import { ProfilePicture } from '@/components/profile-picture';
 import { ProfileReadme } from '@/components/profile-readme';
@@ -64,6 +65,7 @@ import type {
     Profile,
     Streaks,
 } from '@/types';
+import type { Guild } from '@/types/guild';
 
 function pluralize(count: number, singular: string, plural: string) {
     return count === 1 ? singular : plural;
@@ -71,6 +73,7 @@ function pluralize(count: number, singular: string, plural: string) {
 
 export default function Show({
     user,
+    profileGuilds,
     bioProfiles,
     pasteisReceived,
     isFollowing,
@@ -89,6 +92,7 @@ export default function Show({
     readme,
 }: {
     user: Profile;
+    profileGuilds: Guild[] | null;
     bioProfiles: Record<string, string>;
     pasteisReceived: number | null;
     isFollowing: boolean;
@@ -514,6 +518,17 @@ export default function Show({
                             </div>
                         );
                     })}
+                    {profileGuilds !== null && (
+                        <div>
+                            <dt className="sr-only">Guild memberships</dt>
+                            <dd>
+                                <ProfileGuilds
+                                    guilds={profileGuilds}
+                                    handle={user.handle}
+                                />
+                            </dd>
+                        </div>
+                    )}
                 </dl>
                 {moderationHistory && (isCurrentUser || moderation) && (
                     <UserModerationHistory history={moderationHistory} />

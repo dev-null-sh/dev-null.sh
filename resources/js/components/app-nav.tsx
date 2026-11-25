@@ -28,6 +28,7 @@ import AppLogo from '@/components/app-logo';
 import AppLogoIcon from '@/components/app-logo-icon';
 import { ChangelogDialog } from '@/components/changelog-dialog';
 import { GitHubIcon } from '@/components/github-icon';
+import { JoinedGuildsNav } from '@/components/joined-guilds-nav';
 import { LogoMenu } from '@/components/logo-menu';
 import { MobileMenuIcon } from '@/components/mobile-menu-icon';
 import { Button } from '@/components/ui/button';
@@ -72,7 +73,7 @@ const navLabelClassName =
  * Guests see the same items, each taking them to sign in.
  */
 function useNavItems(): (NavItem & { isActive: boolean })[] {
-    const { auth, hasUnmoderatedCommits, guilds } = usePage().props;
+    const { auth, hasUnmoderatedCommits, guildsEnabled } = usePage().props;
     const { isCurrentUrl, isCurrentOrParentUrl } = useCurrentUrl();
     const { user, log } = auth;
     const unreadMessages = useUnreadMessages();
@@ -115,7 +116,7 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
             href: hrefFor(() => StarredCommitController.index()),
             icon: Star,
         },
-        ...(guilds !== null && guilds !== undefined
+        ...(guildsEnabled
             ? [{ title: 'Guilds', href: guildIndex(), icon: UsersRound }]
             : []),
         ...(auth.isAdmin
@@ -432,6 +433,7 @@ export function AppNav({
                         </span>
                     </button>
                 </NavTooltip>
+                <JoinedGuildsNav iconsOnly={iconsOnly} />
             </nav>
 
             {auth.user === null ? (

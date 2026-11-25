@@ -106,6 +106,23 @@ final readonly class Urls
     }
 
     /**
+     * Masks recognized prose URL spans, preserving code and the punctuation around each URL.
+     */
+    public function withoutUrls(string $text): string
+    {
+        return $this->codeSpans->mapProse($text, fn (string $prose): string => (string) preg_replace_callback($this->pattern, function (array $matches): string {
+            $match = $this->withoutTrailingPunctuation($matches[0]);
+            $url = preg_match('/^https?:\/\//i', $match) === 1 ? $match : 'https://'.$match;
+
+            if (str_ends_with($url, '://') || mb_strlen($url) > self::MAX_LENGTH) {
+                return $matches[0];
+            }
+
+            return ' '.mb_substr($matches[0], mb_strlen($match));
+        }, $prose));
+    }
+
+    /**
      * Shortens every URL in the prose for display, leaving the code as written.
      */
     public function withShortenedUrls(string $text): string
@@ -124,6 +141,21 @@ final readonly class Urls
 
             return $this->shorten($match).mb_substr($matches[0], mb_strlen($match));
         }, $prose));
+    }
+
+    /**
+     * A URL with its percent-encoded non-ASCII characters shown as themselves, as browsers show them: "/%C3%89t%C3%A9"
+     * reads "/Été". Escapes of ASCII characters stay, since they may change what the URL means, and so do those of
+     * invisible, control and spacing characters, which could disguise it. Keep the rule in sync with
+     * resources/js/lib/urls.ts.
+     */
+    public function readable(string $url): string
+    {
+        return (string) preg_replace_callback('/(?:%[89A-F][0-9A-F])+/i', function (array $matches): string {
+            $decoded = rawurldecode($matches[0]);
+
+            return mb_check_encoding($decoded, 'UTF-8') && preg_match('/[\p{C}\p{Z}]/u', $decoded) === 0 ? $decoded : $matches[0];
+        }, $url);
     }
 
     /**
