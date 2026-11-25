@@ -77,67 +77,77 @@ const loadImages = (): void => {
 
     isLoadingImages = true;
 
-    void readStoredImages().then((stored) => {
-        if (stored === null) {
-            isLoadingImages = false;
+    void readStoredImages()
+        .then((stored) => {
+            if (stored === null) {
+                isLoadingImages = false;
 
-            return;
-        }
-
-        imageStorageRestored = true;
-        stored.forEach((draft, key) => {
-            if (
-                [...clearedImagePrefixes].some((prefix) => key.startsWith(prefix))
-            ) {
                 return;
             }
 
-            const restored = draft.images
-                .map((file, index) => ({
-                    file,
-                    description: draft.descriptions[index] ?? '',
-                }))
-                .filter(({ file }) => pickImages([], [file]).images.length > 0)
-                .slice(0, maxImages);
+            imageStorageRestored = true;
+            stored.forEach((draft, key) => {
+                if (
+                    [...clearedImagePrefixes].some((prefix) =>
+                        key.startsWith(prefix),
+                    )
+                ) {
+                    return;
+                }
 
-            const pending = pendingImageWrites.get(key);
-
-            if (pending && pending.images.length > 0) {
-                // Edits made before the read completed are additions to the unseen draft.
-                const combined = [
-                    ...restored,
-                    ...pending.images.map((file, index) => ({
+                const restored = draft.images
+                    .map((file, index) => ({
                         file,
-                        description: pending.descriptions[index] ?? '',
-                    })),
-                ].slice(0, maxImages);
-                const merged = {
-                    images: combined.map((entry) => entry.file),
-                    descriptions: combined.map((entry) => entry.description),
-                };
+                        description: draft.descriptions[index] ?? '',
+                    }))
+                    .filter(
+                        ({ file }) => pickImages([], [file]).images.length > 0,
+                    )
+                    .slice(0, maxImages);
 
-                images.set(key, merged);
-                pendingImageWrites.set(key, merged);
-                restoredImageKeys.add(key);
-            } else if (!images.has(key) && restored.length > 0) {
-                images.set(key, {
-                    images: restored.map((entry) => entry.file),
-                    descriptions: restored.map((entry) => entry.description),
-                });
-                restoredImageKeys.add(key);
-            }
+                const pending = pendingImageWrites.get(key);
+
+                if (pending && pending.images.length > 0) {
+                    // Edits made before the read completed are additions to the unseen draft.
+                    const combined = [
+                        ...restored,
+                        ...pending.images.map((file, index) => ({
+                            file,
+                            description: pending.descriptions[index] ?? '',
+                        })),
+                    ].slice(0, maxImages);
+                    const merged = {
+                        images: combined.map((entry) => entry.file),
+                        descriptions: combined.map(
+                            (entry) => entry.description,
+                        ),
+                    };
+
+                    images.set(key, merged);
+                    pendingImageWrites.set(key, merged);
+                    restoredImageKeys.add(key);
+                } else if (!images.has(key) && restored.length > 0) {
+                    images.set(key, {
+                        images: restored.map((entry) => entry.file),
+                        descriptions: restored.map(
+                            (entry) => entry.description,
+                        ),
+                    });
+                    restoredImageKeys.add(key);
+                }
+            });
+
+            pendingImageWrites.forEach((draft, key) => {
+                writeStoredImages(key, draft.images, draft.descriptions);
+            });
+            pendingImageWrites.clear();
+            isLoadingImages = false;
+
+            notify();
+        })
+        .catch(() => {
+            isLoadingImages = false;
         });
-
-        pendingImageWrites.forEach((draft, key) => {
-            writeStoredImages(key, draft.images, draft.descriptions);
-        });
-        pendingImageWrites.clear();
-        isLoadingImages = false;
-
-        notify();
-    }).catch(() => {
-        isLoadingImages = false;
-    });
 };
 
 const subscribe = (callback: () => void) => {
@@ -191,11 +201,7 @@ const storeImages = (
         return;
     }
 
-    if (
-        !discard &&
-        next.length === 0 &&
-        images.get(key)?.images.length === 0
-    ) {
+    if (!discard && next.length === 0 && images.get(key)?.images.length === 0) {
         return;
     }
 

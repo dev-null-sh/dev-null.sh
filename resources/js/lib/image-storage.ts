@@ -69,7 +69,10 @@ const transact = async (
     });
 };
 
-export async function readStoredImages(): Promise<Map<string, StoredImages> | null> {
+export async function readStoredImages(): Promise<Map<
+    string,
+    StoredImages
+> | null> {
     const stored = new Map<string, StoredImages>();
 
     const succeeded = await transact('readonly', (store) => {
