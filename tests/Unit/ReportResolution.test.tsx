@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import * as React from 'react';
 import type { ReactElement, ReactNode } from 'react';
 import { test, vi } from 'vite-plus/test';
+import { createDateTime } from '../../resources/js/lib/date-time';
 import type { Commit } from '../../resources/js/types';
 
 type Props = Record<string, unknown> & { children?: ReactNode };
@@ -21,6 +22,9 @@ vi.doMock('react', () => ({
     useRef: (current: unknown) => ({ current }),
     useEffectEvent: (callback: unknown) => callback,
     useSyncExternalStore: (_subscribe: unknown, read: () => unknown) => read(),
+}));
+vi.doMock('../../resources/js/hooks/use-date-time', () => ({
+    useDateTime: () => createDateTime({ locale: 'en-US' }),
 }));
 const router = {
     visit: (_url: unknown, options: VisitOptions) => visits.push(options),

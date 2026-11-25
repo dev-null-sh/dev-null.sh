@@ -7,7 +7,7 @@ import {
     DialogDescription,
     DialogTitle,
 } from '@/components/ui/dialog';
-import { formatFullDateTime } from '@/lib/utils';
+import { useDateTime } from '@/hooks/use-date-time';
 
 export type UserModerationHistory = {
     timeoutsCount: number;
@@ -31,6 +31,7 @@ export function UserModerationHistory({
 }: {
     history: UserModerationHistory;
 }) {
+    const { formatFullDateTime } = useDateTime();
     const [open, setOpen] = useState(false);
     const triggerRef = useRef<HTMLButtonElement>(null);
     const timeoutLabel = `${history.timeoutsCount} ${history.timeoutsCount === 1 ? 'timeout' : 'timeouts'}`;

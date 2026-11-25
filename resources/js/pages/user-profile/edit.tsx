@@ -13,12 +13,13 @@ import TimezonePicker from '@/components/timezone-picker';
 import TranslationLanguageSetting from '@/components/translation-language-setting';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
+import { useDateTime } from '@/hooks/use-date-time';
 import { useNow } from '@/hooks/use-now';
 import { useUser } from '@/hooks/use-user';
 import AppLayout from '@/layouts/app-layout';
 import SettingsLayout from '@/layouts/settings/layout';
 import type { TranslationLanguage } from '@/lib/translation-languages';
-import { formatFullDateTime, formatSyncedAgo } from '@/lib/utils';
+import { formatSyncedAgo } from '@/lib/utils';
 import { show } from '@/routes/user';
 import type { Lane } from '@/types';
 
@@ -40,6 +41,7 @@ export default function Edit({
     profileUrl: string;
 }) {
     const { user } = useUser();
+    const { formatFullDateTime } = useDateTime();
     const now = useNow();
 
     return (

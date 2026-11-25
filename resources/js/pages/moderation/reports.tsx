@@ -10,13 +10,13 @@ import { CommitPoster } from '@/components/commit-poster';
 import { GraphCanvas } from '@/components/graph-canvas';
 import { ModerationTabs } from '@/components/moderation-tabs';
 import { Button } from '@/components/ui/button';
+import { useDateTime } from '@/hooks/use-date-time';
 import { useMarkCommitDeleted } from '@/hooks/use-deleted-resources';
 import { idsOf, useRealtime } from '@/hooks/use-realtime';
 import AppLayout from '@/layouts/app-layout';
 import { reloadInBackground } from '@/lib/background-poll';
 import { changesSince, readAt } from '@/lib/commit-changes';
 import { userChannel } from '@/lib/realtime';
-import { formatFullDateTime } from '@/lib/utils';
 import type { Commit, CursorPaginated } from '@/types';
 
 type ReportChanges = { filed: string[]; dismissed: string[] };
@@ -42,6 +42,7 @@ export default function Reports({
     reports: CursorPaginated<Report>;
     reasons: Record<string, string>;
 }) {
+    const { formatFullDateTime } = useDateTime();
     const markCommitDeleted = useMarkCommitDeleted();
     const { auth, now } = usePage().props;
     const [hasChanged, setHasChanged] = useState(false);
