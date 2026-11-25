@@ -6,6 +6,7 @@ namespace App\Http\Middleware;
 
 use App\Enums\ApiErrorCode;
 use App\Exceptions\ApiException;
+use App\Models\Commit;
 use App\Models\User;
 use Closure;
 use Illuminate\Http\Request;
@@ -15,8 +16,6 @@ use Symfony\Component\HttpFoundation\Response;
 
 final readonly class ThrottleCommits
 {
-    private const int PER_MINUTE = 10;
-
     /**
      * One budget of commits a minute, however they are posted.
      *
@@ -29,7 +28,7 @@ final readonly class ThrottleCommits
 
         $key = "commits:{$user->id}";
 
-        if (RateLimiter::tooManyAttempts($key, self::PER_MINUTE)) {
+        if (RateLimiter::tooManyAttempts($key, Commit::MAX_PER_MINUTE)) {
             return $this->slowDown($request, RateLimiter::availableIn($key));
         }
 

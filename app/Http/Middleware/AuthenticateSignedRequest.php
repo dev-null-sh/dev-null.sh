@@ -25,8 +25,6 @@ use Symfony\Component\HttpFoundation\Response;
  */
 final readonly class AuthenticateSignedRequest
 {
-    private const int FailuresPerAddressPerMinute = 60;
-
     public function __construct(private SignedRequests $signedRequests)
     {
         //
@@ -50,7 +48,7 @@ final readonly class AuthenticateSignedRequest
         // a ceiling on failures, so a key nobody approved can't make the API check signatures and spend nonces freely...
         $failures = 'api-signature-failures:'.$request->ip();
 
-        throw_if(RateLimiter::tooManyAttempts($failures, self::FailuresPerAddressPerMinute), fn (): ApiException => new ApiException(ApiErrorCode::RateLimited, 'Too Many Attempts.', [
+        throw_if(RateLimiter::tooManyAttempts($failures, SignedRequests::FailuresPerAddressPerMinute), fn (): ApiException => new ApiException(ApiErrorCode::RateLimited, 'Too Many Attempts.', [
             'Retry-After' => RateLimiter::availableIn($failures),
         ]));
 
