@@ -8,8 +8,8 @@ use App\Models\User;
 
 it('loads contextual profile suggestions without reusing cached suggestions', function (): void {
     $viewer = User::factory()->create();
-    $profile = User::factory()->has(Commit::factory())->create();
-    $related = User::factory()->has(Commit::factory())->create();
+    $profile = User::factory()->activeCommitter()->create();
+    $related = User::factory()->activeCommitter()->create();
 
     $profile->following()->attach($related);
 
@@ -35,7 +35,7 @@ it('loads visible thread participants as contextual suggestions', function (): v
     $viewer = User::factory()->create();
     $author = User::factory()->create();
     $root = Commit::factory()->for($author)->create();
-    $participant = User::factory()->has(Commit::factory())->create();
+    $participant = User::factory()->activeCommitter()->create();
 
     Commit::factory()->for($participant)->for($root, 'parent')->create(['root_id' => $root->id]);
 
@@ -62,7 +62,7 @@ it('loads contextual suggestions on the commit photo page', function (): void {
     $author = User::factory()->create();
     $root = Commit::factory()->for($author)->create();
     CommitImage::factory()->for($root)->create();
-    $participant = User::factory()->has(Commit::factory())->create();
+    $participant = User::factory()->activeCommitter()->create();
 
     Commit::factory()->for($participant)->for($root, 'parent')->create(['root_id' => $root->id]);
 

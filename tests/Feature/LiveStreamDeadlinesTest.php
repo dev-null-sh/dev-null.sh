@@ -118,8 +118,8 @@ it('keeps the aside across pages no longer than the first stream it lists lasts,
 
 it("says when a suggested person's stream runs out, for the preview that shows it", function (): void {
     $this->freezeSecond();
-    $profile = User::factory()->has(Commit::factory())->create();
-    $suggested = streamingFor(35, User::factory()->has(Commit::factory())->create());
+    $profile = User::factory()->activeCommitter()->create();
+    $suggested = streamingFor(35, User::factory()->activeCommitter()->create());
     $profile->following()->attach($suggested);
 
     $this->actingAs(User::factory()->create())->get(route('user.show', $profile))

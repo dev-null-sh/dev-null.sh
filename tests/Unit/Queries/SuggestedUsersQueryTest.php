@@ -15,7 +15,7 @@ function vouchedFor(User $user, int $count): Collection
     $friend = User::factory()->create();
     $user->following()->attach($friend);
 
-    $vouched = User::factory()->count($count)->has(Commit::factory())->create();
+    $vouched = User::factory()->count($count)->activeCommitter()->create();
     $friend->following()->attach($vouched);
 
     return $vouched;
@@ -26,14 +26,14 @@ function vouchedFor(User $user, int $count): Collection
  */
 function popularUsers(int $count): Collection
 {
-    return User::factory()->count($count)->has(Commit::factory())->create()
+    return User::factory()->count($count)->activeCommitter()->create()
         ->each(fn (User $popular) => $popular->followers()->attach(User::factory()->count(2)->create()));
 }
 
 it('suggests people with commits the user does not follow yet', function (): void {
-    $user = User::factory()->has(Commit::factory())->create();
-    $followed = User::factory()->has(Commit::factory())->create();
-    $stranger = User::factory()->has(Commit::factory())->create();
+    $user = User::factory()->activeCommitter()->create();
+    $followed = User::factory()->activeCommitter()->create();
+    $stranger = User::factory()->activeCommitter()->create();
 
     $user->following()->attach($followed);
 
@@ -46,8 +46,8 @@ it('skips people without approved commits', function (): void {
     $user = User::factory()->create();
 
     User::factory()->create();
-    User::factory()->has(Commit::factory()->pending())->create();
-    User::factory()->has(Commit::factory()->rejected())->create();
+    User::factory()->has(Commit::factory()->count(5)->pending())->create();
+    User::factory()->has(Commit::factory()->count(5)->rejected())->create();
 
     expect(resolve(SuggestedUsersQuery::class)->get($user))->toBeEmpty();
 });
@@ -61,14 +61,46 @@ it('skips people who only replied', function (): void {
     expect(resolve(SuggestedUsersQuery::class)->get($user))->toBeEmpty();
 });
 
+it('suggests only people with at least 5 commits in the past 30 days', function (): void {
+    $user = User::factory()->create();
+
+    $active = User::factory()->has(Commit::factory()->count(5)->state(['created_at' => now()->subDays(29)]))->create();
+    User::factory()->has(Commit::factory()->count(4))->create();
+
+    expect(resolve(SuggestedUsersQuery::class)->get($user)->pluck('id')->all())->toBe([$active->id]);
+});
+
+it('skips people whose commits are older than 30 days', function (): void {
+    $user = User::factory()->create();
+
+    User::factory()
+        ->has(Commit::factory()->count(4))
+        ->has(Commit::factory()->count(5)->state(['created_at' => now()->subDays(31)]))
+        ->create();
+
+    expect(resolve(SuggestedUsersQuery::class)->get($user))->toBeEmpty();
+});
+
+it('does not count replies toward the 5 commits', function (): void {
+    $user = User::factory()->create();
+
+    $parent = Commit::factory()->for($user)->create();
+    User::factory()
+        ->has(Commit::factory()->count(4))
+        ->has(Commit::factory()->for($parent, 'parent'))
+        ->create();
+
+    expect(resolve(SuggestedUsersQuery::class)->get($user))->toBeEmpty();
+});
+
 it('picks the people most followed by the user follows', function (): void {
     $user = User::factory()->create();
     [$friendA, $friendB] = User::factory()->count(2)->create();
 
     $user->following()->attach([$friendA->id, $friendB->id]);
 
-    $followedByOneFriend = User::factory()->has(Commit::factory())->create();
-    $followedByBothFriends = User::factory()->has(Commit::factory())->create();
+    $followedByOneFriend = User::factory()->activeCommitter()->create();
+    $followedByBothFriends = User::factory()->activeCommitter()->create();
 
     $followedByOneFriend->followers()->attach($friendA);
     $followedByBothFriends->followers()->attach([$friendA->id, $friendB->id]);
@@ -115,9 +147,9 @@ it('suggests only people the user might know when nobody else is around', functi
 it('picks popular people from the most followed', function (): void {
     $user = User::factory()->create();
 
-    $mostFollowed = User::factory()->count(20)->has(Commit::factory())->create()
+    $mostFollowed = User::factory()->count(20)->activeCommitter()->create()
         ->each(fn (User $popular) => $popular->followers()->attach(User::factory()->create()));
-    $unknown = User::factory()->has(Commit::factory())->create();
+    $unknown = User::factory()->activeCommitter()->create();
 
     $suggestions = resolve(SuggestedUsersQuery::class)->get($user);
 
@@ -129,9 +161,9 @@ it('picks popular people from the most followed', function (): void {
 it('picks the 20 most followed among people who have committed', function (): void {
     $user = User::factory()->create();
 
-    $mostFollowed = User::factory()->count(20)->has(Commit::factory())->create()
+    $mostFollowed = User::factory()->count(20)->activeCommitter()->create()
         ->each(fn (User $popular) => $popular->followers()->attach(User::factory()->create()));
-    User::factory()->has(Commit::factory()->pending())->create()->followers()->attach(User::factory()->count(2)->create());
+    User::factory()->has(Commit::factory()->count(5)->pending())->create()->followers()->attach(User::factory()->count(2)->create());
 
     $query = resolve(SuggestedUsersQuery::class);
     $suggested = collect(range(0, 6))->flatMap(fn (int $round): array => $query->get($user, round: $round)->pluck('id')->all());
@@ -152,7 +184,7 @@ it('keeps the same suggestions in the same order during the day', function (): v
 it('limits the number of suggestions', function (): void {
     $user = User::factory()->create();
 
-    User::factory()->count(5)->has(Commit::factory())->create();
+    User::factory()->count(5)->activeCommitter()->create();
 
     expect(resolve(SuggestedUsersQuery::class)->get($user))->toHaveCount(3)
         ->and(resolve(SuggestedUsersQuery::class)->get($user, limit: 2))->toHaveCount(2);
@@ -160,11 +192,11 @@ it('limits the number of suggestions', function (): void {
 
 it('does not suggest muted or dismissed people or people across a block', function (): void {
     $user = User::factory()->create();
-    $muted = User::factory()->has(Commit::factory())->create();
-    $dismissed = User::factory()->has(Commit::factory())->create();
-    $blocked = User::factory()->has(Commit::factory())->create();
-    $blocker = User::factory()->has(Commit::factory())->create();
-    $stranger = User::factory()->has(Commit::factory())->create();
+    $muted = User::factory()->activeCommitter()->create();
+    $dismissed = User::factory()->activeCommitter()->create();
+    $blocked = User::factory()->activeCommitter()->create();
+    $blocker = User::factory()->activeCommitter()->create();
+    $stranger = User::factory()->activeCommitter()->create();
 
     $user->muting()->attach($muted);
     $user->dismissedSuggestions()->attach($dismissed);
@@ -252,7 +284,7 @@ it('keeps the same suggestions when there is nobody else to suggest', function (
 
 it('marks the popular people who follow the user', function (): void {
     $user = User::factory()->create();
-    [$follower, $stranger] = User::factory()->count(2)->has(Commit::factory())->create();
+    [$follower, $stranger] = User::factory()->count(2)->activeCommitter()->create();
 
     $follower->following()->attach($user);
 
@@ -279,7 +311,7 @@ it('marks the people the user might know who follow the user', function (): void
 it('suggests people followed by the profile being viewed', function (): void {
     $viewer = User::factory()->create();
     $profile = User::factory()->create();
-    $related = User::factory()->has(Commit::factory())->create();
+    $related = User::factory()->activeCommitter()->create();
 
     $profile->following()->attach($related);
 
@@ -291,7 +323,7 @@ it('suggests developers who participated in a visible thread', function (): void
     $viewer = User::factory()->create();
     $author = User::factory()->create();
     $root = Commit::factory()->for($author)->create();
-    $participant = User::factory()->has(Commit::factory())->create();
+    $participant = User::factory()->activeCommitter()->create();
 
     Commit::factory()->for($participant)->for($root, 'parent')->create(['root_id' => $root->id]);
 
@@ -302,7 +334,7 @@ it('suggests developers who participated in a visible thread', function (): void
 it('suggests authors of visible quotes in a thread', function (): void {
     $viewer = User::factory()->create();
     $root = Commit::factory()->create();
-    $quoter = User::factory()->has(Commit::factory())->create();
+    $quoter = User::factory()->activeCommitter()->create();
 
     Commit::factory()->for($quoter)->create(['quoted_commit_id' => $root->id]);
 
@@ -314,8 +346,8 @@ it('does not suggest participants whose only path to the thread is hidden', func
     $viewer = User::factory()->create();
     $root = Commit::factory()->create();
     $hiddenParent = User::factory()->create();
-    $hiddenParticipant = User::factory()->has(Commit::factory())->create();
-    $visibleParticipants = User::factory()->count(15)->has(Commit::factory())->create();
+    $hiddenParticipant = User::factory()->activeCommitter()->create();
+    $visibleParticipants = User::factory()->count(15)->activeCommitter()->create();
 
     $hiddenReply = Commit::factory()->for($hiddenParent)->for($root, 'parent')->create(['root_id' => $root->id]);
     Commit::factory()->for($hiddenParticipant)->for($hiddenReply, 'parent')->create(['root_id' => $root->id]);
@@ -335,11 +367,11 @@ it('does not suggest participants whose only path to the thread is hidden', func
 it('keeps visible replies under deleted commits in the contextual thread', function (): void {
     $viewer = User::factory()->create();
     $root = Commit::factory()->create();
-    $deletedAuthor = User::factory()->has(Commit::factory())->create();
+    $deletedAuthor = User::factory()->activeCommitter()->create();
     $deletedReply = Commit::factory()->for($deletedAuthor)->for($root, 'parent')->create(['root_id' => $root->id]);
-    $participant = User::factory()->has(Commit::factory())->create();
+    $participant = User::factory()->activeCommitter()->create();
     Commit::factory()->for($participant)->for($deletedReply, 'parent')->create(['root_id' => $root->id]);
-    $visibleParticipants = User::factory()->count(15)->has(Commit::factory())->create();
+    $visibleParticipants = User::factory()->count(15)->activeCommitter()->create();
 
     foreach ($visibleParticipants as $visibleParticipant) {
         Commit::factory()->for($visibleParticipant)->for($root, 'parent')->create(['root_id' => $root->id]);
@@ -357,9 +389,9 @@ it('keeps visible replies under deleted commits in the contextual thread', funct
 it('excludes muted and dismissed contextual candidates', function (): void {
     $viewer = User::factory()->create();
     $profile = User::factory()->create();
-    $muted = User::factory()->has(Commit::factory())->create();
-    $dismissed = User::factory()->has(Commit::factory())->create();
-    $available = User::factory()->has(Commit::factory())->create();
+    $muted = User::factory()->activeCommitter()->create();
+    $dismissed = User::factory()->activeCommitter()->create();
+    $available = User::factory()->activeCommitter()->create();
 
     $profile->following()->attach([$muted->id, $dismissed->id]);
     $viewer->muting()->attach($muted);
@@ -373,7 +405,7 @@ it('excludes muted and dismissed contextual candidates', function (): void {
 it('keeps contextual suggestions stable for the day and supplies different rounds and spares', function (): void {
     $viewer = User::factory()->create();
     $profile = User::factory()->create();
-    $related = User::factory()->count(6)->has(Commit::factory())->create();
+    $related = User::factory()->count(6)->activeCommitter()->create();
     vouchedFor($viewer, 6);
 
     $profile->following()->attach($related);
@@ -393,7 +425,7 @@ it('keeps contextual suggestions stable for the day and supplies different round
 it('prioritizes contextual suggestions across rounds and spares', function (): void {
     $viewer = User::factory()->create();
     $profile = User::factory()->create();
-    $related = User::factory()->count(6)->has(Commit::factory())->create();
+    $related = User::factory()->count(6)->activeCommitter()->create();
     $regular = vouchedFor($viewer, 6);
 
     $profile->following()->attach($related);
@@ -418,7 +450,7 @@ it('prioritizes contextual suggestions across rounds and spares', function (): v
 it('cycles after five full rounds of contextual suggestions without loading fallbacks', function (): void {
     $viewer = User::factory()->create();
     $profile = User::factory()->create();
-    $related = User::factory()->count(18)->has(Commit::factory())->create();
+    $related = User::factory()->count(18)->activeCommitter()->create();
     vouchedFor($viewer, 6);
 
     $profile->following()->attach($related);
@@ -441,7 +473,7 @@ it('cycles after five full rounds of contextual suggestions without loading fall
 it('uses regular suggestions to fill slots without contextual candidates', function (): void {
     $viewer = User::factory()->create();
     $profile = User::factory()->create();
-    $contextual = User::factory()->has(Commit::factory())->create();
+    $contextual = User::factory()->activeCommitter()->create();
     $regular = vouchedFor($viewer, 2);
 
     $profile->following()->attach($contextual);
@@ -456,8 +488,8 @@ it('uses regular suggestions to fill slots without contextual candidates', funct
 it('does not use a blocked profile to find contextual candidates', function (): void {
     $viewer = User::factory()->create();
     $profile = User::factory()->create();
-    $candidate = User::factory()->has(Commit::factory())->create();
-    $other = User::factory()->has(Commit::factory())->create();
+    $candidate = User::factory()->activeCommitter()->create();
+    $other = User::factory()->activeCommitter()->create();
 
     $profile->following()->attach($candidate);
     $viewer->blocking()->attach($profile);
@@ -472,12 +504,12 @@ it('does not prioritize hidden, unapproved, deleted, muted, or blocked thread pa
     $viewer = User::factory()->create();
     $author = User::factory()->create();
     $root = Commit::factory()->for($author)->create();
-    $visible = User::factory()->count(3)->has(Commit::factory())->create();
-    $pending = User::factory()->has(Commit::factory())->create();
-    $rejected = User::factory()->has(Commit::factory())->create();
-    $deleted = User::factory()->has(Commit::factory())->create();
-    $muted = User::factory()->has(Commit::factory())->create();
-    $blocked = User::factory()->has(Commit::factory())->create();
+    $visible = User::factory()->count(3)->activeCommitter()->create();
+    $pending = User::factory()->activeCommitter()->create();
+    $rejected = User::factory()->activeCommitter()->create();
+    $deleted = User::factory()->activeCommitter()->create();
+    $muted = User::factory()->activeCommitter()->create();
+    $blocked = User::factory()->activeCommitter()->create();
 
     $visible->each(fn (User $user) => Commit::factory()->for($user)->for($root, 'parent')->create(['root_id' => $root->id]));
     Commit::factory()->for($pending)->for($root, 'parent')->pending()->create(['root_id' => $root->id]);

@@ -17,6 +17,10 @@ use Random\Randomizer;
 
 final readonly class SuggestedUsersQuery
 {
+    private const int ACTIVE_COMMITTER_COMMITS = 5;
+
+    private const int ACTIVE_COMMITTER_DAYS = 30;
+
     private const string THREAD_PARTICIPANTS = <<<'SQL'
         WITH RECURSIVE visible_thread(id, author_id) AS (
             SELECT id, author_id FROM commits WHERE id = ?
@@ -259,9 +263,21 @@ final readonly class SuggestedUsersQuery
             ->whereColumn($followers->getQualifiedRelatedPivotKeyName(), 'users.id');
     }
 
+    /**
+     * Only people who keep committing are worth following, so suggestions skip anyone with fewer than
+     * 5 commits in the past 30 days. Replies don't count.
+     */
     private function committers(User $user): CommitBuilder
     {
-        return Commit::query()->visibleTo($user)->topLevel()->select('author_id');
+        $commits = Commit::query();
+
+        return $commits
+            ->visibleTo($user)
+            ->topLevel()
+            ->where($commits->qualifyColumn('created_at'), '>=', now()->subDays(self::ACTIVE_COMMITTER_DAYS))
+            ->groupBy($commits->qualifyColumn('author_id'))
+            ->havingRaw('count(*) >= ?', [self::ACTIVE_COMMITTER_COMMITS])
+            ->select($commits->qualifyColumn('author_id'));
     }
 
     /**
