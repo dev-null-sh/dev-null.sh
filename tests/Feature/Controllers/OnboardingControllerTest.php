@@ -42,7 +42,7 @@ it('leaves who to follow to the pages with a sidebar', function (): void {
 
 it('suggests developers to follow', function (): void {
     $user = User::factory()->notOnboarded()->create();
-    $authors = User::factory()->count(6)->has(Commit::factory())->create();
+    $authors = User::factory()->count(6)->activeCommitter()->create();
 
     $response = $this->actingAs($user)
         ->get(route('onboarding.show'));

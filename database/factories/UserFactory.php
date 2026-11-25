@@ -7,6 +7,7 @@ namespace Database\Factories;
 use App\Enums\ModerationReason;
 use App\Enums\RemotesFrom;
 use App\Models\Ban;
+use App\Models\Commit;
 use App\Models\Profile;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -86,6 +87,14 @@ final class UserFactory extends Factory
         ])->afterCreating(function (User $user) use ($reason): void {
             Ban::factory()->create(['github_id' => $user->github_id, 'reason' => $reason]);
         });
+    }
+
+    /**
+     * Someone with enough recent commits to be suggested to others.
+     */
+    public function activeCommitter(): self
+    {
+        return $this->has(Commit::factory()->count(5));
     }
 
     public function notOnboarded(): self

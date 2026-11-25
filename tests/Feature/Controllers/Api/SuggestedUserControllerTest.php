@@ -14,7 +14,7 @@ beforeEach(function (): void {
 
 it('suggests people to follow, with why and whether they follow the user', function (): void {
     $friend = User::factory()->create();
-    $vouched = User::factory()->has(Commit::factory())->create(['handle' => 'octocat']);
+    $vouched = User::factory()->activeCommitter()->create(['handle' => 'octocat']);
 
     $this->user->following()->attach($friend);
     $friend->following()->attach($vouched);
@@ -34,7 +34,7 @@ it('suggests people to follow, with why and whether they follow the user', funct
 });
 
 it('suggests popular people nobody the user follows follows, with their followers', function (): void {
-    $popular = User::factory()->has(Commit::factory())->create();
+    $popular = User::factory()->activeCommitter()->create();
 
     $popular->followers()->attach(User::factory()->count(2)->create());
 
@@ -48,7 +48,7 @@ it('suggests popular people nobody the user follows follows, with their follower
 });
 
 it('sends three suggestions and three spares, as the web does', function (): void {
-    User::factory()->count(8)->has(Commit::factory())->create();
+    User::factory()->count(8)->activeCommitter()->create();
 
     signedApiRequest($this->keyPair, 'GET', route('api-suggested-user.index'))
         ->assertOk()
@@ -56,7 +56,7 @@ it('sends three suggestions and three spares, as the web does', function (): voi
 });
 
 it("moves to the next page of the day's picks each round", function (): void {
-    User::factory()->count(8)->has(Commit::factory())->create();
+    User::factory()->count(8)->activeCommitter()->create();
 
     $first = signedApiRequest($this->keyPair, 'GET', route('api-suggested-user.index'))->json('data.*.id');
     $again = signedApiRequest($this->keyPair, 'GET', route('api-suggested-user.index', ['round' => 0]))->json('data.*.id');
@@ -67,8 +67,8 @@ it("moves to the next page of the day's picks each round", function (): void {
 });
 
 it('leaves out people the user dismissed', function (): void {
-    $dismissed = User::factory()->has(Commit::factory())->create();
-    $suggested = User::factory()->has(Commit::factory())->create();
+    $dismissed = User::factory()->activeCommitter()->create();
+    $suggested = User::factory()->activeCommitter()->create();
 
     $this->user->dismissedSuggestions()->attach($dismissed);
 
@@ -78,7 +78,7 @@ it('leaves out people the user dismissed', function (): void {
 });
 
 it('starts at the first round when none is given', function (): void {
-    User::factory()->count(8)->has(Commit::factory())->create();
+    User::factory()->count(8)->activeCommitter()->create();
 
     $first = signedApiRequest($this->keyPair, 'GET', route('api-suggested-user.index', ['round' => 0]))->json('data.*.id');
 
@@ -88,8 +88,8 @@ it('starts at the first round when none is given', function (): void {
 });
 
 it('leaves out people the user mutes or has a block with', function (Closure $hide): void {
-    $hidden = User::factory()->has(Commit::factory())->create();
-    $suggested = User::factory()->has(Commit::factory())->create();
+    $hidden = User::factory()->activeCommitter()->create();
+    $suggested = User::factory()->activeCommitter()->create();
 
     $hide($this->user, $hidden);
 
@@ -103,9 +103,9 @@ it('leaves out people the user mutes or has a block with', function (Closure $hi
 ]);
 
 it('suggests the people a profile follows first, as the web does beside it', function (): void {
-    $profile = User::factory()->has(Commit::factory())->create();
-    $followed = User::factory()->has(Commit::factory())->create();
-    $regular = User::factory()->has(Commit::factory())->create();
+    $profile = User::factory()->activeCommitter()->create();
+    $followed = User::factory()->activeCommitter()->create();
+    $regular = User::factory()->activeCommitter()->create();
 
     $profile->following()->attach($followed);
 
@@ -115,10 +115,10 @@ it('suggests the people a profile follows first, as the web does beside it', fun
 });
 
 it("suggests a thread's other participants first, from any commit in it, as the web does beside it", function (): void {
-    $author = User::factory()->create();
+    $author = User::factory()->activeCommitter()->create();
     $root = Commit::factory()->for($author)->create();
-    $participant = User::factory()->has(Commit::factory())->create();
-    $regular = User::factory()->has(Commit::factory())->create();
+    $participant = User::factory()->activeCommitter()->create();
+    $regular = User::factory()->activeCommitter()->create();
     $reply = Commit::factory()->for($participant)->for($root, 'parent')->create(['root_id' => $root->id]);
 
     signedApiRequest($this->keyPair, 'GET', route('api-suggested-user.index', ['commit_id' => $root->id]))
@@ -133,9 +133,9 @@ it("suggests a thread's other participants first, from any commit in it, as the 
 });
 
 it('suggests what the web suggests on the same profile or commit page', function (string $page): void {
-    $author = User::factory()->has(Commit::factory())->create();
+    $author = User::factory()->activeCommitter()->create();
     $root = Commit::factory()->for($author)->create();
-    $people = User::factory()->count(12)->has(Commit::factory())->create();
+    $people = User::factory()->count(12)->activeCommitter()->create();
 
     $author->following()->attach($people->take(4));
     foreach ($people->slice(4, 4) as $participant) {
@@ -180,9 +180,9 @@ it('suggests what the web suggests on the same profile or commit page', function
 })->with(['profile', 'commit']);
 
 it('falls back to the regular suggestions beside a profile across a block, as the web does', function (Closure $block): void {
-    $profile = User::factory()->has(Commit::factory())->create();
-    $followed = User::factory()->has(Commit::factory())->create();
-    User::factory()->count(5)->has(Commit::factory())->create();
+    $profile = User::factory()->activeCommitter()->create();
+    $followed = User::factory()->activeCommitter()->create();
+    User::factory()->count(5)->activeCommitter()->create();
 
     $profile->following()->attach($followed);
     $block($this->user, $profile);
@@ -199,7 +199,7 @@ it('falls back to the regular suggestions beside a profile across a block, as th
 
 it("takes the user's own pending commit as the page, as its page shows it to them", function (): void {
     $root = Commit::factory()->for($this->user)->pending()->create();
-    $participant = User::factory()->has(Commit::factory())->create();
+    $participant = User::factory()->activeCommitter()->create();
 
     Commit::factory()->for($participant)->for($root, 'parent')->create(['root_id' => $root->id]);
 
@@ -215,7 +215,7 @@ it('refuses the profile of a developer who is not on /dev/null yet', function ()
 });
 
 it('refuses a commit whose page the user cannot see', function (Closure $commit): void {
-    $participant = User::factory()->has(Commit::factory())->create();
+    $participant = User::factory()->activeCommitter()->create();
     $root = $commit($this->user);
 
     Commit::factory()->for($participant)->for($root, 'parent')->create(['root_id' => $root->id]);

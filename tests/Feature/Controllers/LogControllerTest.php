@@ -570,7 +570,7 @@ it('loads the quoted commits of a log without a query per commit', function (Log
 
 it('defers suggested users to follow', function (): void {
     $user = User::factory()->create();
-    $suggested = User::factory()->has(Commit::factory())->create();
+    $suggested = User::factory()->activeCommitter()->create();
     $suggested->following()->attach($user);
 
     $response = $this->actingAs($user)
