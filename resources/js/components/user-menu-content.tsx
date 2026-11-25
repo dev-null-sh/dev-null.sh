@@ -3,6 +3,7 @@ import {
     Activity,
     AppWindow,
     BookOpen,
+    Braces,
     Star,
     FileText,
     HeartHandshake,
@@ -12,6 +13,7 @@ import {
     UserRound,
 } from 'lucide-react';
 import AboutController from '@/actions/App/Http/Controllers/AboutController';
+import ApiDocsController from '@/actions/App/Http/Controllers/ApiDocsController';
 import AppController from '@/actions/App/Http/Controllers/AppController';
 import OperationsController from '@/actions/App/Http/Controllers/OperationsController';
 import PartnerController from '@/actions/App/Http/Controllers/PartnerController';
@@ -137,6 +139,17 @@ export function UserMenuContent({ user }: Props) {
                     >
                         <AppWindow className="mr-2" />
                         Apps
+                    </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                    <Link
+                        className="block w-full cursor-pointer"
+                        href={ApiDocsController.show('introduction')}
+                        prefetch
+                        onClick={cleanup}
+                    >
+                        <Braces className="mr-2" />
+                        API
                     </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
