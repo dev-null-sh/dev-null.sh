@@ -79,6 +79,8 @@ final class SendNotificationPush implements ShouldQueue
             return;
         }
 
+        // The actor is the commit's author, so an organization's reply or mention names the organization, never the
+        // member who posted it.
         $actor = $notification->actor;
         $organization = $notification->organization;
         $message = new DevicePush(
@@ -86,7 +88,7 @@ final class SendNotificationPush implements ShouldQueue
             match ($notification->type) {
                 NotificationType::Followed => 'Followed you',
                 NotificationType::Replied => $organization === null ? 'Replied to your commit' : "Replied to {$organization->name}'s commit",
-                default => $organization === null ? 'Mentioned you' : 'Mentioned '.$organization->name,
+                default => ($organization === null ? 'Mentioned you' : 'Mentioned '.$organization->name).' in a commit',
             },
             array_filter([
                 'type' => $notification->type->value,

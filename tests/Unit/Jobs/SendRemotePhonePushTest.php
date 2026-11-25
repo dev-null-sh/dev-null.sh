@@ -9,6 +9,7 @@ use App\Dto\DevicePush;
 use App\Dto\DevicePushResult;
 use App\Enums\ConversationKind;
 use App\Enums\OrgEvent;
+use App\Enums\OrgRole;
 use App\Enums\RemoteStatus;
 use App\Exceptions\DevicePushCredentialsRejected;
 use App\Jobs\SendRemotePhonePush;
@@ -18,6 +19,7 @@ use App\Models\Device;
 use App\Models\Message;
 use App\Models\PushSubscription;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Factories\Sequence;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Queue;
@@ -30,6 +32,21 @@ beforeEach(function (): void {
     $this->subscription = PushSubscription::query()->create(['user_id' => $this->recipient->id, 'endpoint_hash' => hash('sha256', 'https://fcm.googleapis.com/wp/recipient'), 'endpoint' => 'https://fcm.googleapis.com/wp/recipient']);
     $this->device = Device::factory()->for($this->recipient)->withPushToken()->create();
 });
+
+/**
+ * @return ArrayObject<int, array{0: string, 1: DevicePush}>
+ */
+function captureRemotePhonePushes(): ArrayObject
+{
+    $sent = new ArrayObject();
+    test()->mock(DevicePushProvider::class)->shouldReceive('send')->once()->andReturnUsing(function (Device $device, DevicePush $push) use ($sent): DevicePushResult {
+        $sent[] = [$device->id, $push];
+
+        return DevicePushResult::settled();
+    });
+
+    return $sent;
+}
 
 it('queues a recipient who has only a phone to push to', function (): void {
     Queue::fake();
@@ -78,7 +95,7 @@ it('loads browser and phone reachability in bulk for an org', function (): void 
 
 it('shows phones who wrote, never what', function (bool $org, ?OrgEvent $event, string $title, string $body, string $type): void {
     if ($org) {
-        $this->message->conversation->update(['kind' => ConversationKind::Org, 'pair' => null, 'name' => $title === 'Org' ? null : 'Core team']);
+        $this->message->conversation->update(['kind' => ConversationKind::Org, 'pair' => null, 'name' => 'Core team']);
     }
 
     $this->message->update(['event' => $event]);
@@ -99,13 +116,43 @@ it('shows phones who wrote, never what', function (bool $org, ?OrgEvent $event, 
         ->and($sent[0][1])->title->toBe($title)->body->toBe($body)->group->toBe($conversationId)
         ->and($sent[0][1]->data)->toBe([...$data, 'url' => 'devnull://push?'.http_build_query($data, encoding_type: PHP_QUERY_RFC3986)]);
 })->with([
-    'a direct message' => [false, null, 'Alice', 'Sent you a message', 'message'],
+    'a direct message' => [false, null, 'Alice', 'Sent you a remote', 'message'],
     'a direct ping' => [false, OrgEvent::Ping, 'Alice', 'Pinged you', 'ping'],
-    'an org message' => [true, null, 'Core team', 'Alice sent a message', 'message'],
+    'an org message' => [true, null, 'Core team', 'Alice sent a remote', 'message'],
     'an org ping' => [true, OrgEvent::Ping, 'Core team', 'Alice pinged everyone', 'ping'],
-    'an unnamed org message' => [true, null, 'Org', 'Alice sent a message', 'message'],
-    'an unnamed org ping' => [true, OrgEvent::Ping, 'Org', 'Alice pinged everyone', 'ping'],
 ]);
+
+it('titles an org without a name by the first names of the others in it, as their inbox does', function (int $others, string $title): void {
+    $this->message->conversation->update(['kind' => ConversationKind::Org, 'pair' => null, 'name' => null]);
+    DB::table('profiles')->where('id', $this->message->user_id)->update(['name' => 'Alice Smith']);
+    // The recipient sorts among the first three, so leaving them out shows.
+    DB::table('profiles')->where('id', $this->recipient->id)->update(['name' => 'Aaron Recipient']);
+    $this->participant->update(['role' => OrgRole::Contributor]);
+    $join = fn (User $user, OrgRole $role): ConversationParticipant => ConversationParticipant::factory()->create(['conversation_id' => $this->message->conversation_id, 'user_id' => $user->id, 'role' => $role]);
+    $join($this->message->user, OrgRole::Contributor);
+    $join(User::factory()->create(['name' => 'Zoe Maintainer']), OrgRole::Maintainer);
+    $join(User::factory()->create(['name' => '', 'handle' => 'nameless']), OrgRole::Contributor);
+    User::factory()->count($others)->sequence(fn (Sequence $sequence): array => ['name' => 'Other '.$sequence->index])->create()
+        ->each(fn (User $user): ConversationParticipant => $join($user, OrgRole::Contributor));
+    $sent = captureRemotePhonePushes();
+
+    new SendRemotePhonePush($this->message->id, $this->recipient->id)->handle(resolve(DevicePushProvider::class));
+
+    expect($sent[0][1])->title->toBe($title)->body->toBe('Alice Smith sent a remote');
+})->with([
+    'three others' => [0, 'Zoe, @nameless, Alice'],
+    'five others' => [2, 'Zoe, @nameless, Alice +2'],
+]);
+
+it('titles an org without a name after the sender once everyone else has left', function (): void {
+    $this->message->conversation->update(['kind' => ConversationKind::Org, 'pair' => null, 'name' => null]);
+    DB::table('profiles')->where('id', $this->message->user_id)->update(['name' => 'Alice Smith']);
+    $sent = captureRemotePhonePushes();
+
+    new SendRemotePhonePush($this->message->id, $this->recipient->id)->handle(resolve(DevicePushProvider::class));
+
+    expect($sent[0][1])->title->toBe('Alice Smith')->body->toBe('Alice Smith sent a remote');
+});
 
 it('names the sender by handle when they have no name', function (): void {
     DB::table('profiles')->where('id', $this->message->user_id)->update(['name' => '']);
