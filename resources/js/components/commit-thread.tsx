@@ -1211,7 +1211,7 @@ export function ThreadReplies({
                             reply={reply}
                             parent={thread.commit}
                             depth={depth + 1}
-                            graph={isFlattened ? {} : { parent: branchFrom }}
+                            graph={{ parent: branchFrom }}
                             links={
                                 isFlattened ? null : (
                                     <WithoutGraph>
@@ -1254,9 +1254,7 @@ export function ThreadReplies({
                             <MoreRepliesButton
                                 thread={thread}
                                 isFlattened={depth + 1 > maxIndentDepth}
-                                graph={
-                                    isFlattened ? {} : { parent: branchFrom }
-                                }
+                                graph={{ parent: branchFrom }}
                             />
                         </div>
                     )}
@@ -1428,6 +1426,11 @@ function ReplyItem({
                             <span className="font-mono text-xs">[deleted]</span>
                             This commit was deleted.
                         </p>
+                        <ReplyParentLabel
+                            parent={parent}
+                            depth={depth}
+                            isQuote={reply.parent_id !== parent.id}
+                        />
                         <ThreadActions thread={thread} />
                     </div>
                 </div>
@@ -1447,6 +1450,47 @@ function ReplyItem({
             nodeRef={nodeRef}
             onDeleted={onDeleted}
         />
+    );
+}
+
+function ReplyParentLabel({
+    parent,
+    depth,
+    isQuote,
+}: {
+    parent: ThreadCommit;
+    depth: number;
+    isQuote: boolean;
+}) {
+    if (depth <= maxIndentDepth) {
+        return null;
+    }
+
+    return (
+        <p
+            className="flex min-w-0 items-center gap-1 font-mono text-xs text-muted-foreground"
+            data-test="reply-parent-context"
+        >
+            <CornerDownRight className="size-3 shrink-0" aria-hidden />
+            <span className="shrink-0">
+                {isQuote ? 'quoting' : 'replying to'}
+            </span>
+            {isDeleted(parent) ? (
+                <span>[deleted]</span>
+            ) : (
+                <Link
+                    prefetch
+                    href={CommitController.show({
+                        profile: parent.author,
+                        commit: parent,
+                    })}
+                    className="min-w-0 truncate hover:text-foreground hover:underline"
+                    data-test="reply-parent-link"
+                >
+                    @{parent.author.handle}
+                </Link>
+            )}
+        </p>
     );
 }
 
@@ -1490,7 +1534,6 @@ function CommitReply({
     );
 
     const isOwn = useOwnsCommit()(reply);
-    const isFlattened = depth > maxIndentDepth;
     const isQuote = reply.quoted_commit_id === parent.id;
     const permalink = CommitController.show({
         profile: reply.author,
@@ -1645,17 +1688,11 @@ function CommitReply({
                         )}
                     </div>
 
-                    {isFlattened && (
-                        <p className="flex min-w-0 items-center gap-1 font-mono text-xs text-muted-foreground">
-                            <CornerDownRight className="size-3 shrink-0" />
-                            <span className="truncate">
-                                {isQuote ? 'quoting' : 'replying to'}{' '}
-                                {isDeleted(parent)
-                                    ? '[deleted]'
-                                    : `@${parent.author.handle}`}
-                            </span>
-                        </p>
-                    )}
+                    <ReplyParentLabel
+                        parent={parent}
+                        depth={depth}
+                        isQuote={isQuote}
+                    />
 
                     <div ref={bodyRef} style={translation.bodyStyle}>
                         <FoldedCommitBody
