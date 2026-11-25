@@ -4,7 +4,7 @@ import { mentionPattern } from '@/lib/mentions';
 import { show } from '@/routes/user';
 
 const mentionClassName =
-    'inline-flex h-[1.55em] items-center gap-[0.3em] rounded-md border bg-muted pr-[0.55em] pl-[calc(0.2em-1px)] align-[-0.3em] text-[0.93em] font-medium whitespace-nowrap text-foreground transition-colors hover:border-primary/45 hover:bg-primary-soft hover:text-primary-hover';
+    'inline-flex h-[1.55em] max-w-full items-center gap-[0.3em] rounded-md border bg-muted pr-[0.55em] pl-[calc(0.2em-1px)] align-[-0.3em] text-[0.93em] font-medium whitespace-nowrap text-foreground transition-colors hover:border-primary/45 hover:bg-primary-soft hover:text-primary-hover';
 
 // Like a shortened URL, the "@" stays in the text, so copying the bio keeps the mention.
 function MentionContent({ handle }: { handle: string }) {
@@ -21,7 +21,8 @@ function MentionContent({ handle }: { handle: string }) {
                     className="size-full"
                 />
             </span>
-            <span>
+            {/* A handle wider than its column, as GitHub allows 39 characters, ends in an ellipsis instead of overflowing. */}
+            <span className="min-w-0 truncate">
                 <span className="text-[0px]">@</span>
                 {handle}
             </span>

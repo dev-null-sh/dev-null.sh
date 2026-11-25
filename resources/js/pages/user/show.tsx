@@ -399,9 +399,9 @@ export default function Show({
 
                 <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-sm text-muted-foreground">
                     {user.company && (
-                        <li className="flex items-center gap-1.5">
-                            <Building2 className="size-4" />
-                            <span>
+                        <li className="flex min-w-0 items-center gap-1.5">
+                            <Building2 className="size-4 shrink-0" />
+                            <span className="min-w-0 wrap-anywhere">
                                 <BioText
                                     bio={user.company}
                                     profiles={bioProfiles}
@@ -410,9 +410,11 @@ export default function Show({
                         </li>
                     )}
                     {user.location && (
-                        <li className="flex items-center gap-1.5">
-                            <MapPin className="size-4" />
-                            {user.location}
+                        <li className="flex min-w-0 items-center gap-1.5">
+                            <MapPin className="size-4 shrink-0" />
+                            <span className="min-w-0 wrap-anywhere">
+                                {user.location}
+                            </span>
                         </li>
                     )}
                     {user.show_local_time && user.timezone && (

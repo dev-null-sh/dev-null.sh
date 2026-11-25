@@ -34,6 +34,22 @@ test('keeps the whole bio as copyable text', () => {
     assert.equal(textOf(renderToStaticMarkup(<BioText bio={bio} />)), bio);
 });
 
+test('shrinks a long handle with its badge instead of overflowing a narrow column', () => {
+    const handle = 'W'.repeat(39);
+    const html = renderToStaticMarkup(<BioText bio={`@${handle}`} />);
+    const badge = html.match(/<a [^>]*data-test="bio-mention"[^>]*>/)?.[0];
+
+    assert.ok(badge?.match(/class="[^"]*\bmax-w-full\b/));
+    assert.ok(
+        html.match(
+            new RegExp(
+                `<span class="[^"]*\\bmin-w-0\\b[^"]*\\btruncate\\b[^"]*"><span class="text-\\[0px\\]">@</span>${handle}</span>`,
+            ),
+        ),
+    );
+    assert.equal(textOf(html), `@${handle}`);
+});
+
 test('leaves emails, package names and domains as plain text', () => {
     const bio = 'Mail me@example.com, I use @inertiajs/react and @vue.js';
     const html = renderToStaticMarkup(<BioText bio={bio} />);
