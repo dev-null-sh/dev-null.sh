@@ -587,6 +587,7 @@ An app can use the same `/api/v1` for you with signed requests. It keeps an SSH 
 A signed request sees what the web shows you, such as your own pending commits and your organizations'. It can also, with the web's validation, moderation, and rate limits:
 
 - read your account, logs, replies, notifications (including grouped activity), and starred commits;
+- read a profile's activity graph over the same range as the web: the last 24 hours, 7 days, 30 days, 6 months, or a year;
 - read the organizations you are a member of, your role in each, and whether posting as an organization is switched on;
 - open the person or organization a mention in a commit or message captured, by the id each mention carries, as the web's mention links do, so it still leads to them after they rename and someone else takes the handle;
 - commit, reply, and quote, with images, and delete your commits, with the same undo window as the web;
