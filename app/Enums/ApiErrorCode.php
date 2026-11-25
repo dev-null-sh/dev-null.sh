@@ -26,6 +26,7 @@ enum ApiErrorCode: string
     case GitHubIssueRefused = 'github_issue_refused';
     case GitHubIssueUnanswered = 'github_issue_unanswered';
     case GuildPaused = 'guild_paused';
+    case ChangelogUnavailable = 'changelog_unavailable';
 
     public function status(): int
     {
@@ -37,7 +38,7 @@ enum ApiErrorCode: string
             self::PasteisExhausted, self::GuildPaused => 422,
             self::RateLimited => 429,
             self::GitHubIssueRefused, self::GitHubIssueUnanswered => 502,
-            self::GitHubSyncFailed => 503,
+            self::GitHubSyncFailed, self::ChangelogUnavailable => 503,
         };
     }
 }
