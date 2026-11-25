@@ -6,6 +6,8 @@ import {
     revokeObjectUrls,
 } from '@/components/commit-image-picker';
 import { cancelImageRead, cancelImageReads } from '@/lib/draft-image-reads';
+import { readStoredGif, writeStoredGif } from '@/lib/gif-provider-key';
+import type { GifAttachment } from '@/lib/gif-providers';
 import type { StoredImages } from '@/lib/image-storage';
 import {
     deleteStoredImages,
@@ -19,17 +21,20 @@ export type UseStashReturn = {
     readonly body: string;
     readonly images: File[];
     readonly descriptions: string[];
+    readonly gif: GifAttachment | null;
     readonly isRestored: boolean;
     readonly excludedRecipientIds: string[];
     readonly updateExcludedRecipientIds: (ids: string[]) => void;
     readonly updateBody: (body: string) => void;
     readonly updateImages: (images: File[], descriptions?: string[]) => void;
+    readonly updateGif: (gif: GifAttachment | null) => void;
     readonly drop: () => void;
 };
 
 const listeners = new Set<() => void>();
 const pending = new Map<string, string>();
 const images = new Map<string, StoredImages>();
+const gifs = new Map<string, GifAttachment | null>();
 const restoredImageKeys = new Set<string>();
 const noImages: StoredImages = { images: [], descriptions: [] };
 let timeout: ReturnType<typeof setTimeout> | undefined;
@@ -45,6 +50,20 @@ const read = (key: string): string =>
     pending.has(key) ? (pending.get(key) ?? '') : readStorage(key);
 
 const imagesFor = (key: string): StoredImages => images.get(key) ?? noImages;
+
+const gifFor = (key: string): GifAttachment | null => {
+    if (!gifs.has(key)) {
+        gifs.set(key, readStoredGif(key));
+    }
+
+    return gifs.get(key) ?? null;
+};
+
+const storeGif = (key: string, gif: GifAttachment | null): void => {
+    gifs.set(key, gif);
+    writeStoredGif(key, gif);
+    notify();
+};
 
 const useDraftImages = (key: string) => {
     const draftImages = useSyncExternalStore(
@@ -188,6 +207,10 @@ export function clearStashes(userId: string): void {
             restoredImageKeys.delete(key);
         });
 
+    [...gifs.keys()]
+        .filter((key) => key.startsWith(prefix))
+        .forEach((key) => gifs.delete(key));
+
     deleteStoredImages(prefix);
     notify();
 }
@@ -202,7 +225,9 @@ export function useHasStash(userId: string | null, name: string): boolean {
         subscribe,
         () =>
             key !== null &&
-            (read(key) !== '' || imagesFor(key).images.length > 0),
+            (read(key) !== '' ||
+                imagesFor(key).images.length > 0 ||
+                gifFor(key) !== null),
         () => false,
     );
 }
@@ -219,8 +244,13 @@ export function useStash(userId: string, name: string): UseStashReturn {
         writeStorage(recipientKey, ids.join(','));
     };
     const { draftImages, descriptions, isImagesRestored } = useDraftImages(key);
+    const gif = useSyncExternalStore(
+        subscribe,
+        () => gifFor(key),
+        () => null,
+    );
     const [isDraftRestored, setIsDraftRestored] = useState(
-        () => body !== '' || draftImages.length > 0,
+        () => body !== '' || draftImages.length > 0 || gifFor(key) !== null,
     );
 
     const updateBody = (next: string): void => {
@@ -247,6 +277,14 @@ export function useStash(userId: string, name: string): UseStashReturn {
         storeImages(key, next, descriptions);
     };
 
+    const updateGif = (next: GifAttachment | null): void => {
+        if (next === null && body === '' && draftImages.length === 0) {
+            setIsDraftRestored(false);
+        }
+
+        storeGif(key, next);
+    };
+
     const drop = (): void => {
         cancelImageRead(key);
         setBody('');
@@ -254,6 +292,7 @@ export function useStash(userId: string, name: string): UseStashReturn {
         setIsDraftRestored(false);
         discardBody(key);
         storeImages(key, []);
+        storeGif(key, null);
     };
 
     return {
@@ -261,13 +300,15 @@ export function useStash(userId: string, name: string): UseStashReturn {
         body,
         images: draftImages,
         descriptions,
+        gif,
         isRestored:
             (isDraftRestored || isImagesRestored) &&
-            (body !== '' || draftImages.length > 0),
+            (body !== '' || draftImages.length > 0 || gif !== null),
         excludedRecipientIds,
         updateExcludedRecipientIds,
         updateBody,
         updateImages,
+        updateGif,
         drop,
     } as const;
 }

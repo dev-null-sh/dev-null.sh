@@ -11,12 +11,13 @@ import {
     ColorSwatchHint,
     useColorSwatchHint,
 } from '@/components/color-swatch-hint';
+import { CommitGif, GifAttachmentPreview } from '@/components/commit-gif';
 import {
     ImageDropOverlay,
-    ImagePickerButton,
     ImagePickerPreviews,
     imageErrorFrom,
 } from '@/components/commit-image-picker';
+import { ComposerMediaButton } from '@/components/commit-image-picker';
 import { CommitRulesDialog, useCommitRules } from '@/components/commit-rules';
 import {
     ComposerPollPreview,
@@ -62,6 +63,10 @@ import {
     maxRawBodyLength,
     minBodyLength,
 } from '@/lib/commit';
+import { useGifProviderKey } from '@/lib/gif-provider-key';
+import type { GifProviderKey } from '@/lib/gif-provider-key';
+import { gifFormFields, toCommitGif } from '@/lib/gif-providers';
+import type { GifAttachment } from '@/lib/gif-providers';
 import type { IssueKind } from '@/lib/issue-commands';
 import { hasModKey, useKeyLabels } from '@/lib/keyboard';
 import {
@@ -118,6 +123,9 @@ function CommitComposerBody({
     errors,
     onKeyDown,
     drop,
+    gifKey,
+    gifOpen,
+    onGifOpenChange,
 }: {
     id: string;
     isInDialog: boolean;
@@ -138,6 +146,9 @@ function CommitComposerBody({
     errors: Record<string, string>;
     onKeyDown: (event: KeyboardEvent<HTMLTextAreaElement>) => void;
     drop: () => void;
+    gifKey: GifProviderKey | null;
+    gifOpen: boolean;
+    onGifOpenChange: (open: boolean) => void;
 }) {
     const keys = useKeyLabels();
     const { body, isRestored, updateBody } = stash;
@@ -151,6 +162,7 @@ function CommitComposerBody({
         setIsScheduling,
     } = schedule;
     const hasImages = attachments.images.length > 0;
+    const isSchedulingGif = isScheduling && stash.gif !== null;
     const progress = bodyProgress(
         issue.command !== null
             ? characterCount(body)
@@ -171,6 +183,11 @@ function CommitComposerBody({
         textareaRef,
         isSubmittable,
     });
+    const pickGif = (gif: GifAttachment) => {
+        attachments.clear();
+        setPoll(null);
+        stash.updateGif(gif);
+    };
     const isIssue = issue.command !== null;
     const colorHint = useColorSwatchHint({
         body,
@@ -363,6 +380,10 @@ function CommitComposerBody({
                         )}
                     </div>
 
+                    {preview.isPreviewing && stash.gif !== null && (
+                        <CommitGif gif={toCommitGif(stash.gif)} />
+                    )}
+
                     {!isIssue && (
                         <ColorSwatchHint
                             hint={colorHint}
@@ -411,8 +432,19 @@ function CommitComposerBody({
                             onRemove={attachments.remove}
                         />
                     )}
+                    {!preview.isPreviewing && (
+                        <GifAttachmentPreview
+                            gif={stash.gif}
+                            onRemove={() => stash.updateGif(null)}
+                        />
+                    )}
                     <InputError
-                        message={attachments.error ?? imageErrorFrom(errors)}
+                        message={
+                            attachments.error ??
+                            (isSchedulingGif
+                                ? "GIFs can't be scheduled yet. Remove it to schedule this commit."
+                                : imageErrorFrom(errors))
+                        }
                         className="mt-1"
                     />
 
@@ -490,18 +522,26 @@ function CommitComposerBody({
                         <div className="flex min-w-0 flex-1 items-center gap-x-1 max-sm:basis-full">
                             {!isIssue && (
                                 <>
-                                    <ImagePickerButton
+                                    <ComposerMediaButton
+                                        gifKey={gifKey}
+                                        gifOpen={gifOpen}
+                                        onGifOpenChange={onGifOpenChange}
+                                        hasGif={stash.gif !== null}
+                                        gifDisabled={isScheduling}
                                         count={attachments.images.length}
                                         disabled={processing || poll !== null}
                                         reading={attachments.reading}
-                                        onPick={attachments.pick}
+                                        onPickImages={attachments.pick}
+                                        onPickGif={pickGif}
                                         className="-ml-2"
                                     />
                                     <ActionTooltip
                                         label={
                                             hasImages
                                                 ? 'A commit can have images or a poll, not both'
-                                                : 'Add poll'
+                                                : stash.gif !== null
+                                                  ? 'A commit can have a GIF or a poll, not both'
+                                                  : 'Add poll'
                                         }
                                     >
                                         <Button
@@ -512,9 +552,11 @@ function CommitComposerBody({
                                                 processing ||
                                                 attachments.reading ||
                                                 poll !== null ||
-                                                hasImages
+                                                hasImages ||
+                                                stash.gif !== null
                                             }
                                             onClick={() => {
+                                                stash.updateGif(null);
                                                 setPoll(emptyPollDraft);
                                                 requestAnimationFrame(() =>
                                                     document
@@ -533,9 +575,11 @@ function CommitComposerBody({
                                     </ActionTooltip>
                                     <ActionTooltip
                                         label={
-                                            isScheduling
-                                                ? "Don't schedule"
-                                                : 'Schedule for later'
+                                            !isScheduling && stash.gif !== null
+                                                ? "A commit with a GIF can't be scheduled yet"
+                                                : isScheduling
+                                                  ? "Don't schedule"
+                                                  : 'Schedule for later'
                                         }
                                     >
                                         <Button
@@ -545,7 +589,11 @@ function CommitComposerBody({
                                             aria-label="Schedule"
                                             aria-expanded={isScheduling}
                                             aria-controls={`${id}-schedule`}
-                                            disabled={processing}
+                                            disabled={
+                                                processing ||
+                                                (!isScheduling &&
+                                                    stash.gif !== null)
+                                            }
                                             onClick={() => {
                                                 setTimezone(
                                                     Intl.DateTimeFormat().resolvedOptions()
@@ -676,6 +724,8 @@ export function CommitComposer({
         stash.key,
     );
     const [poll, setPoll] = useState<PollDraft | null>(null);
+    const gifKey = useGifProviderKey(user.id);
+    const [gifOpen, setGifOpen] = useState(false);
     const commitRules = useCommitRules();
     const isPosting = useRef(false);
 
@@ -689,6 +739,8 @@ export function CommitComposer({
             !hasImages &&
             poll === null &&
             !isScheduling,
+        canAttachGif: gifKey !== null && stash.gif === null,
+        onAttachGif: () => setGifOpen(true),
         initialKind: initialIssue,
         onCreated: () => {
             drop();
@@ -703,7 +755,8 @@ export function CommitComposer({
             ? characterCount(body)
             : bodyCharacterCount(body)) <= maxBodyLength &&
         (poll === null ||
-            poll.options.every((option) => option.trim().length > 0));
+            poll.options.every((option) => option.trim().length > 0)) &&
+        !(isScheduling && stash.gif !== null);
 
     const isSubmittable =
         isCommittable &&
@@ -711,6 +764,12 @@ export function CommitComposer({
             (scheduledAt !== '' && isExistingLocalTime(scheduledAt)));
 
     useEffect(() => discardSeriesStash(user.id), [user.id]);
+
+    useEffect(() => {
+        if (attachments.images.length > 0 && stash.gif !== null) {
+            stash.updateGif(null);
+        }
+    }, [attachments.images.length, stash]);
 
     const { committed } = usePage().flash;
 
@@ -777,6 +836,8 @@ export function CommitComposer({
                     images: attachments.images,
                     image_descriptions: attachments.descriptions,
                 }),
+                ...(stash.gif !== null &&
+                    !isScheduling && { ...gifFormFields(stash.gif) }),
                 ...(isScheduling && {
                     scheduled_at: new Date(scheduledAt)
                         .toISOString()
@@ -827,6 +888,9 @@ export function CommitComposer({
                         errors={errors}
                         onKeyDown={onKeyDown}
                         drop={drop}
+                        gifKey={gifKey}
+                        gifOpen={gifOpen}
+                        onGifOpenChange={setGifOpen}
                     />
                 </fieldset>
             )}
