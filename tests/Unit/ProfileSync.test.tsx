@@ -106,6 +106,7 @@ test.each(suggestionStates)(
                 githubSyncedAt: null,
                 activityGraphUrl: '/activity',
                 profileUrl: '/@viewer',
+                playlistUrl: null,
             }),
             (props) => 'options' in props && 'onSuccess' in props,
         );
