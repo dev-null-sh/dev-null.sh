@@ -51,6 +51,7 @@ use LogicException;
  * @property-read bool $push_mentions
  * @property-read bool $push_direct_remotes
  * @property-read bool $push_org_remotes
+ * @property-read string|null $notification_types
  * @property-read int $pasteis_received
  * @property-read int $pasteis_given_today
  * @property-read CarbonInterface|null $pasteis_given_on
@@ -114,6 +115,7 @@ use LogicException;
     'push_mentions',
     'push_direct_remotes',
     'push_org_remotes',
+    'notification_types',
     'pasteis_received',
     'pasteis_given_today',
     'pasteis_given_on',
@@ -173,6 +175,7 @@ final class User extends Authenticatable
         'push_mentions' => true,
         'push_direct_remotes' => true,
         'push_org_remotes' => true,
+        'notification_types' => null,
         'pasteis_received' => 0,
         'pasteis_given_today' => 0,
         'pasteis_given_on' => null,
@@ -499,6 +502,14 @@ final class User extends Authenticatable
     public function broadcastChannel(): string
     {
         return 'users.'.$this->id;
+    }
+
+    /**
+     * Which kinds of notifications the user chose to see, as `?type=` takes them, or all of them until they choose.
+     */
+    public function notificationTypes(): string
+    {
+        return $this->notification_types ?? 'all';
     }
 
     public function isAdmin(): bool

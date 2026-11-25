@@ -142,7 +142,7 @@ final class HandleInertiaRequests extends Middleware
                 'mustReadCommitRules' => $live(fn (): bool => $user instanceof User && $user->commit_rules_accepted_at === null, UserUpdate::Account),
                 'termsToAccept' => $live(fn (): ?string => $user instanceof User && ! $user->hasAcceptedCurrentTerms() ? config()->string('legal.terms_version') : null, UserUpdate::Account),
                 'log' => $live(fn (): ?Log => $request->user()?->log, UserUpdate::Account),
-                // Each browser filters notifications its own way, and reloading the count goes through its cookie.
+                // Counts only the kinds the user chose to see, taking over a browser's old cookie the first time.
                 'unreadNotificationsCount' => $live(fn (): int => $user instanceof User ? resolve(NotificationGroupsQuery::class)->unreadCount($user, ListNotificationsRequest::rememberedType($request, $user)) : 0, UserUpdate::Notifications),
                 'unreadMessagesCount' => $live(fn (): int => $user?->remotes_enabled ? resolve(ConversationsQuery::class)->unreadCount($user) : 0, UserUpdate::Messages, UserUpdate::Inbox),
                 'remotes' => $live(fn (): ?array => $user?->remotes_enabled ? [
