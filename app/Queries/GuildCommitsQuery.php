@@ -12,6 +12,7 @@ use App\Services\Features;
 use App\Services\Hashtags;
 use Closure;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Database\Query\JoinClause;
 use Illuminate\Pagination\Paginator;
@@ -119,6 +120,14 @@ final readonly class GuildCommitsQuery
     /** @return LazyCollection<int, string> */
     public function rootIds(Guild $guild, User $viewer, ?string $forRoot = null): LazyCollection
     {
+        return $this->matches($guild, $viewer, $forRoot)
+            ->map(fn (Fluent $commit): string => $commit->string('root_id')->value())
+            ->unique()->values();
+    }
+
+    /** @return LazyCollection<int, Fluent<array-key, mixed>> */
+    private function matches(Guild $guild, User $viewer, ?string $forRoot = null): LazyCollection
+    {
         $roots = Commit::query()->topLevel()->visibleTo($viewer)->withoutMutedAuthorsFor($viewer)
             ->when($forRoot !== null, fn (CommitBuilder $query): CommitBuilder => $query->whereKey($forRoot))
             ->select(['id', 'created_at']);
@@ -127,22 +136,23 @@ final readonly class GuildCommitsQuery
             ->where(fn (CommitBuilder $query): CommitBuilder => $query->where('guild_id', $guild->id)
                 ->orWhere(fn (CommitBuilder $query): CommitBuilder => $query->whereNull('guild_id')->whereLike('body', '%#%')))
             ->joinSub($roots, 'roots', fn (JoinClause $join): JoinClause => $join->on('roots.id', '=', DB::raw('coalesce(commits.root_id, commits.id)')))
-            ->orderByDesc('roots.created_at')->orderByDesc('roots.id')->orderBy('commits.id')
-            ->select(['roots.id', 'commits.body', 'commits.guild_id'])->toBase()->cursor()
+            ->newestFirst()
+            ->select(['commits.id', 'roots.id as root_id', 'commits.body', 'commits.guild_id'])->toBase()->cursor()
             ->map(fn (stdClass $commit): Fluent => new Fluent(get_object_vars($commit)))
             ->filter(fn (Fluent $commit): bool => $commit->get('guild_id') !== null
-                || (str_contains(str_replace('ς', 'σ', mb_strtolower($commit->string('body')->value())), '#'.str_replace('ς', 'σ', $guild->handle)) && in_array($guild->handle, $this->hashtags->handles($commit->string('body')->value()), true)))
-            ->map(fn (Fluent $commit): string => $commit->string('id')->value())
-            ->unique()->values();
+                || (str_contains(str_replace('ς', 'σ', mb_strtolower($commit->string('body')->value())), '#'.str_replace('ς', 'σ', $guild->handle)) && in_array($guild->handle, $this->hashtags->handles($commit->string('body')->value()), true)));
     }
 
     /** @return Paginator<int, Commit> */
     private function page(Guild $guild, User $viewer, int $page): Paginator
     {
-        $ids = $this->rootIds($guild, $viewer)->skip(($page - 1) * 30)->take(31)->all();
+        $ids = $this->matches($guild, $viewer)->skip(($page - 1) * 30)->take(31)
+            ->map(fn (Fluent $commit): string => $commit->string('id')->value())->all();
 
         $commits = Commit::query()->whereKey($ids)
             ->withVisibleReplyCount($viewer)->withReplyPreviews($viewer)->withCardDataFor($viewer)
+            ->with(['parent' => fn (BelongsTo $parent): BelongsTo => $parent
+                ->withTrashed()->visibleTo($viewer)->withoutMutedAuthorsFor($viewer)->with('author')])
             ->newestFirst()->get();
 
         return new Paginator($commits, 30, $page, ['path' => Paginator::resolveCurrentPath()]);
