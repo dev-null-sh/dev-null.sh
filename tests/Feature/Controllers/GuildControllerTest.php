@@ -386,6 +386,23 @@ it('shows nested guild mentions directly without exposing hidden roots or replie
     $this->getJson(route('commit-reply.index', $parent))->assertOk()->assertJsonPath('data.0.id', $match->id);
 });
 
+it('keeps a matching guild reply visible with only a tombstone for its deleted parent', function (): void {
+    $viewer = User::factory()->create(['handle' => 'admin']);
+    Guild::factory()->create(['handle' => 'rust']);
+    $root = Commit::factory()->create();
+    $parent = Commit::factory()->for($root, 'parent')->create(['body' => 'Deleted parent context']);
+    $match = Commit::factory()->for($parent, 'parent')->create(['body' => 'A public #rust reply']);
+    $parent->delete();
+
+    $this->actingAs($viewer)->get(route('guild.show', 'rust'))->assertOk()->assertInertia(fn ($page) => $page
+        ->has('commits', 1)->where('commits.0.id', $match->id)->where('commits.0.body', 'A public #rust reply')
+        ->where('commits.0.parent', [
+            'id' => $parent->id,
+            'parent_id' => $root->id,
+            'deleted_at' => now()->startOfSecond()->toJSON(),
+        ]));
+});
+
 it('keeps an unavailable parent out of a matching guild reply', function (string $hidden): void {
     $viewer = User::factory()->create(['handle' => 'admin']);
     Guild::factory()->create(['handle' => 'rust']);

@@ -150,6 +150,24 @@ it('shows a nested guild mention instead of its untagged root', function (): voi
         ->assertJsonPath('data.0.parent.id', $parent->id);
 });
 
+it('keeps a matching guild reply visible with only a tombstone for its deleted parent', function (): void {
+    Guild::factory()->create(['handle' => 'rust']);
+    $root = Commit::factory()->create();
+    $parent = Commit::factory()->for($root, 'parent')->create(['body' => 'Deleted parent context']);
+    $match = Commit::factory()->for($parent, 'parent')->create(['body' => 'A public #rust reply']);
+    $parent->delete();
+
+    signedApiRequest($this->keyPair, 'GET', route('api-guild.show', 'rust'))
+        ->assertOk()
+        ->assertJsonPath('data.*.id', [$match->id])
+        ->assertJsonPath('data.0.body', 'A public #rust reply')
+        ->assertJsonPath('data.0.parent', [
+            'id' => $parent->id,
+            'parent_id' => $root->id,
+            'deleted_at' => now()->toIso8601ZuluString(),
+        ]);
+});
+
 it('pages the board 30 matching commits at a time', function (): void {
     $rust = Guild::factory()->create(['handle' => 'rust']);
     $oldest = Commit::factory()->for($rust)->create(['created_at' => now()->subYear()]);
