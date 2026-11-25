@@ -2,8 +2,11 @@
 
 declare(strict_types=1);
 
+use App\Actions\CreateOrgMembers;
 use App\Enums\OrgEvent;
+use App\Enums\OrgRole;
 use App\Models\Conversation;
+use App\Models\ConversationParticipant;
 use App\Models\Message;
 use App\Models\MessageImage;
 use App\Models\MessageVoice;
@@ -45,6 +48,40 @@ it('lets only maintainers add, up to a hundred', function (): void {
     $this->postJson(route('org-member.store', $org), ['members' => [$last->handle], 'share_history' => true])->assertNoContent();
     $this->postJson(route('org-member.store', $org), ['members' => [$extra->handle], 'share_history' => true])
         ->assertUnprocessable()->assertJsonValidationErrors(['members.0' => 'the org is full ('.Conversation::MAX_MEMBERS.')']);
+});
+
+it('adds someone once when two maintainers add them at the same moment', function (): void {
+    $mark = User::factory()->create();
+    [$nuno, $taylor] = followersOf($mark, 2);
+    $org = createOrg($mark, [$nuno]);
+    // Another maintainer's request adds Taylor after this one's check found Taylor missing...
+    $this->app->beforeResolving(CreateOrgMembers::class, fn () => ConversationParticipant::query()->create([
+        'conversation_id' => $org, 'user_id' => $taylor->id, 'role' => OrgRole::Contributor,
+        'visible_from_id' => 0, 'read_through_id' => 0, 'last_message_at' => now(),
+    ]));
+
+    $this->actingAs($mark)->postJson(route('org-member.store', $org), ['members' => [$taylor->handle], 'share_history' => true])
+        ->assertNoContent();
+
+    expect(ConversationParticipant::query()->where('conversation_id', $org)->where('user_id', $taylor->id)->count())->toBe(1);
+});
+
+it('keeps the cap when two maintainers fill the last place at the same moment', function (): void {
+    $mark = User::factory()->create();
+    $followers = followersOf($mark, Conversation::MAX_MEMBERS);
+    [$last, $extra] = array_slice($followers, -2);
+    $org = createOrg($mark, array_slice($followers, 0, -2));
+    // Another maintainer's request takes the last place after this one's check found it free...
+    $this->app->beforeResolving(CreateOrgMembers::class, fn () => ConversationParticipant::query()->create([
+        'conversation_id' => $org, 'user_id' => $last->id, 'role' => OrgRole::Contributor,
+        'visible_from_id' => 0, 'read_through_id' => 0, 'last_message_at' => now(),
+    ]));
+
+    $this->actingAs($mark)->postJson(route('org-member.store', $org), ['members' => [$extra->handle], 'share_history' => true])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['members' => 'An org holds up to '.Conversation::MAX_MEMBERS.' people.']);
+
+    expect(ConversationParticipant::query()->where('conversation_id', $org)->count())->toBe(Conversation::MAX_MEMBERS);
 });
 
 it('removes people, who then lose access', function (): void {
