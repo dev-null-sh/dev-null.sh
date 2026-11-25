@@ -1,6 +1,23 @@
-import { Link } from '@inertiajs/react';
+import { Link, router } from '@inertiajs/react';
 import type { InertiaLinkProps } from '@inertiajs/react';
+import { useRef, useState } from 'react';
+import { catchUpAfterRestore, pageReadAt } from '@/lib/realtime';
 import { cn } from '@/lib/utils';
+
+type Tab = {
+    title: string;
+    /**
+     * Shown instead of the title on phones, where a long title would wrap.
+     */
+    shortTitle?: string;
+    href: NonNullable<InertiaLinkProps['href']>;
+    isActive: boolean;
+    onClick?: InertiaLinkProps['onClick'];
+    prefetch?: boolean;
+    component?: InertiaLinkProps['component'];
+    pageProps?: InertiaLinkProps['pageProps'];
+    onLoadError?: () => false | void;
+};
 
 export function PageTabs({
     label,
@@ -17,41 +34,98 @@ export function PageTabs({
     prefetch?: boolean;
     only?: InertiaLinkProps['only'];
     reset?: string[];
-    tabs: {
-        title: string;
-        /**
-         * Shown instead of the title on phones, where a long title would wrap.
-         */
-        shortTitle?: string;
-        href: NonNullable<InertiaLinkProps['href']>;
-        isActive: boolean;
-        onClick?: InertiaLinkProps['onClick'];
-    }[];
+    tabs: Tab[];
 }) {
+    const [pending, setPending] = useState<string | null>(null);
+    // An instant visit fills its page in place, without the navigation that tells when what it shows was read: from a
+    // prefetch it catches up like any prefetched page, and from its own request it was read once that started.
+    const instantRead = useRef<'prefetched' | number | null>(null);
+    const active = pending ?? tabs.find((tab) => tab.isActive)?.title;
+    const finish = (title: string) => {
+        setPending((current) => (current === title ? null : current));
+    };
+    const headers = reset?.length
+        ? { 'X-Inertia-Reset': reset.join(',') }
+        : undefined;
     const indicatorName = `tab-indicator-${label.toLowerCase().replaceAll(/[^a-z0-9]+/gu, '-')}`;
 
     return (
-        <nav aria-label={label} className="flex border-b">
+        <nav
+            aria-label={label}
+            aria-busy={pending !== null}
+            className="flex border-b"
+        >
             {tabs.map((tab) => (
                 <Link
                     key={tab.title}
                     href={tab.href}
                     onClick={tab.onClick}
-                    prefetch={prefetch}
+                    component={tab.component}
+                    pageProps={tab.pageProps}
+                    onHttpException={tab.onLoadError}
+                    onNetworkError={tab.onLoadError}
+                    prefetch={
+                        tab.isActive || tab.prefetch === false
+                            ? false
+                            : prefetch
+                    }
                     viewTransition
                     preserveScroll={preserveScroll}
                     preserveState={preserveState}
                     only={only}
                     // Link exposes custom headers for both visits and prefetches, but no reset option.
-                    headers={
-                        reset?.length
-                            ? { 'X-Inertia-Reset': reset.join(',') }
-                            : undefined
-                    }
+                    headers={headers}
+                    onBefore={() => {
+                        setPending(tab.title);
+                        const prefetching = router.getPrefetching(tab.href, {
+                            only,
+                            headers,
+                            preserveScroll,
+                        });
+                        instantRead.current =
+                            tab.component !== undefined &&
+                            (prefetching ??
+                                router.getCached(tab.href, {
+                                    only,
+                                    headers,
+                                    preserveScroll,
+                                })) !== null
+                                ? 'prefetched'
+                                : null;
+                        // Failed in-flight prefetches do not fire the consuming visit's onFinish.
+                        void prefetching?.response.catch(() => {
+                            finish(tab.title);
+                            tab.onLoadError?.();
+                        });
+                    }}
+                    onStart={() => {
+                        setPending(tab.title);
+
+                        if (
+                            tab.component !== undefined &&
+                            instantRead.current === null
+                        ) {
+                            instantRead.current = Date.now();
+                        }
+                    }}
+                    onFinish={() => finish(tab.title)}
+                    onSuccess={() => {
+                        const read = instantRead.current;
+                        instantRead.current = null;
+
+                        if (read === 'prefetched') {
+                            catchUpAfterRestore();
+                        } else if (read !== null) {
+                            pageReadAt(read);
+                        }
+                    }}
                     aria-current={tab.isActive ? 'page' : undefined}
                     className={cn(
                         'relative flex flex-1 justify-center text-[15px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
-                        { 'text-foreground': tab.isActive },
+                        {
+                            'text-foreground': active === tab.title,
+                            'bg-accent': pending === tab.title,
+                        },
                     )}
                 >
                     <span className="py-3.5">
@@ -68,7 +142,7 @@ export function PageTabs({
                             tab.title
                         )}
                     </span>
-                    {tab.isActive && (
+                    {active === tab.title && (
                         <span
                             aria-hidden
                             className="absolute inset-x-0 bottom-0 h-[3px] bg-primary [view-transition-class:tab-indicator]"
@@ -77,6 +151,9 @@ export function PageTabs({
                     )}
                 </Link>
             ))}
+            <span role="status" className="sr-only">
+                {pending ? `Loading ${pending}…` : ''}
+            </span>
         </nav>
     );
 }

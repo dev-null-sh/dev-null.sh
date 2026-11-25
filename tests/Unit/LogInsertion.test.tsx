@@ -84,7 +84,9 @@ function scheduleEffect(
         });
     }
 }
+const Deferred = () => null;
 vi.doMock('@inertiajs/react', () => ({
+    Deferred,
     Head: () => null,
     Link: () => null,
     usePage: () => ({ props: { auth: { organizations: [], user: viewer } } }),
@@ -122,6 +124,14 @@ type Element = ReactElement<Record<string, unknown>>;
 function elements(node: ReactNode): Element[] {
     if (!React.isValidElement(node)) return [];
     const element = node as Element;
+    if (element.type === Deferred) {
+        // The loaded log renders in place of its skeleton.
+        const loaded = element.props.children as ReactElement<
+            Record<string, unknown>,
+            (props: Record<string, unknown>) => ReactNode
+        >;
+        return elements(loaded.type(loaded.props));
+    }
     return [
         element,
         ...React.Children.toArray(element.props.children as ReactNode).flatMap(
