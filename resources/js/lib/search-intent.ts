@@ -41,6 +41,21 @@ export function searchesCommits(intent: SearchIntent): boolean {
 }
 
 /**
+ * Like `CommitSearchQuery`, which ignores shorter terms.
+ */
+const shortestCommitTerm = 3;
+
+/**
+ * A word that reads like a handle ("php", "Laravel") is searched as a developer, but it may still be a topic, so the
+ * full commit search stays one step away. Only an explicit "@" asks for developers alone.
+ */
+export function offersCommitSearch(term: string): boolean {
+    const trimmed = term.trim();
+
+    return trimmed.length >= shortestCommitTerm && !handle.test(trimmed);
+}
+
+/**
  * A lone "@" announces a developer search but has nothing to search for yet.
  */
 export function awaitsDeveloperName(term: string): boolean {
