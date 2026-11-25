@@ -24,18 +24,27 @@ export const EVENT_THEME_CHOICES: readonly {
  */
 export function setEventThemeChoice(choice: EventThemeChoice): void {
     const root = document.documentElement;
-    const theme =
+
+    applyEventTheme(
         choice === 'auto'
             ? root.dataset.autoEventTheme
             : choice === 'none'
               ? undefined
-              : choice;
+              : choice,
+    );
 
-    if (theme === undefined) {
+    setCookie('event_theme', choice);
+}
+
+/**
+ * Shows a theme on the page without saving it in this browser, for one saved on the account elsewhere.
+ */
+export function applyEventTheme(theme: string | null | undefined): void {
+    const root = document.documentElement;
+
+    if (theme === null || theme === undefined) {
         delete root.dataset.eventTheme;
     } else {
         root.dataset.eventTheme = theme;
     }
-
-    setCookie('event_theme', choice);
 }

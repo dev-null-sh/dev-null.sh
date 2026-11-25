@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Models\User;
 use Illuminate\Support\Facades\Date;
 
 it('themes the page when the calendar calls for it', function (): void {
@@ -144,4 +145,27 @@ it('tells the not found page about the theme', function (): void {
         ->assertInertia(fn ($page) => $page
             ->component('error')
             ->where('eventTheme', 'halloween'));
+});
+
+it('follows the choice saved on the account over the browser cookie', function (): void {
+    Date::setTestNow('2026-12-25 12:00:00');
+    $user = User::factory()->create(['event_theme' => 'halloween']);
+
+    $this->actingAs($user)
+        ->withUnencryptedCookie('event_theme', 'none')
+        ->get(route('log.show', 'latest'))
+        ->assertOk()
+        ->assertSee('data-event-theme="halloween"', false)
+        ->assertInertia(fn ($page) => $page->where('eventTheme', 'halloween')->where('eventThemeChoice', 'halloween'));
+});
+
+it('follows the browser cookie until the account saves a choice', function (): void {
+    Date::setTestNow('2026-12-25 12:00:00');
+
+    $this->actingAs(User::factory()->create())
+        ->withUnencryptedCookie('event_theme', 'none')
+        ->get(route('log.show', 'latest'))
+        ->assertOk()
+        ->assertDontSee('data-event-theme="', false)
+        ->assertInertia(fn ($page) => $page->where('eventTheme', null)->where('eventThemeChoice', 'none'));
 });
