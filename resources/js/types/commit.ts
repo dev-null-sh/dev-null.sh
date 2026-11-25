@@ -16,6 +16,7 @@ export type Embed = {
 };
 
 export type LinkPreview = {
+    commit_preview_url?: string | null;
     url: string;
     title: string | null;
     description: string | null;

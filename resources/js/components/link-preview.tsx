@@ -1,6 +1,7 @@
 import { usePage } from '@inertiajs/react';
 import type { ReactNode } from 'react';
 import { useEffect, useState } from 'react';
+import { CommitLinkPreview } from '@/components/commit-link-preview';
 import { LinkEmbed } from '@/components/link-embed';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { RealtimeChannel } from '@/lib/realtime';
@@ -185,20 +186,48 @@ function LinkPreviewSkeleton() {
     );
 }
 
-export function LinkPreview({
-    refreshUrl,
-    preview: initialPreview,
-    isStatic = false,
-    source,
-    footer,
-}: {
+type LinkPreviewProps = {
     refreshUrl: string;
     preview: LinkPreviewData;
     isStatic?: boolean;
     source?: LinkPreviewSource;
     /** Shown inside the card, under the page it links to. */
     footer?: ReactNode;
-}) {
+    suppressLinkedPreview?: boolean;
+};
+
+export function LinkPreview(props: LinkPreviewProps) {
+    const url = props.preview.commit_preview_url;
+
+    if (url) {
+        if (props.suppressLinkedPreview) {
+            return null;
+        }
+
+        const preview = (
+            <CommitLinkPreview key={url} url={url} isStatic={props.isStatic} />
+        );
+
+        return props.footer ? (
+            <div className="mt-3 overflow-hidden rounded-lg border">
+                {preview}
+                {props.footer}
+            </div>
+        ) : (
+            preview
+        );
+    }
+
+    return <ExternalLinkPreview {...props} />;
+}
+
+function ExternalLinkPreview({
+    refreshUrl,
+    preview: initialPreview,
+    isStatic = false,
+    source,
+    footer,
+}: LinkPreviewProps) {
     const { preview, isWaiting } = useFetchedLinkPreview(
         refreshUrl,
         initialPreview,
