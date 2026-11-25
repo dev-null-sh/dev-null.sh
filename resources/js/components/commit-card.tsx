@@ -35,6 +35,7 @@ import {
 } from '@/components/graph-rail';
 import { HiddenLinkPreviewContext } from '@/components/hidden-link-preview-context';
 import { LinkPreview } from '@/components/link-preview';
+import { LinkTopicFooter } from '@/components/link-topic-footer';
 import { Hashtag } from '@/components/linkified-text';
 import { LiveStreamTrigger } from '@/components/live-stream-card';
 import { QuotedCommit } from '@/components/quoted-commit';
@@ -436,7 +437,32 @@ export function CommitCard({
                                         because you joined{' '}
                                         <Hashtag
                                             hashtag={`#${commit.joined_guild}`}
+                                            guild={
+                                                commit.guild?.handle ===
+                                                commit.joined_guild
+                                                    ? commit.guild
+                                                    : undefined
+                                            }
+                                            guildMentions={
+                                                commit.guild_mentions
+                                            }
                                         />
+                                    </p>
+                                )}
+                            {commit.guild_handle &&
+                                !(
+                                    commit.joined_guild &&
+                                    component === 'log/show'
+                                ) &&
+                                component !== 'guild/show' &&
+                                component !== 'search/index' && (
+                                    <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+                                        posted in{' '}
+                                        <Hashtag
+                                            hashtag={`#${commit.guild_handle}`}
+                                            guild={commit.guild}
+                                        />{' '}
+                                        · not shown in general logs
                                     </p>
                                 )}
                             {commit.parent && isDeleted(commit.parent) && (
@@ -469,6 +495,7 @@ export function CommitCard({
                             <div ref={bodyRef} style={translation.bodyStyle}>
                                 <FoldedCommitBody
                                     segments={translation.segments}
+                                    guildMentions={translation.guildMentions}
                                     mentions={commit.mentions}
                                     organizationMentions={
                                         commit.organization_mentions
@@ -509,6 +536,13 @@ export function CommitCard({
                                         )}
                                         preview={commit.link_preview}
                                         source={{ commitId: commit.id }}
+                                        footer={
+                                            commit.link_topic && (
+                                                <LinkTopicFooter
+                                                    topic={commit.link_topic}
+                                                />
+                                            )
+                                        }
                                     />
                                 )}
                             {isFocused && (

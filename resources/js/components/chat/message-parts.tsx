@@ -37,7 +37,10 @@ export function MessageText({
     message,
     isMine,
 }: {
-    message: Pick<Message, 'body' | 'body_segments' | 'mentions'>;
+    message: Pick<
+        Message,
+        'body' | 'body_segments' | 'mentions' | 'guild_mentions'
+    >;
     isMine: boolean;
 }) {
     const segments: BodySegment[] =
@@ -47,6 +50,7 @@ export function MessageText({
         <CommitBody
             segments={segments}
             mentions={message.mentions ?? null}
+            guildMentions={message.guild_mentions}
             linksEveryMention={false}
             className={cn('flow-root leading-snug', { [onPrimary]: isMine })}
         />

@@ -5,27 +5,24 @@ import { colorsIn } from '../../resources/js/lib/colors.ts';
 const values = (text: string) => colorsIn(text).map((color) => color.value);
 
 await test('finds hex colors and where they are', () => {
-    assert.deepEqual(
-        colorsIn(
-            'Brand orange is #ff8a4c, white is #fff, and #ff8a4c80 or #fffa',
-        ),
-        [
-            { value: 'ff8a4c', index: 16, length: 7 },
-            { value: 'fff', index: 34, length: 4 },
-            { value: 'ff8a4c80', index: 44, length: 9 },
-            { value: 'fffa', index: 57, length: 5 },
-        ],
-    );
+    assert.deepEqual(colorsIn('color(#Fff), color(#dead) #0ff'), [
+        { value: 'Fff', label: '#Fff', index: 0, length: 11 },
+        { value: 'dead', label: '#dead', index: 13, length: 12 },
+        { value: '0ff', label: '#0ff', index: 26, length: 4 },
+    ]);
 });
 
 await test('finds a hex color as a whole word, with punctuation after it left out', () => {
     const cases: [string, string[]][] = [
-        ['#FFF', ['FFF']],
-        ['Is it #fff?!', ['fff']],
-        ['(#ff8a4c)', []],
-        ['Line\n>#fff', ['fff']],
+        ['COLOR(#123)', ['123']],
+        ['Try (color(#ff8a4c))!', ['ff8a4c']],
+        ['Try color(#ff8a4c80)', ['ff8a4c80']],
+        ['Is it #0ff?!', ['0ff']],
+        ['(#0f0)', []],
+        ['Line\n>#0ff', ['0ff']],
         ['＃ff8a4c', ['ff8a4c']],
-        ['Tab\t#abc', ['abc']],
+        ['＃fff', ['fff']],
+        ['Tab\t#0bc', ['0bc']],
     ];
 
     for (const [text, expected] of cases) {
@@ -37,25 +34,27 @@ await test('ignores what only looks like a hex color', () => {
     for (const text of [
         'Issue #123',
         'Gray #333 or #9999',
-        '#fffff and #fffffff',
-        '#ff8a4g',
-        '#fff-x',
-        '#ff8a4c.com',
-        'a#fff',
-        'C#fff',
-        '##fff',
-        '>>#fff',
+        '#fff #dead #ff8a4c #deadbeef',
+        'color(#fffff) color(#fffffff) color(#deadg)',
+        'discolor(#dead) #color(#dead)',
+        '#0f8a4g',
+        '#0ff-x',
+        '#0f8a4c.com',
+        'a#0ff',
+        'C#0ff',
+        '##0ff',
+        '>>#0ff',
     ]) {
         assert.deepEqual(values(text), [], text);
     }
 });
 
 await test('finds a hex color after the ">" that starts a whole body', () => {
-    assert.deepEqual(colorsIn('>#fff', true), [
-        { value: 'fff', index: 1, length: 4 },
+    assert.deepEqual(colorsIn('>#0ff', true), [
+        { value: '0ff', label: '#0ff', index: 1, length: 4 },
     ]);
-    assert.deepEqual(colorsIn('>#fff'), []);
-    assert.deepEqual(colorsIn('>>#fff', true), []);
+    assert.deepEqual(colorsIn('>#0ff'), []);
+    assert.deepEqual(colorsIn('>>#0ff', true), []);
 });
 
 await test('finds digit-only hex colors that cannot be issue numbers', () => {
@@ -67,6 +66,6 @@ await test('finds digit-only hex colors that cannot be issue numbers', () => {
 });
 
 await test('ends a hex color at a zero-width character, as a hashtag ends', () => {
-    assert.deepEqual(values('#fff\u200Bnext and #abc\u2060'), ['fff', 'abc']);
-    assert.deepEqual(values('#fff\u200Cx'), ['fff']);
+    assert.deepEqual(values('#0ff\u200Bnext and #0bc\u2060'), ['0ff', '0bc']);
+    assert.deepEqual(values('#0ff\u200Cx'), ['0ff']);
 });

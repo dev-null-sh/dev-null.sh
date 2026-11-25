@@ -12,6 +12,7 @@ use App\Enums\UserUpdate;
 use App\Events\CommitsUpdated;
 use App\Events\ProfilesUpdated;
 use App\Events\UsersUpdated;
+use App\Exceptions\GuildPaused;
 use App\Jobs\CheckUserLevel;
 use App\Jobs\EmbedCommit;
 use App\Jobs\LinkCommitTopics;
@@ -20,6 +21,7 @@ use App\Jobs\ProcessCommitHeadlines;
 use App\Jobs\ReplyAsTom;
 use App\Jobs\UnfurlLink;
 use App\Models\Commit;
+use App\Models\Guild;
 use App\Models\LinkPreview;
 use App\Models\Organization;
 use App\Models\User;
@@ -41,6 +43,7 @@ final readonly class CreateCommit
         private CreateMentionNotifications $createMentionNotifications,
         private CreateFirstCommitNotifications $createFirstCommitNotifications,
         private CreateCommitImages $createCommitImages,
+        private CreateLinkPreview $createLinkPreview,
         private CreateWorldReply $createWorldReply,
         private UpdateCommitHotScores $updateCommitHotScores,
         private TheAlgorithm $theAlgorithm,
@@ -62,7 +65,7 @@ final readonly class CreateCommit
      * @param  array<int, string|null>  $imageDescriptions
      * @param  array<string, string>  $replyRecipients
      */
-    public function handle(User $user, string $body, ?Commit $parent = null, ?Commit $quotedCommit = null, array $images = [], array $imageDescriptions = [], bool|string $linkPreview = true, ?NewPoll $poll = null, array $replyRecipients = [], ?Organization $organization = null): Commit
+    public function handle(User $user, string $body, ?Commit $parent = null, ?Commit $quotedCommit = null, array $images = [], array $imageDescriptions = [], bool|string $linkPreview = true, ?NewPoll $poll = null, array $replyRecipients = [], ?Organization $organization = null, ?Guild $guild = null): Commit
     {
         $url = match ($linkPreview) {
             true => $this->urls->first($body),
@@ -70,8 +73,12 @@ final readonly class CreateCommit
             default => $linkPreview,
         };
 
-        return DB::transaction(function () use ($user, $body, $parent, $quotedCommit, $images, $imageDescriptions, $url, $poll, $replyRecipients, $organization): Commit {
-            $linkPreview = $this->linkPreviewFor($url);
+        return DB::transaction(function () use ($user, $body, $parent, $quotedCommit, $images, $imageDescriptions, $url, $poll, $replyRecipients, $organization, $guild): Commit {
+            if ($guild instanceof Guild && Guild::query()->whereKey($guild->id)->sharedLock()->firstOrFail()->user_id === null) {
+                throw new GuildPaused;
+            }
+
+            $linkPreview = $url === null ? null : $this->createLinkPreview->handle($url);
             $createdAt = now();
             $hasGoodReputation = $user->hasGoodReputation();
             $mentions = $this->mentionedUsers->get($body);
@@ -79,8 +86,11 @@ final readonly class CreateCommit
             $commit = Commit::query()->create([
                 'user_id' => $user->id,
                 'author_id' => $organization->id ?? $user->id,
+                'guild_id' => $guild?->id,
                 'body' => $this->emojiShortcodes->replace($body),
-                'mentions' => [...$replyRecipients, ...$mentions],
+                // Keyed by handle, which PHP makes an integer for a handle of digits, like "123", so a spread would
+                // renumber it and link the mention to someone else...
+                'mentions' => array_replace($replyRecipients, $mentions),
                 'parent_id' => $parent?->id,
                 'root_id' => $parent?->threadRootId(),
                 'status' => $user->isAdmin() || $hasGoodReputation ? CommitStatus::Approved : CommitStatus::Pending,
@@ -166,20 +176,5 @@ final readonly class CreateCommit
             $newPoll->options,
             array_keys($newPoll->options),
         ));
-    }
-
-    /**
-     * Commits that link to the same URL share one preview, so a page is fetched once however often it is linked.
-     */
-    private function linkPreviewFor(?string $url): ?LinkPreview
-    {
-        if ($url === null) {
-            return null;
-        }
-
-        return LinkPreview::query()->firstOrCreate(
-            ['url_hash' => hash('sha256', $url)],
-            ['url' => $url],
-        );
     }
 }

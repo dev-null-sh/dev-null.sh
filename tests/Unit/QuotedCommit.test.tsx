@@ -132,6 +132,29 @@ test('shows the images, link card and embed of a quoted commit inside the single
     }
 });
 
+test('keeps what others say about a link whose card has no title', async () => {
+    const body = await render(false, {
+        ...commit,
+        link_preview: {
+            url: 'https://laravel.com',
+            title: null,
+            description: null,
+            image_url: null,
+            site_name: null,
+            embed: null,
+            is_pending: false,
+        },
+        link_topic: {
+            url: 'https://dev-null.sh/link/laravel.com',
+            others: 1,
+            authors: [],
+        },
+    });
+
+    assert.match(body, /1 other commit about this link/);
+    assert.equal(body.match(/<a\b/g)?.length, 1);
+});
+
 test('cuts a long quoted commit off at its preview', async () => {
     const body = await render(false, {
         ...commit,

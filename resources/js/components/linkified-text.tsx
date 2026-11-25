@@ -16,7 +16,9 @@ import { UserPreview } from '@/components/user-preview';
 import { typedProse, withoutCode } from '@/lib/code';
 import type { Color } from '@/lib/colors';
 import { colorsIn } from '@/lib/colors';
+import { hashtagPattern } from '@/lib/hashtags';
 import { mentionPattern } from '@/lib/mentions';
+import { pasteisParts } from '@/lib/pasteis';
 import {
     hrefFor,
     shortenUrl,
@@ -27,12 +29,11 @@ import { cn, shortHash } from '@/lib/utils';
 import { show } from '@/routes/mention';
 import { show as showOrganizationMention } from '@/routes/organization-mention';
 import type { BodySegment, Commit } from '@/types';
+import type { GuildBadge, GuildMentions } from '@/types/guild';
 
 // A link to a commit on dev/null itself, nothing after its id, so it can show as the author and the commit's hash.
 const commitLinkPattern =
     /^https?:\/\/(?:www\.)?dev-null\.sh\/@([A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38})\/commits\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
-const hashtagPattern =
-    /(?<![\p{L}\p{M}\p{N}_&/#>-])#\p{L}[\p{L}\p{M}\p{N}_]*/gu;
 const gitHubHostPattern = /^(?:www\.)?github\.com$/i;
 const gitHubOwnerPattern =
     /^[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}$/;
@@ -154,6 +155,40 @@ export function hasMention(segments: BodySegment[]): boolean {
             segment.type === 'text' &&
             segment.text.search(mentionPattern) !== -1,
     );
+}
+
+export function typedGuildHandles(text: string): string[] {
+    return [
+        ...new Set(
+            typedProse(text).flatMap((part, index) => {
+                const prose = part.replace(
+                    index === 0 ? /^> ?|(?<=\n)> ?/g : /(?<=\n)> ?/g,
+                    '',
+                );
+                const ranges = [
+                    ...colorsIn(prose, index === 0),
+                    ...[...prose.matchAll(urlPattern)].flatMap((match) => {
+                        const url = withoutTrailingPunctuation(match[0]);
+
+                        return hrefFor(url) === null
+                            ? []
+                            : [{ index: match.index, length: url.length }];
+                    }),
+                ];
+
+                return [...prose.matchAll(hashtagPattern)]
+                    .filter(
+                        (match) =>
+                            !ranges.some(
+                                (range) =>
+                                    match.index >= range.index &&
+                                    match.index < range.index + range.length,
+                            ),
+                    )
+                    .map((match) => match[0].slice(1).toLowerCase());
+            }),
+        ),
+    ];
 }
 
 // Like X, the hidden parts of a shortened URL stay in the text, so copying it or a screen reader gets the whole URL.
@@ -582,25 +617,21 @@ function withPasteis(text: string, pasteisMode: boolean): ReactNode {
         return <CertificateText text={text} />;
     }
 
-    return text
-        .split(
-            /(?<![\p{L}\p{M}\p{N}_])(pastel|pasteis|pastéis)(?![\p{L}\p{M}\p{N}_])/giu,
-        )
-        .map((part, index) =>
-            index % 2 === 0 ? (
-                <CertificateText key={index} text={part} />
-            ) : (
-                <img
-                    key={index}
-                    src="/pastel-de-nata.svg"
-                    alt={part}
-                    title={part}
-                    width={20}
-                    height={20}
-                    className="inline-block size-[1.25em] object-contain align-[-0.2em]"
-                />
-            ),
-        );
+    return pasteisParts(text).map((part, index) =>
+        part.pastel ? (
+            <img
+                key={index}
+                src="/pastel-de-nata.svg"
+                alt={part.text}
+                title={part.text}
+                width={20}
+                height={20}
+                className="inline-block size-[1.25em] object-contain align-[-0.2em]"
+            />
+        ) : (
+            <CertificateText key={index} text={part.text} />
+        ),
+    );
 }
 
 function withWordmarks(
@@ -629,34 +660,71 @@ function withWordmarks(
         );
 }
 
-export function Hashtag({ hashtag }: { hashtag: string }) {
-    const { auth, guilds } = usePage().props;
-
-    if (!auth.user) {
-        return hashtag;
-    }
-
-    const guild = guilds?.find(
-        (guild) => guild.handle === hashtag.slice(1).toLowerCase(),
-    );
+export function Hashtag({
+    hashtag,
+    guild: postedGuild,
+    guildMentions,
+}: {
+    hashtag: string;
+    guild?: GuildBadge | null;
+    guildMentions?: GuildMentions;
+}) {
+    const { auth, guildsEnabled } = usePage().props;
+    const handle = hashtag.slice(1).toLowerCase();
+    const guild =
+        postedGuild ??
+        (guildMentions && Object.hasOwn(guildMentions, handle)
+            ? guildMentions[handle]
+            : undefined);
 
     if (guild) {
+        const canOpenGuild = !!auth.user && guildsEnabled;
+        const className =
+            'inline-flex max-w-full items-baseline gap-[0.3em] rounded-sm bg-muted px-1 py-0.5 align-baseline font-mono text-[0.875em] leading-none font-normal text-foreground';
+        const content = (
+            <>
+                <GuildIcon
+                    guild={{
+                        emoji: guild.emoji,
+                        icon_url: canOpenGuild ? guild.icon_url : null,
+                    }}
+                    className="size-[1em] self-center rounded-[2px] bg-transparent"
+                />
+                <span className="min-w-0 truncate">{guild.name}</span>
+            </>
+        );
+
+        if (!canOpenGuild) {
+            return (
+                <span
+                    title={`${guild.name} · ${hashtag}`}
+                    className={className}
+                    data-test="guild-mention"
+                >
+                    {content}
+                </span>
+            );
+        }
+
         return (
             <Link
                 prefetch
                 href={showGuild(guild.handle)}
                 title={`${guild.name} · ${hashtag}`}
                 aria-label={`${guild.name}, ${hashtag} guild`}
-                className="inline-flex max-w-full items-baseline gap-[0.3em] rounded-sm bg-muted px-1 py-0.5 align-baseline font-mono text-[0.875em] leading-none font-normal text-foreground transition-colors hover:bg-primary-soft hover:text-primary-hover focus-visible:outline-2 focus-visible:outline-offset-0 focus-visible:outline-ring"
+                className={cn(
+                    className,
+                    'transition-colors hover:bg-primary-soft hover:text-primary-hover focus-visible:outline-2 focus-visible:outline-offset-0 focus-visible:outline-ring',
+                )}
                 data-test="guild-mention"
             >
-                <GuildIcon
-                    guild={guild}
-                    className="size-[1em] self-center rounded-[2px] bg-transparent"
-                />
-                <span className="min-w-0 truncate">{guild.name}</span>
+                {content}
             </Link>
         );
+    }
+
+    if (!auth.user) {
+        return hashtag;
     }
 
     return (
@@ -676,6 +744,7 @@ function withHashtags(
     offset: number,
     hashtags: RegExpExecArray[],
     pasteisMode: boolean,
+    guildMentions: GuildMentions | undefined,
 ): ReactNode[] {
     const parts: ReactNode[] = [];
     let position = 0;
@@ -693,7 +762,11 @@ function withHashtags(
                 offset + position,
                 pasteisMode,
             ),
-            <Hashtag key={`hashtag-${hashtag.index}`} hashtag={hashtag[0]} />,
+            <Hashtag
+                key={`hashtag-${hashtag.index}`}
+                hashtag={hashtag[0]}
+                guildMentions={guildMentions}
+            />,
         );
 
         position = index + hashtag[0].length;
@@ -715,6 +788,7 @@ function withColors(
     colors: Color[],
     hashtags: RegExpExecArray[],
     pasteisMode: boolean,
+    guildMentions: GuildMentions | undefined,
 ): ReactNode[] {
     const parts: ReactNode[] = [];
     let position = 0;
@@ -732,6 +806,7 @@ function withColors(
                 offset + position,
                 hashtags,
                 pasteisMode,
+                guildMentions,
             ),
             <span
                 key={`color-${color.index}`}
@@ -743,7 +818,7 @@ function withColors(
                     className="mr-0.5 inline-block size-[0.75em] rounded-sm border border-border align-[-0.05em]"
                     style={{ backgroundColor: `#${color.value}` }}
                 />
-                {text.slice(index, index + color.length)}
+                {color.label}
             </span>,
         );
 
@@ -756,6 +831,7 @@ function withColors(
             offset + position,
             hashtags,
             pasteisMode,
+            guildMentions,
         ),
     );
 
@@ -772,6 +848,7 @@ function withMentions(
     pasteisMode: boolean,
     isStatic: boolean,
     linksEveryMention: boolean,
+    guildMentions: GuildMentions | undefined,
 ): ReactNode[] {
     const parts: ReactNode[] = [];
     let position = 0;
@@ -794,6 +871,7 @@ function withMentions(
                 colors,
                 hashtags,
                 pasteisMode,
+                guildMentions,
             ),
             isStatic ? (
                 match[0]
@@ -849,6 +927,7 @@ function withMentions(
             colors,
             hashtags,
             pasteisMode,
+            guildMentions,
         ),
     );
 
@@ -859,6 +938,7 @@ export function LinkifiedText({
     text,
     mentions,
     organizationMentions = null,
+    guildMentions,
     pasteisMode = false,
     isStatic = false,
     linksEveryMention = true,
@@ -867,6 +947,7 @@ export function LinkifiedText({
     text: string;
     mentions: Commit['mentions'];
     organizationMentions?: Commit['organization_mentions'];
+    guildMentions?: GuildMentions;
     pasteisMode?: boolean;
     isStatic?: boolean;
     linksEveryMention?: boolean;
@@ -902,6 +983,7 @@ export function LinkifiedText({
                 pasteisMode,
                 isStatic,
                 linksEveryMention,
+                guildMentions,
             ),
             commitLink ? (
                 <CommitLink
@@ -949,6 +1031,7 @@ export function LinkifiedText({
             pasteisMode,
             isStatic,
             linksEveryMention,
+            guildMentions,
         ),
     );
 

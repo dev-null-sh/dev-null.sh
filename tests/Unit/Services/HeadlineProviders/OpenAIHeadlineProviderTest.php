@@ -9,6 +9,7 @@ use App\Services\HeadlineProviders\NullHeadlineProvider;
 use App\Services\HeadlineProviders\OpenAIHeadlineProvider;
 use Illuminate\Http\Client\Request;
 use Illuminate\Http\Client\RequestException;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Laravel\Ai\Classification;
 use Laravel\Ai\Prompts\AgentPrompt;
@@ -193,7 +194,8 @@ it('shortlists by cosine similarity per contextual post and reuses only unexpire
     $expected = [4 => ['iOS app beta'], 9 => ['Rust releases']];
 
     expect($provider->matches($bodies, $names))->toBe($expected);
-    expect($embedded)->toHaveCount(302);
+    expect($embedded)->toHaveCount(302)
+        ->and(Cache::get('headline-vector:'.hash('sha256', 'Rust releases')))->toBe(pack('e*', 0.0, 0.0, 3.0));
 
     $embedded = [];
     expect($provider->matches($bodies, [...$names, 'Another subject']))->toBe($expected);

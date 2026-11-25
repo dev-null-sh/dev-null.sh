@@ -95,6 +95,14 @@ final class ApiException extends HttpException
         return new self(ApiErrorCode::Banned, __('Your account is banned from /dev/null. All you can do is delete it.'));
     }
 
+    /**
+     * The guild lost its moderator after the board post was validated, as the web says it.
+     */
+    public static function guildPaused(): self
+    {
+        return new self(ApiErrorCode::GuildPaused, __('This guild is paused until it has a moderator.'));
+    }
+
     public function render(): JsonResponse
     {
         return response()->json([

@@ -17,11 +17,18 @@ use Illuminate\Http\Resources\Json\JsonResource;
  */
 final class ShownNotificationResource extends JsonResource implements Arrayable
 {
+    /** @var array<mixed>|null */
+    public ?array $shown = null;
+
     /**
      * @return array<mixed>
      */
     public function toArray(?Request $request = null): array
     {
+        if ($this->shown !== null) {
+            return $this->shown;
+        }
+
         $notification = $this->resource;
         assert($notification instanceof Notification);
 
@@ -39,5 +46,6 @@ final class ShownNotificationResource extends JsonResource implements Arrayable
                 'actors' => $notification->actors->map(fn (Profile $actor): array => ShownStreams::profile($actor))->all(),
             ] : [],
         ];
+
     }
 }

@@ -51,13 +51,13 @@ final class OrgThreadResource extends JsonResource
             'user' => UserResource::make($member['user']),
         ]);
 
-        return [
+        return ShownGuildMentions::of([
             ...$thread,
             'org' => ['id' => $thread['org']->id, 'name' => $thread['org']->name],
             'messages' => MessageResource::collection($thread['messages']),
             'pinned' => $thread['pinned'] === null ? null : MessageResource::collection($thread['pinned']),
             'mentions' => MessageResource::collection($thread['mentions']),
             'members' => $members,
-        ];
+        ], $request->user());
     }
 }

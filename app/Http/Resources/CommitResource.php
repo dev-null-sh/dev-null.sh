@@ -7,6 +7,7 @@ namespace App\Http\Resources;
 use App\Enums\CommitStatus;
 use App\Models\Commit;
 use App\Models\CommitImage;
+use App\Models\Guild;
 use App\Models\Poll;
 use App\Models\User;
 use App\Services\CommitBodies;
@@ -27,7 +28,8 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * says it quoted something. In a list, reply_preview is the newest reply or quote the web shows under it. As on the
  * web, the counts, link_preview, images, starred, parent, poll, quoted_commit and reply_preview are only
  * there when they were loaded, so ancestors and the commits of notifications come without some of them. The images of
- * a commit that isn't published yet have temporary URLs, since the app has no web session to load them with.
+ * a commit that isn't published yet have temporary URLs, since the app has no web session to load them with. For the
+ * same reason, the guild's icon_url is signed for the user, or a guest, and stays the same all day.
  *
  * A deleted commit that still has replies stays in its thread as a tombstone: its id, parent_id, deleted_at and
  * replies_count, but never its author or body. Only signed requests are ever sent one.
@@ -36,6 +38,13 @@ use Illuminate\Http\Resources\Json\JsonResource;
  */
 final class CommitResource extends JsonResource
 {
+    public bool $withGuildMentions = true;
+
+    public static function newCollection(mixed $resource): GuildMentionCollection
+    {
+        return new GuildMentionCollection($resource, self::class);
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -56,6 +65,13 @@ final class CommitResource extends JsonResource
             'id' => $this->id,
             'short_hash' => mb_substr(str_replace('-', '', $this->id), -7),
             'body' => $this->body,
+            'guild_handle' => $this->whenLoaded('guild', fn (Guild $guild): string => $guild->handle),
+            'guild' => $this->whenLoaded('guild', fn (Guild $guild): array => [
+                'handle' => $guild->handle,
+                'name' => $guild->name,
+                'emoji' => $guild->emoji,
+                'icon_url' => $guild->apiIconUrl($request->user()),
+            ]),
             'parent_id' => $isSigned ? $this->parent_id : $this->parent?->id,
             'html_url' => route('commit.show', [$this->author, $this->resource]),
             'created_at' => $this->created_at->toIso8601ZuluString(),
@@ -72,10 +88,10 @@ final class CommitResource extends JsonResource
             return $commit;
         }
 
-        return [
+        $shown = [
             ...$commit,
             ...resolve(CommitBodies::class)->segments($this->body),
-            'mentions' => resolve(Mentions::class)->positions($this->body, $this->organization_mentions ?? []),
+            'mentions' => resolve(Mentions::class)->positions($this->body, $this->organization_mentions ?? [], $this->mentions ?? []),
             'status' => $this->status,
             'is_pinned' => $this->author?->user?->pinned_commit_id === $this->id,
             'starred' => $this->whenHas('starred'),
@@ -90,5 +106,7 @@ final class CommitResource extends JsonResource
                 'next_cursor' => data_get($this->getAttribute('reply_preview'), 'next_cursor'),
             ]),
         ];
+
+        return $this->withGuildMentions ? ShownGuildMentions::of($shown, $request->user()) : $shown;
     }
 }

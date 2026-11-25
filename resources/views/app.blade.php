@@ -24,9 +24,13 @@
             <meta property="og:url" content="{{ $preview['url'] }}">
             @foreach ($preview['images'] as $image)
                 <meta property="og:image" content="{{ $image['url'] }}">
+@isset($image['type'])
                 <meta property="og:image:type" content="{{ $image['type'] }}">
+@endisset
+@isset($image['width'], $image['height'])
                 <meta property="og:image:width" content="{{ $image['width'] }}">
                 <meta property="og:image:height" content="{{ $image['height'] }}">
+@endisset
                 <meta property="og:image:alt" content="{{ $image['alt'] }}">
             @endforeach
             @isset($preview['publishedAt'])

@@ -1,10 +1,36 @@
-import type { ReactNode } from 'react';
+import { usePage } from '@inertiajs/react';
+import { Fragment, type ReactNode } from 'react';
 import { CommitCard } from '@/components/commit-card';
 import { CommitSkeleton, EmptyFeed } from '@/components/commit-feed';
 import { GraphCanvas } from '@/components/graph-canvas';
+import { GuildIcon } from '@/components/guild-icon';
+import { groupSearchCommits } from '@/lib/commit-search-results';
 import type { Commit } from '@/types';
+import type { GuildBadge } from '@/types/guild';
 
 export type SearchResultSet = { term: string; commits: Commit[] };
+
+export function GuildSearchHeading({
+    handle,
+    guild,
+}: {
+    handle: string;
+    guild?: GuildBadge | null;
+}) {
+    const visibleGuild = usePage().props.guildsEnabled ? guild : null;
+
+    return (
+        <span className="flex min-w-0 items-center gap-2 font-sans text-sm font-semibold">
+            <GuildIcon guild={visibleGuild ?? { emoji: '#', icon_url: null }} />
+            <span
+                className="truncate"
+                title={visibleGuild?.name ?? `#${handle}`}
+            >
+                {visibleGuild?.name ?? `#${handle}`}
+            </span>
+        </span>
+    );
+}
 
 export function SearchResults({
     results,
@@ -54,15 +80,27 @@ export function SearchResults({
                     </EmptyFeed>
                 </div>
             ) : (
-                <GraphCanvas>
-                    {results.commits.map((commit) => (
-                        <CommitCard
-                            key={commit.id}
-                            commit={commit}
-                            endsWithDot
-                        />
-                    ))}
-                </GraphCanvas>
+                groupSearchCommits(results.commits).map(([handle, commits]) => (
+                    <Fragment key={handle ? `guild:${handle}` : 'commits'}>
+                        {handle && (
+                            <h3 className="flex h-11 items-center border-y bg-muted/40 px-4 sm:px-6">
+                                <GuildSearchHeading
+                                    handle={handle}
+                                    guild={commits[0].guild}
+                                />
+                            </h3>
+                        )}
+                        <GraphCanvas>
+                            {commits.map((commit) => (
+                                <CommitCard
+                                    key={commit.id}
+                                    commit={commit}
+                                    endsWithDot
+                                />
+                            ))}
+                        </GraphCanvas>
+                    </Fragment>
+                ))
             )}
         </section>
     );

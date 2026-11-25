@@ -1,5 +1,4 @@
 import { Link } from '@inertiajs/react';
-import AppController from '@/actions/App/Http/Controllers/AppController';
 import PrivacyController from '@/actions/App/Http/Controllers/PrivacyController';
 import { DocumentList, DocumentSection } from '@/components/document-page';
 import { WordmarkText } from '@/components/wordmark-text';
@@ -118,22 +117,17 @@ export function TermsOfService() {
 
             <DocumentSection id="apps" title="Apps">
                 <p>
-                    Our apps are part of the service. They include{' '}
-                    <Link href={AppController.index()} prefetch>
-                        /dev/null for Mac
-                    </Link>
-                    , from dev-null.sh, and the <MobileApps />, from the App
-                    Store and Google Play. These terms apply to all of them. We
-                    let you install and use them on devices you own or control,
-                    only to use the service, under a personal, non-exclusive,
-                    non-transferable license that ends when your access to the
-                    service ends. Get them only from those places. Each device
-                    you approve can act as you until you revoke it in your
-                    settings, and you are responsible for what happens through
-                    it. We may update, limit, or stop offering any app, and an
-                    outdated version may stop working. Apps we haven't had
-                    notarized by Apple ask you to approve them in macOS before
-                    they first open, and you install them at your own risk.
+                    Our apps are part of the service. They include the{' '}
+                    <MobileApps />, from the App Store and Google Play. These
+                    terms apply to all of them. We let you install and use them
+                    on devices you own or control, only to use the service,
+                    under a personal, non-exclusive, non-transferable license
+                    that ends when your access to the service ends. Get them
+                    only from those places. Each device you approve can act as
+                    you until you revoke it in your settings, and you are
+                    responsible for what happens through it. We may update,
+                    limit, or stop offering any app, and an outdated version may
+                    stop working.
                 </p>
             </DocumentSection>
 

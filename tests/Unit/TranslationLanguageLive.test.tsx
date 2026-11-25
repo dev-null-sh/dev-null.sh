@@ -6,6 +6,7 @@ import { hookHarness } from './HookHarness';
 
 const harness = hookHarness();
 let language = 'en';
+let submittedTranslation: CommitTranslation | null = null;
 
 vi.doMock('react', () => harness.react);
 vi.doMock('@inertiajs/react', async () => ({
@@ -22,7 +23,7 @@ vi.doMock('@inertiajs/react', async () => ({
     }),
     useHttp: () => ({
         transform: () => {},
-        submit: async () => ({ translation: null }),
+        submit: async () => ({ translation: submittedTranslation }),
     }),
 }));
 
@@ -63,6 +64,7 @@ beforeEach(() => {
     vi.useFakeTimers();
     reads = [];
     language = 'en';
+    submittedTranslation = null;
     vi.stubGlobal('fetch', async (input: string) => {
         const read =
             new URL(input, 'http://localhost').searchParams.get('language') ??
@@ -101,6 +103,116 @@ test('a translation language saved elsewhere reaches the translations already sh
 
     assert.deepEqual(reads, ['de']);
     assert.equal(text(), 'Hallo');
+});
+
+for (const source of ['read', 'translate']) {
+    test(`a refreshed matching parent replaces ${source} badge metadata without discarding it for missing or other-language translations`, async () => {
+        language = 'de';
+        const generated = translation('de', 'Hallo #rust');
+        assert.ok(generated.translated);
+        generated.translated.guild_mentions = {
+            rust: {
+                handle: 'rust',
+                name: 'Original guild',
+                emoji: '🦀',
+                icon_url: null,
+            },
+        };
+        vi.stubGlobal('fetch', async () =>
+            Response.json({ translation: generated }),
+        );
+        submittedTranslation = generated;
+        let snapshot =
+            source === 'read'
+                ? commit
+                : {
+                      ...commit,
+                      translation: {
+                          ...translation('de', ''),
+                          translated: null,
+                      },
+                  };
+        function Refreshing() {
+            shown = useCommitTranslation(snapshot);
+            return null;
+        }
+
+        void harness.render(Refreshing, {});
+        if (source === 'translate') {
+            assert.ok(shown.button);
+            shown.button.props.onClick();
+        }
+        await vi.advanceTimersByTimeAsync(600);
+        void harness.render(Refreshing, {});
+        assert.equal(shown.guildMentions?.rust.name, 'Original guild');
+
+        snapshot = { ...commit };
+        void harness.render(Refreshing, {});
+        assert.equal(shown.guildMentions?.rust.name, 'Original guild');
+        snapshot = { ...commit, translation: null };
+        void harness.render(Refreshing, {});
+        assert.equal(text(), 'Hallo #rust');
+        snapshot = {
+            ...commit,
+            translation: { ...translation('de', ''), translated: null },
+        };
+        void harness.render(Refreshing, {});
+        assert.equal(shown.guildMentions?.rust.name, 'Original guild');
+
+        const refreshed = translation('de', 'Hallo #rust');
+        assert.ok(refreshed.translated);
+        refreshed.translated.guild_mentions = {
+            rust: {
+                handle: 'rust',
+                name: 'Renamed guild',
+                emoji: '🦀',
+                icon_url: null,
+            },
+        };
+        snapshot = { ...commit, translation: refreshed };
+        void harness.render(Refreshing, {});
+
+        assert.equal(text(), 'Hallo #rust');
+        assert.equal(shown.guildMentions?.rust.name, 'Renamed guild');
+    });
+}
+
+test('a newer translation read wins over its unchanged matching parent snapshot, including after a parent refresh', async () => {
+    const { fakeConnection } = await import('./FakeRealtime');
+    const { connectRealtime } = await import('../../resources/js/lib/realtime');
+    const fake = fakeConnection();
+    connectRealtime(fake.connection);
+    let snapshot = commit;
+    let fresh = translation('en', 'Newer translation');
+    vi.stubGlobal('fetch', async () => Response.json({ translation: fresh }));
+    function Refreshing() {
+        shown = useCommitTranslation(snapshot);
+        return null;
+    }
+
+    try {
+        void harness.render(Refreshing, {});
+        fake.joined.get('commits.c')?.emit('translation');
+        await vi.advanceTimersByTimeAsync(600);
+        void harness.render(Refreshing, {});
+        assert.equal(text(), 'Newer translation');
+        void harness.render(Refreshing, {});
+        assert.equal(text(), 'Newer translation');
+
+        snapshot = {
+            ...commit,
+            translation: translation('en', 'Refreshed parent'),
+        };
+        void harness.render(Refreshing, {});
+        assert.equal(text(), 'Newer translation');
+        fresh = translation('en', 'Latest read');
+        fake.joined.get('commits.c')?.emit('translation');
+        await vi.advanceTimersByTimeAsync(600);
+        void harness.render(Refreshing, {});
+        assert.equal(text(), 'Latest read');
+    } finally {
+        connectRealtime(null);
+    }
 });
 
 test('joining asks once what was translated among the commits shown, and reads again only those', async () => {
@@ -268,7 +380,9 @@ for (const failure of ['503', 'network', 'json'] as const) {
                         : new Response('Invalid JSON');
                 }
 
-                return Response.json({ translation: translation('de', 'Hallo') });
+                return Response.json({
+                    translation: translation('de', 'Hallo'),
+                });
             });
 
             try {
