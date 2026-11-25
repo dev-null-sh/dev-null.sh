@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Actions\CreateUserBlock;
 use App\Actions\CreateUserFollow;
 use App\Actions\DeleteUserFollow;
 use App\Enums\NotificationType;
@@ -19,6 +20,24 @@ it('may follow a user', function (): void {
     expect($follower->isFollowing($user))->toBeTrue()
         ->and($user->isFollowing($follower))->toBeFalse();
 });
+
+it('keeps a block made at the same moment as a follow that passed the check', function (bool $byFollowed): void {
+    $follower = User::factory()->create();
+    $user = User::factory()->create();
+
+    // The follow request checked for a block just before it landed, then this one ended their follows...
+    $byFollowed
+        ? resolve(CreateUserBlock::class)->handle($user, $follower)
+        : resolve(CreateUserBlock::class)->handle($follower, $user);
+
+    resolve(CreateUserFollow::class)->handle($follower, $user);
+
+    expect($follower->isFollowing($user))->toBeFalse()
+        ->and($user->notifications()->exists())->toBeFalse();
+})->with([
+    'blocked by the followed user' => true,
+    'blocked by the follower' => false,
+]);
 
 it('is idempotent', function (): void {
     $follower = User::factory()->create();
