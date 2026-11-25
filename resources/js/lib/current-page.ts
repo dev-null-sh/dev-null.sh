@@ -23,20 +23,31 @@ export function currentPageComponent(): string {
     return component;
 }
 
-function refreshRestoredPage(page: { component: string; url: string }): void {
+type RestoredPage = {
+    component: string;
+    url: string;
+    photoBackgroundUrl?: string;
+};
+
+function refreshRestoredPage(page: RestoredPage): void {
     const options = historyReloads[page.component];
 
     if (!options) {
         return;
     }
 
-    // Photo overlays show their own URL over a background page. Their existing
-    // before-visit handler redirects async GETs to that background without closing the photo.
-    router.visit(page.url, {
+    const photoBackgroundUrl =
+        page.component === 'starred/index'
+            ? page.photoBackgroundUrl
+            : undefined;
+
+    // Refresh the starred feed behind an open photo without replacing its URL.
+    router.visit(photoBackgroundUrl ?? page.url, {
         ...options,
         method: 'get',
         async: true,
         preserveState: true,
+        preserveUrl: photoBackgroundUrl !== undefined,
         replace: true,
         onHttpException: ({ status }) => {
             if (status === 403 || status === 404) {
@@ -49,11 +60,18 @@ function refreshRestoredPage(page: { component: string; url: string }): void {
 }
 
 export function trackCurrentPage(): VoidFunction {
-    let page: { component: string; url: string } | null = null;
+    let page: RestoredPage | null = null;
 
     const stop = router.on('navigate', (event) => {
         component = event.detail.page.component;
-        page = { component, url: event.detail.page.url };
+        const photo = event.detail.page.props.photo as
+            | { backgroundUrl?: string }
+            | undefined;
+        page = {
+            component,
+            url: event.detail.page.url,
+            photoBackgroundUrl: photo?.backgroundUrl,
+        };
 
         if (event.detail.type === 'history') {
             refreshRestoredPage(page);

@@ -5,7 +5,11 @@ type NavigationType = 'initial' | 'visit' | 'history';
 type NavigationEvent = {
     detail: {
         type: NavigationType;
-        page: { component: string; url: string };
+        page: {
+            component: string;
+            url: string;
+            props?: { photo?: { backgroundUrl?: string } };
+        };
     };
 };
 
@@ -59,9 +63,19 @@ test('refreshes only non-live props after history and bfcache restores', () => {
             type: NavigationType,
             component: string,
             url = `/${component}`,
+            backgroundUrl?: string,
         ) =>
             navigate?.({
-                detail: { type, page: { component, url } },
+                detail: {
+                    type,
+                    page: {
+                        component,
+                        url,
+                        props: backgroundUrl
+                            ? { photo: { backgroundUrl } }
+                            : {},
+                    },
+                },
             });
 
         pageShow?.({ persisted: true });
@@ -104,6 +118,7 @@ test('refreshes only non-live props after history and bfcache restores', () => {
                 method: options.method,
                 async: options.async,
                 preserveState: options.preserveState,
+                preserveUrl: options.preserveUrl,
                 replace: options.replace,
                 onHttpException: typeof options.onHttpException,
             })),
@@ -113,6 +128,7 @@ test('refreshes only non-live props after history and bfcache restores', () => {
                 method: 'get',
                 async: true,
                 preserveState: true,
+                preserveUrl: false,
                 replace: true,
                 onHttpException: 'function',
             })),
@@ -134,17 +150,17 @@ test('refreshes only non-live props after history and bfcache restores', () => {
         assert.equal(onHttpException?.({ status: 503 } as never), undefined);
         assert.equal(reloadDocument.mock.calls.length, 2);
 
-        // When a photo is open over Starred, this must be an async GET to the
-        // visible photo URL: trackCommitPhotoPage redirects it to the starred
-        // background and preserves the photo URL and overlay.
+        // Refresh the starred background directly while retaining the visible photo URL.
         const photoUrl = '/@author/commits/123/photos/1';
-        dispatch('history', 'starred/index', photoUrl);
-        assert.equal(visit.mock.lastCall?.[0], photoUrl);
+        dispatch('history', 'starred/index', photoUrl, '/starred?sort=recent');
+        assert.equal(visit.mock.lastCall?.[0], '/starred?sort=recent');
         assert.equal(visit.mock.lastCall?.[1].async, true);
+        assert.equal(visit.mock.lastCall?.[1].preserveUrl, true);
         assert.deepEqual(visit.mock.lastCall?.[1].only, ['commits']);
         pageShow?.({ persisted: true });
-        assert.equal(visit.mock.lastCall?.[0], photoUrl);
+        assert.equal(visit.mock.lastCall?.[0], '/starred?sort=recent');
         assert.equal(visit.mock.lastCall?.[1].async, true);
+        assert.equal(visit.mock.lastCall?.[1].preserveUrl, true);
 
         const beforeStop = visit.mock.calls.length;
         stop();
