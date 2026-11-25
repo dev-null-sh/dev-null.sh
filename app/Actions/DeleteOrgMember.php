@@ -27,6 +27,10 @@ final readonly class DeleteOrgMember
     public function handle(User $actor, Conversation $org, User $member): void
     {
         DB::transaction(function () use ($actor, $org, $member): void {
+            // Locked first, as messages and role changes lock it, so two maintainers leaving at once neither deadlock
+            // nor both see the other one staying, which would leave the org with no maintainer and no heir.
+            Conversation::query()->whereKey($org->id)->lockForUpdate()->firstOrFail();
+
             ConversationParticipant::query()->where('conversation_id', $org->id)->where('user_id', $member->id)->delete();
             $member->mentions()->detach($member->mentions()->where('conversation_id', $org->id)->pluck('messages.id'));
 

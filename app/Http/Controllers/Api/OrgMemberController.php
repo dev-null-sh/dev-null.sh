@@ -8,12 +8,14 @@ use App\Actions\CreateOrgMembers;
 use App\Actions\DeleteOrgMember;
 use App\Actions\UpdateOrgMemberRole;
 use App\Enums\OrgRole;
+use App\Exceptions\OrgNeedsMaintainer;
 use App\Http\Requests\CreateApiOrgMemberRequest;
 use App\Http\Requests\DeleteApiOrgMemberRequest;
 use App\Http\Requests\UpdateApiOrgMemberRequest;
 use App\Models\Conversation;
 use App\Models\User;
 use Illuminate\Container\Attributes\CurrentUser;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;
 
 final readonly class OrgMemberController
@@ -25,9 +27,14 @@ final readonly class OrgMemberController
         return response()->noContent();
     }
 
-    public function update(UpdateApiOrgMemberRequest $request, #[CurrentUser] User $user, Conversation $org, User $member, UpdateOrgMemberRole $action): Response
+    public function update(UpdateApiOrgMemberRequest $request, #[CurrentUser] User $user, Conversation $org, User $member, UpdateOrgMemberRole $action): Response|JsonResponse
     {
-        $action->handle($user, $org, $member, $request->role() ?? OrgRole::Contributor);
+        try {
+            $action->handle($user, $org, $member, $request->role() ?? OrgRole::Contributor);
+        } catch (OrgNeedsMaintainer $orgNeedsMaintainer) {
+            // Another maintainer stepped down at the same moment, so this is refused as the request would have refused it.
+            return response()->json(['message' => $orgNeedsMaintainer->getMessage(), 'errors' => ['role' => [$orgNeedsMaintainer->getMessage()]]], 422);
+        }
 
         return response()->noContent();
     }

@@ -2,8 +2,11 @@
 
 declare(strict_types=1);
 
+use App\Actions\UpdateOrgMemberRole;
 use App\Enums\OrgEvent;
+use App\Enums\OrgRole;
 use App\Models\Conversation;
+use App\Models\ConversationParticipant;
 use App\Models\Message;
 use App\Models\MessageImage;
 use App\Models\MessageVoice;
@@ -92,6 +95,22 @@ it('promotes and demotes, keeping at least one maintainer', function (): void {
 
     expect(Message::query()->latest('id')->firstOrFail()->event)->toBe(OrgEvent::Demoted)
         ->and(Conversation::query()->findOrFail($org)->isMaintainedBy($mark))->toBeFalse();
+});
+
+it('keeps a maintainer when two step down at the same moment', function (): void {
+    $mark = User::factory()->create();
+    [$nuno] = followersOf($mark, 1);
+    $org = createOrg($mark, [$nuno]);
+    ConversationParticipant::query()->where('conversation_id', $org)->where('user_id', $nuno->id)->update(['role' => OrgRole::Maintainer]);
+    // Nuno steps down after this request's check found him still a maintainer...
+    $this->app->beforeResolving(UpdateOrgMemberRole::class, fn () => ConversationParticipant::query()
+        ->where('conversation_id', $org)->where('user_id', $nuno->id)->update(['role' => OrgRole::Contributor]));
+
+    $this->actingAs($mark)->putJson(route('org-member.update', [$org, $mark]), ['role' => 'contributor'])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['role' => 'An org needs at least one maintainer.']);
+
+    expect(Conversation::query()->findOrFail($org)->isMaintainedBy($mark))->toBeTrue();
 });
 
 it('hides membership changes from people outside the org', function (): void {
