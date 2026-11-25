@@ -1,14 +1,43 @@
 import { useSyncExternalStore } from 'react';
 
-export function useMediaQuery(query: string): boolean {
-    return useSyncExternalStore(
-        (callback) => {
-            const mql = window.matchMedia(query);
-            mql.addEventListener('change', callback);
+type MediaQueryStore = {
+    subscribe: (listener: () => void) => () => void;
+    snapshot: () => boolean;
+};
 
-            return () => mql.removeEventListener('change', callback);
+const stores = new Map<string, MediaQueryStore>();
+const serverSnapshot = () => false;
+const noSubscription = () => () => {};
+
+function storeFor(query: string): MediaQueryStore {
+    if (typeof window === 'undefined') {
+        return { subscribe: noSubscription, snapshot: serverSnapshot };
+    }
+
+    const previous = stores.get(query);
+    if (previous) {
+        return previous;
+    }
+
+    const media = window.matchMedia(query);
+    const store = {
+        subscribe: (listener: () => void) => {
+            media.addEventListener('change', listener);
+            return () => media.removeEventListener('change', listener);
         },
-        () => window.matchMedia(query).matches,
-        () => false,
+        snapshot: () => media.matches,
+    };
+
+    stores.set(query, store);
+    return store;
+}
+
+export function useMediaQuery(query: string): boolean {
+    const store = storeFor(query);
+
+    return useSyncExternalStore(
+        store.subscribe,
+        store.snapshot,
+        serverSnapshot,
     );
 }
