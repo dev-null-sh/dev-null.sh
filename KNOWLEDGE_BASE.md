@@ -550,7 +550,7 @@ Press **?** to open the shortcut reference. Navigation shortcuts work outside te
 | `⌘/Ctrl+K` or `/` | Search developers and commits. |
 | `⌘/Ctrl+Enter` | Submit from the composer. |
 | `⌘/Ctrl+Shift+P` | Toggle composer preview. |
-| `g` then `l` / `e` / `p` / `s` / `n` / `m` / `*` | Go to your log / Trending / profile / settings / Notifications / Remotes / Starred. `g m` works only while Remotes is on. |
+| `g` then `l` / `f` / `a` / `e` / `p` / `s` / `n` / `m` / `*` | Go to your log / Following / Latest / Trending / profile / settings / Notifications / Remotes / Starred. `g m` works only while Remotes is on. |
 
 Source: [shortcut reference](resources/js/components/keyboard-shortcuts-dialog.tsx).
 

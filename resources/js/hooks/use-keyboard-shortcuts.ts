@@ -95,6 +95,8 @@ export function useKeyboardShortcuts(
             user === null || log === null
                 ? {
                       l: signIn,
+                      f: signIn,
+                      a: signIn,
                       e: signIn,
                       p: signIn,
                       s: signIn,
@@ -103,6 +105,8 @@ export function useKeyboardShortcuts(
                   }
                 : {
                       l: () => router.visit(LogController.show(log)),
+                      f: () => router.visit(LogController.show('following')),
+                      a: () => router.visit(LogController.show('latest')),
                       e: () => router.visit(LogController.show('trending')),
                       p: () => router.visit(show(user)),
                       s: () => router.visit(edit()),

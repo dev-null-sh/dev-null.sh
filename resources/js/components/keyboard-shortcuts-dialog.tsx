@@ -37,6 +37,8 @@ const groups = (
             title: 'Go to',
             shortcuts: [
                 { keys: [['g', 'l']], label: 'Your log' },
+                { keys: [['g', 'f']], label: 'Following' },
+                { keys: [['g', 'a']], label: 'Latest' },
                 { keys: [['g', 'e']], label: 'Trending' },
                 { keys: [['g', 'p']], label: 'Your profile' },
                 { keys: [['g', 'n']], label: 'Notifications' },
