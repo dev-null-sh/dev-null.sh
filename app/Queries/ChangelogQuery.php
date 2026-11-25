@@ -90,6 +90,45 @@ final readonly class ChangelogQuery
     }
 
     /**
+     * The commits that landed on production after the given one, oldest first, as the changelog shows them: only the
+     * first-parent line, without untitled merges. Pages are read fresh, not from the page cache, until they reach the
+     * given commit, the history runs out, or ten pages have been read. Without a commit to start after, or when it
+     * isn't among the commits read, no commits are given and reached is false, so the caller can start again from
+     * the head of production.
+     *
+     * @return array{head: string|null, reached: bool, commits: list<ChangelogCommit>}
+     */
+    public function since(?string $sha): array
+    {
+        $repository = config()->string('services.github.repository');
+        /** @var array<string, GitHubCommit> $loaded */
+        $loaded = [];
+        $line = [];
+        $reached = false;
+
+        for ($page = 1; $page <= self::MaxPages; $page++) {
+            $commits = $this->github->commits($repository, self::Branch, $page, self::PerPage);
+
+            foreach ($commits as $commit) {
+                $loaded[$commit['sha']] = $commit;
+            }
+
+            $line = $this->firstParents($loaded, $sha);
+            $reached = $sha !== null && ($line === [] ? array_key_first($loaded) === $sha : ($line[count($line) - 1]['parents'][0] ?? null) === $sha);
+
+            if ($sha === null || $reached || count($commits) < self::PerPage) {
+                break;
+            }
+        }
+
+        return [
+            'head' => array_key_first($loaded),
+            'reached' => $reached,
+            'commits' => $reached ? array_reverse($this->entries($line)) : [],
+        ];
+    }
+
+    /**
      * One page of the commits on production, most recently committed first. Each page is cached for half an hour, and
      * a failed read is not cached, so the next request tries again.
      *
@@ -110,17 +149,18 @@ final readonly class ChangelogQuery
     }
 
     /**
-     * The line of production from its latest commit back through each first parent, as far as the loaded pages go.
+     * The line of production from its latest commit back through each first parent, as far as the loaded pages go, or
+     * up to the given commit, which it leaves out.
      *
      * @param  array<string, GitHubCommit>  $loaded
      * @return list<GitHubCommit>
      */
-    private function firstParents(array $loaded): array
+    private function firstParents(array $loaded, ?string $until = null): array
     {
         $line = [];
         $sha = array_key_first($loaded);
 
-        while ($sha !== null && isset($loaded[$sha])) {
+        while ($sha !== null && $sha !== $until && isset($loaded[$sha])) {
             $line[] = $loaded[$sha];
             $sha = $loaded[$sha]['parents'][0] ?? null;
         }
@@ -147,13 +187,25 @@ final readonly class ChangelogQuery
     }
 
     /**
-     * Authors who are on /dev/null keep the lane they chose there, and link to their profile. They are found by their
-     * GitHub account, since a handle can change on either side.
-     *
      * @param  array<int, GitHubCommit>  $commits
      * @return array{commits: list<ChangelogCommit>, olderBefore: string|null}
      */
     private function result(array $commits, ?CarbonImmutable $olderBefore): array
+    {
+        return [
+            'commits' => $this->entries($commits),
+            'olderBefore' => $olderBefore?->utc()->toIso8601String(),
+        ];
+    }
+
+    /**
+     * Authors who are on /dev/null keep the lane they chose there, and link to their profile. They are found by their
+     * GitHub account, since a handle can change on either side.
+     *
+     * @param  array<int, GitHubCommit>  $commits
+     * @return list<ChangelogCommit>
+     */
+    private function entries(array $commits): array
     {
         $users = User::query()
             ->whereIn('github_id', array_unique(array_filter(array_map(fn (array $commit): ?string => $commit['author']['id'] === null ? null : (string) $commit['author']['id'], $commits))))
@@ -179,10 +231,7 @@ final readonly class ChangelogQuery
             ];
         }
 
-        return [
-            'commits' => $changelog,
-            'olderBefore' => $olderBefore?->utc()->toIso8601String(),
-        ];
+        return $changelog;
     }
 
     /**

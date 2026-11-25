@@ -248,3 +248,35 @@ it('is null when GitHub cannot be reached, and asks again next time', function (
     'an error' => fn (): never => throw new RequestException(new Response(new Psr7Response(403))),
     'a timeout' => fn (): never => throw new ConnectionException('timed out'),
 ]);
+
+it('gives the changes since a commit, oldest first, reading production fresh rather than from the page cache', function (): void {
+    $commits = changelogLine([
+        changelogCommit(4, '2026-07-04T12:00:00Z'),
+        changelogCommit(3, '2026-07-03T12:00:00Z', "Merge branch 'production' into production", parents: [changelogSha(9)]),
+        changelogCommit(2, '2026-07-02T12:00:00Z'),
+        changelogCommit(1, '2026-07-01T12:00:00Z'),
+    ]);
+    $this->mock(GitHubProvider::class)->shouldReceive('commits')->with('dev-null-sh/dev-null.sh', 'production', 1, 100)->twice()->andReturnUsing(changelogPages($commits));
+    $query = resolve(ChangelogQuery::class);
+
+    $query->get('UTC');
+
+    $since = $query->since(changelogSha(1));
+
+    expect($since['head'])->toBe(changelogSha(4))
+        ->and($since['reached'])->toBeTrue()
+        ->and(array_map(intval(...), array_column($since['commits'], 'sha')))->toBe([2, 4])
+        ->and($since['commits'][1])->toMatchArray(['type' => 'feat', 'title' => 'Something', 'pull_request' => ['number' => 4, 'url' => 'https://github.com/dev-null-sh/dev-null.sh/pull/4']]);
+});
+
+it('gives no changes when it cannot find the commit to start after', function (?string $sha): void {
+    $this->mock(GitHubProvider::class)->shouldReceive('commits')->once()->andReturnUsing(changelogPages(changelogLine([
+        changelogCommit(2, '2026-07-02T12:00:00Z'),
+        changelogCommit(1, '2026-07-01T12:00:00Z'),
+    ])));
+
+    expect(resolve(ChangelogQuery::class)->since($sha))->toBe(['head' => changelogSha(2), 'reached' => false, 'commits' => []]);
+})->with([
+    'no commit' => [null],
+    'an unknown commit' => [changelogSha(77)],
+]);

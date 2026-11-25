@@ -355,6 +355,20 @@ it('reads an issue or pull request without its body, and is null when there is n
         ->and($provider->issue('dev-null-sh/dev-null.sh', 1))->toBeNull();
 });
 
+it('reads the description and author of a pull request, and is null when there is no such pull request', function (): void {
+    Http::fake([
+        'api.github.com/repos/dev-null-sh/dev-null.sh/pulls/722' => Http::response(['number' => 722, 'body' => "  Links PRs in commits.\n", 'user' => ['id' => 14284867, 'login' => 'xHeaven']]),
+        'api.github.com/repos/dev-null-sh/dev-null.sh/pulls/723' => Http::response(['number' => 723, 'body' => null, 'user' => ['id' => 1, 'login' => 'someone']]),
+        'api.github.com/repos/dev-null-sh/dev-null.sh/pulls/1' => Http::response(['message' => 'Not Found'], 404),
+    ]);
+
+    $provider = new HttpGitHubProvider();
+
+    expect($provider->pullRequest('dev-null-sh/dev-null.sh', 722))->toBe(['description' => 'Links PRs in commits.', 'author' => ['id' => 14284867, 'login' => 'xHeaven']])
+        ->and($provider->pullRequest('dev-null-sh/dev-null.sh', 723))->toBe(['description' => null, 'author' => ['id' => 1, 'login' => 'someone']])
+        ->and($provider->pullRequest('dev-null-sh/dev-null.sh', 1))->toBeNull();
+});
+
 describe('issues', function (): void {
     beforeEach(function (): void {
         $key = openssl_pkey_new(['private_key_bits' => 2048, 'private_key_type' => OPENSSL_KEYTYPE_RSA]);

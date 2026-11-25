@@ -47,13 +47,21 @@ final class Tom implements Agent, Conversational, HasMiddleware, HasProviderOpti
         //
     }
 
+    /**
+     * How people mention Tom, for his persona, which his replies and his changelog posts share.
+     */
+    public static function mention(): string
+    {
+        return User::query()->firstWhere('github_id', CreateTomFriendship::GITHUB_ID)?->mention() ?? '@'.CreateTomFriendship::HANDLE;
+    }
+
     public function instructions(): string
     {
         $messages = $this->messages();
         $characters = mb_strlen($this->commit->body) + $messages->sum(fn (Message $message): int => mb_strlen($message->content ?? ''));
 
         return mb_trim(view('ai.agents.tom', [
-            'botMention' => User::query()->firstWhere('github_id', CreateTomFriendship::GITHUB_ID)?->mention() ?? '@'.CreateTomFriendship::HANDLE,
+            'botMention' => self::mention(),
             'mention' => '@'.$this->commit->author?->handle,
             'nearlyFull' => $characters >= 9600 || $messages->count() >= 10,
             'hasTools' => collect($this->selectedTools)->isNotEmpty(),

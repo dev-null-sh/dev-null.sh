@@ -308,6 +308,26 @@ final readonly class HttpGitHubProvider implements GitHubProvider
         ];
     }
 
+    public function pullRequest(string $repository, int $number): ?array
+    {
+        $response = $this->request()->get("repos/{$repository}/pulls/{$number}");
+
+        if ($response->notFound()) {
+            return null;
+        }
+
+        $pullRequest = $response->throw()->fluent();
+        $description = mb_trim($pullRequest->string('body')->value());
+
+        return [
+            'description' => $description === '' ? null : $description,
+            'author' => [
+                'id' => $pullRequest->integer('user.id') ?: null,
+                'login' => $pullRequest->string('user.login')->value(),
+            ],
+        ];
+    }
+
     public function createIssue(string $title, string $body, array $labels): array
     {
         $repository = config('services.github.repository');
