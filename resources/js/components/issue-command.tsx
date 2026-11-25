@@ -36,12 +36,14 @@ export function useIssueCommand({
     updateBody,
     enabled,
     initialKind = null,
+    onStart,
     onCreated,
 }: {
     body: string;
     updateBody: (body: string) => void;
     enabled: boolean;
     initialKind?: IssueKind | null;
+    onStart?: () => void;
     onCreated: () => void;
 }) {
     const [kind, setKind] = useState<IssueKind | null>(
@@ -69,6 +71,7 @@ export function useIssueCommand({
         setKind(next);
         setSelected(0);
         updateBody(rest);
+        onStart?.();
     };
 
     const change = (value: string) => {
