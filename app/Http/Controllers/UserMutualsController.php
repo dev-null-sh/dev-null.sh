@@ -9,8 +9,6 @@ use App\Http\Requests\ListUserMutualsRequest;
 use App\Models\User;
 use App\Queries\UserConnectionsQuery;
 use Illuminate\Container\Attributes\CurrentUser;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
-use Illuminate\Database\Query\Builder as QueryBuilder;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -24,19 +22,8 @@ final readonly class UserMutualsController
         return Inertia::render('user/connections', [
             'user' => $user,
             'type' => ConnectionType::Mutuals,
-            'loadedDigest' => Inertia::optional(fn (): array => ['users' => $connections->loadedDigest($this->mutuals($user, $currentUser, $connections), $request->loaded('users'))]),
-            'users' => Inertia::scroll(fn () => $this->mutuals($user, $currentUser, $connections)->cursorPaginate(30)),
+            'loadedDigest' => Inertia::optional(fn (): array => ['users' => $connections->loadedDigest($connections->builder($connections->mutuals($user), $currentUser), $request->loaded('users'))]),
+            'users' => Inertia::scroll(fn () => $connections->builder($connections->mutuals($user), $currentUser)->cursorPaginate(30)),
         ]);
-    }
-
-    /**
-     * @return BelongsToMany<User, User>
-     */
-    private function mutuals(User $user, User $viewer, UserConnectionsQuery $connections): BelongsToMany
-    {
-        return $connections->builder($user->following()
-            ->whereExists(fn (QueryBuilder $query): QueryBuilder => $query->from('follows', 'follows_back')
-                ->whereColumn('follows_back.follower_id', 'users.id')
-                ->where('follows_back.followed_id', $user->id)), $viewer);
     }
 }
