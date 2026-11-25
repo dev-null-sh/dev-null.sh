@@ -41,6 +41,7 @@ import { CommitSecondaryActions } from '@/components/commit-secondary-actions';
 import { CommitStarButton } from '@/components/commit-star-button';
 import { CommitStatusBadge } from '@/components/commit-status-badge';
 import { useCommitTranslation } from '@/components/commit-translation';
+import { CommitVideo } from '@/components/commit-video';
 import {
     ComposerPreviewBody,
     PreviewToggle,
@@ -1669,6 +1670,7 @@ function CommitReply({
                     </div>
                     {translation.notice}
                     <CommitImages commit={reply} />
+                    {reply.video && <CommitVideo video={reply.video} />}
                     {reply.link_preview &&
                         reply.link_preview.url !== hiddenLinkPreviewUrl && (
                             <LinkPreview

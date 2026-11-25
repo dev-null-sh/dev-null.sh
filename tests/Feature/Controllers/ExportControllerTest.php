@@ -141,6 +141,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
         'active_days' => [['date' => now()->toDateString(), 'web_app' => true, 'native_mobile_app' => false, 'lite_mobile_app' => false, 'mac_app' => false, 'other_app' => false]],
         'commits' => [],
         'organization_commits' => [],
+        'videos' => [],
         'polls' => [],
         'poll_votes' => [],
         'stars' => [],

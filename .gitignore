@@ -51,3 +51,6 @@ frankenphp-worker.php
 
 # Generated orb portal URLs are specific to each thread.
 /.amp/portals/
+
+# Static FFmpeg installed by deploy/ffmpeg.sh.
+/bin

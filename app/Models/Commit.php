@@ -62,6 +62,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read Collection<int, Commit> $quotes
  * @property-read Collection<int, CommitImage> $images
  * @property-read Collection<int, Headline> $headlines
+ * @property-read CommitVideo|null $video
  */
 #[Hidden([
     'user',
@@ -268,7 +269,14 @@ final class Commit extends Model
     {
         return $this->status === CommitStatus::Pending
             && $this->ai_decision === null
-            && $this->created_at->greaterThan(now()->subMinutes(self::CHECKING_MINUTES));
+            && $this->created_at->greaterThan(now()->subMinutes(self::CHECKING_MINUTES))
+            && $this->video === null;
+    }
+
+    /** @return HasOne<CommitVideo, $this> */
+    public function video(): HasOne
+    {
+        return $this->hasOne(CommitVideo::class);
     }
 
     /**

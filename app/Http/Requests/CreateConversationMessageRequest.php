@@ -39,6 +39,7 @@ final class CreateConversationMessageRequest extends FormRequest
 
         return [
             'body' => [$request->hasFile('images') || $request->hasFile('voice') ? 'nullable' : 'required', 'string', 'max:'.Message::MAX_LENGTH],
+            'video_id' => ['prohibited'],
             'client_id' => ['required', 'uuid'],
             'reply_to_id' => ['nullable', 'integer', new RepliableMessage($conversation, $visibleFrom)],
             'link_preview_url' => ['nullable', 'string', Rule::in(is_string($body) ? resolve(Urls::class)->all($body) : [])],

@@ -83,7 +83,7 @@ final readonly class CommitController
 
         $organization = $request->organization();
         try {
-            $commit = $action->handle($user, $request->string('body')->value(), quotedCommit: $request->quotedCommit(), images: $request->images(), imageDescriptions: $request->imageDescriptions(), linkPreview: $request->linkPreview(), poll: $request->poll(), organization: $organization, guild: $request->guild());
+            $commit = $action->handle($user, $request->string('body')->value(), quotedCommit: $request->quotedCommit(), images: $request->images(), imageDescriptions: $request->imageDescriptions(), linkPreview: $request->linkPreview(), poll: $request->poll(), organization: $organization, guild: $request->guild(), videoId: $request->videoId(), videoDescription: $request->videoDescription());
         } catch (GuildPaused) {
             return back()->withErrors(['guild_handle' => 'This guild is paused until it has a moderator.']);
         }

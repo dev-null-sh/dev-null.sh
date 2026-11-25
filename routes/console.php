@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Actions\DeleteStoredFiles;
 use App\Jobs\EndLiveStreams;
 use App\Jobs\GenerateHotHeadlineSummaries;
+use App\Jobs\PruneCommitVideos;
 use App\Models\Headline;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -27,6 +28,7 @@ Schedule::call(function (): void {
         }
     });
 })->name('retry-file-deletions')->everyMinute()->withoutOverlapping(5);
+Schedule::job(new PruneCommitVideos())->hourly();
 
 Schedule::call(function (): void {
     $store = 'cache.stores.'.config()->string('cache.default');

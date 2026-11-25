@@ -12,6 +12,7 @@ use App\Events\UsersUpdated;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\CommitReport;
+use App\Models\CommitVideo;
 use App\Models\Conversation;
 use App\Models\ConversationParticipant;
 use App\Models\Guild;
@@ -77,7 +78,14 @@ final readonly class DeleteUser
             // Report creation holds shared reporter and commit locks until its attachment paths are saved.
             $guilds = Guild::query()->where('user_id', $user->id)->orderBy('id')->lockForUpdate()->get();
             $guildMembers = DB::table('guild_preferences')->whereIn('guild_id', $guilds->modelKeys())->whereNot('user_id', $user->id)->pluck('user_id');
-            $imagePaths = [...$this->reportImagePaths($user), ...$this->imagePaths($user), ...$this->scheduledImagePaths($user), ...$this->messageImagePaths($user), ...$this->messageVoicePaths($user), ...$this->guildSubmissionIconPaths($user)];
+            // Locked so an encoder about to publish its result finds the video gone. The rows go with the user and their commits.
+            $videoPaths = CommitVideo::query()
+                ->where(fn (Builder $query) => $query->where('user_id', $user->id)->orWhereIn('commit_id', $this->touchedCommits($user)->select('id')))
+                ->lockForUpdate()
+                ->get()
+                ->flatMap(fn (CommitVideo $video): array => $video->paths())
+                ->all();
+            $imagePaths = [...$this->reportImagePaths($user), ...$this->imagePaths($user), ...$this->scheduledImagePaths($user), ...$this->messageImagePaths($user), ...$this->messageVoicePaths($user), ...$this->guildSubmissionIconPaths($user), ...$videoPaths];
             resolve(DeleteStoredFiles::class)->retain($imagePaths);
 
             DB::table('commit_topics')->whereIn('commit_id', $this->touchedCommits($user)->select('id'))->delete();

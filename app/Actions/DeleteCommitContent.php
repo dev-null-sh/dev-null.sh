@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Models\Commit;
+use App\Models\CommitVideo;
 use App\Models\Headline;
 use App\Models\LinkPreview;
 use Illuminate\Support\Facades\DB;
@@ -28,6 +29,11 @@ final readonly class DeleteCommitContent
             }
 
             $imagePaths = $commit->images()->pluck('path')->all();
+
+            CommitVideo::query()->where('commit_id', $commit->id)->lockForUpdate()->each(function (CommitVideo $video): void {
+                resolve(DeleteStoredFiles::class)->retain($video->paths());
+                $video->delete();
+            });
 
             $commit->images()->delete();
             $commit->poll()->delete();
