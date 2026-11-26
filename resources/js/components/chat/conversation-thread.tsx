@@ -24,6 +24,7 @@ import {
 } from '@/components/chat/call';
 import { MentionsBell } from '@/components/chat/mentions-bell';
 import {
+    isBareEmoji,
     LiftedMessage,
     MessageImages,
     MessageLinkCard,
@@ -1325,7 +1326,9 @@ function BubbleWithMeta({
             ? target.partner.lane
             : (pulledBy[0]?.lane ?? user.lane);
 
-    const isOnPrimary = isMine && status !== 'staged' && status !== 'rejected';
+    const isBare = isBareEmoji(message.body);
+    const isOnPrimary =
+        isMine && !isBare && status !== 'staged' && status !== 'rejected';
     const side = isMine ? 'mine' : 'theirs';
     const replyToThis =
         onReply !== null && bubble.kind === 'message'
@@ -1479,7 +1482,13 @@ function BubbleWithMeta({
                                     ? bubble.message.id
                                     : undefined
                             }
-                            className={bubbleClass}
+                            className={cn(
+                                bubbleClass,
+                                isBare && [
+                                    'bg-transparent text-foreground',
+                                    isCompact ? 'text-2xl' : 'text-3xl',
+                                ],
+                            )}
                         >
                             <MessageText
                                 message={message}

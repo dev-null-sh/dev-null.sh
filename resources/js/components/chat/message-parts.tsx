@@ -12,6 +12,8 @@ import type { ShownImage } from '@/components/commit-images';
 import { ImageViewer } from '@/components/image-viewer';
 import { LinkPreview } from '@/components/link-preview';
 import { bodySegments } from '@/lib/code';
+import { emojify } from '@/lib/emoji';
+import { isEmojiOnly } from '@/lib/emoji-only';
 import { isReplySwipe, replyPull, replyThreshold } from '@/lib/reply-swipe';
 import { cn, laneTextColor } from '@/lib/utils';
 import type {
@@ -57,6 +59,13 @@ export function MessageText({
     );
 }
 
+/**
+ * Whether a message's text is only emoji, counting shortcodes like :pray:, so it shows larger and without a bubble.
+ */
+export function isBareEmoji(body: string): boolean {
+    return isEmojiOnly(emojify(body));
+}
+
 const isUnsent = (images: MessageImage[] | File[]): images is File[] =>
     images[0] instanceof File;
 
@@ -92,20 +101,27 @@ export function LiftedMessage({
         return null;
     }
 
+    const isBare = voice === null && isBareEmoji(message.body);
+
     return (
         <div
             className={cn(
-                'w-fit max-w-full rounded-lg shadow-[0_12px_30px_-12px_rgb(0_0_0/0.45)]',
+                'w-fit max-w-full rounded-lg',
                 voice === null
                     ? 'px-3.5 py-2 text-[15px] wrap-anywhere'
                     : 'p-2',
-                isMine
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-muted text-foreground',
+                isBare
+                    ? 'text-3xl text-foreground drop-shadow-lg'
+                    : [
+                          'shadow-[0_12px_30px_-12px_rgb(0_0_0/0.45)]',
+                          isMine
+                              ? 'bg-primary text-primary-foreground'
+                              : 'bg-muted text-foreground',
+                      ],
             )}
         >
             {voice === null ? (
-                <MessageText message={message} isMine={isMine} />
+                <MessageText message={message} isMine={isMine && !isBare} />
             ) : (
                 <VoiceNote voice={voice} />
             )}
