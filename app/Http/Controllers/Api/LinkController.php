@@ -33,7 +33,7 @@ final readonly class LinkController
         $page = new CursorPaginator([], 20, options: ['path' => Paginator::resolveCurrentPath()]);
 
         if ($link instanceof LinkPreview) {
-            $page = $commits->builder($link, $currentUser, $isNewestFirst)->cursorPaginate(20);
+            $page = $commits->builder($link, $currentUser, $isNewestFirst)->cursorPaginate(20)->appends($request->only('sort'));
             $replyPreviews->load($page->items(), $currentUser);
         }
 

@@ -13,7 +13,7 @@ function apiLinkPage(string $url): string
     $page = resolve(LinkPages::class)->url($url);
     assert(is_string($page));
 
-    return url('api/v1/links/'.mb_substr($page, mb_strlen(url('link/'))));
+    return url('api/v1/links/'.mb_substr($page, mb_strlen(url('link').'/')));
 }
 
 it('responds with the approved commits about a link and what its page shows', function (): void {
@@ -125,4 +125,20 @@ it('pages the commits twenty at a time', function (): void {
         ->assertJsonPath('stats.commits', 21);
 
     expect($response->json('meta.next_cursor'))->toBeString();
+});
+
+it('keeps the latest first on the next page', function (): void {
+    $link = LinkPreview::factory()->create(['url' => 'https://dev-null.sh']);
+    $oldest = Commit::factory()->create(['link_preview_id' => $link->id, 'created_at' => now()->subDay()]);
+    Commit::factory()->count(20)->create(['link_preview_id' => $link->id]);
+
+    $next = $this->getJson(apiLinkPage($link->url).'?sort=latest')->json('links.next');
+
+    expect($next)->toContain('sort=latest');
+
+    $this->getJson($next)
+        ->assertOk()
+        ->assertJsonPath('sort', 'latest')
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.id', $oldest->id);
 });
