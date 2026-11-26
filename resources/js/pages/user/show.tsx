@@ -35,6 +35,7 @@ import { PinCommitButton } from '@/components/pin-commit-button';
 import { ProfileGuilds } from '@/components/profile-guilds';
 import { ProfileLiveButton } from '@/components/profile-live-button';
 import { ProfilePicture } from '@/components/profile-picture';
+import { ProfileQrButton } from '@/components/profile-qr-button';
 import { ProfileReadme } from '@/components/profile-readme';
 import { ProfileShareButton } from '@/components/profile-share-button';
 import { Button } from '@/components/ui/button';
@@ -293,8 +294,12 @@ export default function Show({
                         className="size-20 shrink-0"
                     />
 
-                    <div className="flex shrink-0 gap-1.5 sm:gap-2">
+                    <div className="flex min-w-0 flex-wrap justify-end gap-1.5 sm:gap-2">
                         <ProfileShareButton
+                            handle={user.handle}
+                            href={show(user).url}
+                        />
+                        <ProfileQrButton
                             handle={user.handle}
                             href={show(user).url}
                         />
