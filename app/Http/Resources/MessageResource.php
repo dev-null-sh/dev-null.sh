@@ -9,6 +9,7 @@ use App\Models\MessageImage;
 use App\Models\MessageVoice;
 use App\Models\User;
 use App\Services\CodeSpans;
+use App\Services\JumboEmoji;
 use App\Services\Mentions;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -46,6 +47,7 @@ final class MessageResource extends JsonResource
             'client_id' => $this->client_id,
             'body' => $this->body,
             'body_segments' => resolve(CodeSpans::class)->highlight($this->body),
+            'jumbo_emoji' => $this->jumboEmoji(),
             'mentions' => collect(resolve(Mentions::class)->positions($this->body, users: $this->mentions ?? []))
                 ->filter(fn (array $mention): bool => $mention['id'] !== null)
                 ->values(),
@@ -87,5 +89,23 @@ final class MessageResource extends JsonResource
         ];
 
         return $this->withGuildMentions ? ShownGuildMentions::of($shown, $request->user()) : $shown;
+    }
+
+    /**
+     * How many emoji the message shows large, as the web's thread does: 1 to 3 when its body is nothing but them and no
+     * images or voice note come with it, 0 otherwise. Its attachments are only looked up for such a body.
+     */
+    private function jumboEmoji(): int
+    {
+        $count = resolve(JumboEmoji::class)->count($this->body);
+
+        if ($count === 0) {
+            return 0;
+        }
+
+        $hasImages = $this->relationLoaded('images') ? $this->images->isNotEmpty() : $this->images()->exists();
+        $hasVoice = $this->relationLoaded('voice') ? $this->voice instanceof MessageVoice : $this->voice()->exists();
+
+        return $hasImages || $hasVoice ? 0 : $count;
     }
 }

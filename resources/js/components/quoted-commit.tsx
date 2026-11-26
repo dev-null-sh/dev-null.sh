@@ -72,6 +72,7 @@ export function QuotedCommit({
                 segments={commit.body_segments}
                 previewSegments={commit.preview_segments}
                 className="mt-1 max-h-60"
+                isJumboable
             />
             {commit.images && <CommitImages images={commit.images} />}
             {commit.poll && (

@@ -3,8 +3,9 @@ import { useEffect, useRef, useState } from 'react';
 import { CertificateText } from '@/components/certificate-text';
 import { CodeBlock } from '@/components/code-block';
 import { LinkifiedText } from '@/components/linkified-text';
+import { useLargeEmoji } from '@/hooks/use-large-emoji';
 import { bodyBlocks } from '@/lib/code';
-import { emojify } from '@/lib/emoji';
+import { emojify, jumboEmojiCount } from '@/lib/emoji';
 import { cn } from '@/lib/utils';
 import type { BodySegment, Commit } from '@/types';
 import type { GuildMentions } from '@/types/guild';
@@ -17,6 +18,7 @@ export function CommitBody({
     className,
     isStatic = false,
     linksEveryMention = true,
+    isJumboable = true,
 }: {
     segments: BodySegment[];
     mentions: Commit['mentions'];
@@ -28,13 +30,28 @@ export function CommitBody({
      * Whether a mention of anyone else links to their page too, as in commits, or stays text, as in remotes.
      */
     linksEveryMention?: boolean;
+    /**
+     * Whether a body of one to three emoji shows them large; small previews, like notifications, keep them small.
+     */
+    isJumboable?: boolean;
 }) {
+    const showsLargeEmoji = useLargeEmoji();
+    const jumboEmoji =
+        isJumboable && showsLargeEmoji ? jumboEmojiCount(segments) : 0;
+
     return (
         <div
             data-commit-body
+            data-jumbo-emoji={jumboEmoji || undefined}
             className={cn(
-                'overflow-clip leading-relaxed wrap-break-word whitespace-pre-wrap [overflow-clip-margin:4px]',
+                'overflow-clip leading-relaxed wrap-break-word [overflow-clip-margin:4px]',
                 className,
+                // A few emoji alone show large, like a sticker; em keeps them relative to the caller's text size, and
+                // blank lines between them would be as large, so they collapse.
+                jumboEmoji === 0 && 'whitespace-pre-wrap',
+                jumboEmoji === 1 &&
+                    'text-[3em] leading-tight whitespace-normal',
+                jumboEmoji > 1 && 'text-[2em] leading-tight whitespace-normal',
             )}
         >
             {bodyBlocks(segments).map((block, index) =>
@@ -237,10 +254,15 @@ export function CommitBodyExcerpt({
     segments,
     previewSegments = null,
     className,
+    isJumboable = false,
 }: {
     segments: BodySegment[];
     previewSegments?: BodySegment[] | null;
     className?: string;
+    /**
+     * Whether a body of only a few emoji shows them large, as a quoted commit does; notifications keep them small.
+     */
+    isJumboable?: boolean;
 }) {
     const bodyRef = useRef<HTMLDivElement>(null);
     const [isClamped, setIsClamped] = useState(false);
@@ -276,6 +298,7 @@ export function CommitBodyExcerpt({
                 mentions={null}
                 className="flow-root text-[15px]"
                 isStatic
+                isJumboable={isJumboable}
             />
         </div>
     );

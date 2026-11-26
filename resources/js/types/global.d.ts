@@ -39,6 +39,8 @@ declare module '@inertiajs/core' {
             joinedGuilds: JoinedGuild[];
             guildsEnabled: boolean;
             dimsLanes: boolean;
+            /** Whether this device shows messages of only a few emoji large; the Large emoji setting in Appearance. */
+            showsLargeEmoji: boolean;
             /** The event theme on the page for this reader, if any. */
             eventTheme: string | null;
             /** The year a New Year greeting wishes. */

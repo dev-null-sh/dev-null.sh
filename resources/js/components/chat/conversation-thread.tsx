@@ -25,6 +25,7 @@ import {
 import { MentionsBell } from '@/components/chat/mentions-bell';
 import {
     LiftedMessage,
+    isJumboMessage,
     MessageImages,
     MessageLinkCard,
     MessageText,
@@ -67,6 +68,7 @@ import { UserAvatar } from '@/components/user-avatar';
 import { UserPreview } from '@/components/user-preview';
 import { useChat, useThread } from '@/hooks/use-chat';
 import { useImageAttachments } from '@/hooks/use-image-attachments';
+import { useLargeEmoji } from '@/hooks/use-large-emoji';
 import { useLinkCard } from '@/hooks/use-link-card';
 import { moveCaretToEnd, useStash } from '@/hooks/use-stash';
 import { useVoiceNote } from '@/hooks/use-voice-note';
@@ -1325,7 +1327,18 @@ function BubbleWithMeta({
             ? target.partner.lane
             : (pulledBy[0]?.lane ?? user.lane);
 
-    const isOnPrimary = isMine && status !== 'staged' && status !== 'rejected';
+    const showsLargeEmoji = useLargeEmoji();
+    const isJumboEmoji =
+        showsLargeEmoji &&
+        isJumboMessage({
+            body: message.body,
+            body_segments:
+                'body_segments' in message ? message.body_segments : null,
+            images,
+            voice,
+        });
+    const isOnPrimary =
+        isMine && !isJumboEmoji && status !== 'staged' && status !== 'rejected';
     const side = isMine ? 'mine' : 'theirs';
     const replyToThis =
         onReply !== null && bubble.kind === 'message'
@@ -1479,11 +1492,17 @@ function BubbleWithMeta({
                                     ? bubble.message.id
                                     : undefined
                             }
-                            className={bubbleClass}
+                            className={cn(
+                                bubbleClass,
+                                // A few emoji alone stand on their own, without the bubble behind them.
+                                isJumboEmoji &&
+                                    'bg-transparent text-foreground',
+                            )}
                         >
                             <MessageText
                                 message={message}
                                 isMine={isOnPrimary}
+                                isJumboable={isJumboEmoji}
                             />
                             {bubbleActions}
                         </div>
