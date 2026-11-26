@@ -62,13 +62,28 @@ final readonly class GuildsQuery
     public function suggestions(string $term): Collection
     {
         $escaped = str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $term);
+        $handle = $this->folded('handle');
+        $name = $this->folded('name');
+        $search = $this->folded('?');
 
         return Guild::query()->select(['handle', 'name', 'emoji', 'icon_path', 'updated_at'])->withCount('members')
             ->where(fn (Builder $query): Builder => $query
-                ->whereRaw('TRANSLATE(LOWER(handle COLLATE "pg_c_utf8"), \'ς\', \'σ\') LIKE TRANSLATE(LOWER(? COLLATE "pg_c_utf8"), \'ς\', \'σ\') ESCAPE \'!\'', ["%{$escaped}%"])
-                ->orWhereRaw('TRANSLATE(LOWER(name COLLATE "pg_c_utf8"), \'ς\', \'σ\') LIKE TRANSLATE(LOWER(? COLLATE "pg_c_utf8"), \'ς\', \'σ\') ESCAPE \'!\'', ["%{$escaped}%"]))
-            ->orderByRaw('CASE WHEN TRANSLATE(LOWER(handle COLLATE "pg_c_utf8"), \'ς\', \'σ\') LIKE TRANSLATE(LOWER(? COLLATE "pg_c_utf8"), \'ς\', \'σ\') ESCAPE \'!\' THEN 0 ELSE 1 END', ["{$escaped}%"])
+                ->whereRaw("{$handle} LIKE {$search} ESCAPE '!'", ["%{$escaped}%"])
+                ->orWhereRaw("{$name} LIKE {$search} ESCAPE '!'", ["%{$escaped}%"]))
+            ->orderByRaw("CASE WHEN {$handle} LIKE {$search} ESCAPE '!' THEN 0 ELSE 1 END", ["{$escaped}%"])
             ->orderByDesc('members_count')->orderBy('handle')->limit(6)->get();
+    }
+
+    /**
+     * Lowercases for matching, folding the final sigma into σ and dropping the combining dot above: handles are
+     * lowercased in PHP, which turns İ into i and that dot, while the database turns İ into a plain i.
+     *
+     * @param  literal-string  $operand
+     * @return literal-string
+     */
+    private function folded(string $operand): string
+    {
+        return "TRANSLATE(LOWER({$operand} COLLATE \"pg_c_utf8\"), 'ς\u{0307}', 'σ')";
     }
 
     /**

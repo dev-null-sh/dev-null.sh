@@ -620,6 +620,7 @@ A signed request sees what the web shows you, such as your own pending commits a
 - pin a commit to your profile, or unpin it;
 - translate commits;
 - suggest people to mention and /dev/null issues to reference while writing;
+- suggest up to six guilds by handle or name while typing a hashtag, as the composer does, while guilds are available to you;
 - sync from GitHub, save your lane color, timezone, and translation language, and turn automatic translation on or off;
 - list your devices and revoke them;
 - delete your account.
