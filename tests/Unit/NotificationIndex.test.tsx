@@ -63,6 +63,7 @@ async function renderPage(page: () => ReactElement): Promise<string> {
             props: {
                 auth: {
                     user: { id: 'recipient', handle: 'nunomaduro' },
+                    organizations: [],
                     log: {},
                 },
                 errors: {},
@@ -489,4 +490,49 @@ test('shows an organization that replied, quoted or mentioned as itself: square,
     assert.match(body, /rounded-md/);
     assert.match(item, /href="\/@laravel"/);
     assert.doesNotMatch(item, /Follow/);
+});
+
+const starrableReply = {
+    ...notification,
+    commit: {
+        ...notification.commit,
+        status: 'approved',
+        starred: false,
+        stars_count: 2,
+    },
+} as NotificationGroup;
+
+void test('lets a single reply be starred from the inbox, outside its link', async () => {
+    const body = await render([starrableReply]);
+
+    assert.match(body, /<button\b[^>]*data-test="star-commit-button"/);
+    assert.doesNotMatch(
+        body,
+        /<a\b(?:(?!<\/a>).)*data-test="star-commit-button"/s,
+    );
+});
+
+for (const type of ['mentioned', 'quoted']) {
+    void test(`lets a single ${type} commit be starred from the inbox`, async () => {
+        const body = await render([
+            { ...starrableReply, type } as NotificationGroup,
+        ]);
+
+        assert.match(body, /data-test="star-commit-button"/);
+    });
+}
+
+void test('offers no star on stars, groups or commits still in review', async () => {
+    for (const item of [
+        { ...starrableReply, type: 'starred' },
+        { ...starrableReply, actors_count: 2, event_count: 2 },
+        {
+            ...starrableReply,
+            commit: { ...starrableReply.commit, status: 'pending' },
+        },
+    ]) {
+        const body = await render([item as NotificationGroup]);
+
+        assert.doesNotMatch(body, /data-test="star-commit-button"/);
+    }
 });
