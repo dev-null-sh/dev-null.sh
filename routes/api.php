@@ -38,6 +38,7 @@ use App\Http\Controllers\Api\GuildMembershipController;
 use App\Http\Controllers\Api\GuildMuteController;
 use App\Http\Controllers\Api\GuildReadController;
 use App\Http\Controllers\Api\GuildReportController;
+use App\Http\Controllers\Api\GuildSuggestionController;
 use App\Http\Controllers\Api\HeadlineController;
 use App\Http\Controllers\Api\IssueController;
 use App\Http\Controllers\Api\IssueSuggestionController;
@@ -273,10 +274,13 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             ->middleware('throttle:120,1,guild-reads:')
             ->name('api-guild-read.update');
 
-        // Composer suggestions: people to mention and /dev/null issues to reference, as the web's composer suggests them...
+        // Composer suggestions: people to mention, guilds to tag and /dev/null issues to reference, as the web's composer suggests them...
         Route::get('search/mentions', [MentionSuggestionController::class, 'index'])
             ->middleware('throttle:people')
             ->name('api-mention-suggestion.index');
+        Route::get('search/guilds', [GuildSuggestionController::class, 'index'])
+            ->middleware('throttle:people')
+            ->name('api-guild-suggestion.index');
         Route::get('search/issues', [IssueSuggestionController::class, 'index'])
             ->middleware('throttle:issue-suggestions')
             ->name('api-issue-suggestion.index');

@@ -48,7 +48,16 @@ it('matches literal wildcards and Unicode names when suggesting guilds', functio
     $this->actingAs(User::factory()->create(['handle' => 'admin']))
         ->getJson(route('guild-suggestions.index', ['q' => $term]))
         ->assertOk()->assertJsonCount(1, 'guilds')->assertJsonPath('guilds.0.handle', 'match');
-})->with([['%', '100%'], ['_', 'Safe_code'], ['!', 'Hello!'], ['école', 'ÉCOLE'], ['κοσμος', 'ΚΟΣΜΟΣ']]);
+})->with([['%', '100%'], ['_', 'Safe_code'], ['!', 'Hello!'], ['école', 'ÉCOLE'], ['κοσμος', 'ΚΟΣΜΟΣ'], ['i̇stanbul', 'İstanbul'], ['istanbul', 'İSTANBUL']]);
+
+it('matches a handle with a dotted capital I however it is typed', function (string $term): void {
+    Guild::factory()->create(['handle' => mb_strtolower('İstanbul'), 'name' => 'City']);
+    Guild::factory()->create(['handle' => 'other', 'name' => 'Other']);
+
+    $this->actingAs(User::factory()->create(['handle' => 'admin']))
+        ->getJson(route('guild-suggestions.index', ['q' => $term]))
+        ->assertOk()->assertJsonCount(1, 'guilds')->assertJsonPath('guilds.0.handle', mb_strtolower('İstanbul'));
+})->with(['i̇stanbul', 'istanbul', 'i̇st']);
 
 it('protects suggestions behind sign in and guild feature access', function (): void {
     $this->getJson(route('guild-suggestions.index'))->assertUnauthorized();
