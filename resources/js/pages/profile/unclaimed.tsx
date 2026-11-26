@@ -6,6 +6,7 @@ import { show } from '@/actions/App/Http/Controllers/UserController';
 import { BioText } from '@/components/bio-text';
 import { useFollowHover } from '@/components/follow-button';
 import { GitHubIcon } from '@/components/github-icon';
+import { ProfileQrButton } from '@/components/profile-qr-button';
 import { ProfileShareButton } from '@/components/profile-share-button';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
@@ -69,6 +70,10 @@ export default function UnclaimedProfile({
 
                     <div className="flex min-w-0 flex-wrap justify-end gap-1.5 sm:gap-2">
                         <ProfileShareButton
+                            handle={profile.handle}
+                            href={show(profile.handle).url}
+                        />
+                        <ProfileQrButton
                             handle={profile.handle}
                             href={show(profile.handle).url}
                         />

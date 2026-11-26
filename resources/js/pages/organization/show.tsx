@@ -10,6 +10,7 @@ import { GitHubIcon } from '@/components/github-icon';
 import { OrganizationAvatar } from '@/components/organization-avatar';
 import { OrganizationFollowButton } from '@/components/organization-follow-button';
 import { PageTabs } from '@/components/page-tabs';
+import { ProfileQrButton } from '@/components/profile-qr-button';
 import { ProfileShareButton } from '@/components/profile-share-button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -88,6 +89,10 @@ export default function Show({
                             </Button>
                         )}
                         <ProfileShareButton
+                            handle={organization.handle}
+                            href={show(organization).url}
+                        />
+                        <ProfileQrButton
                             handle={organization.handle}
                             href={show(organization).url}
                         />
