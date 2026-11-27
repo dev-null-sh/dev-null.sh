@@ -13,8 +13,9 @@ beforeEach(function (): void {
 
 it('shows the product metrics of all time to admins', function (): void {
     $admin = User::factory()->create(['handle' => 'admin', 'created_at' => '2026-10-16 09:00:00']);
-    User::factory()->create(['created_at' => '2026-10-17 09:00:00', 'last_seen_at' => '2026-10-19']);
+    $seen = User::factory()->create(['created_at' => '2026-10-17 09:00:00', 'last_seen_at' => '2026-10-19']);
     DB::table('active_user_counts')->insert(['seen_at' => '2026-10-17', 'count' => 7]);
+    DB::table('user_active_days')->insert(['user_id' => $seen->id, 'seen_at' => '2026-10-19', 'web_app' => true, 'lite_mobile_app' => true, 'mac_app' => true]);
 
     $this->actingAs($admin)
         ->get(route('product-metrics.show', ['all_time' => 1]))
@@ -25,13 +26,28 @@ it('shows the product metrics of all time to admins', function (): void {
             ->where('activeUsers.daily', 1)
             ->where('responses.commits', 0)
             ->where('newcomerFollows.newcomers', 2)
-            ->where('activeUserCounts', [['date' => '2026-10-17', 'count' => 7, 'returning' => 6, 'activated' => 0, 'not_activated' => 1, 'pending' => 0]])
-            ->where('hasTraffic', false)
+            ->where('activeUserCounts', [['date' => '2026-10-17', 'count' => 7, 'regular' => 6, 'back' => 0, 'lost' => 0, 'lost_complete' => false, 'backfilled' => true, 'activated' => 0, 'not_activated' => 1, 'pending' => 0]])
+            ->where('appUsage', ['days' => [['date' => '2026-10-19', 'web_app' => 1, 'native_mobile_app' => 0, 'lite_mobile_app' => 1, 'mac_app' => 1, 'other_app' => 0]], 'recorded_since' => '2026-10-19'])
             ->missing('funnel')
             ->loadDeferredProps(fn ($reload) => $reload
                 ->where('funnel.signups', 2)
                 ->where('funnel.retention_eligible', 2)
                 ->where('funnel.visitors', null)));
+});
+
+it('shows retention by signup day and by weekly cohort, and when active days started being recorded', function (): void {
+    $admin = User::factory()->create(['handle' => 'admin', 'created_at' => '2026-10-16 09:00:00']);
+    DB::table('user_active_days')->insert(['user_id' => $admin->id, 'seen_at' => '2026-10-17']);
+
+    $this->actingAs($admin)
+        ->get(route('product-metrics.show', ['all_time' => 1]))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('retentionByDay.day_1', [['date' => '2026-10-16', 'eligible' => 1, 'retained' => 1, 'backfilled' => true]])
+            ->where('retentionByDay.day_7', [])
+            ->where('retentionCohorts.cohorts.0.week', '2026-10-12')
+            ->where('retentionCohorts.curve.0', ['day' => 1, 'eligible' => 1, 'retained' => 1, 'backfilled' => 1])
+            ->where('retentionRecordedSince', '2026-10-30'));
 });
 
 it('shows the product metrics of the last 30 days by default', function (): void {

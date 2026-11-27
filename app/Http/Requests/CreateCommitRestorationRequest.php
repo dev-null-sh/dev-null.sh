@@ -17,7 +17,7 @@ final class CreateCommitRestorationRequest extends FormRequest
         $user = $this->user();
         assert($user instanceof User);
 
-        return $user->id === $this->commit()->user_id;
+        return $this->commit()->isOwnedBy($user);
     }
 
     /**

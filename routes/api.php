@@ -3,14 +3,22 @@
 declare(strict_types=1);
 
 use App\Exceptions\ApiException;
+use App\Http\Controllers\Api\BroadcastAuthorizationController;
+use App\Http\Controllers\Api\CallController;
 use App\Http\Controllers\Api\CommitController as ApiCommitController;
 use App\Http\Controllers\Api\CommitPastelController;
+use App\Http\Controllers\Api\CommitPinController;
 use App\Http\Controllers\Api\CommitPollVoteController;
 use App\Http\Controllers\Api\CommitPreviewController;
 use App\Http\Controllers\Api\CommitReplyController;
 use App\Http\Controllers\Api\CommitReportController;
+use App\Http\Controllers\Api\CommitRestorationController;
+use App\Http\Controllers\Api\CommitSearchController;
 use App\Http\Controllers\Api\CommitStarController;
+use App\Http\Controllers\Api\CommitTranslationController;
 use App\Http\Controllers\Api\ConversationArchiveController;
+use App\Http\Controllers\Api\ConversationCallController;
+use App\Http\Controllers\Api\ConversationCallIceServerController;
 use App\Http\Controllers\Api\ConversationController;
 use App\Http\Controllers\Api\ConversationDropController;
 use App\Http\Controllers\Api\ConversationMergeController;
@@ -22,8 +30,21 @@ use App\Http\Controllers\Api\ConversationReadController;
 use App\Http\Controllers\Api\ConversationTypingController;
 use App\Http\Controllers\Api\CurrentUserController;
 use App\Http\Controllers\Api\DeviceController;
+use App\Http\Controllers\Api\DevicePushTokenController;
+use App\Http\Controllers\Api\GuildCommitPinController;
+use App\Http\Controllers\Api\GuildController;
+use App\Http\Controllers\Api\GuildIconController;
+use App\Http\Controllers\Api\GuildMembershipController;
+use App\Http\Controllers\Api\GuildMuteController;
+use App\Http\Controllers\Api\GuildReadController;
+use App\Http\Controllers\Api\GuildReportController;
+use App\Http\Controllers\Api\HeadlineController;
+use App\Http\Controllers\Api\IssueController;
+use App\Http\Controllers\Api\IssueSuggestionController;
+use App\Http\Controllers\Api\JoinedGuildController;
+use App\Http\Controllers\Api\LiveFollowingController;
 use App\Http\Controllers\Api\LogController;
-use App\Http\Controllers\Api\MacAppController;
+use App\Http\Controllers\Api\MentionSuggestionController;
 use App\Http\Controllers\Api\MessageImageController;
 use App\Http\Controllers\Api\MessageLinkPreviewController;
 use App\Http\Controllers\Api\MessagePinController;
@@ -31,7 +52,14 @@ use App\Http\Controllers\Api\MessageReactionController;
 use App\Http\Controllers\Api\MessageVoiceController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\NotificationGroupController;
+use App\Http\Controllers\Api\OrganizationAdminController;
+use App\Http\Controllers\Api\OrganizationCommitController;
+use App\Http\Controllers\Api\OrganizationController;
+use App\Http\Controllers\Api\OrganizationFollowController;
+use App\Http\Controllers\Api\OrganizationMentionController;
 use App\Http\Controllers\Api\OrgArchiveController;
+use App\Http\Controllers\Api\OrgCallController;
+use App\Http\Controllers\Api\OrgCallIceServerController;
 use App\Http\Controllers\Api\OrgController;
 use App\Http\Controllers\Api\OrgMemberController;
 use App\Http\Controllers\Api\OrgMessageController;
@@ -40,23 +68,37 @@ use App\Http\Controllers\Api\OrgPinController;
 use App\Http\Controllers\Api\OrgPingController;
 use App\Http\Controllers\Api\OrgReadController;
 use App\Http\Controllers\Api\OrgTypingController;
+use App\Http\Controllers\Api\ProfileSearchController;
+use App\Http\Controllers\Api\RelatedCommitController;
 use App\Http\Controllers\Api\RemoteCandidateController;
+use App\Http\Controllers\Api\ScheduledCommitController;
+use App\Http\Controllers\Api\ScheduledCommitSubmissionController;
 use App\Http\Controllers\Api\StarredCommitController;
 use App\Http\Controllers\Api\SuggestedUserController;
 use App\Http\Controllers\Api\SuggestionDismissalController;
+use App\Http\Controllers\Api\UserAutomaticTranslationController;
 use App\Http\Controllers\Api\UserBlockController;
 use App\Http\Controllers\Api\UserCommitController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\UserFollowController;
+use App\Http\Controllers\Api\UserFollowedOrganizationController;
 use App\Http\Controllers\Api\UserFollowersController;
 use App\Http\Controllers\Api\UserFollowingController;
 use App\Http\Controllers\Api\UserLaneController;
+use App\Http\Controllers\Api\UserLiveController;
+use App\Http\Controllers\Api\UserModerationHistoryController;
 use App\Http\Controllers\Api\UserMuteController;
 use App\Http\Controllers\Api\UserPasteisModeController;
 use App\Http\Controllers\Api\UserProfileController;
+use App\Http\Controllers\Api\UserPushPreferencesController;
 use App\Http\Controllers\Api\UserRemotePreferencesController;
 use App\Http\Controllers\Api\UserRemotesController;
+use App\Http\Controllers\Api\UserSearchController;
+use App\Http\Controllers\Api\UserSettingsController;
 use App\Http\Controllers\Api\UserTermsController;
+use App\Http\Controllers\Api\UserTimezoneController;
+use App\Http\Controllers\Api\UserTranslationLanguageController;
+use App\Http\Controllers\Api\WebSessionController;
 use App\Http\Controllers\Cli\CommitController;
 use App\Http\Controllers\Cli\KeyLookupController;
 use App\Http\Middleware\AuthenticateSignedRequest;
@@ -64,7 +106,12 @@ use App\Http\Middleware\AuthenticateSshSignature;
 use App\Http\Middleware\PreventPostingInTimeout;
 use App\Http\Middleware\RequireCommitRules;
 use App\Http\Middleware\ThrottleCommits;
+use App\Http\Middleware\ThrottleIssues;
+use App\Http\Middleware\UpdateLastSeenAt;
+use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
+use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Session\Middleware\StartSession;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('cli')->group(function (): void {
@@ -72,7 +119,7 @@ Route::prefix('cli')->group(function (): void {
         ->middleware([AuthenticateSshSignature::class, PreventPostingInTimeout::class, RequireCommitRules::class, ThrottleCommits::class])
         ->name('cli-commit.store');
     Route::post('key-lookups', [KeyLookupController::class, 'store'])
-        ->middleware('throttle:60,1')
+        ->middleware('throttle:60,1,key-lookups:')
         ->name('cli-key-lookup.store');
 });
 
@@ -83,16 +130,26 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             ->name('api-user.show');
         Route::get('users/{user:handle}/commits', [UserCommitController::class, 'index'])
             ->name('api-user-commit.index');
-        Route::get('users/{user:handle}/followers', [UserFollowersController::class, 'index'])
-            ->name('api-user-followers.index');
-        Route::get('users/{user:handle}/following', [UserFollowingController::class, 'index'])
-            ->name('api-user-following.index');
         Route::get('commits/{commit}', [ApiCommitController::class, 'show'])
             ->name('api-commit.show');
-    });
+        Route::get('commits/{commit}/related', [RelatedCommitController::class, 'index'])
+            ->name('api-related-commit.index');
+        Route::get('organizations/{handle}', [OrganizationController::class, 'show'])
+            ->name('api-organization.show');
+        Route::get('organizations/{handle}/commits', [OrganizationCommitController::class, 'index'])
+            ->name('api-organization-commit.index');
+        Route::get('organizations/{handle}/mentions', [OrganizationMentionController::class, 'index'])
+            ->name('api-organization-mention.index');
 
-    // The Mac app's latest release, which its update check compares with, unsigned so it sends nothing about anyone...
-    Route::get('apps/mac', [MacAppController::class, 'show'])->name('api-mac-app.show');
+        // Mentioned profiles: the user or organization a commit's or message's mention captured, by the id it carries,
+        // as the web's mention links open them, so they still lead there once they rename...
+        Route::get('mentions/{user}', [UserController::class, 'show'])
+            ->whereUuid('user')
+            ->name('api-mentioned-user.show');
+        Route::get('mentions/organizations/{organization}', [OrganizationController::class, 'show'])
+            ->whereUuid('organization')
+            ->name('api-mentioned-organization.show');
+    });
 
     // Signing in: the app redeems the code it got on the web, signed with a key that isn't approved yet...
     Route::post('devices', [DeviceController::class, 'store'])
@@ -100,7 +157,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         ->middleware('throttle:devices')
         ->name('api-device.store');
 
-    // Remote images and voice notes: the app's image views and audio players can't sign requests, so a thread hands out URLs signed for the user...
+    // Remote images, voice notes and guild icons: the app's image views and audio players can't sign requests, so the API hands out URLs signed for the user...
     Route::get('remotes/images/{messageImage}', [MessageImageController::class, 'show'])
         ->whereUuid('messageImage')
         ->withoutMiddleware('throttle:api')
@@ -111,10 +168,19 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         ->withoutMiddleware('throttle:api')
         ->middleware('signed:relative')
         ->name('api-message-voice.show');
+    Route::get('guilds/{guild:handle}/icon', [GuildIconController::class, 'show'])
+        ->withoutMiddleware('throttle:api')
+        ->middleware('signed:relative')
+        ->name('api-guild-icon.show');
 
     // Signed by the mobile app with an SSH key that the user approved as a device...
     Route::middleware(AuthenticateSignedRequest::class)->group(function (): void {
         Route::get('me', [CurrentUserController::class, 'show'])->name('api-current-user.show');
+
+        // Live updates, on the user's own private channel...
+        Route::post('broadcasting/auth', [BroadcastAuthorizationController::class, 'store'])
+            ->middleware('throttle:broadcast-authorizations')
+            ->name('api-broadcast-authorization.store');
         Route::delete('me', [CurrentUserController::class, 'destroy'])->name('api-current-user.destroy');
 
         // Pastéis...
@@ -128,6 +194,97 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
 
         // User Lane...
         Route::put('me/lane', [UserLaneController::class, 'update'])->name('api-user-lane.update');
+
+        // User Live: the stream the user is on, as Go live and End stream do on the web...
+        Route::put('me/live', [UserLiveController::class, 'update'])
+            ->middleware(PreventPostingInTimeout::class)
+            ->name('api-user-live.update');
+        Route::delete('me/live', [UserLiveController::class, 'destroy'])->name('api-user-live.destroy');
+        Route::get('me/live-following', [LiveFollowingController::class, 'index'])->name('api-live-following.index');
+
+        // User Settings: what the web's settings show only the user...
+        Route::get('me/settings', [UserSettingsController::class, 'show'])->name('api-user-settings.show');
+
+        // User Moderation History: the timeouts and bans the web shows on the user's own profile...
+        Route::get('me/moderation-history', [UserModerationHistoryController::class, 'show'])->name('api-user-moderation-history.show');
+
+        // User Timezone and Translation, as the web's settings save them...
+        Route::put('me/timezone', [UserTimezoneController::class, 'update'])->name('api-user-timezone.update');
+        Route::put('me/automatic-translation', [UserAutomaticTranslationController::class, 'update'])->name('api-user-automatic-translation.update');
+        Route::put('me/translation-language', [UserTranslationLanguageController::class, 'update'])->name('api-user-translation-language.update');
+
+        // Devices: the keys approved to sign as the user, as the web's Devices page lists and revokes them...
+        Route::get('me/devices', [DeviceController::class, 'index'])->name('api-device.index');
+        Route::delete('me/devices/{device}', [DeviceController::class, 'destroy'])
+            ->whereUuid('device')
+            ->name('api-device.destroy');
+
+        // Web session: the lite mobile app's web view signs in with cookies made for the device. It isn't a visit: the page it loads next is...
+        Route::post('me/web-session', [WebSessionController::class, 'store'])
+            ->withoutMiddleware(UpdateLastSeenAt::class)
+            ->middleware([EncryptCookies::class, AddQueuedCookiesToResponse::class, StartSession::class])
+            ->name('api-web-session.store');
+
+        // Push notifications: the token pushes reach the phone that signs the request with, and what the user wants pushed...
+        Route::put('me/push-token', [DevicePushTokenController::class, 'update'])->name('api-device-push-token.update');
+        Route::delete('me/push-token', [DevicePushTokenController::class, 'destroy'])->name('api-device-push-token.destroy');
+        Route::put('me/push-preferences', [UserPushPreferencesController::class, 'update'])->name('api-user-push-preferences.update');
+
+        // Who follows whom, for members like on the web, so scrapers can't walk the graph...
+        Route::get('users/{user:handle}/followers', [UserFollowersController::class, 'index'])
+            ->name('api-user-followers.index');
+        Route::get('users/{user:handle}/following', [UserFollowingController::class, 'index'])
+            ->name('api-user-following.index');
+        Route::get('users/{user:handle}/following/organizations', [UserFollowedOrganizationController::class, 'index'])
+            ->name('api-user-followed-organization.index');
+
+        // Search: people and organizations by name or handle, and commits by meaning, as the web's search finds them...
+        Route::get('search/profiles', [ProfileSearchController::class, 'index'])
+            ->middleware('throttle:people')
+            ->name('api-profile-search.index');
+        // Deprecated for search/profiles, kept for the apps that still call it...
+        Route::get('search/users', [UserSearchController::class, 'index'])
+            ->middleware('throttle:people')
+            ->name('api-user-search.index');
+        Route::get('search/commits', [CommitSearchController::class, 'index'])
+            ->middleware('throttle:search')
+            ->name('api-commit-search.index');
+
+        // Hot topics: the headlines the web's aside shows, and each one's page with its recap...
+        Route::get('headlines', [HeadlineController::class, 'index'])->name('api-headline.index');
+        Route::get('headlines/{headline}', [HeadlineController::class, 'show'])
+            ->whereUuid('headline')
+            ->name('api-headline.show');
+
+        // Guilds: the directory the web's Guilds page lists, a guild's board and its members...
+        Route::get('guilds', [GuildController::class, 'index'])->name('api-guild.index');
+        Route::post('guilds', [GuildController::class, 'store'])
+            ->middleware([PreventPostingInTimeout::class, 'throttle:10,1,guilds:'])
+            ->name('api-guild.store');
+        Route::get('guilds/{guild:handle}', [GuildController::class, 'show'])->name('api-guild.show');
+        Route::put('guilds/{guild:handle}', [GuildController::class, 'update'])
+            ->middleware([PreventPostingInTimeout::class, 'throttle:10,1,guilds:'])
+            ->name('api-guild.update');
+        Route::get('guilds/{guild:handle}/members', [GuildMembershipController::class, 'index'])->name('api-guild-membership.index');
+
+        // Joined guilds: the ones the web's left navigation lists, with the number of commits missed since the last visit...
+        Route::get('me/guilds', [JoinedGuildController::class, 'index'])->name('api-joined-guild.index');
+        Route::put('guilds/{guild:handle}/read', [GuildReadController::class, 'update'])
+            ->middleware('throttle:120,1,guild-reads:')
+            ->name('api-guild-read.update');
+
+        // Composer suggestions: people to mention and /dev/null issues to reference, as the web's composer suggests them...
+        Route::get('search/mentions', [MentionSuggestionController::class, 'index'])
+            ->middleware('throttle:people')
+            ->name('api-mention-suggestion.index');
+        Route::get('search/issues', [IssueSuggestionController::class, 'index'])
+            ->middleware('throttle:issue-suggestions')
+            ->name('api-issue-suggestion.index');
+
+        // Feature requests and bug reports, opened on GitHub as the web's /feature and /bug commands open them...
+        Route::post('issues', [IssueController::class, 'store'])
+            ->middleware([PreventPostingInTimeout::class, 'throttle:10,1,issues:', ThrottleIssues::class])
+            ->name('api-issue.store');
 
         // User Remotes: the switch from the web's settings, and the settings menu on its Remotes page...
         Route::put('me/remotes', [UserRemotesController::class, 'update'])->name('api-user-remotes.update');
@@ -143,6 +300,37 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             ->middleware([PreventPostingInTimeout::class, RequireCommitRules::class, ThrottleCommits::class])
             ->name('api-commit.store');
         Route::delete('commits/{commit}', [ApiCommitController::class, 'destroy'])->name('api-commit.destroy');
+
+        // Commit Restoration: undoing a deletion within its undo window...
+        Route::post('commits/{commit}/restoration', [CommitRestorationController::class, 'store'])
+            ->withTrashed()
+            ->name('api-commit-restoration.store');
+
+        // Scheduled Commits: the queue only the user sees until each one is submitted...
+        Route::get('scheduled-commits', [ScheduledCommitController::class, 'index'])->name('api-scheduled-commit.index');
+        Route::post('scheduled-commits', [ScheduledCommitController::class, 'store'])
+            ->middleware([PreventPostingInTimeout::class, RequireCommitRules::class, ThrottleCommits::class])
+            ->name('api-scheduled-commit.store');
+        Route::delete('scheduled-commits/{scheduledCommit}', [ScheduledCommitController::class, 'destroy'])
+            ->whereUuid('scheduledCommit')
+            ->name('api-scheduled-commit.destroy');
+        Route::post('scheduled-commits/{scheduledCommit}/submission', [ScheduledCommitSubmissionController::class, 'store'])
+            ->whereUuid('scheduledCommit')
+            ->middleware([PreventPostingInTimeout::class, ThrottleCommits::class])
+            ->name('api-scheduled-commit-submission.store');
+
+        // Commit Pin: the author's commit at the top of their profile...
+        Route::put('commits/{commit}/pin', [CommitPinController::class, 'update'])
+            ->middleware('throttle:pins')
+            ->name('api-commit-pin.update');
+        Route::delete('commits/{commit}/pin', [CommitPinController::class, 'destroy'])
+            ->middleware('throttle:pins')
+            ->name('api-commit-pin.destroy');
+
+        // Commit Translation...
+        Route::post('commits/{commit}/translation', [CommitTranslationController::class, 'store'])
+            ->middleware('throttle:10,1,translations:')
+            ->name('api-commit-translation.store');
 
         // Commit Preview: a draft as the commit it would become, which keeps nothing...
         Route::post('commits/preview', [CommitPreviewController::class, 'store'])->name('api-commit-preview.store');
@@ -160,7 +348,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
 
         // Commit Pastel...
         Route::post('commits/{commit}/pasteis', [CommitPastelController::class, 'store'])
-            ->middleware('throttle:60,1')
+            ->middleware('throttle:60,1,pasteis:')
             ->name('api-commit-pastel.store');
 
         // Commit Poll Vote...
@@ -170,6 +358,8 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         Route::get('starred', [StarredCommitController::class, 'index'])->name('api-starred.index');
 
         // Commit Star...
+        Route::get('commits/{commit}/stars', [CommitStarController::class, 'index'])
+            ->name('api-commit-star.index');
         Route::post('commits/{commit}/star', [CommitStarController::class, 'store'])
             ->middleware('throttle:stars')
             ->name('api-commit-star.store');
@@ -184,6 +374,52 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         Route::delete('users/{user:handle}/follow', [UserFollowController::class, 'destroy'])
             ->middleware('throttle:follows')
             ->name('api-user-follow.destroy');
+
+        // Organization Follow...
+        Route::post('organizations/{handle}/follow', [OrganizationFollowController::class, 'store'])
+            ->middleware('throttle:follows')
+            ->name('api-organization-follow.store');
+        Route::delete('organizations/{handle}/follow', [OrganizationFollowController::class, 'destroy'])
+            ->middleware('throttle:follows')
+            ->name('api-organization-follow.destroy');
+
+        // Organization Admin: claiming an organization's page, which GitHub confirms the user belongs to...
+        Route::post('organizations/{handle}/claim', [OrganizationAdminController::class, 'store'])
+            ->middleware('throttle:10,1,organization-claims:')
+            ->name('api-organization-admin.store');
+
+        // Guild Membership: joining or leaving a guild, as the web's Join button does...
+        Route::post('guilds/{guild:handle}/membership', [GuildMembershipController::class, 'store'])
+            ->middleware('throttle:follows')
+            ->name('api-guild-membership.store');
+        Route::delete('guilds/{guild:handle}/membership', [GuildMembershipController::class, 'destroy'])
+            ->middleware('throttle:follows')
+            ->name('api-guild-membership.destroy');
+
+        // Guild Report: a private report to the admins, as the web's Report button sends...
+        Route::post('guilds/{guild:handle}/reports', [GuildReportController::class, 'store'])
+            ->middleware('throttle:10,1,guild-reports:')
+            ->name('api-guild-report.store');
+
+        // Guild Mute: hiding a guild's commits from logs and search, as the web's Mute button does...
+        Route::post('guilds/{guild:handle}/mute', [GuildMuteController::class, 'store'])
+            ->middleware('throttle:follows')
+            ->name('api-guild-mute.store');
+        Route::delete('guilds/{guild:handle}/mute', [GuildMuteController::class, 'destroy'])
+            ->middleware('throttle:follows')
+            ->name('api-guild-mute.destroy');
+
+        // Guild Pin: the moderator featuring one commit on the guild's board, as the web's Pin to board does...
+        Route::put('guilds/{guild:handle}/commits/{commit}/pin', [GuildCommitPinController::class, 'update'])
+            ->whereUuid('commit')
+            ->withTrashed()
+            ->middleware('throttle:pins')
+            ->name('api-guild-commit-pin.update');
+        Route::delete('guilds/{guild:handle}/commits/{commit}/pin', [GuildCommitPinController::class, 'destroy'])
+            ->whereUuid('commit')
+            ->withTrashed()
+            ->middleware('throttle:pins')
+            ->name('api-guild-commit-pin.destroy');
 
         // Who to Follow...
         Route::get('me/suggested-users', [SuggestedUserController::class, 'index'])->name('api-suggested-user.index');
@@ -272,6 +508,39 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             ->middleware([PreventPostingInTimeout::class, 'throttle:pings'])
             ->name('api-org-ping.store');
 
+        // Remote Calls: ringing, answering and ending a call, and checking in to an org's, polled as the web polls them...
+        Route::middleware('throttle:conversations')->group(function (): void {
+            Route::get('remotes/call', [CallController::class, 'show'])->name('api-call.show');
+            Route::get('remotes/@{partner:handle}/call', [ConversationCallController::class, 'show'])
+                ->name('api-conversation-call.show');
+            Route::put('remotes/@{partner:handle}/call', [ConversationCallController::class, 'update'])
+                ->name('api-conversation-call.update');
+            Route::delete('remotes/@{partner:handle}/call', [ConversationCallController::class, 'destroy'])
+                ->name('api-conversation-call.destroy');
+            Route::put('remotes/orgs/{org}/call', [OrgCallController::class, 'update'])
+                ->whereUuid('org')
+                ->name('api-org-call.update');
+            Route::delete('remotes/orgs/{org}/call', [OrgCallController::class, 'destroy'])
+                ->whereUuid('org')
+                ->name('api-org-call.destroy');
+        });
+
+        // Remote Calls: starting or joining one, and the relay it goes through, as often as the web's Call may...
+        Route::middleware('throttle:messages')->group(function (): void {
+            Route::get('remotes/@{partner:handle}/call/ice-servers', [ConversationCallIceServerController::class, 'index'])
+                ->name('api-conversation-call-ice-server.index');
+            Route::post('remotes/@{partner:handle}/call', [ConversationCallController::class, 'store'])
+                ->middleware(PreventPostingInTimeout::class)
+                ->name('api-conversation-call.store');
+            Route::get('remotes/orgs/{org}/call/ice-servers', [OrgCallIceServerController::class, 'index'])
+                ->whereUuid('org')
+                ->name('api-org-call-ice-server.index');
+            Route::post('remotes/orgs/{org}/call', [OrgCallController::class, 'store'])
+                ->whereUuid('org')
+                ->middleware(PreventPostingInTimeout::class)
+                ->name('api-org-call.store');
+        });
+
         // Remote Reactions...
         Route::middleware('throttle:conversations')->group(function (): void {
             Route::get('remotes/reactions', [MessageReactionController::class, 'index'])->name('api-message-reaction.index');
@@ -301,7 +570,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         // Remotes: finding people to push to, and starting an org, as the web's New remote and New org do...
         Route::middleware('throttle:conversations')->group(function (): void {
             Route::get('remotes/candidates', [RemoteCandidateController::class, 'index'])->name('api-remote-candidate.index');
-            Route::post('remotes/orgs', [OrgController::class, 'store'])->middleware('throttle:messages')->name('api-org.store');
+            Route::post('remotes/orgs', [OrgController::class, 'store'])->middleware([PreventPostingInTimeout::class, 'throttle:messages'])->name('api-org.store');
         });
 
         // Remotes: renaming an org and managing its members, as the web's org settings do...

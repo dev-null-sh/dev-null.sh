@@ -40,6 +40,8 @@ use Illuminate\Support\Facades\Cache;
  *     reactions_version: int,
  *     reaction_changes: Collection<int, ReactionChange>,
  *     pinned: Collection<int, Message>|null,
+ *     mentions: Collection<int, Message>,
+ *     mentions_count: int,
  *     read_through_id: int,
  *     members: Collection<int, array{user: User, role: OrgRole|null, read_through_id: int, suggests_mentions: bool, is_followed: bool}>,
  *     typing: array<int, string>,
@@ -54,7 +56,7 @@ final readonly class ConversationThreadQuery
 {
     public const int PAGE = 50;
 
-    public function __construct(private PinnedMessagesQuery $pinnedMessages)
+    public function __construct(private PinnedMessagesQuery $pinnedMessages, private OrgMentionsQuery $orgMentions)
     {
         //
     }
@@ -104,14 +106,14 @@ final readonly class ConversationThreadQuery
      */
     public function org(User $user, Conversation $org, ?int $after = null, ?int $before = null, ?int $reactionsAfter = null): array
     {
-        $participants = $org->participants()->with('user')->withExists([
+        $participants = $org->members()->with('user')->withExists([
             'user as suggests_mentions' => fn (Builder $query): Builder => $query
                 ->whereKeyNot($user->id)
                 ->whereNotIn('id', $user->mutedIds())
                 ->whereNotIn('id', $user->idsAcrossBlocks()),
             'user as is_followed' => fn (Builder $query): Builder => $query
                 ->whereIn('id', $user->following()->select('users.id')),
-        ])->oldest('id')->get();
+        ])->get();
         $mine = $participants->firstOrFail(fn (ConversationParticipant $participant): bool => $participant->user_id === $user->id);
         [$messages, $hasOlder] = $this->page($org, $mine->visible_from_id, $after, $before, withPeople: true);
 
@@ -128,6 +130,7 @@ final readonly class ConversationThreadQuery
             'reactions_version' => $org->reactions_version,
             'reaction_changes' => $this->reactionChanges($org, $mine->visible_from_id, $reactionsAfter),
             'pinned' => $before === null && ($reactionsAfter === null || $org->reactions_version > $reactionsAfter) ? $this->pinnedMessages->get($org) : null,
+            ...$this->orgMentions->get($user, $org),
             'read_through_id' => $mine->read_through_id,
             'members' => $participants->map(fn (ConversationParticipant $participant): array => [
                 'user' => $participant->user,

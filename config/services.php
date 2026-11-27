@@ -10,6 +10,25 @@ return [
         'private_key' => env('WEB_PUSH_PRIVATE_KEY'),
     ],
 
+    // A Firebase service account key, split so each part that differs per environment is a variable of its own. The
+    // rest is the same in every key Google hands out. Platforms that store environment variables on one line, such as
+    // Laravel Cloud, carry the private key's newlines as "\n", so they are turned back into newlines here.
+    'fcm' => [
+        'credentials' => [
+            'type' => 'service_account',
+            'project_id' => env('FCM_PROJECT_ID'),
+            'private_key_id' => env('FCM_PRIVATE_KEY_ID'),
+            'private_key' => str_replace('\n', "\n", (string) env('FCM_PRIVATE_KEY')),
+            'client_email' => env('FCM_CLIENT_EMAIL'),
+            'client_id' => env('FCM_CLIENT_ID'),
+            'auth_uri' => 'https://accounts.google.com/o/oauth2/auth',
+            'token_uri' => 'https://oauth2.googleapis.com/token',
+            'auth_provider_x509_cert_url' => 'https://www.googleapis.com/oauth2/v1/certs',
+            'client_x509_cert_url' => 'https://www.googleapis.com/robot/v1/metadata/x509/'.rawurlencode((string) env('FCM_CLIENT_EMAIL')),
+            'universe_domain' => 'googleapis.com',
+        ],
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Third Party Services
@@ -22,6 +41,16 @@ return [
     |
     */
 
+    'cloudflare_turn' => [
+        'key_id' => env('CLOUDFLARE_TURN_KEY_ID'),
+        'api_token' => env('CLOUDFLARE_TURN_API_TOKEN'),
+    ],
+
+    'cloudflare_turnstile' => [
+        'site_key' => env('CLOUDFLARE_TURNSTILE_SITE_KEY'),
+        'secret_key' => env('CLOUDFLARE_TURNSTILE_SECRET_KEY'),
+    ],
+
     'fathom' => [
         'token' => env('FATHOM_API_TOKEN'),
         'site_id' => env('FATHOM_SITE_ID', 'HTQONOPD'),
@@ -32,6 +61,7 @@ return [
         'client_id' => env('GITHUB_CLIENT_ID'),
         'client_secret' => env('GITHUB_CLIENT_SECRET'),
         'redirect' => env('GITHUB_REDIRECT_URI', '/auth/github/callback'),
+        'sponsors_token' => env('GITHUB_SPONSORS_TOKEN'),
     ],
 
     'github_app' => [

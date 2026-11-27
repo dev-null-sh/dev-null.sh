@@ -1,4 +1,6 @@
 import type { User } from '@/types/auth';
+import type { GuildBadge, GuildMentions } from '@/types/guild';
+import type { Organization } from '@/types/organization';
 
 export type CommitStatus = 'pending' | 'approved' | 'rejected';
 
@@ -23,9 +25,17 @@ export type LinkPreview = {
     embed?: Embed | null;
 };
 
+/** Who else talks about a commit's link, once enough people do: its card then leads to the link's page. */
+export type LinkTopic = {
+    url: string;
+    others: number;
+    authors: CommitAuthor[];
+};
+
 export type PollOption = {
     id: string;
     label: string;
+    guild_mentions?: GuildMentions;
     votes_count: number | null;
     voted: boolean;
 };
@@ -50,7 +60,14 @@ export type CommitImage = {
 export type BodySegment =
     | { type: 'text'; text: string }
     | { type: 'code'; code: string }
-    | { type: 'block'; language: string | null; html: string };
+    | {
+          type: 'block';
+          language: string | null;
+          filename: string | null;
+          html: string;
+          // The whole block, when a preview shows only its first lines, so copying it still copies all of it.
+          fullHtml?: string;
+      };
 
 export type CommitTranslation = {
     language: string;
@@ -60,16 +77,34 @@ export type CommitTranslation = {
     translated: {
         body_segments: BodySegment[];
         preview_segments: BodySegment[] | null;
+        guild_mentions?: GuildMentions;
     } | null;
 };
 
+/**
+ * The profile a commit is from: a user's, or an organization's, which has no hover card or local time, and is in
+ * /dev/null's blue until its admins choose a lane.
+ */
+export type CommitAuthor =
+    | (User & { type: 'user' })
+    | (Organization & { type: 'organization' });
+
+export type OrganizationAuthor = Extract<
+    CommitAuthor,
+    { type: 'organization' }
+>;
+
 export type Commit = {
     id: string;
-    user_id: string;
+    joined_guild?: string | null;
+    guild_handle?: string | null;
+    guild?: GuildBadge | null;
+    guild_mentions?: GuildMentions;
     parent_id: string | null;
     hot_score: number;
     body: string;
     mentions: Record<string, string> | null;
+    organization_mentions?: Record<string, string> | null;
     body_segments: BodySegment[];
     preview_segments: BodySegment[] | null;
     translation?: CommitTranslation | null;
@@ -81,37 +116,44 @@ export type Commit = {
     stars_count: number;
     pasteis_count: number;
     starred: boolean;
-    user: User;
+    author: CommitAuthor;
     replies_count?: number;
     reply_preview?: CursorPaginated<ThreadCommit>;
     continuation_id?: string | null;
     starred_order?: string | null;
     is_pinned?: boolean;
-    parent?: (Omit<Commit, 'parent'> & { user: User }) | DeletedCommit | null;
+    parent?:
+        | (Omit<Commit, 'parent'> & { author: CommitAuthor })
+        | DeletedCommit
+        | null;
     link_preview?: LinkPreview | null;
+    link_topic?: LinkTopic | null;
     poll?: Poll | null;
     quoted_commit_id: string | null;
     quoted_commit?: QuotedCommit | DeletedCommit | null;
     images?: CommitImage[];
     ai_decision?: Exclude<CommitStatus, 'pending'> | null;
     ai_categories?: string[] | null;
+    // Who posted an organization's commit, which only moderators get: null once that account is deleted.
+    poster?: User | null;
 };
 
 export type QuotedCommit = Pick<
     Commit,
     | 'id'
-    | 'user_id'
     | 'body'
     | 'body_segments'
     | 'preview_segments'
+    | 'guild_mentions'
     | 'status'
     | 'is_checking'
     | 'created_at'
     | 'deleted_at'
-    | 'user'
+    | 'author'
     | 'replies_count'
     | 'poll'
     | 'link_preview'
+    | 'link_topic'
     | 'images'
 >;
 
@@ -130,6 +172,10 @@ export type ThreadContinuation = {
     length: number;
     is_capped: boolean;
     next_id: string | null;
+};
+
+export type RelatedCommits = {
+    commits: Commit[];
 };
 
 export type CursorPaginated<T> = {

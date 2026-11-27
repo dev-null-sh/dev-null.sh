@@ -19,7 +19,8 @@ export type TimeoutFlash = {
 export type CommittedFlash = {
     id: string;
     body: string;
-    user: { handle: string };
+    guild_handle?: string | null;
+    author: { handle: string };
 };
 
 export type DeletedFlash = DeletedCommit & {

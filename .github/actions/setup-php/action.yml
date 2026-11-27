@@ -1,0 +1,46 @@
+name: Setup PHP
+description: Installs PHP and Composer dependencies, restoring them from cache when possible.
+
+inputs:
+  coverage:
+    description: The PHP coverage driver to install.
+    required: false
+    default: none
+
+runs:
+  using: composite
+  steps:
+    - name: Setup PHP
+      uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
+      with:
+        php-version: 8.5
+        tools: composer:v2
+        extensions: pdo_pgsql
+        coverage: ${{ inputs.coverage }}
+        ini-values: zend.assertions=1, memory_limit=-1
+
+    - name: Get Composer Cache Directory
+      id: composer-cache
+      shell: bash
+      run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+
+    - name: Cache Composer Dependencies
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: |
+          vendor
+          ${{ steps.composer-cache.outputs.dir }}
+        key: ${{ runner.os }}-php8.5-composer-${{ hashFiles('composer.lock') }}
+        restore-keys: ${{ runner.os }}-php8.5-composer-
+
+    - name: Install Composer Dependencies
+      shell: bash
+      run: |
+        composer install --no-interaction --prefer-dist --optimize-autoloader --no-progress --no-scripts
+        composer run-script post-autoload-dump
+
+    - name: Prepare Environment
+      shell: bash
+      run: |
+        cp .env.example .env
+        php artisan key:generate

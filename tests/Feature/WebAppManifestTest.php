@@ -4,6 +4,16 @@ declare(strict_types=1);
 
 use Illuminate\Support\Facades\Route;
 
+it('disables service workers only when configured for the preview', function (): void {
+    $this->get(route('home'))->assertOk()->assertDontSee('name="service-worker"', false);
+
+    config(['app.service_worker_enabled' => false]);
+
+    $this->get(route('home'))
+        ->assertOk()
+        ->assertSee('<meta name="service-worker" content="disabled">', false);
+});
+
 it('links the favicons and the web app manifest', function (): void {
     $this->get(route('home'))
         ->assertOk()
@@ -39,8 +49,8 @@ it('describes the app as an installable standalone app', function (): void {
         ->start_url->toBe('/')
         ->scope->toBe('/')
         ->display->toBe('standalone')
-        ->background_color->toBe('#f6f7f8')
-        ->theme_color->toBe('#f6f7f8')
+        ->background_color->toBe('#111112')
+        ->theme_color->toBe('#111112')
         ->prefer_related_applications->toBeFalse()
         ->launch_handler->toBe(['client_mode' => 'navigate-existing'])
         ->and(collect($manifest['icons'])->map(fn (array $icon): string => "{$icon['sizes']} {$icon['purpose']}")->all())

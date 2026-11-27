@@ -8,7 +8,7 @@ import type {
     ReactNode,
 } from 'react';
 import { afterAll, afterEach, test, vi } from 'vite-plus/test';
-import type { SuggestedUser, User } from '../../resources/js/types';
+import type { Actor, SuggestedUser, User } from '../../resources/js/types';
 
 let showPreview = false;
 const stateChanges: unknown[] = [];
@@ -36,6 +36,8 @@ vi.doMock('react-dom', async () => ({
 const { GraphRail } = await import('../../resources/js/components/graph-rail');
 const { UserAvatar } =
     await import('../../resources/js/components/user-avatar');
+const { AuthorAvatar } =
+    await import('../../resources/js/components/author-avatar');
 const { ActorAvatar } =
     await import('../../resources/js/pages/notification/index');
 const { UserPreview } =
@@ -215,19 +217,21 @@ test('suggested user row wraps the author in a user preview anchored to their av
 });
 
 const actor = {
+    type: 'user',
     id: 'actor',
     name: 'Actor',
     handle: 'actor',
     avatar_url: null,
     lane: 1,
-} as User;
+    is_followed: false,
+} as Actor;
 
 type ActorPreview = ReactElement<{
     user: User;
     anchor: React.RefObject<HTMLSpanElement | null>;
     children: ReactElement<{
         ref: React.RefObject<HTMLSpanElement | null>;
-        children: ReactElement<{ user: User }>;
+        children: ReactElement<{ author: Actor }>;
     }>;
 }>;
 
@@ -240,6 +244,6 @@ test('notification actor avatar previews the actor around the avatar it anchors'
     assert.equal(preview.props.user, actor);
     assert.equal(preview.props.anchor, anchor);
     assert.equal(avatar.props.ref, anchor);
-    assert.equal(avatar.props.children.type, UserAvatar);
-    assert.equal(avatar.props.children.props.user, actor);
+    assert.equal(avatar.props.children.type, AuthorAvatar);
+    assert.equal(avatar.props.children.props.author, actor);
 });

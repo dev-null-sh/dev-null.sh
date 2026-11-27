@@ -39,8 +39,7 @@ it('draws the activity of the site to admins', function (): void {
                 ['name' => 'pending', 'count' => 2],
                 ['name' => 'rejected', 'count' => 0],
             ])
-            ->has('breakdowns.authors', 4)
-            ->where('hasTraffic', false));
+            ->has('breakdowns.authors', 4));
 });
 
 it('draws the activity at the chosen scale', function (): void {
@@ -66,21 +65,13 @@ it('draws the chosen series', function (): void {
             ->where('activity.buckets.7.count', 1));
 });
 
-it('offers the traffic tab when a Fathom token is configured', function (): void {
-    config(['services.fathom.token' => 'token', 'services.fathom.site_id' => 'SITE']);
-
-    $this->actingAs(User::factory()->create(['handle' => 'admin']))
-        ->get(route('site-activity.show'))
-        ->assertOk()
-        ->assertInertia(fn ($page) => $page->where('hasTraffic', true));
-});
-
 it('rejects unknown activity scales and series', function (array $query): void {
     $this->actingAs(User::factory()->create(['handle' => 'admin']))
         ->get(route('site-activity.show', $query))
         ->assertSessionHasErrors();
 })->with([
     'unknown scale' => [['scale' => 'decade']],
+    'half scale' => [['scale' => 'half']],
     'unknown series' => [['metric' => 'stars']],
 ]);
 

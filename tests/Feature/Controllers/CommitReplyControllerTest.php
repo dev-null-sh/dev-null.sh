@@ -6,7 +6,10 @@ use App\Actions\CreateTomFriendship;
 use App\Actions\CreateTomReply;
 use App\Actions\DeleteUser;
 use App\Ai\Agents\Tom;
+use App\Contracts\Services\ToolDecisionProvider;
 use App\Enums\CommitStatus;
+use App\Enums\LivePlatform;
+use App\Http\Requests\CreateCommitReplyRequest;
 use App\Jobs\DetectCommitLanguage;
 use App\Jobs\ReplyAsTom;
 use App\Jobs\UnfurlLink;
@@ -15,15 +18,78 @@ use App\Models\LinkPreview;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Sequence;
 use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
+
+it('bounds the combined inherited and explicit reply recipients', function (int $inheritedCount, bool $accepted): void {
+    Queue::fake();
+    config(['app.admins' => ['alice']]);
+    $author = User::factory()->create(['handle' => 'alice']);
+    $users = User::factory()->count($inheritedCount)->create();
+    $mentions = $users->mapWithKeys(fn (User $user): array => [$user->handle => $user->id])->all();
+    $participant = User::factory()->create(['handle' => 'new-participant']);
+    $parent = Commit::factory()->create(['mentions' => $mentions]);
+
+    $response = $this->actingAs($author)->postJson(route('commit-reply.store', $parent), [
+        'body' => 'Hello @new-participant @'.$users->firstOrFail()->handle,
+        'reply_recipients' => array_values($mentions),
+    ]);
+
+    if ($accepted) {
+        $response->assertCreated();
+        $reply = Commit::query()->findOrFail($response->json('committed.id'));
+        expect($reply->mentions)->toHaveCount(CreateCommitReplyRequest::MAX_REPLY_RECIPIENTS);
+    } else {
+        $response->assertUnprocessable()->assertJsonValidationErrors('reply_recipients');
+        expect($parent->replies()->count())->toBe(0);
+        expect($participant->notifications()->count())->toBe(0);
+    }
+})->with([
+    'at limit with overlapping explicit mention' => [CreateCommitReplyRequest::MAX_REPLY_RECIPIENTS - 1, true],
+    'combined recipients over limit' => [CreateCommitReplyRequest::MAX_REPLY_RECIPIENTS, false],
+    'inherited recipients over limit' => [CreateCommitReplyRequest::MAX_REPLY_RECIPIENTS + 1, false],
+]);
+
+it('only notifies selected conversation recipients and keeps explicit mentions', function (bool $selected, bool $explicit): void {
+    Queue::fake();
+    config(['app.admins' => ['alice']]);
+    $author = User::factory()->create(['handle' => 'alice']);
+    $participant = User::factory()->create(['handle' => 'participant']);
+    $parent = Commit::factory()->create(['mentions' => ['participant' => $participant->id]]);
+
+    $response = $this->actingAs($author)->postJson(route('commit-reply.store', $parent), [
+        'body' => $explicit ? 'Hello @participant' : 'Hello everyone',
+        'reply_recipients' => $selected ? [$participant->id] : [],
+    ])->assertCreated();
+
+    $reply = Commit::query()->findOrFail($response->json('committed.id'));
+    expect($reply->mentions ?? [])->toBe($selected || $explicit ? ['participant' => $participant->id] : []);
+    expect($participant->notifications()->where('commit_id', $reply->id)->count())->toBe($selected || $explicit ? 1 : 0);
+    expect($parent->user->notifications()->where('commit_id', $reply->id)->count())->toBe(1);
+})->with([
+    'selected' => [true, false],
+    'unchecked' => [false, false],
+    'explicit mention overrides unchecked' => [false, true],
+]);
+
+it('rejects reply recipients outside the conversation', function (): void {
+    $parent = Commit::factory()->create();
+    $stranger = User::factory()->create();
+
+    $this->actingAs(User::factory()->create())
+        ->postJson(route('commit-reply.store', $parent), [
+            'body' => 'Hello everyone',
+            'reply_recipients' => [$stranger->id],
+        ])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('reply_recipients.0');
+});
 
 it('answers a casual public Tom mention in the same thread', function (): void {
     config(['app.admins' => ['alice', 'tom'], 'ai.providers.opencode.key' => 'test', 'ai.providers.openai.key' => 'test']);
     Queue::fake([ReplyAsTom::class, DetectCommitLanguage::class]);
     Tom::fake(['A little rusty, but happy to see you. :-D'])->preventStrayPrompts();
-    Http::fake(['api.openai.com/v1/decisions' => Http::response(['answers' => []])]);
+    $this->mock(ToolDecisionProvider::class)->shouldReceive('tools')->once()->with('@tom how are your rusty joints?', Mockery::any())->andReturn(collect());
     $tom = User::factory()->create(['handle' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
     $user = User::factory()->create(['handle' => 'alice']);
     $parent = Commit::factory()->create();
@@ -36,10 +102,9 @@ it('answers a casual public Tom mention in the same thread', function (): void {
     $this->getJson(route('commit-reply.index', $mention))->assertOk()
         ->assertJsonCount(1, 'data')
         ->assertJsonPath('data.0.body', 'A little rusty, but happy to see you. :-D')
-        ->assertJsonPath('data.0.user.id', $tom->id)
+        ->assertJsonPath('data.0.author.id', $tom->id)
         ->assertJsonPath('data.0.root_id', $parent->id);
     Tom::assertPrompted('@tom how are your rusty joints?');
-    Http::assertSentCount(1);
 });
 
 it('rejects non-text reply bodies with a validation error', function (mixed $body): void {
@@ -81,8 +146,8 @@ it('lists visible replies oldest first with their own reply counts', function ()
         ->assertJsonPath('data.1.body', 'Second')
         ->assertJsonPath('data.1.replies_count', 2)
         ->assertJsonPath('data.2.body', 'Mine, pending')
-        ->assertJsonPath('data.0.user.id', fn (string $id): bool => $id !== '')
-        ->assertJsonMissingPath('data.0.user.email')
+        ->assertJsonPath('data.0.author.id', fn (string $id): bool => $id !== '')
+        ->assertJsonMissingPath('data.0.author.email')
         ->assertJsonPath('next_cursor', null);
 });
 
@@ -148,6 +213,52 @@ it('lists replies 50 at a time with a cursor to the next page', function (): voi
         ->assertJsonPath('next_cursor', null);
 });
 
+it('pages both ways through deleted reply boundaries without exposing their hidden timestamps', function (): void {
+    $this->freezeSecond();
+    $parent = Commit::factory()->create();
+    $tombstone = Commit::factory()->for($parent, 'parent')->create(['body' => 'Private deleted body', 'created_at' => now()->subMinutes(3)]);
+    Commit::factory()->for($tombstone, 'parent')->create();
+    $tombstone->delete();
+    $streamer = User::factory()->create(['live_platform' => LivePlatform::Twitch, 'live_url' => 'https://www.twitch.tv/streamer', 'live_ends_at' => now()->addHour()]);
+    $next = Commit::factory()->for($parent, 'parent')->for($streamer)->create(['created_at' => now()->subMinutes(2)]);
+    $last = Commit::factory()->for($parent, 'parent')->create(['created_at' => now()->subMinute()]);
+    Commit::factory()->for($last, 'parent')->create();
+    $last->delete();
+
+    $first = $this->actingAs(User::factory()->create())
+        ->getJson(route('commit-reply.index', [$parent, 'limit' => 1]))
+        ->assertOk()
+        ->assertJsonPath('data.0.id', $tombstone->id)
+        ->assertJsonMissingPath('data.0.body')
+        ->assertJsonMissingPath('data.0.author')
+        ->assertJsonMissingPath('data.0.created_at');
+
+    expect(array_keys($first->json('data.0')))->toBe(['id', 'parent_id', 'deleted_at', 'replies_count']);
+
+    $second = $this->getJson(route('commit-reply.index', [$parent, 'limit' => 1, 'cursor' => $first->json('next_cursor')]))
+        ->assertOk()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.id', $next->id)
+        ->assertJsonPath('data.0.author.live.ends_at', now()->addHour()->toJSON());
+
+    $third = $this->getJson(route('commit-reply.index', [$parent, 'limit' => 1, 'cursor' => $second->json('next_cursor')]))
+        ->assertOk()
+        ->assertJsonPath('data.0.id', $last->id)
+        ->assertJsonMissingPath('data.0.created_at')
+        ->assertJsonMissingPath('data.0.body')
+        ->assertJsonMissingPath('data.0.author')
+        ->assertJsonPath('next_cursor', null);
+
+    $this->getJson(route('commit-reply.index', [$parent, 'limit' => 1, 'cursor' => $third->json('prev_cursor')]))
+        ->assertOk()
+        ->assertJsonPath('data', $second->json('data'));
+
+    $this->getJson(route('commit-reply.index', [$parent, 'limit' => 1, 'cursor' => $second->json('prev_cursor')]))
+        ->assertOk()
+        ->assertJsonPath('data', $first->json('data'))
+        ->assertJsonPath('prev_cursor', null);
+});
+
 it('orders replies created at the same time by id across pages', function (): void {
     $parent = Commit::factory()->create();
     $replies = Commit::factory()->for($parent, 'parent')->count(51)->create(['created_at' => now()->subMinute()]);
@@ -204,7 +315,7 @@ it('lists deleted replies that still have replies as tombstones', function (): v
         ->assertJsonPath('data.0.deleted_at', fn (string $deletedAt): bool => $deletedAt !== '')
         ->assertJsonPath('data.0.replies_count', 1)
         ->assertJsonMissingPath('data.0.body')
-        ->assertJsonMissingPath('data.0.user')
+        ->assertJsonMissingPath('data.0.author')
         ->assertJsonMissingPath('data.0.user_id')
         ->assertJsonPath('data.1.body', 'Kept');
 });
@@ -307,7 +418,7 @@ it('may reply to a commit', function (): void {
 
     $response->assertCreated()
         ->assertExactJson([
-            'committed' => ['id' => $reply->id, 'body' => 'Agreed, ship it.', 'user' => ['handle' => $user->handle]],
+            'committed' => ['id' => $reply->id, 'body' => 'Agreed, ship it.', 'author' => ['handle' => $user->handle]],
             'parent' => ['id' => $parent->id, 'replies_count' => 1, 'continuation_id' => null],
             'toast' => [
                 'type' => 'info',
@@ -743,7 +854,7 @@ it('keeps account deletion tombstones in threads while filtering silenced author
         ->assertJsonCount(1, 'data')
         ->assertJsonPath('data.0.id', $parent->id)
         ->assertJsonPath('data.0.replies_count', 1)
-        ->assertJsonMissingPath('data.0.user')
+        ->assertJsonMissingPath('data.0.author')
         ->assertJsonMissingPath('data.0.body');
 
     $this->getJson(route('commit-reply.index', $parent))
@@ -778,7 +889,7 @@ it('keeps approved account deletion tombstones readable to guests without exposi
             ->where('ancestors.1.id', $parent->id)
             ->missing('ancestors.1.body')
             ->missing('ancestors.1.mentions')
-            ->missing('ancestors.1.user'));
+            ->missing('ancestors.1.author'));
 
     $this->getJson(route('commit-reply.index', $parent))
         ->assertOk()
@@ -968,3 +1079,46 @@ it('lists replies in pages of any size up to 50', function (int $limit, int $sta
     'none' => [0, 422],
     'too many' => [51, 422],
 ]);
+
+it('reads again only the replies a thread heard changed, leaving out those the viewer may no longer see', function (): void {
+    $viewer = User::factory()->create();
+    $commit = Commit::factory()->create();
+    $kept = Commit::factory()->for($commit, 'parent')->create();
+    $hidden = Commit::factory()->for($commit, 'parent')->pending()->create();
+    $deleted = Commit::factory()->for($commit, 'parent')->create();
+    $deleted->delete();
+
+    $quote = Commit::factory()->create(['quoted_commit_id' => $commit->id]);
+    $unrelated = Commit::factory()->create();
+
+    $response = $this->actingAs($viewer)->getJson(route('commit-reply.index', [
+        'commit' => $commit,
+        'ids' => [$kept->id, $hidden->id, $deleted->id, $quote->id, $unrelated->id],
+    ]))->assertOk();
+
+    expect($response->json('data.*.id'))->toEqualCanonicalizing([$kept->id, $quote->id])
+        ->and($response->json('parent'))->toBe(['id' => $commit->id, 'replies_count' => 2]);
+});
+
+it('counts the replies of a deleted commit that stays in its thread', function (): void {
+    $commit = Commit::factory()->create();
+    $reply = Commit::factory()->for($commit, 'parent')->create();
+    $commit->delete();
+
+    $this->getJson(route('commit-reply.index', ['commit' => $commit, 'ids' => [$reply->id]]))
+        ->assertOk()
+        ->assertJsonPath('parent.replies_count', 1);
+});
+
+it('keeps the continuation out of the count when refreshing individual replies', function (): void {
+    $author = User::factory()->create();
+    $parent = Commit::factory()->for($author)->create();
+    Commit::factory()->for($author)->for($parent, 'parent')->create();
+    $reply = Commit::factory()->for($parent, 'parent')->create();
+
+    $this->actingAs(User::factory()->create())
+        ->getJson(route('commit-reply.index', [$parent, 'ids' => [$reply->id]]))
+        ->assertOk()
+        ->assertJsonPath('parent.replies_count', 1)
+        ->assertJsonPath('data.0.id', $reply->id);
+});

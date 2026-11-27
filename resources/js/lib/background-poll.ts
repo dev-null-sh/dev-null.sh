@@ -1,4 +1,15 @@
 import type { ReloadOptions } from '@inertiajs/core';
+import { router } from '@inertiajs/react';
+
+let isOutdated = false;
+
+/**
+ * A deploy leaves this tab on the previous version until it reloads, and the server answers each background reload
+ * with nothing but a request to reload, so the tab stops asking.
+ */
+export function stopBackgroundReloads(): void {
+    isOutdated = true;
+}
 
 export function backgroundPollOptions(
     requestOptions: ReloadOptions | (() => ReloadOptions),
@@ -11,6 +22,8 @@ export function backgroundPollOptions(
 
         return {
             ...options,
+            onBefore: (visit) =>
+                isOutdated ? false : options.onBefore?.(visit),
             onHttpException: (response) => {
                 const result = options.onHttpException?.(response);
 
@@ -26,4 +39,40 @@ export function backgroundPollOptions(
             },
         };
     };
+}
+
+/**
+ * A background reload that settles once its request does, whether it succeeded, failed or was cancelled, so
+ * whoever waits on it never starts another one while it is still on its way. Aborting cancels it.
+ */
+export function reloadInBackground(
+    options: ReloadOptions,
+    signal?: AbortSignal,
+): Promise<void> {
+    return new Promise((resolve) => {
+        if (signal?.aborted || isOutdated) {
+            resolve();
+
+            return;
+        }
+
+        let cancel = () => {};
+        const onAbort = () => cancel();
+
+        signal?.addEventListener('abort', onAbort, { once: true });
+        router.reload(
+            backgroundPollOptions({
+                ...options,
+                onCancelToken: (token) => {
+                    cancel = () => token.cancel();
+                    options.onCancelToken?.(token);
+                },
+                onFinish: (visit) => {
+                    signal?.removeEventListener('abort', onAbort);
+                    options.onFinish?.(visit);
+                    resolve();
+                },
+            })(),
+        );
+    });
 }

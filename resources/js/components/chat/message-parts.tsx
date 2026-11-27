@@ -13,7 +13,7 @@ import { ImageViewer } from '@/components/image-viewer';
 import { LinkPreview } from '@/components/link-preview';
 import { bodySegments } from '@/lib/code';
 import { isReplySwipe, replyPull, replyThreshold } from '@/lib/reply-swipe';
-import { cn, laneColor } from '@/lib/utils';
+import { cn, laneTextColor } from '@/lib/utils';
 import type {
     BodySegment,
     Lane,
@@ -37,7 +37,10 @@ export function MessageText({
     message,
     isMine,
 }: {
-    message: Pick<Message, 'body' | 'body_segments' | 'mentions'>;
+    message: Pick<
+        Message,
+        'body' | 'body_segments' | 'mentions' | 'guild_mentions'
+    >;
     isMine: boolean;
 }) {
     const segments: BodySegment[] =
@@ -47,6 +50,8 @@ export function MessageText({
         <CommitBody
             segments={segments}
             mentions={message.mentions ?? null}
+            guildMentions={message.guild_mentions}
+            linksEveryMention={false}
             className={cn('flow-root leading-snug', { [onPrimary]: isMine })}
         />
     );
@@ -69,13 +74,6 @@ export function replyOf(message: Message): MessageReply {
         images_count: message.images?.length ?? 0,
         has_voice: (message.voice ?? null) !== null,
     };
-}
-
-export function timeOf(date: string): string {
-    return new Date(date).toLocaleTimeString([], {
-        hour: '2-digit',
-        minute: '2-digit',
-    });
 }
 
 /**
@@ -158,6 +156,7 @@ export function MessageLinkCard({ message }: { message: Message }) {
             <LinkPreview
                 refreshUrl={MessageLinkPreviewController.show.url(message.id)}
                 preview={message.link_preview}
+                source={{ isMessage: true }}
             />
         </div>
     );
@@ -236,7 +235,7 @@ export function ReplyGhost({
         >
             <span
                 className="max-w-full truncate text-xs font-semibold"
-                style={{ color: laneColor(author.lane) }}
+                style={{ color: laneTextColor(author.lane) }}
             >
                 {author.name}
             </span>

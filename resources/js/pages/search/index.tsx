@@ -1,38 +1,56 @@
-import { Head, router, usePage } from '@inertiajs/react';
-import { ArrowRight, History, Search, Sparkles, X } from 'lucide-react';
+import { Tab, TabGroup, TabList, TabPanel, TabPanels } from '@headlessui/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
+import { ArrowRight, History, Plus, Search, X } from 'lucide-react';
 import type { FormEvent } from 'react';
 import { useEffect, useRef, useState } from 'react';
+import { show as showGuild } from '@/actions/App/Http/Controllers/GuildController';
 import SearchController from '@/actions/App/Http/Controllers/SearchController';
-import { CommitCard } from '@/components/commit-card';
-import { CommitSkeleton, EmptyFeed } from '@/components/commit-feed';
+import { SearchResults } from '@/components/commit-search-results';
+import { GuildDialog } from '@/components/guild-dialog';
+import { GuildIcon } from '@/components/guild-icon';
+import { HotTopics } from '@/components/hot-topics';
+import { Button } from '@/components/ui/button';
 import { rememberSearch, useRecentSearches } from '@/hooks/use-recent-searches';
 import AppLayout from '@/layouts/app-layout';
-import { searchCommits, suggestedQueries } from '@/lib/commit-search';
-import { laneColor } from '@/lib/utils';
-import type { Commit } from '@/types';
+import { searchCommits } from '@/lib/commit-search';
+import { CommitSearchResults } from '@/lib/commit-search-results';
+import { fetchGuilds } from '@/lib/guilds';
+import type { GuildBadge } from '@/types/guild';
 
 const skeletonDelay = 300;
 
-type Results = { term: string; commits: Commit[] };
+type Results = {
+    relevant: CommitSearchResults;
+    latest: CommitSearchResults;
+};
 
-export default function Index({ query }: { query: string }) {
+type GuildLookup = { handle: string | null; guild: GuildBadge | null };
+
+export default function Index({
+    query,
+    guildLookup = { handle: null, guild: null },
+}: {
+    query: string;
+    guildLookup?: GuildLookup;
+}) {
     const userId = usePage().props.auth.user?.id ?? null;
     const recentSearches = useRecentSearches(userId);
     const [draft, setDraft] = useState(query);
+    const [searchAttempt, setSearchAttempt] = useState(0);
     const inputRef = useRef<HTMLInputElement>(null);
     const { results, isWaiting } = useCommitSearch(query);
 
     const search = (term: string) => {
-        router.get(
-            SearchController.index({ query: term === '' ? {} : { q: term } }),
-            {},
-            {
-                preserveState: true,
-                preserveScroll: true,
-                replace: true,
-                onSuccess: () => rememberSearch(userId, term),
-            },
-        );
+        setSearchAttempt((attempt) => attempt + 1);
+        router.replace({
+            url: SearchController.index.url({
+                query: term === '' ? {} : { q: term },
+            }),
+            props: (props: { query: string }) => ({ ...props, query: term }),
+            preserveState: true,
+            preserveScroll: true,
+            onSuccess: () => rememberSearch(userId, term),
+        });
     };
 
     const submit = (event: FormEvent) => {
@@ -87,18 +105,213 @@ export default function Index({ query }: { query: string }) {
                 </form>
             </header>
 
+            <HashtagGuild
+                term={draft.trim()}
+                initial={guildLookup}
+                searchAttempt={searchAttempt}
+            />
+
             {query !== '' && (
-                <SearchResults results={results} isWaiting={isWaiting} />
+                <TabGroup key={query}>
+                    <TabList
+                        aria-label="Search result order"
+                        className="flex border-b"
+                    >
+                        {['Most relevant', 'Latest'].map((title) => (
+                            <Tab
+                                key={title}
+                                className="relative flex min-h-12 flex-1 justify-center py-3.5 text-[15px] font-medium text-muted-foreground transition-colors outline-none hover:bg-accent hover:text-foreground data-selected:text-foreground md:outline-offset-[-3px] md:focus-visible:[outline-style:auto]"
+                            >
+                                <span className="relative">
+                                    {title}
+                                    <span
+                                        aria-hidden
+                                        className="absolute inset-x-0 -bottom-3.5 h-[3px] bg-primary opacity-0 in-data-selected:opacity-100"
+                                    />
+                                </span>
+                            </Tab>
+                        ))}
+                    </TabList>
+                    <TabPanels>
+                        <TabPanel>
+                            <SearchResults
+                                results={results?.relevant ?? null}
+                                isWaiting={isWaiting}
+                            />
+                        </TabPanel>
+                        <TabPanel>
+                            <SearchResults
+                                results={results?.latest ?? null}
+                                isWaiting={isWaiting}
+                                heading="Latest commits · past week"
+                                empty="No matches from the past week. Try Most relevant for older matches, or search for another idea."
+                            />
+                        </TabPanel>
+                    </TabPanels>
+                </TabGroup>
             )}
             {recentSearches.length > 0 && (
-                <Suggestions onPick={pick} recent={recentSearches} />
+                <RecentSearches onPick={pick} recent={recentSearches} />
             )}
-            <Suggestions onPick={pick} exclude={query} />
+            <div className="px-4 py-6 sm:px-6">
+                <HotTopics />
+            </div>
         </>
     );
 }
 
 Index.layout = AppLayout;
+
+/**
+ * Follows the search box rather than the last submitted search, so the banner comes and goes as the hashtag is typed.
+ */
+export function HashtagGuild({
+    term,
+    initial,
+    searchAttempt = 0,
+}: {
+    term: string;
+    initial: GuildLookup;
+    searchAttempt?: number;
+}) {
+    const { guildsEnabled } = usePage().props;
+    const handle = /^#\p{L}[\p{L}\p{M}\p{N}_]{0,59}$/u.test(term)
+        ? term.slice(1).toLowerCase()
+        : null;
+    const [attempt, setAttempt] = useState(0);
+    const [context, setContext] = useState({
+        term,
+        guildsEnabled,
+        searchAttempt,
+    });
+    const [lookup, setLookup] = useState<
+        (GuildLookup & { attempt: number; failed?: boolean }) | null
+    >(
+        guildsEnabled && initial.handle === handle
+            ? { ...initial, attempt: 0 }
+            : null,
+    );
+
+    if (
+        context.term !== term ||
+        context.guildsEnabled !== guildsEnabled ||
+        context.searchAttempt !== searchAttempt
+    ) {
+        setContext({ term, guildsEnabled, searchAttempt });
+        setAttempt(attempt + 1);
+        setLookup(null);
+    }
+
+    const current =
+        lookup?.handle === handle &&
+        lookup.attempt === attempt &&
+        context.term === term &&
+        context.guildsEnabled === guildsEnabled &&
+        context.searchAttempt === searchAttempt
+            ? lookup
+            : null;
+
+    useEffect(() => {
+        if (!guildsEnabled || handle === null || current !== null) {
+            return;
+        }
+
+        const controller = new AbortController();
+        const timeout = setTimeout(() => {
+            void fetchGuilds({ handles: [handle] }, controller.signal)
+                .then((guilds) => {
+                    if (!controller.signal.aborted) {
+                        setLookup({
+                            handle,
+                            attempt,
+                            guild: guilds[0] ?? null,
+                        });
+                    }
+                })
+                .catch(() => {
+                    if (!controller.signal.aborted) {
+                        setLookup({
+                            handle,
+                            attempt,
+                            guild: null,
+                            failed: true,
+                        });
+                    }
+                });
+        }, 120);
+
+        return () => {
+            clearTimeout(timeout);
+            controller.abort();
+        };
+    }, [handle, guildsEnabled, attempt, current]);
+
+    if (!guildsEnabled || !handle) {
+        return null;
+    }
+
+    const guild = current?.guild;
+    const failed = current?.failed === true;
+
+    return (
+        <div
+            className="flex items-center justify-between gap-3 border-b px-4 py-4 sm:px-6"
+            aria-busy={current === null}
+        >
+            {current === null || failed ? (
+                <>
+                    <p className="min-w-0 text-sm text-muted-foreground">
+                        {failed ? 'Guild lookup failed.' : 'Looking up guild…'}
+                    </p>
+                    <Button
+                        variant="outline"
+                        className="min-w-25 shrink-0"
+                        disabled={!failed}
+                        onClick={() => {
+                            setAttempt(attempt + 1);
+                            setLookup(null);
+                        }}
+                    >
+                        {failed ? 'Retry' : 'View guild'}
+                    </Button>
+                </>
+            ) : guild ? (
+                <>
+                    <div className="flex min-w-0 items-center gap-2">
+                        <GuildIcon guild={guild} />
+                        <span
+                            className="truncate font-semibold"
+                            title={guild.name}
+                        >
+                            {guild.name}
+                        </span>
+                    </div>
+                    <Button
+                        asChild
+                        variant="outline"
+                        className="min-w-25 shrink-0"
+                    >
+                        <Link prefetch href={showGuild(handle)}>
+                            View guild
+                        </Link>
+                    </Button>
+                </>
+            ) : (
+                <>
+                    <p className="min-w-0 text-sm text-muted-foreground">
+                        Give this hashtag a public home.
+                    </p>
+                    <GuildDialog key={handle} handle={handle}>
+                        <Button variant="outline">
+                            <Plus aria-hidden className="size-4" />
+                            Create a guild
+                        </Button>
+                    </GuildDialog>
+                </>
+            )}
+        </div>
+    );
+}
 
 /**
  * Keeps showing the previous results while the next ones load, and only reaches for a skeleton when there is nothing
@@ -117,10 +330,14 @@ function useCommitSearch(query: string) {
         const timeout = setTimeout(() => setIsWaiting(true), skeletonDelay);
 
         searchCommits(query, undefined, controller.signal)
-            .then((commits) => setResults({ term: query, commits }))
+            .then((commits) => {
+                const relevant = new CommitSearchResults(query, commits);
+                setResults({ relevant, latest: relevant.latest() });
+            })
             .catch(() => {
                 if (!controller.signal.aborted) {
-                    setResults({ term: query, commits: [] });
+                    const relevant = new CommitSearchResults(query, []);
+                    setResults({ relevant, latest: relevant.latest() });
                 }
             })
             .finally(() => {
@@ -139,108 +356,27 @@ function useCommitSearch(query: string) {
     return { results, isWaiting };
 }
 
-function SearchResults({
-    results,
-    isWaiting,
-}: {
-    results: Results | null;
-    isWaiting: boolean;
-}) {
-    if (results === null) {
-        return <ResultsSkeleton isVisible={isWaiting} />;
-    }
-
-    return (
-        <section aria-labelledby="search-results" aria-busy={isWaiting}>
-            <div className="flex h-11 items-center justify-between border-b px-4 sm:px-6">
-                <h2 id="search-results" className="font-semibold">
-                    Most relevant commits
-                </h2>
-                <span className="font-mono text-xs text-muted-foreground tabular-nums">
-                    {results.commits.length}{' '}
-                    {results.commits.length === 1 ? 'match' : 'matches'}
-                </span>
-            </div>
-
-            {results.commits.length === 0 ? (
-                <div className="px-6 py-16 text-center sm:px-12">
-                    <EmptyFeed
-                        command={`fatal: nothing close to '${results.term}'`}
-                    >
-                        Try describing the idea in other words, or pick one of
-                        the searches below.
-                    </EmptyFeed>
-                </div>
-            ) : (
-                results.commits.map((commit, index) => (
-                    <CommitCard
-                        key={commit.id}
-                        commit={commit}
-                        previousLane={
-                            index === 0
-                                ? undefined
-                                : laneColor(
-                                      results.commits[index - 1].user.lane,
-                                  )
-                        }
-                    />
-                ))
-            )}
-        </section>
-    );
-}
-
-/**
- * Takes the loaded header's height even before it shows, so the results land without pushing anything around.
- */
-function ResultsSkeleton({ isVisible }: { isVisible: boolean }) {
-    return (
-        <div
-            role="status"
-            aria-label="Searching commits"
-            className={isVisible ? 'opacity-100' : 'opacity-0'}
-        >
-            <div className="flex h-11 items-center border-b px-4 sm:px-6">
-                <span className="h-3 w-20 rounded bg-muted motion-safe:animate-pulse" />
-            </div>
-            <CommitSkeleton />
-            <CommitSkeleton />
-            <CommitSkeleton />
-        </div>
-    );
-}
-
-function Suggestions({
+function RecentSearches({
     onPick,
-    exclude,
     recent,
 }: {
     onPick: (term: string) => void;
-    exclude?: string;
-    recent?: string[];
+    recent: string[];
 }) {
-    const visible =
-        recent ?? suggestedQueries.filter((term) => term !== exclude);
-    const headingId = recent ? 'recent-searches' : 'search-suggestions';
-
     return (
-        <section aria-labelledby={headingId} className="px-4 py-6 sm:px-6">
+        <section
+            aria-labelledby="recent-searches"
+            className="px-4 py-6 sm:px-6"
+        >
             <h2
-                id={headingId}
+                id="recent-searches"
                 className="mb-3 flex items-center gap-2 font-semibold"
             >
-                {recent ? (
-                    <History
-                        aria-hidden
-                        className="size-4 text-muted-foreground"
-                    />
-                ) : (
-                    <Sparkles aria-hidden className="size-4 text-primary" />
-                )}
-                {recent ? 'Recent searches' : 'Try searching for…'}
+                <History aria-hidden className="size-4 text-muted-foreground" />
+                Recent searches
             </h2>
             <ul className="space-y-2">
-                {visible.map((term) => (
+                {recent.map((term) => (
                     <li key={term}>
                         <button
                             type="button"

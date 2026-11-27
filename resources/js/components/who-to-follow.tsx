@@ -1,11 +1,13 @@
 import { Deferred, Link, router, usePage } from '@inertiajs/react';
 import { Ellipsis, EyeOff, RefreshCw, X } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { useEffect, useEffectEvent, useRef, useState } from 'react';
+import { index as suggestionStates } from '@/actions/App/Http/Controllers/SuggestedUserStateController';
 import SuggestionDismissalController from '@/actions/App/Http/Controllers/SuggestionDismissalController';
 import {
     FollowButton,
     FollowIconButton,
     useHasBlockWith,
+    prepareFollowingUpdate,
 } from '@/components/follow-button';
 import { Button } from '@/components/ui/button';
 import {
@@ -25,6 +27,7 @@ import { UserPreview } from '@/components/user-preview';
 import { useSharedState } from '@/hooks/use-shared-state';
 import { currentRound, useWhoToFollow } from '@/hooks/use-who-to-follow';
 import { formatCount, formatExactCount } from '@/lib/numbers';
+import { coalesce, listen, userChannel } from '@/lib/realtime';
 import { toastWhenThrottled } from '@/lib/throttle';
 import { cn, laneColor } from '@/lib/utils';
 import { edit } from '@/routes/appearance';
@@ -71,6 +74,94 @@ function Reason({ reason, title }: { reason: string; title: string }) {
 }
 
 const shownSuggestionsCount = 3;
+
+/** Reconcile the loaded rows, rather than drawing a different set of suggestions after every follow. */
+function useSuggestedUserUpdates(dismissElsewhere: (ids: string[]) => void) {
+    const { auth, suggestedUsers = [], showsWhoToFollow } = usePage().props;
+    const viewerId = auth.user?.id;
+    const ids = suggestedUsers
+        .map((user) => user.id)
+        .slice(0, 100)
+        .sort()
+        .join(',');
+    const removeDismissed = useEffectEvent(dismissElsewhere);
+
+    useEffect(() => {
+        if (!viewerId || !showsWhoToFollow || !ids) {
+            return;
+        }
+
+        const controller = new AbortController();
+        const loaded = ids.split(',');
+        const refresh = coalesce(async () => {
+            if (document.hidden) return;
+
+            const updates = new Map(
+                loaded.map((id) => [
+                    id,
+                    prepareFollowingUpdate({ id }, refresh.request),
+                ]),
+            );
+            try {
+                const response = await fetch(
+                    suggestionStates.url({ query: { ids: loaded } }),
+                    {
+                        headers: { Accept: 'application/json' },
+                        cache: 'no-store',
+                        signal: AbortSignal.any([
+                            controller.signal,
+                            AbortSignal.timeout(10_000),
+                        ]),
+                    },
+                );
+                if (!response.ok) return;
+
+                const { users } = (await response.json()) as {
+                    users: {
+                        id: string;
+                        is_following: boolean;
+                        is_dismissed: boolean;
+                    }[];
+                };
+                if (controller.signal.aborted) return;
+
+                users.forEach((user) =>
+                    updates.get(user.id)?.(user.is_following),
+                );
+                removeDismissed(
+                    users
+                        .filter(
+                            (user) => updates.has(user.id) && user.is_dismissed,
+                        )
+                        .map((user) => user.id),
+                );
+            } catch {
+                // A failed read leaves the rows until the next update, rejoin or return to this tab.
+            }
+        }, 150);
+        const onVisible = () => {
+            if (!document.hidden) refresh.request();
+        };
+        const stop = listen(
+            userChannel(viewerId),
+            {
+                relationships: () => refresh.request(),
+                suggestions: () => refresh.request(),
+            },
+            () => refresh.request(),
+        );
+        document.addEventListener('visibilitychange', onVisible);
+        // Suggestions are kept across visits, so a newly mounted sidebar may show an older read than the page.
+        refresh.request();
+
+        return () => {
+            controller.abort();
+            refresh.cancel();
+            stop();
+            document.removeEventListener('visibilitychange', onVisible);
+        };
+    }, [viewerId, ids, showsWhoToFollow]);
+}
 
 function DismissButton({
     user,
@@ -171,6 +262,7 @@ export function SuggestedUserRow({
                     >
                         <Link
                             href={show(user)}
+                            prefetch
                             className="group flex min-w-0 flex-1 items-center gap-3"
                         >
                             <span
@@ -361,7 +453,8 @@ function useHideWhoToFollow() {
     const { showsWhoToFollow, suggestedUsers } = usePage().props;
     const { rememberShowsWhoToFollow } = useWhoToFollow();
     const [isHidden, setIsHidden] = useState(false);
-    const { hasDismissed, isEmptied, dismiss } = useDismissSuggestion();
+    const { hasDismissed, isEmptied, dismiss, dismissElsewhere } =
+        useDismissSuggestion();
 
     const toggle = (hides: boolean) => {
         rememberShowsWhoToFollow(!hides);
@@ -377,6 +470,7 @@ function useHideWhoToFollow() {
         undo: () => toggle(false),
         suggestedUsers: suggestedUsers?.slice(0, shownSuggestionsCount),
         dismiss,
+        dismissElsewhere,
     };
 }
 
@@ -496,14 +590,7 @@ function useDismissSuggestion() {
         });
     };
 
-    const settle = (): void => {
-        let left = 0;
-        setDismissingCount((count) => (left = count - 1));
-
-        if (left > 0) {
-            return;
-        }
-
+    const topUpAfterDismissals = (): void => {
         let isRunning = false;
         setTopUp((current) => {
             isRunning = current !== 'idle';
@@ -514,6 +601,27 @@ function useDismissSuggestion() {
         if (!isRunning) {
             sendTopUp();
         }
+    };
+
+    const settle = (): void => {
+        let left = 0;
+        setDismissingCount((count) => (left = count - 1));
+
+        if (left === 0) topUpAfterDismissals();
+    };
+
+    const dismissElsewhere = (ids: string[]): void => {
+        const removed = ids.filter((id) =>
+            suggestedUsers.some((user) => user.id === id),
+        );
+        if (removed.length === 0) return;
+
+        setHasDismissed(true);
+        removed.forEach((id) => {
+            dismissedIds.add(id);
+            remove({ id });
+        });
+        if (dismissingCount === 0) topUpAfterDismissals();
     };
 
     const dismiss = (user: SuggestedUser, onFailed: () => void): boolean => {
@@ -574,6 +682,7 @@ function useDismissSuggestion() {
             topUp === 'idle' &&
             suggestedUsers.length === 0,
         dismiss,
+        dismissElsewhere,
     };
 }
 
@@ -603,7 +712,7 @@ function WhoToFollowHidden({ onUndo }: { onUndo: () => void }) {
             <div className="mt-1 flex items-center justify-between gap-3">
                 <p className="min-w-0 text-xs text-muted-foreground">
                     Bring it back in{' '}
-                    <Link href={edit()} className="underline">
+                    <Link href={edit()} prefetch className="underline">
                         Settings
                     </Link>
                     .
@@ -631,7 +740,10 @@ export function WhoToFollow() {
         undo,
         suggestedUsers,
         dismiss,
+        dismissElsewhere,
     } = useHideWhoToFollow();
+
+    useSuggestedUserUpdates(dismissElsewhere);
 
     if (!isVisible) {
         return null;

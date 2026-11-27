@@ -2,13 +2,21 @@
 
 declare(strict_types=1);
 
+use App\Contracts\Services\GitHubProvider;
+use App\Enums\Feature;
 use App\Enums\Log;
+use App\Enums\ModerationReason;
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Models\BanEvent;
 use App\Models\Commit;
+use App\Models\Guild;
 use App\Models\LinkPreview;
+use App\Models\Organization;
 use App\Models\User;
+use App\Models\UserTimeout;
+use App\Services\Features;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Inertia\Testing\AssertableInertia;
 
@@ -43,10 +51,148 @@ it('renders a user profile', function (): void {
             ->has('achievements')
             ->has('commits.data', 2)
             ->where('commits.data.0.body', 'Newer')
-            ->where('commits.data.0.user.handle', 'octocat')
+            ->where('commits.data.0.author.handle', 'octocat')
             ->where('commits.data.0.stars_count', 0)
             ->where('commits.data.0.starred', false)
             ->where('commits.data.1.body', 'Older'));
+});
+
+it('shows the guilds the profile owner joined rather than the viewers guilds or mute-only preferences', function (): void {
+    config(['app.admins' => ['admin']]);
+    $viewer = User::factory()->create(['handle' => 'admin']);
+    $user = User::factory()->create();
+    $rust = Guild::factory()->create(['handle' => 'rust', 'name' => 'Rust Guild', 'emoji' => '🦀', 'icon_path' => 'guild-icons/rust.webp']);
+    $laravel = Guild::factory()->create(['handle' => 'laravel', 'name' => 'Laravel Guild', 'emoji' => '💻']);
+    $left = Guild::factory()->create();
+    $viewersGuild = Guild::factory()->create();
+    $rust->members()->attach($user, ['joined_at' => now(), 'muted_at' => now()]);
+    $laravel->members()->attach($user, ['joined_at' => now()]);
+    $left->muters()->attach($user, ['muted_at' => now()]);
+    $viewersGuild->members()->attach($viewer, ['joined_at' => now()]);
+    $laravel->members()->attach($viewer, ['joined_at' => now()]);
+
+    $response = $this->actingAs($viewer)->get(route('user.show', $user))
+        ->assertOk()
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
+            ->has('profileGuilds', 2)
+            ->where('profileGuilds.0.id', $laravel->id)
+            ->where('profileGuilds.0.handle', 'laravel')
+            ->where('profileGuilds.0.name', 'Laravel Guild')
+            ->where('profileGuilds.0.emoji', '💻')
+            ->where('profileGuilds.0.icon_url', null)
+            ->where('profileGuilds.0.is_joined', true)
+            ->where('profileGuilds.0.member_count', 2)
+            ->where('profileGuilds.1.id', $rust->id)
+            ->where('profileGuilds.1.handle', 'rust')
+            ->where('profileGuilds.1.name', 'Rust Guild')
+            ->where('profileGuilds.1.emoji', '🦀')
+            ->where('profileGuilds.1.icon_url', route('guild-icon.show', ['guild' => 'rust', 'v' => $rust->updated_at->getTimestampMs()]))
+            ->where('profileGuilds.1.is_joined', false)
+            ->where('profileGuilds.1.member_count', 1)
+            ->missing('profileGuilds.1.user_id')
+            ->missing('profileGuilds.1.icon_path')
+            ->missing('guilds'));
+
+    expect($response->viewData('page')['liveProps']['profileGuilds']['listeners'])->toBe([
+        ['channel' => ['name' => 'profiles.'.$user->id, 'type' => 'public'], 'events' => ['profile']],
+        ['channel' => ['name' => 'users.'.$viewer->id, 'type' => 'private'], 'events' => ['guilds']],
+    ]);
+
+    $rust->members()->detach($user);
+    $laravel->members()->detach($user);
+
+    $this->get(route('user.show', $user))
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
+            ->where('profileGuilds', []));
+});
+
+it('does not expose profile guild memberships without access to guilds', function (?string $viewerHandle, bool $enabled): void {
+    config(['app.admins' => ['admin']]);
+    resolve(Features::class)->update(Feature::Guilds, $enabled);
+    $user = User::factory()->create();
+    Guild::factory()->create()->members()->attach($user, ['joined_at' => now()]);
+
+    if ($viewerHandle !== null) {
+        $this->actingAs(User::factory()->create(['handle' => $viewerHandle]));
+    }
+
+    $this->get(route('user.show', $user))
+        ->assertOk()
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
+            ->where('profileGuilds', null));
+})->with([
+    'guest' => [null, true],
+    'outside preview' => ['member', true],
+    'disabled' => ['admin', false],
+]);
+
+it('shows the profile owner and site moderators the user moderation history', function (): void {
+    $user = User::factory()->create(['handle' => 'octocat']);
+    UserTimeout::factory()->create([
+        'github_id' => $user->github_id,
+        'reason' => ModerationReason::LowEffort,
+        'created_at' => now()->subDays(2),
+        'ends_at' => now()->subDay(),
+    ]);
+    BanEvent::query()->create([
+        'github_id' => $user->github_id,
+        'reason' => ModerationReason::Spam,
+    ]);
+    $inertiaHeaders = [
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request()),
+    ];
+
+    $this->actingAs($user);
+
+    $this->get(route('user.show', $user), $inertiaHeaders)
+        ->assertJsonPath('props.moderationHistory.timeoutsCount', 1)
+        ->assertJsonPath('props.moderationHistory.bansCount', 1)
+        ->assertJsonPath('props.moderationHistory.timeouts.0.reason', 'Low-effort posts')
+        ->assertJsonPath('props.moderationHistory.timeouts.0.duration', '1 day')
+        ->assertJsonPath('props.moderationHistory.bans.0.reason', 'Spam or self-promotion');
+
+    config(['app.admins' => ['admin']]);
+    $moderator = User::factory()->create(['handle' => 'admin']);
+
+    $this->actingAs($moderator);
+
+    $this->get(route('user.show', $user), $inertiaHeaders)
+        ->assertJsonPath('props.moderationHistory.timeoutsCount', 1)
+        ->assertJsonPath('props.moderationHistory.bansCount', 1);
+
+    $viewer = User::factory()->create();
+
+    $this->actingAs($viewer);
+
+    $this->get(route('user.show', $user), $inertiaHeaders)
+        ->assertJsonPath('props.moderationHistory', null);
+});
+
+it('says which accounts the bio and company mention are on dev/null', function (): void {
+    Organization::factory()->create(['handle' => 'laravel']);
+    User::factory()->create(['handle' => 'TaylorOtwell']);
+    User::factory()->create(['handle' => 'octocat', 'bio' => 'Thanks @taylorotwell and @nobody', 'company' => '@laravel']);
+
+    $this->get('/@octocat')
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
+            ->where('bioProfiles', ['taylorotwell' => 'TaylorOtwell', 'laravel' => 'laravel']));
+});
+
+it('shares which accounts the bio of the signed-in user mentions are on dev/null', function (): void {
+    Organization::factory()->create(['handle' => 'laravel']);
+    $user = User::factory()->create(['bio' => 'Building @laravel']);
+
+    $this->actingAs($user)
+        ->get('/@laravel')
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
+            ->where('auth.bioProfiles', ['laravel' => 'laravel']));
+
+    auth()->logout();
+
+    $this->get('/@laravel')
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
+            ->where('auth.bioProfiles', []));
 });
 
 it('only lets guests see the local time of users who opted in', function (): void {
@@ -316,13 +462,6 @@ it('renders whether the user follows the viewer', function (): void {
             ->where('followsYou', true));
 });
 
-it('returns not found for unknown handles', function (): void {
-    $response = $this->actingAs(User::factory()->create())
-        ->get('/@missing');
-
-    $response->assertNotFound();
-});
-
 it('shows guests the profile with its approved commits and a link preview', function (): void {
     $user = User::factory()->create([
         'handle' => 'octocat',
@@ -500,7 +639,7 @@ it('keeps the replies other people left under the replies of a deleted account',
             ->where('ancestors.0.id', $root->id)
             ->where('ancestors.1.id', $reply->id)
             ->missing('ancestors.1.body')
-            ->missing('ancestors.1.user'));
+            ->missing('ancestors.1.author'));
 
     $this->actingAs($root->user)
         ->getJson(route('commit-reply.index', $root))
@@ -508,7 +647,7 @@ it('keeps the replies other people left under the replies of a deleted account',
         ->assertJsonCount(1, 'data')
         ->assertJsonPath('data.0.id', $reply->id)
         ->assertJsonPath('data.0.replies_count', 1)
-        ->assertJsonMissingPath('data.0.user');
+        ->assertJsonMissingPath('data.0.author');
 
     $this->getJson(route('api-commit.show', $reply))->assertNotFound();
 
@@ -626,7 +765,7 @@ it('includes the quoted commits of the user commits', function (): void {
         ->assertInertia(fn ($page) => $page
             ->has('commits.data', 1)
             ->where('commits.data.0.quoted_commit.body', 'The quoted commit')
-            ->where('commits.data.0.quoted_commit.user.handle', 'taylorotwell'));
+            ->where('commits.data.0.quoted_commit.author.handle', 'taylorotwell'));
 });
 
 it('includes the link previews of the user commits', function (): void {
@@ -670,7 +809,7 @@ it('preloads only replies visible to the profile visitor', function (): void {
         ->where('commits.data.0.reply_preview.data.0.id', $ownPending->id)
         ->where('commits.data.0.reply_preview.data.1.id', $visible->id)
         ->where('commits.data.0.reply_preview.next_cursor', null)
-        ->missing('commits.data.0.reply_preview.data.0.user.email'));
+        ->missing('commits.data.0.reply_preview.data.0.author.email'));
 });
 
 it('offers a remote only when the viewer could push to the profile', function (string $case, bool $canPush): void {
@@ -707,10 +846,10 @@ it('shows the github profile readme on the readme tab, without looking for commi
     $user = User::factory()->create(['handle' => 'octocat']);
     Commit::factory()->for($user)->create();
 
-    Http::fake([
-        "api.github.com/user/{$user->github_id}" => Http::response(['login' => 'octocat']),
-        'api.github.com/repos/octocat/octocat/readme' => Http::response('<div id="readme"><article class="markdown-body"><h2>Hi there</h2></article></div>'),
-    ]);
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('contributors')->andReturn([]);
+    $github->shouldReceive('login')->with($user->github_id)->andReturn('octocat');
+    $github->shouldReceive('readme')->with('octocat')->andReturn('<div id="readme"><article class="markdown-body"><h2>Hi there</h2></article></div>');
 
     $this->get(route('user.show', ['user' => $user, 'tab' => 'readme']))->assertOk()->assertInertia(fn ($page) => $page
         ->where('tab', 'readme')
@@ -722,14 +861,19 @@ it('shows the github profile readme on the readme tab, without looking for commi
 it('tells the readme tab when github did not answer', function (): void {
     $user = User::factory()->create(['handle' => 'octocat']);
 
-    Http::fake(["api.github.com/user/{$user->github_id}" => Http::response(status: 502)]);
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('contributors')->andReturn([]);
+    $github->shouldReceive('login')->andThrow(new ConnectionException('timed out'));
 
     $this->get(route('user.show', ['user' => $user, 'tab' => 'readme']))->assertOk()->assertInertia(fn ($page) => $page
         ->where('readme', false));
 });
 
 it('does not ask github for the readme on the other tabs', function (string $tab): void {
-    Http::preventStrayRequests();
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('contributors')->andReturn([]);
+    $github->shouldNotReceive('login', 'readme');
+
     $user = User::factory()->create(['handle' => 'octocat']);
 
     $this->get(route('user.show', ['user' => $user, 'tab' => $tab]))->assertOk()->assertInertia(fn ($page) => $page
@@ -778,3 +922,31 @@ it('names no followers the viewer knows to guests or on their own profile', func
         ->get(route('user.show', $user))
         ->assertInertia(fn ($page) => $page->where('followersYouKnow', null));
 });
+
+it('moves a profile for good to the handle in its own case, keeping the query string, for a day', function (): void {
+    User::factory()->create(['handle' => 'OctoCat']);
+
+    $this->get('/@octocat?tab=replies')
+        ->assertMovedPermanently()
+        ->assertRedirect('/@OctoCat?tab=replies')
+        ->assertHeader('Cache-Control', 'max-age=86400, private');
+
+    $this->get('/@OctoCat')->assertOk();
+});
+
+it('keeps the query string out of the handle it moves a profile to', function (): void {
+    User::factory()->create(['handle' => 'OctoCat']);
+
+    $this->get('/@octocat?user=evil')->assertRedirect('/@OctoCat?user=evil');
+    $this->get('/@octocat?tag=one&tag=two')->assertRedirect('/@OctoCat?tag=one&tag=two');
+    $this->get('/@octocat?user[]=a&user[]=b')->assertRedirect('/@OctoCat?user[]=a&user[]=b');
+});
+
+it('moves the people lists of a profile for good to the handle in its own case', function (string $list): void {
+    User::factory()->create(['handle' => 'OctoCat']);
+
+    $this->actingAs(User::factory()->create())
+        ->get("/@octocat/{$list}")
+        ->assertMovedPermanently()
+        ->assertRedirect("/@OctoCat/{$list}");
+})->with(['following', 'followers', 'mutuals']);

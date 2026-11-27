@@ -3,7 +3,7 @@ import type { Page, SharedPageProps } from '@inertiajs/core';
 import { afterEach, beforeEach, test, vi } from 'vite-plus/test';
 import { chatSnapshot, loadTab, markThreadRead, seedThread, setConversationArchived, setConversationMute, watchRemoteAlerts, watchThread } from '../../resources/js/lib/chat';
 import { pageTitle } from '../../resources/js/lib/page-title';
-import { createRemoteAlerts, isRemoteMuted, remoteAlertsEnabled, setRemoteAlerts } from '../../resources/js/lib/remote-notifications';
+import { createRemoteAlerts, isRemoteMuted, remoteAlertsEnabled, remoteSound, setRemoteAlerts, setRemoteSound } from '../../resources/js/lib/remote-notifications';
 import type { ConversationSummary } from '../../resources/js/types';
 
 const storage = new Map<string, string>();
@@ -64,6 +64,8 @@ beforeEach(() => {
         pause() {}
         currentTime = 0;
         muted = false;
+        src: string;
+        constructor(src = '') { this.src = src; }
     });
     const events = new EventTarget();
     vi.stubGlobal('window', {
@@ -79,8 +81,16 @@ beforeEach(() => {
         },
     });
     vi.stubGlobal('document', { addEventListener() {}, removeEventListener() {} });
-    let lock = Promise.resolve();
-    vi.stubGlobal('navigator', { locks: { request: (_name: string, run: () => Promise<void>) => (lock = lock.then(run)) } });
+    const locks = new Map<string, Promise<void>>();
+    vi.stubGlobal('navigator', { locks: { request: (name: string, options: LockOptions | (() => Promise<void>), run?: () => Promise<void>) => {
+        const callback = typeof options === 'function' ? options : () => {
+            options.signal?.throwIfAborted();
+            return run!();
+        };
+        const lock = (locks.get(name) ?? Promise.resolve()).then(callback, callback);
+        locks.set(name, lock);
+        return lock;
+    } } });
 });
 
 afterEach(() => {
@@ -116,6 +126,42 @@ test('ignores backlog, own messages, org events, read conversations and active m
     assert.equal(JSON.stringify(shown[0].options).includes('private message'), false);
     shown[0].onclick();
     assert.deepEqual(assign.mock.calls, [['/remotes/remote-one']]);
+});
+
+test('new messages use the saved sound immediately', async () => {
+    const alerts = reader();
+    await alerts.receive([], () => false);
+    const cases = [
+        ['msn', '/sounds/remote.mp3'],
+        ['icq', '/sounds/icq.mp3'],
+        ['aim', '/sounds/aim.mp3'],
+    ] as const;
+
+    for (const [index, [choice, source]] of cases.entries()) {
+        assert.equal(setRemoteSound('me', choice), true);
+        time += 10_000;
+        await alerts.receive([conversation(20 + index)], () => false);
+
+        assert.equal((play.mock.contexts.at(-1) as unknown as HTMLAudioElement).src, source);
+        assert.equal(play.mock.calls.length, index + 1);
+    }
+});
+
+test('sound choices stay account-local, reject unknown stored choices, and report blocked storage', () => {
+    assert.equal(remoteSound('me'), 'msn');
+    assert.equal(setRemoteSound('me', 'aim'), true);
+    assert.equal(remoteSound('me'), 'aim');
+    assert.equal(remoteSound('other'), 'msn');
+    storage.set('remote-sound:me', 'navi');
+    assert.equal(remoteSound('me'), 'msn');
+    storage.set('remote-sound:me', 'unknown');
+    assert.equal(remoteSound('me'), 'msn');
+    storage.set('remote-sound:me', 'constructor');
+    assert.equal(remoteSound('me'), 'msn');
+    vi.spyOn(window.localStorage, 'setItem').mockImplementation(() => { throw new Error('blocked'); });
+
+    assert.equal(setRemoteSound('me', 'icq'), false);
+    assert.equal(remoteSound('me'), 'msn');
 });
 
 test('only sound has a ten-second cooldown across remotes and tabs, while banners update without duplicates', async () => {
@@ -378,10 +424,17 @@ test.each([true, false])('background inbox polling alerts without consuming unre
     const stop = watchRemoteAlerts('me');
 
     try {
-        await vi.advanceTimersByTimeAsync(0);
+        await vi.advanceTimersByTimeAsync(59_999);
+        assert.deepEqual(requestedBaselines, []);
+        await vi.advanceTimersByTimeAsync(1);
+        assert.deepEqual(requestedBaselines, [true]);
         assert.equal(shown.length, 0);
         messages = [conversation(31, { kind: 'org' })];
-        await vi.advanceTimersByTimeAsync(15_000);
+        await vi.advanceTimersByTimeAsync(59_999);
+        assert.deepEqual(requestedBaselines, [true]);
+        assert.equal(shown.length, 0);
+        assert.equal(play.mock.calls.length, 0);
+        await vi.advanceTimersByTimeAsync(1);
         assert.equal(shown.length, Number(banners));
         assert.equal(play.mock.calls.length, 1);
         assert.equal(chatSnapshot().unread, 1);
@@ -391,22 +444,22 @@ test.each([true, false])('background inbox polling alerts without consuming unre
 
         unread = 4;
         messages = [conversation(32, { kind: 'org', ahead: 4 })];
-        await vi.advanceTimersByTimeAsync(15_000);
+        await vi.advanceTimersByTimeAsync(60_000);
         assert.equal(pageTitle('Settings', page), '(6) Settings - /dev/null');
         assert.equal(shown.length, 2 * Number(banners));
         assert.equal(play.mock.calls.length, 2);
 
         unread = 97;
-        await vi.advanceTimersByTimeAsync(15_000);
+        await vi.advanceTimersByTimeAsync(60_000);
         assert.equal(pageTitle('Settings', page), '(99) Settings - /dev/null');
 
         unread = 98;
-        await vi.advanceTimersByTimeAsync(15_000);
+        await vi.advanceTimersByTimeAsync(60_000);
         assert.equal(pageTitle('', page), '(99+) /dev/null');
 
         unread = 0;
         messages = [conversation(32, { kind: 'org', ahead: 0 })];
-        await vi.advanceTimersByTimeAsync(15_000);
+        await vi.advanceTimersByTimeAsync(60_000);
         assert.equal(pageTitle('', page), '(2) /dev/null');
         page.props.auth.unreadNotificationsCount = 0;
         assert.equal(pageTitle('Remotes', page), 'Remotes - /dev/null');
@@ -563,7 +616,7 @@ test('native broadcasts only acknowledge the receiving remote, without extra sou
 test('restarting alerts during an inbox request waits for its own baseline without replaying old messages', async () => {
     vi.useFakeTimers();
     Object.assign(window, { setTimeout, clearTimeout });
-    Object.assign(document, { hidden: true, cookie: '' });
+    Object.assign(document, { hidden: false, hasFocus: () => false, cookie: '' });
     let resolveOld: ((response: Response) => void) | undefined;
     let id = 80;
     const requestedBaselines: boolean[] = [];
@@ -610,9 +663,9 @@ test('an inbox response from before a successful mute cannot alert or replay aft
     });
     const stop = watchRemoteAlerts('me');
     try {
-        await vi.advanceTimersByTimeAsync(0);
+        await vi.advanceTimersByTimeAsync(60_000);
         delayInbox = true;
-        await vi.advanceTimersByTimeAsync(15_000);
+        await vi.advanceTimersByTimeAsync(60_000);
         assert.ok(resolveInbox);
         await setConversationMute(target, 'forever');
         messages = [conversation(70, { id: 'mute-race', kind: 'org' })];
@@ -623,10 +676,10 @@ test('an inbox response from before a successful mute cannot alert or replay aft
 
         delayInbox = false;
         await setConversationMute(target, 'off');
-        await vi.advanceTimersByTimeAsync(15_000);
+        await vi.advanceTimersByTimeAsync(60_000);
         assert.equal(shown.length, 0);
         messages = [conversation(71, { id: 'mute-race', kind: 'org' })];
-        await vi.advanceTimersByTimeAsync(15_000);
+        await vi.advanceTimersByTimeAsync(60_000);
         assert.equal(shown.length, 1);
         assert.equal(play.mock.calls.length, 1);
     } finally {
@@ -642,8 +695,11 @@ test('muting while an alert waits for the cross-tab lock suppresses it', async (
     const target = { kind: 'org' as const, org: { id: 'lock-mute', name: 'Team' } };
     let messages: ConversationSummary[] = [];
     let releaseAlert: (() => Promise<void>) | undefined;
-    vi.stubGlobal('navigator', { locks: { request: (_name: string, notify: () => Promise<void>) => {
-        releaseAlert = notify;
+    vi.stubGlobal('navigator', { locks: { request: (_name: string, options: LockOptions | (() => Promise<void>), run?: () => Promise<void>) => {
+        if (typeof options !== 'function') return run!();
+        return new Promise<void>((resolve) => {
+            releaseAlert = async () => { await options(); resolve(); };
+        });
     } } });
     vi.stubGlobal('fetch', async (_url: string, options?: RequestInit) => {
         if (options?.method === 'PUT') return Response.json({ muted_until_at: '9999-12-31T00:00:00Z' });
@@ -651,9 +707,9 @@ test('muting while an alert waits for the cross-tab lock suppresses it', async (
     });
     const stop = watchRemoteAlerts('me');
     try {
-        await vi.advanceTimersByTimeAsync(0);
+        await vi.advanceTimersByTimeAsync(60_000);
         messages = [conversation(75, { id: 'lock-mute', kind: 'org' })];
-        await vi.advanceTimersByTimeAsync(15_000);
+        await vi.advanceTimersByTimeAsync(60_000);
         assert.ok(releaseAlert);
         await setConversationMute(target, 'forever');
         await releaseAlert();
@@ -686,17 +742,17 @@ test('popping an unread stash without opening its thread does not replay old mes
     });
     const stop = watchRemoteAlerts('me');
     try {
-        await vi.advanceTimersByTimeAsync(0);
+        await vi.advanceTimersByTimeAsync(60_000);
         await loadTab('stashed');
         assert.equal(await setConversationArchived(target, false), true);
-        await vi.advanceTimersByTimeAsync(15_000);
+        await vi.advanceTimersByTimeAsync(60_000);
         assert.equal(chatSnapshot().threads['org:old-stash'], undefined);
         assert.equal(chatSnapshot().unread, 1);
         assert.equal(shown.length, 0);
         assert.equal(play.mock.calls.length, 0);
 
         id = 81;
-        await vi.advanceTimersByTimeAsync(15_000);
+        await vi.advanceTimersByTimeAsync(60_000);
         assert.equal(shown.length, 1);
         assert.equal(play.mock.calls.length, 1);
     } finally {
@@ -744,7 +800,7 @@ test.each(['blur', 'hidden', 'leave'] as const)('viewing one remote allows alert
         assert.equal(shown.length, 2);
         await vi.advanceTimersByTimeAsync(10_000);
         id = 94;
-        await vi.advanceTimersByTimeAsync(15_000);
+        await vi.advanceTimersByTimeAsync(release === 'hidden' ? 60_000 : 15_000);
         assert.equal(shown.length, 3);
         assert.equal(play.mock.calls.length, 2);
     } finally {
@@ -791,7 +847,7 @@ test('an unfocused window does not mark incoming messages read before it can ale
         messages: [conversation(50).last_message!], has_older: false,
         reactions_version: 0, reaction_changes: [], read_through_id: 0,
         members: [], typing: [], is_archived: false, pinned_at: null, muted_until_at: null,
-        role: 'contributor', access: 'open', pinned: [],
+        role: 'contributor', access: 'open', pinned: [], mentions: [], mentions_count: 0,
     });
 
     markThreadRead(target);
@@ -816,9 +872,9 @@ test('alerts from recent activity even when older pins occupy the visible first 
     });
     const stop = watchRemoteAlerts('me');
     try {
-        await vi.advanceTimersByTimeAsync(0);
+        await vi.advanceTimersByTimeAsync(60_000);
         incoming = conversation(101, { id: 'recent-unpinned', kind: 'org' });
-        await vi.advanceTimersByTimeAsync(15_000);
+        await vi.advanceTimersByTimeAsync(60_000);
         assert.equal(shown.length, 1);
         assert.equal(play.mock.calls.length, 1);
         assert.equal(chatSnapshot().conversations?.[0].id, 'old-pinned');

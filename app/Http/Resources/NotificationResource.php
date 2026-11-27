@@ -4,39 +4,59 @@ declare(strict_types=1);
 
 namespace App\Http\Resources;
 
+use App\Enums\NotificationType;
 use App\Models\Commit;
 use App\Models\Notification;
+use App\Models\Organization;
+use App\Models\UserTimeout;
 use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
  * A group of notifications, as the web shows it: the newest one, the group it leads, how many events and actors the
- * group has and how many events are unread, and in a list the first few actors. The actor says whether the user
- * follows them. A rejected commit comes with the reason the moderator gave.
+ * group has and how many events are unread, and in a list the first few actors. An actor is a user or an
+ * organization, as its type says, and a user actor says whether the user follows them. A rejected commit comes with
+ * the reason the moderator gave. A member hears about an organization's commits and mentions with the organization.
  *
  * @mixin Notification
  */
 final class NotificationResource extends JsonResource
 {
+    public bool $withGuildMentions = true;
+
+    public static function newCollection(mixed $resource): GuildMentionCollection
+    {
+        return new GuildMentionCollection($resource, self::class);
+    }
+
     /**
      * @return array<string, mixed>
      */
     public function toArray(Request $request): array
     {
-        return [
+        $shown = [
             'id' => $this->id,
             'type' => $this->type,
             'subject_id' => $this->subject_id,
             'reason' => $this->reason,
             'read_at' => $this->read_at?->toIso8601ZuluString(),
             'created_at' => $this->created_at->toIso8601ZuluString(),
-            'actor' => UserResource::make($this->actor),
-            'actors' => UserResource::collection($this->whenLoaded('actors')),
+            'actor' => ProfileResource::make($this->actor),
+            'actors' => $this->whenLoaded('actors', fn (): AnonymousResourceCollection => ProfileResource::collection($this->actors)),
+            'organization' => $this->organization instanceof Organization ? OrganizationResource::make($this->organization) : null,
             'group_id' => $this->group_id,
             'event_count' => $this->event_count,
             'actors_count' => $this->actors_count,
             'unread_count' => $this->unread_count,
             'commit' => $this->commit instanceof Commit ? CommitResource::make($this->commit) : null,
+            ...$this->type === NotificationType::TimedOut && $this->timeout instanceof UserTimeout ? ['timeout' => [
+                'reason' => $this->timeout->reason->label(),
+                'duration' => $this->timeout->duration(),
+                'ends_at' => $this->timeout->ends_at->toIso8601ZuluString(),
+            ]] : [],
         ];
+
+        return $this->withGuildMentions ? ShownGuildMentions::of($shown, $request->user()) : $shown;
     }
 }

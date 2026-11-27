@@ -4,7 +4,11 @@ import { Delta } from '@/components/operations/overview-delta';
 import { Panel } from '@/components/operations/section';
 import { useNow } from '@/hooks/use-now';
 import { formatCount } from '@/lib/numbers';
-import { formatFullDateTime, formatRelativeTime } from '@/lib/utils';
+import {
+    formatFullDateTime,
+    formatRelativeTime,
+    readerClock,
+} from '@/lib/utils';
 import type { FailureTrend } from '@/types';
 
 const SERIES = [
@@ -20,6 +24,7 @@ function formatHour(at: string): string {
         hour: '2-digit',
         minute: '2-digit',
         hourCycle: 'h23',
+        timeZone: readerClock().timeZone,
     });
 }
 

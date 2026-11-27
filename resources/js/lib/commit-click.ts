@@ -18,6 +18,10 @@ const interactiveSelector = [
     '[role="checkbox"]',
     '[role="radio"]',
     '[role="menuitem"]',
+    '[role="switch"]',
+    '[role="tab"]',
+    '[role="slider"]',
+    '[role="combobox"]',
 ].join(', ');
 
 export type CommitClick = {

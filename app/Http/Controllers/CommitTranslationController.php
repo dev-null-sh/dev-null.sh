@@ -7,6 +7,8 @@ namespace App\Http\Controllers;
 use App\Actions\CreateCommitTranslation;
 use App\Exceptions\CommitProcessingFailed;
 use App\Http\Requests\CreateCommitTranslationRequest;
+use App\Http\Requests\ShowCommitTranslationRequest;
+use App\Http\Resources\ShownGuildMentions;
 use App\Models\Commit;
 use App\Services\CommitTranslations;
 use Illuminate\Http\JsonResponse;
@@ -14,6 +16,15 @@ use Throwable;
 
 final readonly class CommitTranslationController
 {
+    /**
+     * The translation as the viewer reads it, once it is heard to be ready: their own language, for whoever shows it.
+     */
+    public function show(ShowCommitTranslationRequest $request, Commit $commit, CommitTranslations $translations): JsonResponse
+    {
+        return response()->json(ShownGuildMentions::of(['translation' => $translations->display($commit, $request->string('language')->value(), includePending: true)], $request->user()))
+            ->header('Cache-Control', 'no-store, private');
+    }
+
     public function store(CreateCommitTranslationRequest $request, Commit $commit, CreateCommitTranslation $action, CommitTranslations $translations): JsonResponse
     {
         try {
@@ -29,7 +40,7 @@ final readonly class CommitTranslationController
                 ->header('Cache-Control', 'no-store, private');
         }
 
-        return response()->json(['translation' => $translations->display($commit, $request->string('language')->value(), includePending: true)])
+        return response()->json(ShownGuildMentions::of(['translation' => $translations->display($commit, $request->string('language')->value(), includePending: true)], $request->user()))
             ->header('Cache-Control', 'no-store, private');
     }
 }

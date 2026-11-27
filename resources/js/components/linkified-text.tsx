@@ -1,18 +1,24 @@
-import { Link } from '@inertiajs/react';
+import { Link, usePage } from '@inertiajs/react';
 import { Fragment } from 'react';
 import type { ReactNode, SVGAttributes } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
+import { show as showGuild } from '@/actions/App/Http/Controllers/GuildController';
+import SearchController from '@/actions/App/Http/Controllers/SearchController';
+import { show as showProfile } from '@/actions/App/Http/Controllers/UserController';
 import AppLogoIcon from '@/components/app-logo-icon';
 import AppWordmark from '@/components/app-wordmark';
 import { CertificateText } from '@/components/certificate-text';
 import { CodebergIcon } from '@/components/codeberg-icon';
 import { GitHubIcon } from '@/components/github-icon';
 import { GitLabIcon } from '@/components/gitlab-icon';
+import { GuildIcon } from '@/components/guild-icon';
 import { UserPreview } from '@/components/user-preview';
 import { typedProse, withoutCode } from '@/lib/code';
 import type { Color } from '@/lib/colors';
 import { colorsIn, cssColor } from '@/lib/colors';
+import { hashtagPattern } from '@/lib/hashtags';
 import { mentionPattern } from '@/lib/mentions';
+import { pasteisParts } from '@/lib/pasteis';
 import {
     hrefFor,
     shortenUrl,
@@ -21,7 +27,9 @@ import {
 } from '@/lib/urls';
 import { cn, shortHash } from '@/lib/utils';
 import { show } from '@/routes/mention';
+import { show as showOrganizationMention } from '@/routes/organization-mention';
 import type { BodySegment, Commit } from '@/types';
+import type { GuildBadge, GuildMentions } from '@/types/guild';
 
 // A link to a commit on dev/null itself, nothing after its id, so it can show as the author and the commit's hash.
 const commitLinkPattern =
@@ -149,6 +157,40 @@ export function hasMention(segments: BodySegment[]): boolean {
     );
 }
 
+export function typedGuildHandles(text: string): string[] {
+    return [
+        ...new Set(
+            typedProse(text).flatMap((part, index) => {
+                const prose = part.replace(
+                    index === 0 ? /^> ?|(?<=\n)> ?/g : /(?<=\n)> ?/g,
+                    '',
+                );
+                const ranges = [
+                    ...colorsIn(prose, index === 0),
+                    ...[...prose.matchAll(urlPattern)].flatMap((match) => {
+                        const url = withoutTrailingPunctuation(match[0]);
+
+                        return hrefFor(url) === null
+                            ? []
+                            : [{ index: match.index, length: url.length }];
+                    }),
+                ];
+
+                return [...prose.matchAll(hashtagPattern)]
+                    .filter(
+                        (match) =>
+                            !ranges.some(
+                                (range) =>
+                                    match.index >= range.index &&
+                                    match.index < range.index + range.length,
+                            ),
+                    )
+                    .map((match) => match[0].slice(1).toLowerCase());
+            }),
+        ),
+    ];
+}
+
 // Like X, the hidden parts of a shortened URL stay in the text, so copying it or a screen reader gets the whole URL.
 function ShortenedUrl({ url }: { url: string }) {
     const { hiddenStart, shown, hiddenEnd, cut } = shortenUrl(url);
@@ -224,7 +266,8 @@ function CommitLink({
 
     return (
         <Link
-            href={CommitController.show({ user: handle, commit })}
+            prefetch
+            href={CommitController.show({ profile: handle, commit })}
             title={url}
             aria-label={`@${handle}’s commit ${hash}`}
             className="text-primary hover:underline"
@@ -574,25 +617,21 @@ function withPasteis(text: string, pasteisMode: boolean): ReactNode {
         return <CertificateText text={text} />;
     }
 
-    return text
-        .split(
-            /(?<![\p{L}\p{M}\p{N}_])(pastel|pasteis|pastéis)(?![\p{L}\p{M}\p{N}_])/giu,
-        )
-        .map((part, index) =>
-            index % 2 === 0 ? (
-                <CertificateText key={index} text={part} />
-            ) : (
-                <img
-                    key={index}
-                    src="/pastel-de-nata.svg"
-                    alt={part}
-                    title={part}
-                    width={20}
-                    height={20}
-                    className="inline-block size-[1.25em] object-contain align-[-0.2em]"
-                />
-            ),
-        );
+    return pasteisParts(text).map((part, index) =>
+        part.pastel ? (
+            <img
+                key={index}
+                src="/pastel-de-nata.svg"
+                alt={part.text}
+                title={part.text}
+                width={20}
+                height={20}
+                className="inline-block size-[1.25em] object-contain align-[-0.2em]"
+            />
+        ) : (
+            <CertificateText key={index} text={part.text} />
+        ),
+    );
 }
 
 function withWordmarks(
@@ -621,6 +660,125 @@ function withWordmarks(
         );
 }
 
+export function Hashtag({
+    hashtag,
+    guild: postedGuild,
+    guildMentions,
+}: {
+    hashtag: string;
+    guild?: GuildBadge | null;
+    guildMentions?: GuildMentions;
+}) {
+    const { auth, guildsEnabled } = usePage().props;
+    const handle = hashtag.slice(1).toLowerCase();
+    const guild =
+        postedGuild ??
+        (guildMentions && Object.hasOwn(guildMentions, handle)
+            ? guildMentions[handle]
+            : undefined);
+
+    if (guild) {
+        const canOpenGuild = !!auth.user && guildsEnabled;
+        const className =
+            'inline-flex max-w-full items-baseline gap-[0.3em] rounded-sm bg-muted px-1 py-0.5 align-baseline font-mono text-[0.875em] leading-none font-normal text-foreground';
+        const content = (
+            <>
+                <GuildIcon
+                    guild={{
+                        emoji: guild.emoji,
+                        icon_url: canOpenGuild ? guild.icon_url : null,
+                    }}
+                    className="size-[1em] self-center rounded-[2px] bg-transparent"
+                />
+                <span className="min-w-0 truncate">{guild.name}</span>
+            </>
+        );
+
+        if (!canOpenGuild) {
+            return (
+                <span
+                    title={`${guild.name} · ${hashtag}`}
+                    className={className}
+                    data-test="guild-mention"
+                >
+                    {content}
+                </span>
+            );
+        }
+
+        return (
+            <Link
+                prefetch
+                href={showGuild(guild.handle)}
+                title={`${guild.name} · ${hashtag}`}
+                aria-label={`${guild.name}, ${hashtag} guild`}
+                className={cn(
+                    className,
+                    'transition-colors hover:bg-primary-soft hover:text-primary-hover focus-visible:outline-2 focus-visible:outline-offset-0 focus-visible:outline-ring',
+                )}
+                data-test="guild-mention"
+            >
+                {content}
+            </Link>
+        );
+    }
+
+    if (!auth.user) {
+        return hashtag;
+    }
+
+    return (
+        <Link
+            prefetch
+            href={SearchController.index({ query: { q: hashtag } })}
+            className="font-medium text-primary hover:underline"
+            data-test="hashtag"
+        >
+            {hashtag}
+        </Link>
+    );
+}
+
+function withHashtags(
+    text: string,
+    offset: number,
+    hashtags: RegExpExecArray[],
+    pasteisMode: boolean,
+    guildMentions: GuildMentions | undefined,
+): ReactNode[] {
+    const parts: ReactNode[] = [];
+    let position = 0;
+
+    for (const hashtag of hashtags) {
+        const index = hashtag.index - offset;
+
+        if (index < position || index + hashtag[0].length > text.length) {
+            continue;
+        }
+
+        parts.push(
+            ...withWordmarks(
+                text.slice(position, index),
+                offset + position,
+                pasteisMode,
+            ),
+            <Hashtag
+                key={`hashtag-${hashtag.index}`}
+                hashtag={hashtag[0]}
+                guildMentions={guildMentions}
+            />,
+        );
+
+        position = index + hashtag[0].length;
+    }
+
+    parts.push(
+        ...withWordmarks(text.slice(position), offset + position, pasteisMode),
+    );
+
+    return parts;
+}
+
 /**
  * The colors found in the whole text that fall in this slice of it, as their value with a swatch of the color.
  */
@@ -628,7 +786,9 @@ function withColors(
     text: string,
     offset: number,
     colors: Color[],
+    hashtags: RegExpExecArray[],
     pasteisMode: boolean,
+    guildMentions: GuildMentions | undefined,
 ): ReactNode[] {
     const parts: ReactNode[] = [];
     let position = 0;
@@ -641,10 +801,12 @@ function withColors(
         }
 
         parts.push(
-            ...withWordmarks(
+            ...withHashtags(
                 text.slice(position, index),
                 offset + position,
+                hashtags,
                 pasteisMode,
+                guildMentions,
             ),
             <span
                 key={`color-${color.index}`}
@@ -656,7 +818,7 @@ function withColors(
                     className="mr-0.5 inline-block size-[0.75em] rounded-sm border border-border align-[-0.05em]"
                     style={{ backgroundColor: cssColor(color) }}
                 />
-                {text.slice(index, index + color.length)}
+                {color.label}
             </span>,
         );
 
@@ -664,7 +826,13 @@ function withColors(
     }
 
     parts.push(
-        ...withWordmarks(text.slice(position), offset + position, pasteisMode),
+        ...withHashtags(
+            text.slice(position),
+            offset + position,
+            hashtags,
+            pasteisMode,
+            guildMentions,
+        ),
     );
 
     return parts;
@@ -674,9 +842,13 @@ function withMentions(
     text: string,
     offset: number,
     mentions: Commit['mentions'],
+    organizationMentions: Commit['organization_mentions'],
     colors: Color[],
+    hashtags: RegExpExecArray[],
     pasteisMode: boolean,
     isStatic: boolean,
+    linksEveryMention: boolean,
+    guildMentions: GuildMentions | undefined,
 ): ReactNode[] {
     const parts: ReactNode[] = [];
     let position = 0;
@@ -687,23 +859,30 @@ function withMentions(
             mentions && Object.hasOwn(mentions, handle)
                 ? mentions[handle]
                 : null;
+        const organizationId =
+            organizationMentions && Object.hasOwn(organizationMentions, handle)
+                ? organizationMentions[handle]
+                : null;
 
         parts.push(
             ...withColors(
                 text.slice(position, match.index),
                 offset + position,
                 colors,
+                hashtags,
                 pasteisMode,
+                guildMentions,
             ),
-            isStatic || !userId ? (
+            isStatic ? (
                 match[0]
-            ) : (
+            ) : userId ? (
                 <UserPreview
                     key={`mention-${offset + match.index}`}
                     user={{ handle: match[1] }}
                     userId={userId}
                 >
                     <Link
+                        prefetch
                         href={show(userId)}
                         className="font-medium text-primary hover:underline"
                         data-test="mention"
@@ -711,6 +890,30 @@ function withMentions(
                         {match[0]}
                     </Link>
                 </UserPreview>
+            ) : organizationId ? (
+                <Link
+                    prefetch
+                    key={`mention-${offset + match.index}`}
+                    href={showOrganizationMention(organizationId)}
+                    className="font-medium text-primary hover:underline"
+                    data-test="organization-mention"
+                >
+                    {match[0]}
+                </Link>
+            ) : !linksEveryMention ? (
+                match[0]
+            ) : (
+                // Anyone else may be on GitHub: their page looks them up for members. Guests and crawlers get a
+                // missing page, so it isn't followed, nor prefetched, which would ask for it on every hover of a feed...
+                <Link
+                    key={`mention-${offset + match.index}`}
+                    href={showProfile(match[1])}
+                    rel="nofollow"
+                    className="font-medium text-primary hover:underline"
+                    data-test="handle-mention"
+                >
+                    {match[0]}
+                </Link>
             ),
         );
 
@@ -722,7 +925,9 @@ function withMentions(
             text.slice(position),
             offset + position,
             colors,
+            hashtags,
             pasteisMode,
+            guildMentions,
         ),
     );
 
@@ -732,20 +937,28 @@ function withMentions(
 export function LinkifiedText({
     text,
     mentions,
+    organizationMentions = null,
+    guildMentions,
     pasteisMode = false,
     isStatic = false,
+    linksEveryMention = true,
     startsText = false,
 }: {
     text: string;
     mentions: Commit['mentions'];
+    organizationMentions?: Commit['organization_mentions'];
+    guildMentions?: GuildMentions;
     pasteisMode?: boolean;
     isStatic?: boolean;
+    linksEveryMention?: boolean;
     // Whether the text is a whole body, so its start is the start of a line.
     startsText?: boolean;
 }) {
     const parts: ReactNode[] = [];
     // Colors are found in the prose only, for callers that pass a whole body, code included.
-    const colors = colorsIn(withoutCode(text), startsText);
+    const prose = withoutCode(text);
+    const colors = colorsIn(prose, startsText);
+    const hashtags = isStatic ? [] : [...prose.matchAll(hashtagPattern)];
     let position = 0;
 
     for (const match of text.matchAll(urlPattern)) {
@@ -764,9 +977,13 @@ export function LinkifiedText({
                 text.slice(position, match.index),
                 position,
                 mentions,
+                organizationMentions,
                 colors,
+                hashtags,
                 pasteisMode,
                 isStatic,
+                linksEveryMention,
+                guildMentions,
             ),
             commitLink ? (
                 <CommitLink
@@ -808,9 +1025,13 @@ export function LinkifiedText({
             text.slice(position),
             position,
             mentions,
+            organizationMentions,
             colors,
+            hashtags,
             pasteisMode,
             isStatic,
+            linksEveryMention,
+            guildMentions,
         ),
     );
 

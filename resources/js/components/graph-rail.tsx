@@ -9,10 +9,12 @@ import {
 } from '@/components/graph-canvas';
 import type { GraphNodeSpec } from '@/components/graph-canvas';
 import { LiveAvatarMarker } from '@/components/live-stream-card';
+import { OrganizationAvatar } from '@/components/organization-avatar';
 import { UserAvatar } from '@/components/user-avatar';
+import { useLiveStream } from '@/hooks/use-live-stream';
 import { bridgeDuration } from '@/lib/graph';
 import { cn, laneStrokeStyle } from '@/lib/utils';
-import type { User } from '@/types';
+import type { OrganizationAuthor, User } from '@/types';
 
 type Props = {
     lane: string;
@@ -77,9 +79,9 @@ export function GraphRail({
     // A fresh commit going on below another one, like a reply chained under the last commit of a thread, scales in once
     // the trunk has reached it.
     const waitsForTrunk = isFresh && previousLane !== undefined;
-    // The actions row is 24px tall, or 28px below md, where the secondary actions fold into a menu button. It ends the
+    // The actions row is 28px tall, as tall as its menu button, which takes its room even while hidden. It ends the
     // rail's row: what opens below it, like the reply composer, has a row of its own.
-    const endDotBottom = endsOnActions ? 'bottom-3.5 md:bottom-3' : 'bottom-5';
+    const endDotBottom = endsOnActions ? 'bottom-3.5' : 'bottom-5';
 
     return (
         <div
@@ -166,8 +168,7 @@ export function GraphRail({
                                 'top-auto h-5':
                                     (endsWithDot && !endsOnActions) ||
                                     nodePosition === 'bottom',
-                                'top-auto h-3.5 md:h-3':
-                                    endsWithDot && endsOnActions,
+                                'top-auto h-3.5': endsWithDot && endsOnActions,
                             },
                         )}
                         style={laneStrokeStyle('var(--lane)', {
@@ -251,13 +252,13 @@ function RailEnd({
     ComponentProps<typeof RailEndDot>,
     'isLeaving' | 'onLeft'
 >) {
-    const isDrawing = useGraphOverlay();
+    const isInCanvas = useGraphOverlay();
     const [wasShown, setWasShown] = useState(isShown);
     const [isLeaving, setIsLeaving] = useState(false);
 
     if (wasShown !== isShown) {
         setWasShown(isShown);
-        setIsLeaving(!isShown && isDrawing && !prefersStillness());
+        setIsLeaving(!isShown && isInCanvas && !prefersStillness());
     }
 
     return isShown || isLeaving ? (
@@ -388,21 +389,38 @@ export function RailDot({
     );
 }
 
+// The progress ring traces the avatar's outline clockwise from the top centre, inset by half its stroke within the 48px box.
+const roundRingPath = 'M24 1 A23 23 0 1 1 24 47 A23 23 0 1 1 24 1';
+
+// Organizations are square, so their ring follows the rounded-lg corners (8px, less the half stroke).
+const squareRingPath =
+    'M24 1 H40 A7 7 0 0 1 47 8 V40 A7 7 0 0 1 40 47 H8 A7 7 0 0 1 1 40 V8 A7 7 0 0 1 8 1 Z';
+
 export function RailAvatar({
     user,
     progress,
 }: {
-    user: Pick<User, 'name' | 'avatar_url' | 'live'>;
+    user:
+        | Pick<User, 'id' | 'name' | 'avatar_url' | 'live'>
+        | OrganizationAuthor;
     // Fills the ring clockwise from 0 to 1, as a post grows toward its limit. At 0 the ring stays dashed.
     progress?: number;
 }) {
-    const isLive = Boolean(user.live);
+    const isOrganization = 'type' in user && user.type === 'organization';
+    const isLive = useLiveStream(isOrganization ? null : user) !== null;
+    const ringPath = isOrganization ? squareRingPath : roundRingPath;
 
     return (
-        <span className="relative flex rounded-full bg-card">
+        <span
+            className={cn(
+                'relative flex bg-card',
+                isOrganization ? 'rounded-lg' : 'rounded-full',
+            )}
+        >
             <span
                 className={cn(
-                    'relative flex rounded-full border-2 border-(--lane) p-0.5 transition-opacity duration-200',
+                    'relative flex border-2 border-(--lane) p-0.5 transition-opacity duration-200',
+                    isOrganization ? 'rounded-lg' : 'rounded-full',
                     dimmedNode,
                     {
                         'border-red-600': isLive,
@@ -414,7 +432,8 @@ export function RailAvatar({
                     <>
                         <span
                             className={cn(
-                                'pointer-events-none absolute -inset-0.5 rounded-full border-2 border-dashed transition-opacity duration-150 ease-out motion-reduce:transition-none',
+                                'pointer-events-none absolute -inset-0.5 border-2 border-dashed transition-opacity duration-150 ease-out motion-reduce:transition-none',
+                                isOrganization ? 'rounded-lg' : 'rounded-full',
                                 isLive ? 'border-red-600' : 'border-(--lane)',
                                 progress > 0 ? 'opacity-0' : 'opacity-100',
                             )}
@@ -422,16 +441,14 @@ export function RailAvatar({
                         <svg
                             viewBox="0 0 48 48"
                             className={cn(
-                                'pointer-events-none absolute -inset-0.5 size-12 -rotate-90 transition-opacity duration-150 ease-out motion-reduce:transition-none',
+                                'pointer-events-none absolute -inset-0.5 size-12 transition-opacity duration-150 ease-out motion-reduce:transition-none',
                                 progress > 0 ? 'opacity-100' : 'opacity-0',
                             )}
                             fill="none"
                             strokeWidth={2}
                         >
-                            <circle
-                                cx="24"
-                                cy="24"
-                                r="23"
+                            <path
+                                d={ringPath}
                                 className={cn(
                                     isLive
                                         ? 'stroke-red-600'
@@ -439,10 +456,8 @@ export function RailAvatar({
                                     'opacity-25',
                                 )}
                             />
-                            <circle
-                                cx="24"
-                                cy="24"
-                                r="23"
+                            <path
+                                d={ringPath}
                                 pathLength={1}
                                 strokeDasharray={1}
                                 strokeLinecap="round"
@@ -457,7 +472,14 @@ export function RailAvatar({
                         </svg>
                     </>
                 )}
-                <UserAvatar user={user} className="size-10" />
+                {isOrganization ? (
+                    <OrganizationAvatar
+                        organization={user}
+                        className="size-10"
+                    />
+                ) : (
+                    <UserAvatar user={user} className="size-10" />
+                )}
             </span>
             {isLive && (
                 <LiveAvatarMarker className="px-1 text-[9px] leading-3.5" />

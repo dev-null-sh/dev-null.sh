@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Models\Commit;
 use App\Models\CommitImage;
+use App\Models\Guild;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Testing\TestResponse;
@@ -34,6 +35,7 @@ it('serves the public top-level commits of a user as an atom feed', function ():
         'created_at' => now()->subDay(),
     ]);
     $newer = Commit::factory()->for($user)->create(['body' => 'Second commit']);
+    Commit::factory()->for($user)->for(Guild::factory())->create(['body' => 'Only on the guild board']);
     Commit::factory()->for($user)->for($older, 'parent')->create(['body' => 'A reply']);
     Commit::factory()->for($user)->pending()->create(['body' => 'Pending commit']);
     Commit::factory()->for($user)->rejected()->create(['body' => 'Rejected commit']);
@@ -44,6 +46,7 @@ it('serves the public top-level commits of a user as an atom feed', function ():
 
     $response->assertOk()
         ->assertHeader('Content-Type', 'application/atom+xml; charset=UTF-8')
+        ->assertDontSee('Only on the guild board')
         ->assertDontSee('A reply')
         ->assertDontSee('Pending commit')
         ->assertDontSee('Rejected commit')
@@ -210,4 +213,10 @@ it('serves an empty feed for users without public commits', function (): void {
 
 it('returns not found for unknown handles', function (): void {
     $this->get('/@missing/feed.atom')->assertNotFound();
+});
+
+it('serves the feed of a user whatever the case of the handle', function (): void {
+    User::factory()->create(['handle' => 'OctoCat']);
+
+    $this->get('/@octocat/feed.atom')->assertOk();
 });

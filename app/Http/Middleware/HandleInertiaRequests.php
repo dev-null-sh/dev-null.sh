@@ -4,20 +4,37 @@ declare(strict_types=1);
 
 namespace App\Http\Middleware;
 
+use App\Contracts\Services\HumanVerificationProvider;
+use App\Dto\ReaderClock;
+use App\Enums\EventTheme;
+use App\Enums\Feature;
 use App\Enums\Log;
 use App\Enums\RepliesPerPage;
+use App\Enums\UserUpdate;
 use App\Http\Requests\ListNotificationsRequest;
+use App\Http\Resources\ShownStreams;
 use App\Models\Commit;
+use App\Models\Organization;
 use App\Models\User;
+use App\Queries\BioProfilesQuery;
 use App\Queries\ConversationsQuery;
+use App\Queries\DevelopersCountQuery;
+use App\Queries\HotTopicsQuery;
+use App\Queries\JoinedGuildsQuery;
 use App\Queries\LiveFollowingQuery;
 use App\Queries\NotificationGroupsQuery;
 use App\Queries\SuggestedUsersQuery;
-use Illuminate\Http\JsonResponse;
+use App\Services\CommitTranslations;
+use App\Services\Features;
+use Carbon\CarbonInterface;
+use Closure;
+use Illuminate\Broadcasting\Channel;
+use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Http\Request;
-use Illuminate\Support\Collection;
 use Inertia\Inertia;
+use Inertia\LiveProp;
 use Inertia\Middleware;
+use Inertia\Support\Header;
 use Symfony\Component\HttpFoundation\Response;
 
 final class HandleInertiaRequests extends Middleware
@@ -38,21 +55,23 @@ final class HandleInertiaRequests extends Middleware
     }
 
     /**
-     * A deploy sends a page built for the previous version back for a full reload. That page already took the flashed
-     * data off the session, so it is flashed again for the reload: the composer learns its commit went through.
+     * A deploy sends a page built for the previous version back for a full reload before the page is built, as its
+     * props would be thrown away: a tab left open keeps asking in the background until it reloads. The flashed data
+     * stays on the session for the reload, so the composer learns its commit went through. Without `Vary: X-Inertia`
+     * a browser restoring the tab can serve this empty 409 as the page itself.
      */
-    public function onVersionChange(Request $request, Response $response): Response
+    public function handle(Request $request, Closure $next): Response
     {
-        /** @var array{flash?: array<string, mixed>} $page */
-        $page = $response instanceof JsonResponse ? $response->getData(true) : [];
+        Inertia::version(fn (): ?string => $this->version($request));
 
-        $response = parent::onVersionChange($request, $response);
+        if ($request->header(Header::INERTIA) && $request->isMethod('GET') && $request->header(Header::VERSION, '') !== Inertia::getVersion()) {
+            $response = $this->onVersionChange($request, new Response());
+            $response->setVary(Header::INERTIA);
 
-        if (($page['flash'] ?? []) !== []) {
-            Inertia::flash($page['flash']);
+            return $response;
         }
 
-        return $response;
+        return parent::handle($request, $next);
     }
 
     /**
@@ -75,45 +94,95 @@ final class HandleInertiaRequests extends Middleware
         $hasAside = ! $request->routeIs('onboarding.show') && ! $request->is('operations', 'operations/*');
 
         $suggestedUsers = $user instanceof User && $showsWhoToFollow && $hasAside
-            ? Inertia::defer(fn (): Collection => resolve(SuggestedUsersQuery::class)->get(
+            ? Inertia::defer(fn (): array => ShownStreams::users(resolve(SuggestedUsersQuery::class)->get(
                 $user,
                 round: max(0, (int) $request->cookie('who_to_follow_round')),
                 spares: 3,
                 context: $context,
-            ))
+            )))
+            : null;
+
+        // Counts the user's private updates refresh, wherever they were changed from. Guests have no channel.
+        $live = fn (Closure $value, UserUpdate ...$updates): Closure|LiveProp => $user instanceof User
+            ? Inertia::live($value, on: array_values(array_map(fn (UserUpdate $update): string => $update->value, $updates)), channel: new PrivateChannel($user))
+            : $value;
+
+        // Kept across pages until the first stream it lists runs out at most, so a stream extended meanwhile is read again.
+        $liveFollowing = $user instanceof User && $hasAside
+            ? Inertia::once(function () use (&$liveFollowing, $user): array {
+                $following = resolve(LiveFollowingQuery::class)->get($user);
+                $liveFollowing?->until($following->reduce(
+                    fn (CarbonInterface $until, User $followed): CarbonInterface => $followed->live_ends_at?->min($until) ?? $until,
+                    now()->addMinute(),
+                ));
+
+                return ShownStreams::users($following);
+            })->live(UserUpdate::Live->value, new PrivateChannel($user))
             : null;
 
         return [
             ...parent::share($request),
             'name' => config('app.name'),
             'repository' => config('services.github.repository'),
+            'humanVerificationSiteKey' => fn (): string => resolve(HumanVerificationProvider::class)->siteKey(),
             'auth' => [
-                'user' => fn (): ?User => $request->user()?->loadCounts(),
+                // What the user saved anywhere, from their profile to their preferences, shows on every page they have open.
+                'user' => $live(fn (): ?array => ShownStreams::user($request->user()?->loadCounts()), UserUpdate::Account),
+                'bioProfiles' => $live(fn (): array => $user instanceof User ? resolve(BioProfilesQuery::class)->get($user) : [], UserUpdate::Account),
+                // The organizations the user is a member of, shown like the commits they author: theirs too, and who they
+                // can post as.
+                'organizations' => $live(fn (): array => $user instanceof User ? $user->organizations()->get()
+                    ->map(fn (Organization $organization): array => ['type' => 'organization', ...$organization->toArray()])
+                    ->all() : [], UserUpdate::Account),
                 'isAdmin' => $isAdmin,
-                'automaticTranslation' => $user->automatic_translation ?? true,
-                'mustReadCommitRules' => $user instanceof User && $user->commit_rules_accepted_at === null,
-                'log' => fn (): ?Log => $request->user()?->log,
-                'unreadNotificationsCount' => fn (): int => $user instanceof User ? resolve(NotificationGroupsQuery::class)->unreadCount($user, ListNotificationsRequest::rememberedType($request, $user)) : 0,
-                'unreadMessagesCount' => fn (): int => $user?->remotes_enabled ? resolve(ConversationsQuery::class)->unreadCount($user) : 0,
-                'remotes' => fn (): ?array => $user?->remotes_enabled ? [
+                'automaticTranslation' => $live(fn (): bool => $user->automatic_translation ?? true, UserUpdate::Account),
+                // The language translations are read in, saved or from the browser, so a change saved elsewhere reaches
+                // the translations already shown.
+                'translationLanguage' => $live(fn (): string => resolve(CommitTranslations::class)->language(), UserUpdate::Account),
+                'mustReadCommitRules' => $live(fn (): bool => $user instanceof User && $user->commit_rules_accepted_at === null, UserUpdate::Account),
+                'termsToAccept' => $live(fn (): ?string => $user instanceof User && ! $user->hasAcceptedCurrentTerms() ? config()->string('legal.terms_version') : null, UserUpdate::Account),
+                'log' => $live(fn (): ?Log => $request->user()?->log, UserUpdate::Account),
+                // Each browser filters notifications its own way, and reloading the count goes through its cookie.
+                'unreadNotificationsCount' => $live(fn (): int => $user instanceof User ? resolve(NotificationGroupsQuery::class)->unreadCount($user, ListNotificationsRequest::rememberedType($request, $user)) : 0, UserUpdate::Notifications),
+                'unreadMessagesCount' => $live(fn (): int => $user?->remotes_enabled ? resolve(ConversationsQuery::class)->unreadCount($user) : 0, UserUpdate::Messages, UserUpdate::Inbox),
+                'remotes' => $live(fn (): ?array => $user?->remotes_enabled ? [
                     'from' => $user->remotes_from,
                     'pull_receipts' => $user->pull_receipts,
                     'requests' => (bool) config('remotes.requests'),
                     'everyone' => (bool) config('remotes.everyone'),
-                ] : null,
-                'pasteis' => fn (): ?array => $user?->pasteis_mode ? [
+                ] : null, UserUpdate::Account),
+                'pasteis' => $live(fn (): ?array => $user?->pasteis_mode ? [
                     'remaining' => $user->pasteisRemaining(),
                     'day' => today()->toDateString(),
-                ] : null,
+                ] : null, UserUpdate::Account),
             ],
-            'hasUnmoderatedCommits' => fn (): bool => $isAdmin && Commit::query()->pending()->exists(),
+            // Guests see how many developers are here, next to the sign-in button...
+            'developersCount' => fn (): ?int => $user instanceof User ? null : resolve(DevelopersCountQuery::class)->get(),
+            'hasUnmoderatedCommits' => $isAdmin ? $live(fn (): bool => Commit::query()->awaitingModerator()->exists(), UserUpdate::Moderation) : false,
+            // The lite mobile app, which draws its own tab bar (see resources/js/lib/lite-mobile-app.ts). Any browser can send this
+            // token, so it only ever changes the UI...
+            'isLiteMobileApp' => str_contains((string) $request->userAgent(), 'DevNullLite/'),
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'showsWhoToFollow' => $showsWhoToFollow,
-            'liveFollowing' => fn (): Collection => $user instanceof User && $hasAside
-                ? resolve(LiveFollowingQuery::class)->get($user)
-                : collect(),
+            'guildsEnabled' => $live(fn (): bool => $user instanceof User && resolve(Features::class)->available(Feature::Guilds, $user), UserUpdate::Guilds),
+            'joinedGuilds' => $user instanceof User
+                ? Inertia::once(fn (): array => resolve(JoinedGuildsQuery::class)->get($user))->until(60)->live(UserUpdate::Guilds->value, new PrivateChannel($user))
+                : [],
+            ...$user instanceof User && $liveFollowing !== null ? [
+                // Drawn again when someone followed goes live or stops, never on its own, so it doesn't reshuffle.
+                'liveFollowing' => $liveFollowing,
+                'hotTopics' => Inertia::once(fn (): array => resolve(HotTopicsQuery::class)->get($user))->until(60)
+                    // Read again at most once a minute however busy the headlines get, since everyone listens.
+                    ->live('headlines', new Channel('headlines'), throttle: 60_000),
+            ] : [],
+            'eventTheme' => EventTheme::forRequest($request)?->value,
+            'eventYear' => EventTheme::greetedYear($request),
+            'eventThemeChoice' => EventTheme::choiceFrom(is_string($request->cookie('event_theme')) ? $request->cookie('event_theme') : null),
             'dimsLanes' => $request->cookie('lane_dimming') !== 'false',
             'repliesPerPage' => RepliesPerPage::of($request)->value,
+            'clock' => ReaderClock::of($request)->toArray(),
+            // Relative times count from it on the server and while the browser hydrates the page, so both agree.
+            'now' => now()->getTimestampMs(),
             // Onboarding and the operations console have no aside. Contextual suggestions must not reuse the once-cached list across pages.
             ...$suggestedUsers !== null ? [
                 'suggestedUsers' => ($context === null ? $suggestedUsers->once() : $suggestedUsers)->merge()->matchOn('id'),

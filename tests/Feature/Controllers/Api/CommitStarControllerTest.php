@@ -183,3 +183,69 @@ it('limits stars and unstars to 60 a minute, like the web, with a code', functio
         ->assertTooManyRequests()
         ->assertExactJson(['message' => 'Too Many Attempts.', 'code' => 'rate_limited']);
 });
+
+it('lists who starred their commit, newest first, as the web does', function (): void {
+    $commit = Commit::factory()->for($this->user)->create();
+    $first = User::factory()->create(['handle' => 'first']);
+    $second = User::factory()->create(['handle' => 'second']);
+
+    $first->starredCommits()->attach($commit, ['created_at' => now()->subMinute()]);
+    $second->starredCommits()->attach($commit);
+    User::factory()->create()->starredCommits()->attach(Commit::factory()->for($this->user)->create());
+
+    $response = signedApiRequest($this->keyPair, 'GET', route('api-commit-star.index', $commit));
+
+    $response->assertOk()
+        ->assertJsonPath('data.0.id', $second->id)
+        ->assertJsonPath('data.0.handle', 'second')
+        ->assertJsonPath('data.0.avatar_url', $second->avatar_url)
+        ->assertJsonPath('data.0.lane', $second->lane())
+        ->assertJsonMissingPath('data.0.pivot')
+        ->assertJsonMissingPath('data.0.email')
+        ->assertJsonPath('data.1.handle', 'first')
+        ->assertJsonCount(2, 'data')
+        ->assertJsonPath('meta.next_cursor', null);
+});
+
+it('lists who starred their commit 20 a page', function (): void {
+    $commit = Commit::factory()->for($this->user)->create();
+
+    User::factory()->count(21)->create()->each(fn (User $stargazer) => $stargazer->starredCommits()->attach($commit));
+
+    $page = signedApiRequest($this->keyPair, 'GET', route('api-commit-star.index', $commit))
+        ->assertOk()
+        ->assertJsonCount(20, 'data');
+
+    signedApiRequest($this->keyPair, 'GET', route('api-commit-star.index', ['commit' => $commit, 'cursor' => $page->json('meta.next_cursor')]))
+        ->assertOk()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('meta.next_cursor', null);
+});
+
+it('leaves out who starred their commit across a block in either direction', function (bool $userBlocks): void {
+    $commit = Commit::factory()->for($this->user)->create();
+    $blocked = User::factory()->create();
+
+    $blocked->starredCommits()->attach($commit);
+    $userBlocks ? $this->user->blocking()->attach($blocked) : $blocked->blocking()->attach($this->user);
+
+    signedApiRequest($this->keyPair, 'GET', route('api-commit-star.index', $commit))
+        ->assertOk()
+        ->assertJsonCount(0, 'data');
+})->with([true, false]);
+
+it('may not list who starred the commit of someone else', function (): void {
+    $commit = Commit::factory()->create();
+
+    User::factory()->create()->starredCommits()->attach($commit);
+
+    signedApiRequest($this->keyPair, 'GET', route('api-commit-star.index', $commit))
+        ->assertNotFound();
+});
+
+it('requires a signed request to list who starred a commit', function (): void {
+    $commit = Commit::factory()->for($this->user)->create();
+
+    $this->getJson(route('api-commit-star.index', $commit))
+        ->assertUnauthorized();
+});

@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
-import { isBehindLatest } from '../../resources/js/lib/chat-scroll.ts';
+import {
+    glideDuration,
+    isBehindLatest,
+    presentOffset,
+} from '../../resources/js/lib/chat-scroll.ts';
 import type { Message } from '../../resources/js/types/index.ts';
 
 const originalCSS = globalThis.CSS;
@@ -58,4 +62,35 @@ void test('offers the present when an image-only message is the newest-25 bounda
 
 void test('keeps the shortcut hidden while a boundary image is visible above its text caption', () => {
     assert.equal(isBehindLatest(scroller({ 6: 599 }, 600, { 6: 650 }), messages(30)), false);
+});
+
+void test('eases the glide out so it settles on the present', () => {
+    assert.equal(presentOffset(-800, 0), -800);
+    assert.equal(presentOffset(-800, 0.5), -100);
+    assert.equal(presentOffset(-800, 1), 0);
+});
+
+void test('never moves backwards on the way to the present', () => {
+    let previous = -5000;
+
+    for (let step = 0; step <= 20; step += 1) {
+        const current = presentOffset(-5000, step / 20);
+
+        assert.ok(current >= previous);
+        previous = current;
+    }
+
+    assert.equal(previous, 0);
+});
+
+void test('keeps long glides short instead of scrolling for seconds', () => {
+    assert.equal(glideDuration(0), 180);
+    assert.ok(glideDuration(400) > 180);
+    assert.ok(glideDuration(20_000) > glideDuration(2_000));
+    assert.equal(glideDuration(1_000_000), 500);
+});
+
+void test('clamps a frame that lands before the start or past the end', () => {
+    assert.equal(presentOffset(-800, -0.03), -800);
+    assert.equal(presentOffset(-800, 1.4), 0);
 });

@@ -137,3 +137,14 @@ await test('deleted commits have no permalink to open', () => {
 
     assert.equal(clickedCommit(click(element(['p'], tombstone)), '', '/'), null);
 });
+
+await test('accessible controls inside a commit do not navigate', () => {
+    for (const role of ['switch', 'tab', 'slider', 'combobox']) {
+        const control = element([`[role="${role}"]`], card);
+        assert.equal(clickedCommit(click(control), '', '/'), null);
+        assert.equal(
+            clickedCommit(click(element(['span'], control)), '', '/'),
+            null,
+        );
+    }
+});

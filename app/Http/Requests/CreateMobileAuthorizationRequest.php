@@ -34,6 +34,8 @@ final class CreateMobileAuthorizationRequest extends FormRequest
             $this->string('code_challenge')->value(),
             $this->string('state')->value(),
             $this->string('redirect_uri')->value(),
+            $this->filled('app_name') ? $this->string('app_name')->value() : null,
+            $this->filled('app_id') ? $this->string('app_id')->value() : null,
         );
     }
 

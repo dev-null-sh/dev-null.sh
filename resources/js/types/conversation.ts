@@ -1,5 +1,6 @@
 import type { User } from '@/types/auth';
 import type { BodySegment, LinkPreview } from '@/types/commit';
+import type { GuildMentions } from '@/types/guild';
 
 /**
  * The message a reply answers, as much as its ghost shows.
@@ -52,6 +53,7 @@ export type Message = {
     reply_to_id?: number | null;
     reply_to?: MessageReply | null;
     mentions?: Record<string, string> | null;
+    guild_mentions?: GuildMentions;
     link_preview?: LinkPreview | null;
     images?: MessageImage[];
     voice?: MessageVoice | null;
@@ -80,7 +82,13 @@ export type OrgEvent =
     | 'promoted'
     | 'demoted'
     | 'inherited'
-    | 'ping';
+    | 'ping'
+    | 'call_started'
+    | 'call_answered'
+    | 'call_cancelled'
+    | 'call_declined'
+    | 'call_missed'
+    | 'call_failed';
 
 export type OrgRef = { id: string; name: string | null };
 
@@ -144,6 +152,11 @@ export type OrgThread = {
      * stay.
      */
     pinned: Message[] | null;
+    /**
+     * The messages that mentioned the user, latest first, until they open or clear them, and how many there are.
+     */
+    mentions: Message[];
+    mentions_count: number;
 };
 
 /**

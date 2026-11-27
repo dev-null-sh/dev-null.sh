@@ -9,7 +9,9 @@ import { ConversationList } from '../../resources/js/components/chat/conversatio
 import { MessageText } from '../../resources/js/components/chat/message-parts';
 import { CommitBody } from '../../resources/js/components/commit-body';
 import {
+    Hashtag,
     LinkifiedText,
+    typedGuildHandles,
     typedLinks,
 } from '../../resources/js/components/linkified-text';
 import { WordmarkText } from '../../resources/js/components/wordmark-text';
@@ -79,7 +81,10 @@ test('the counter discounts commit links but not issue links', () => {
     );
 });
 
-function renderPage(content: ReactElement): string {
+function renderPage(
+    content: ReactElement,
+    props: Record<string, unknown> = {},
+): string {
     return renderToStaticMarkup(
         <App
             initialComponent={() => content}
@@ -88,7 +93,11 @@ function renderPage(content: ReactElement): string {
                     component: 'Commit',
                     url: '/',
                     version: null,
-                    props: { errors: {}, auth: { user: null, pasteis: null } },
+                    props: {
+                        errors: {},
+                        auth: { user: null, pasteis: null },
+                        ...props,
+                    },
                     clearHistory: false,
                     encryptHistory: false,
                 } as unknown as ComponentProps<typeof App>['initialPage']
@@ -96,6 +105,143 @@ function renderPage(content: ReactElement): string {
         />,
     );
 }
+
+test('renders loaded guild badges on the first paint without a shared catalogue', () => {
+    const content = (
+        <CommitBody
+            segments={bodySegments(
+                'Hiring #JoBs, exploring #rust. `#jobs` https://example.com/#jobs',
+            )}
+            mentions={null}
+            guildMentions={{
+                jobs: {
+                    handle: 'jobs',
+                    name: 'Job Board',
+                    emoji: '💼',
+                    icon_url: null,
+                },
+            }}
+        />
+    );
+    const auth = { user: { id: 'viewer' }, pasteis: null };
+    const markup = renderPage(content, {
+        auth,
+        guildsEnabled: true,
+    });
+
+    assert.equal((markup.match(/href="\/guilds\/jobs"/g) ?? []).length, 1);
+    assert.match(markup, /aria-label="Job Board, #JoBs guild"/);
+    assert.match(markup, /href="\/search\?q=%23rust"/);
+    assert.match(markup, /<code[^>]*>#jobs<\/code>/);
+    assert.match(markup, /href="https:\/\/example.com\/#jobs"/);
+
+    const ordinary = renderPage(content, { auth, guildsEnabled: false });
+    assert.doesNotMatch(ordinary, /\/guilds\//);
+    assert.match(ordinary, /Job Board/);
+    assert.match(ordinary, /data-test="guild-mention"/);
+});
+
+test('explicit posted guild metadata wins over mention metadata', () => {
+    const markup = renderPage(
+        <Hashtag
+            hashtag="#jobs"
+            guild={{
+                handle: 'jobs',
+                name: 'Posted board',
+                emoji: '💼',
+                icon_url: null,
+            }}
+            guildMentions={{
+                jobs: {
+                    handle: 'jobs',
+                    name: 'Other board',
+                    emoji: '🦀',
+                    icon_url: null,
+                },
+            }}
+        />,
+    );
+
+    assert.match(markup, /Posted board/);
+    assert.doesNotMatch(markup, /Other board/);
+});
+
+test('private message bodies render their provided badge metadata on first paint', () => {
+    const markup = renderPage(
+        <MessageText
+            message={{
+                body: '#rust',
+                guild_mentions: {
+                    rust: {
+                        handle: 'rust',
+                        name: 'Rustaceans',
+                        emoji: '🦀',
+                        icon_url: null,
+                    },
+                },
+            }}
+            isMine={false}
+        />,
+        { auth: { user: { id: 'viewer' } }, guildsEnabled: true },
+    );
+
+    assert.match(markup, /href="\/guilds\/rust"/);
+    assert.match(markup, /Rustaceans/);
+});
+
+test('draft guild lookups deduplicate case and ignore code, URLs and unfinished code', () => {
+    assert.deepEqual(
+        typedGuildHandles(
+            '#JoBs #jobs #rust `#code` https://example.com/#url\n```\n#fence',
+        ),
+        ['jobs', 'rust'],
+    );
+    assert.deepEqual(typedGuildHandles('`#unfinished'), []);
+});
+
+for (const [body, handles] of [
+    [
+        'https://example.com/#rust https://example.com?q=#jobs example.com#help',
+        [],
+    ],
+    [
+        '#abc #abcd #abcdef #abcdefab #000 #rust',
+        ['abc', 'abcd', 'abcdef', 'abcdefab', 'rust'],
+    ],
+    ['color(#abc) #abc #rust', ['abc', 'rust']],
+    ['#abc-x (#abc) #abc.com', ['abc']],
+    ['>#rust\n> #jobs\n>#RUST', ['rust', 'jobs']],
+    ['text\r\n>#rust\r\n>#abc', ['rust', 'abc']],
+    ['>>#rust\n`code`>#jobs\n`>#help`', []],
+    ['>https://example.com#jobs\n>#abc\n>#rust', ['abc', 'rust']],
+] as const) {
+    test(`draft guild detection agrees with rendered hashtags for ${body}`, () => {
+        assert.deepEqual(typedGuildHandles(body), handles);
+        const markup = renderPage(
+            <CommitBody segments={bodySegments(body)} mentions={null} />,
+            { auth: { user: { id: 'viewer' }, pasteis: null } },
+        );
+        const rendered = [
+            ...markup.matchAll(/data-test="hashtag"[^>]*>([^<]*)</g),
+        ].map((match) => match[1].slice(1).toLowerCase());
+
+        assert.deepEqual([...new Set(rendered)], handles);
+    });
+}
+
+test('missing metadata and inherited keys remain ordinary hashtags', () => {
+    const markup = renderPage(
+        <LinkifiedText
+            text="#constructor #jobs"
+            mentions={null}
+            guildMentions={{}}
+        />,
+        { auth: { user: { id: 'viewer' } }, guildsEnabled: true },
+    );
+
+    assert.doesNotMatch(markup, /data-test="guild-mention"/);
+    assert.equal((markup.match(/data-test="hashtag"/g) ?? []).length, 2);
+});
 
 test('keeps stable mention links alongside shortened URLs and their full copyable text', () => {
     const id = '019a2b3c-4d5e-7f60-8a9b-0c1d2e3f4a5b';
@@ -115,12 +261,65 @@ test('keeps stable mention links alongside shortened URLs and their full copyabl
     assert.equal(html.replace(/<[^>]*>/g, '').replace('…', ''), text);
 });
 
-test('leaves mentions without captured identities as plain text', () => {
+test('links captured organization mentions to their page, a user of the same name first', () => {
+    const userId = '019a2b3c-4d5e-7f60-8a9b-0c1d2e3f4a5b';
+    const organizationId = '019a2b3c-4d5e-7f60-8a9b-0c1d2e3f4a5c';
     const html = renderToStaticMarkup(
-        <LinkifiedText text="Thanks @original!" mentions={null} />,
+        <LinkifiedText
+            text="Thanks @Laravel and @tom!"
+            mentions={{ tom: userId }}
+            organizationMentions={{
+                laravel: organizationId,
+                tom: organizationId,
+            }}
+        />,
     );
 
-    assert.equal(html, 'Thanks @original!');
+    assert.ok(
+        html.includes(`href="/mentions/organizations/${organizationId}"`),
+    );
+    assert.ok(html.includes('>@Laravel</a>'));
+    assert.equal(html.match(/data-test="organization-mention"/g)?.length, 1);
+    assert.ok(html.includes(`href="/mentions/${userId}"`));
+    assert.equal(html.match(/data-test="mention"/g)?.length, 1);
+});
+
+test('leaves organization mentions as plain text in static bodies', () => {
+    const html = renderToStaticMarkup(
+        <LinkifiedText
+            text="Thanks @laravel!"
+            mentions={null}
+            organizationMentions={{
+                laravel: '019a2b3c-4d5e-7f60-8a9b-0c1d2e3f4a5c',
+            }}
+            isStatic
+        />,
+    );
+
+    assert.equal(html, 'Thanks @laravel!');
+});
+
+test('links mentions of anyone else to their page, which looks them up on GitHub', () => {
+    const html = renderToStaticMarkup(
+        <LinkifiedText text="Thanks @Original!" mentions={null} />,
+    );
+
+    assert.equal(
+        html,
+        'Thanks <a rel="nofollow" class="font-medium text-primary hover:underline" data-test="handle-mention" href="/@Original">@Original</a>!',
+    );
+});
+
+test('leaves mentions of anyone else as text where only captured ones link, as in remotes', () => {
+    const html = renderToStaticMarkup(
+        <LinkifiedText
+            text="Thanks @Original!"
+            mentions={null}
+            linksEveryMention={false}
+        />,
+    );
+
+    assert.equal(html, 'Thanks @Original!');
 });
 
 test('keeps captured mention identities in regular bodies alongside highlighted code', () => {
@@ -133,6 +332,7 @@ test('keeps captured mention identities in regular bodies alongside highlighted 
                 {
                     type: 'block',
                     language: 'php',
+                    filename: null,
                     html: '<span class="hl-comment">// @ORIGINAL</span>',
                 },
             ]}
@@ -143,7 +343,7 @@ test('keeps captured mention identities in regular bodies alongside highlighted 
     assert.ok(html.includes(`href="/mentions/${id}"`));
     assert.ok(html.includes('>@ORIGINAL</a>'));
     assert.equal(html.match(/data-test="mention"/g)?.length, 1);
-    assert.ok(html.includes('and @unknown!'));
+    assert.match(html, /and <a[^>]*href="\/@unknown"[^>]*>@unknown<\/a>!/);
     assert.match(html, /<code[^>]*>@ORIGINAL<\/code>/);
     assert.match(
         html,
@@ -685,20 +885,65 @@ for (const link of [
     });
 }
 
-test('shows a hex color with a swatch of it', () => {
+test('gives a bare hex-shaped hashtag its guild or search link and renders an explicit swatch', () => {
+    const content = (
+        <LinkifiedText
+            text="#dead color(#dead) #ff8a4c #000"
+            mentions={null}
+            guildMentions={{
+                dead: {
+                    handle: 'dead',
+                    name: 'Dead',
+                    emoji: '💻',
+                    icon_url: null,
+                },
+            }}
+        />
+    );
+    const auth = { user: { id: 'viewer' }, pasteis: null };
+    const html = renderPage(content, {
+        auth,
+        guildsEnabled: true,
+    });
+
+    assert.equal((html.match(/href="\/guilds\/dead"/g) ?? []).length, 1);
+    assert.match(html, /href="\/search\?q=%23ff8a4c"/);
+    assert.equal((html.match(/data-test="color"/g) ?? []).length, 2);
+    assert.match(html, /background-color:#dead"><\/span>#dead<\/span>/);
+    assert.match(html, /background-color:#000/);
+
+    const withoutGuild = renderPage(
+        <LinkifiedText
+            text="#dead color(#dead) #ff8a4c #000"
+            mentions={null}
+        />,
+        { auth, guildsEnabled: true },
+    );
+    assert.equal(
+        (withoutGuild.match(/href="\/search\?q=%23dead"/g) ?? []).length,
+        1,
+    );
+});
+
+test('shows the hex value and swatch without the color markup', () => {
     const html = renderToStaticMarkup(
-        <LinkifiedText text="Brand orange is #ff8a4c." mentions={null} />,
+        <LinkifiedText
+            text="Brand orange is COLOR(#FF8A4C)."
+            mentions={null}
+        />,
     );
 
     assert.ok(html.includes('data-test="color"'));
-    assert.ok(html.includes('background-color:#ff8a4c'));
-    assert.equal(html.replace(/<[^>]*>/g, ''), 'Brand orange is #ff8a4c.');
+    assert.ok(html.includes('background-color:#FF8A4C'));
+    assert.equal(html.replace(/<[^>]*>/g, ''), 'Brand orange is #FF8A4C.');
 });
 
 test('shows no swatch for a color in code when given a whole body', () => {
     const html = renderToStaticMarkup(
         <LinkifiedText
-            text={'see `#fff` and\n```\n#abc\n```\nthen #ff8a4c'}
+            text={
+                'see `color(#fff)` and\n```\ncolor(#abc)\n```\nthen color(#ff8a4c)'
+            }
             mentions={null}
         />,
     );
@@ -710,7 +955,7 @@ test('shows no swatch for a color in code when given a whole body', () => {
 test('shows swatches next to links, mentions and wordmarks', () => {
     const html = renderToStaticMarkup(
         <LinkifiedText
-            text="#fff on /dev/null by @Alice at https://example.com/#abc, then #abc"
+            text="#000 on /dev/null by @Alice at https://example.com/#abc, then color(#abc)"
             mentions={{ alice: '019a2b3c-4d5e-7f60-8a9b-0c1d2e3f4a5b' }}
         />,
     );
@@ -726,10 +971,10 @@ test('shows a swatch for a color that starts a quoted line at the start of a who
             <LinkifiedText text={text} mentions={null} startsText />,
         ).match(/data-test="color"/g)?.length ?? 0;
 
-    assert.equal(colors('>#fff'), 1);
-    assert.equal(colors('line\n>#fff'), 1);
-    assert.equal(colors('>>#fff'), 0);
-    assert.equal(colors('`x`>#fff'), 0);
+    assert.equal(colors('>#0ff'), 1);
+    assert.equal(colors('line\n>#0ff'), 1);
+    assert.equal(colors('>>#0ff'), 0);
+    assert.equal(colors('`x`>#0ff'), 0);
 });
 
 test('styles every standalone brand mention in UI copy without changing its text', () => {
@@ -814,6 +1059,10 @@ for (const kind of ['direct', 'org'] as const) {
                             partner_read_through_id: 0,
                             partner_read_at: null,
                             is_archived: false,
+                            last_incoming_message_id: null,
+                            last_incoming_sender: null,
+                            pinned_at: null,
+                            muted_until_at: null,
                         },
                     ]}
                 />,
@@ -830,7 +1079,7 @@ for (const kind of ['direct', 'org'] as const) {
 
 test('gives the text on each side of a color its own key', () => {
     const element = LinkifiedText({
-        text: 'Brand #ff8a4c, white',
+        text: 'Brand color(#ff8a4c), white',
         mentions: {},
     }) as ReactElement<{ children: unknown }>;
     const parts = [element.props.children].flat(Infinity) as ReactElement[];

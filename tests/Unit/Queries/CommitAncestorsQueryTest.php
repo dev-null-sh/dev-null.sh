@@ -18,7 +18,7 @@ it('lists the ancestors of a commit from the root down', function (): void {
     $ancestors = new CommitAncestorsQuery()->get($reply, User::factory()->create());
 
     expect($ancestors->pluck('id')->all())->toBe([$root->id, $middle->id])
-        ->and($ancestors->every(fn (Commit $ancestor): bool => $ancestor->relationLoaded('user')))->toBeTrue();
+        ->and($ancestors->every(fn (Commit $ancestor): bool => $ancestor->relationLoaded('author')))->toBeTrue();
 });
 
 it('lists no ancestors for a top-level commit', function (): void {
@@ -77,7 +77,7 @@ it('limits the ancestors and points the oldest one at its parent', function (): 
 
     expect($ancestors->pluck('id')->all())->toBe([$commits[2]->id, $commits[3]->id])
         ->and($ancestors->first()->parent->id)->toBe($commits[1]->id)
-        ->and($ancestors->first()->parent->relationLoaded('user'))->toBeTrue();
+        ->and($ancestors->first()->parent->relationLoaded('author'))->toBeTrue();
 });
 
 it('loads ancestors in the same number of queries however deep the thread is', function (): void {

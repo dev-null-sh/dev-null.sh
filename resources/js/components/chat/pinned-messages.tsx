@@ -24,7 +24,6 @@ import {
     MessageText,
     replyOf,
     snippetOf,
-    timeOf,
 } from '@/components/chat/message-parts';
 import type { Author } from '@/components/chat/message-parts';
 import {
@@ -55,7 +54,7 @@ import type { ChatTarget } from '@/lib/chat';
 import { withLeavingRows } from '@/lib/leaving-rows';
 import type { ReactionUsage } from '@/lib/reactions';
 import { readStorage, writeStorage } from '@/lib/storage';
-import { cn, formatDayLabel, laneColor } from '@/lib/utils';
+import { cn, formatClockTime, formatDayLabel, laneColor } from '@/lib/utils';
 import { show } from '@/routes/user';
 import type { Message, MessageReply, User } from '@/types';
 
@@ -295,6 +294,7 @@ export function PinnedBanner({
                             'group absolute inset-x-0 top-0 flex h-9 items-center gap-2 border-b bg-card/90 text-left backdrop-blur-md transition-colors hover:bg-accent/90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-inset data-[state=open]:bg-card',
                             isCompact ? 'px-3' : 'px-4',
                         )}
+                        data-pinned-banner
                         data-test="pinned-banner"
                     >
                         <Pin
@@ -643,6 +643,7 @@ function PinnedItem({
                             >
                                 <Link
                                     href={show(message.user)}
+                                    prefetch
                                     onClick={(event) => {
                                         // The dock stays on every page, so its panel closes as a plain click leaves.
                                         if (
@@ -670,7 +671,7 @@ function PinnedItem({
                             className="shrink-0 font-mono text-[11px] text-muted-foreground tabular-nums"
                         >
                             {formatDayLabel(message.created_at)} ·{' '}
-                            {timeOf(message.created_at)}
+                            {formatClockTime(message.created_at)}
                         </time>
                         <span className="relative ml-auto flex shrink-0 items-center gap-0.5 pointer-coarse:gap-4">
                             {onReply !== null && (

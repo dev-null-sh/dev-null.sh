@@ -4,23 +4,33 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Enums\CommitUpdate;
 use App\Enums\ConversationKind;
+use App\Enums\UserUpdate;
+use App\Events\CommitsUpdated;
+use App\Events\UsersUpdated;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\CommitReport;
 use App\Models\Conversation;
+use App\Models\ConversationParticipant;
+use App\Models\Guild;
+use App\Models\GuildSubmission;
+use App\Models\Headline;
 use App\Models\Message;
 use App\Models\MessageImage;
 use App\Models\MessageVoice;
+use App\Models\Notification;
 use App\Models\ScheduledCommit;
 use App\Models\User;
+use App\Queries\AdminsQuery;
 use App\Queries\CommitBuilder;
 use App\Services\CommitTranslations;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 
 final readonly class DeleteUser
 {
@@ -32,24 +42,49 @@ final readonly class DeleteUser
     /**
      * The user's top-level commits are erased with every reply under them, and so are their replies, except the ones
      * other people replied to: those stay behind as tombstones with no author or body, so the replies under them keep their thread.
+     * What they posted for organizations stays, and only forgets who posted it.
      * The database cascades the image rows of erased commits and the user's scheduled commits, and the voice notes of their
      * messages, but the files are erased here. Orgs the user was the last one in go too, with everything sent in them,
-     * as they do when the last member leaves.
+     * as they do when the last member leaves. Only their GitHub ID is kept, so looking their handle up never brings their
+     * page back as an unclaimed one, until they sign in again.
      */
     public function handle(User $user): void
     {
-        $imagePaths = DB::transaction(function () use ($user): array {
+        DB::transaction(function () use ($user): void {
+            User::query()->whereKey($user->id)->lockForUpdate()->firstOrFail();
+
             $this->updateCommitHotScores->handle($this->engagedCommitIds($user));
 
-            $imagePaths = [...$this->imagePaths($user), ...$this->scheduledImagePaths($user), ...$this->messageImagePaths($user), ...$this->messageVoicePaths($user)];
-
-            $translationKeys = Commit::query()->withTrashed()
-                ->where(fn (CommitBuilder $query): CommitBuilder => $query->where('user_id', $user->id)
-                    ->orWhereIn('root_id', $user->commits()->withTrashed()->topLevel()->select('id')))
+            $translationKeys = $this->touchedCommits($user)
                 ->select(['id', 'body'])
                 ->lazyById(500)
                 ->map(resolve(CommitTranslations::class)->key(...))->unique()->all();
 
+            // Read before anything goes, to tell whoever showed or heard about it once it is gone.
+            $vanishing = $this->touchedCommits($user)->approved()->get(['id', 'parent_id', 'quoted_commit_id']);
+            $notified = Notification::query()->where('actor_id', $user->id)->distinct()->pluck('recipient_id');
+            $partners = ConversationParticipant::query()
+                ->whereIn('conversation_id', ConversationParticipant::query()->where('user_id', $user->id)->select('conversation_id'))
+                ->whereNot('user_id', $user->id)
+                ->distinct()
+                ->pluck('user_id');
+
+            // Locked first, in statements of their own, so a topic lookup running meanwhile either links before this deletes its
+            // links or finds the commit erased. The threads are locked before their replies, so no reply joins them in between.
+            $user->commits()->withTrashed()->topLevel()->orderBy('id')->lockForUpdate()->pluck('id');
+            $this->touchedCommits($user)->orderBy('id')->lockForUpdate()->pluck('id');
+
+            // Report creation holds shared reporter and commit locks until its attachment paths are saved.
+            $guilds = Guild::query()->where('user_id', $user->id)->orderBy('id')->lockForUpdate()->get();
+            $guildMembers = DB::table('guild_preferences')->whereIn('guild_id', $guilds->modelKeys())->whereNot('user_id', $user->id)->pluck('user_id');
+            $imagePaths = [...$this->reportImagePaths($user), ...$this->imagePaths($user), ...$this->scheduledImagePaths($user), ...$this->messageImagePaths($user), ...$this->messageVoicePaths($user), ...$this->guildSubmissionIconPaths($user)];
+            resolve(DeleteStoredFiles::class)->retain($imagePaths);
+
+            DB::table('commit_topics')->whereIn('commit_id', $this->touchedCommits($user)->select('id'))->delete();
+            Headline::query()->whereIn('id', DB::table('commit_headline')->select('headline_id')
+                ->whereIn('commit_id', $this->touchedCommits($user)->select('id')))
+                ->update(['summary' => null, 'summary_created_at' => null]);
+            DB::table('commit_headline')->whereIn('commit_id', $this->touchedCommits($user)->select('id'))->delete();
             $user->commits()->withTrashed()->topLevel()->forceDelete();
             CommitImage::query()->whereIn('commit_id', $this->replies($user)->select('id'))->delete();
             CommitReport::query()->whereIn('commit_id', $this->replies($user)->select('id'))->delete();
@@ -59,21 +94,31 @@ final readonly class DeleteUser
             }
 
             $user->commits()->delete();
-            $user->commits()->withTrashed()->update(['user_id' => null, 'body' => '', 'mentions' => null, 'embedding' => null, 'link_preview_id' => null]);
+            $user->commits()->withTrashed()->update(['user_id' => null, 'author_id' => null, 'body' => '', 'mentions' => null, 'embedding' => null, 'link_preview_id' => null, 'headlines_classified_at' => null]);
+
+            // What they posted for organizations is the organizations' own, so it stays, without who posted it.
+            Commit::query()->withTrashed()->where('user_id', $user->id)->update(['user_id' => null]);
 
             $this->deleteOrgs->handle($this->emptyOrgs($user));
 
+            $user->organizations()->detach();
+            $user->followedOrganizations()->detach();
+            DB::table('user_active_days')->where('user_id', $user->id)->delete();
             $user->delete();
             $user->profile->delete();
+            DB::table('deleted_github_accounts')->insertOrIgnore(['github_id' => $user->github_id]);
+
+            $vanishing->chunk(100)->each(fn (Collection $commits) => event(new CommitsUpdated($commits, CommitUpdate::Visibility)));
+            event(new UsersUpdated($notified, UserUpdate::Notifications));
+            event(new UsersUpdated($partners, UserUpdate::Inbox));
+            event(new UsersUpdated($guildMembers, UserUpdate::Guilds));
+            event(new UsersUpdated($guildMembers, UserUpdate::Relationships));
+            event(new UsersUpdated(resolve(AdminsQuery::class)->ids(), UserUpdate::Moderation));
 
             foreach ($translationKeys as $key) {
                 Cache::forget($key);
             }
-
-            return $imagePaths;
         });
-
-        Storage::disk()->delete($imagePaths);
     }
 
     /**
@@ -96,11 +141,33 @@ final readonly class DeleteUser
     }
 
     /**
+     * The user's commits and every commit in the threads they started: all the erasure deletes or leaves as a tombstone.
+     */
+    private function touchedCommits(User $user): CommitBuilder
+    {
+        return Commit::query()->withTrashed()
+            ->where(fn (CommitBuilder $query): CommitBuilder => $query->where('author_id', $user->id)
+                ->orWhereIn('root_id', $user->commits()->withTrashed()->topLevel()->select('id')));
+    }
+
+    /**
      * @return HasMany<Commit, User>
      */
     private function replies(User $user): HasMany
     {
         return $user->commits()->withTrashed()->whereNotNull('parent_id');
+    }
+
+    /** @return array<int, string> */
+    private function reportImagePaths(User $user): array
+    {
+        return CommitReport::query()
+            ->where('reporter_id', $user->id)
+            ->orWhereIn('commit_id', $user->commits()->withTrashed()->select('id'))
+            ->orWhereIn('commit_id', Commit::query()->withTrashed()->whereIn('root_id', $user->commits()->withTrashed()->topLevel()->select('id'))->select('id'))
+            ->get(['images'])
+            ->flatMap(fn (CommitReport $report): array => array_column($report->images ?? [], 'path'))
+            ->all();
     }
 
     /**
@@ -115,6 +182,18 @@ final readonly class DeleteUser
             ->orWhereIn('commit_id', Commit::query()->withTrashed()->whereIn('root_id', $user->commits()->withTrashed()->topLevel()->select('id'))->select('id'))
             ->get(['path'])
             ->map(fn (CommitImage $image): string => $image->path)
+            ->all();
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function guildSubmissionIconPaths(User $user): array
+    {
+        return GuildSubmission::query()
+            ->where('user_id', $user->id)
+            ->get(['icon_path'])
+            ->flatMap(fn (GuildSubmission $submission): array => $submission->icon_path === null ? [] : [$submission->icon_path])
             ->all();
     }
 
