@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\ActivityScale;
 use App\Http\Requests\ShowApiUserRequest;
 use App\Http\Resources\CommitResource;
 use App\Http\Resources\UserResource;
@@ -39,7 +40,8 @@ final readonly class UserController
                 'follows_you' => $user->isFollowing($currentUser),
                 'is_muting' => $currentUser->isMuting($user),
                 'pasteis_received' => $user->pasteis_received,
-                'activity' => $activity->get($user, $currentUser),
+                // API clients don't know the half-year scale yet, so they keep getting the year for anyone past a month.
+                'activity' => $activity->get($user, $currentUser, scales: [ActivityScale::Day, ActivityScale::Week, ActivityScale::Month]),
                 'streaks' => $userStreaks,
                 'achievements' => $achievements->get($user, $currentUser, $userStreaks),
                 'pinned_commit' => $pinnedCommit instanceof Commit ? CommitResource::make($pinnedCommit) : null,

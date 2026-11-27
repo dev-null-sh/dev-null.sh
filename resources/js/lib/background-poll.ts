@@ -1,6 +1,16 @@
 import type { ReloadOptions } from '@inertiajs/core';
 import { router } from '@inertiajs/react';
 
+let isOutdated = false;
+
+/**
+ * A deploy leaves this tab on the previous version until it reloads, and the server answers each background reload
+ * with nothing but a request to reload, so the tab stops asking.
+ */
+export function stopBackgroundReloads(): void {
+    isOutdated = true;
+}
+
 export function backgroundPollOptions(
     requestOptions: ReloadOptions | (() => ReloadOptions),
 ): () => ReloadOptions {
@@ -12,6 +22,8 @@ export function backgroundPollOptions(
 
         return {
             ...options,
+            onBefore: (visit) =>
+                isOutdated ? false : options.onBefore?.(visit),
             onHttpException: (response) => {
                 const result = options.onHttpException?.(response);
 
@@ -38,7 +50,7 @@ export function reloadInBackground(
     signal?: AbortSignal,
 ): Promise<void> {
     return new Promise((resolve) => {
-        if (signal?.aborted) {
+        if (signal?.aborted || isOutdated) {
             resolve();
 
             return;

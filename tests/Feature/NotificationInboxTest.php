@@ -2,13 +2,17 @@
 
 declare(strict_types=1);
 
+use App\Actions\CreateUserTimeout;
 use App\Actions\DeleteUser;
 use App\Enums\CommitStatus;
+use App\Enums\ModerationReason;
 use App\Enums\NotificationType;
+use App\Enums\TimeoutDuration;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\Commit;
 use App\Models\Notification;
 use App\Models\User;
+use App\Models\UserTimeout;
 use App\Queries\NotificationGroupsQuery;
 
 it('polls only the unread count outside the inbox without acknowledging activity', function (): void {
@@ -428,6 +432,21 @@ it('keeps moderation decisions independent from conversation groups', function (
         ->assertInertia(fn ($page) => $page->has('notifications.data', 1)
             ->where('notifications.data.0.type', 'rejected')->where('notifications.data.0.event_count', 1)
             ->where('notifications.data.0.reason', 'Please remove the access token.'));
+});
+
+it('shows timeout notifications with their reason and duration', function (): void {
+    $user = User::factory()->create();
+
+    resolve(CreateUserTimeout::class)->handle($user, ModerationReason::Spam, TimeoutDuration::OneDay);
+
+    $this->actingAs($user)->get(route('notification.index', ['type' => 'moderation']))
+        ->assertInertia(fn ($page) => $page
+            ->has('notifications.data', 1)
+            ->where('notifications.data.0.type', 'timed_out')
+            ->where('notifications.data.0.timeout.reason', 'Spam or self-promotion')
+            ->where('notifications.data.0.timeout.duration', '1 day'));
+
+    expect(UserTimeout::query()->where('github_id', $user->github_id)->count())->toBe(1);
 });
 
 it('keeps lifetime star groups separate from conversations and supports filtering and expansion', function (): void {

@@ -20,6 +20,13 @@ use Illuminate\Http\Resources\Json\JsonResource;
  */
 final class ConversationResource extends JsonResource
 {
+    public bool $withGuildMentions = true;
+
+    public static function newCollection(mixed $resource): GuildMentionCollection
+    {
+        return new GuildMentionCollection($resource, self::class);
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -28,7 +35,7 @@ final class ConversationResource extends JsonResource
         /** @var ConversationSummary $conversation */
         $conversation = $this->resource;
 
-        return [
+        $shown = [
             ...$conversation,
             'partner' => $conversation['partner'] instanceof User ? UserResource::make($conversation['partner']) : null,
             'members' => $conversation['members']?->map(fn (array $member): array => [
@@ -37,5 +44,7 @@ final class ConversationResource extends JsonResource
             ]),
             'last_message' => $conversation['last_message'] instanceof Message ? MessageResource::make($conversation['last_message']) : null,
         ];
+
+        return $this->withGuildMentions ? ShownGuildMentions::of($shown, $request->user()) : $shown;
     }
 }

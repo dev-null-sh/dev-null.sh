@@ -3,14 +3,17 @@
 declare(strict_types=1);
 
 use App\Actions\UpdateCommitHotScores;
+use App\Enums\Feature;
 use App\Enums\LivePlatform;
 use App\Enums\Log;
 use App\Jobs\DetectCommitLanguage;
 use App\Models\Commit;
 use App\Models\CommitImage;
+use App\Models\Guild;
 use App\Models\LinkPreview;
 use App\Models\User;
 use App\Services\CommitBodies;
+use App\Services\Features;
 use Illuminate\Database\Eloquent\Factories\Sequence;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
@@ -51,6 +54,8 @@ it('lists the latest commits of everyone, newest first', function (): void {
         'id' => $older->id,
         'short_hash' => mb_substr(str_replace('-', '', $older->id), -7),
         'body' => 'It was DNS.',
+        'guild_handle' => null,
+        'guild' => null,
         'parent_id' => null,
         'html_url' => route('commit.show', [$author, $older]),
         'created_at' => now()->subMinute()->toIso8601ZuluString(),
@@ -86,6 +91,7 @@ it('lists the latest commits of everyone, newest first', function (): void {
         'quoted_commit_id' => null,
         'quoted_commit' => null,
         'poll' => null,
+        'guild_mentions' => [],
     ]);
 
     $response->assertJsonPath('links.next', null)
@@ -121,7 +127,7 @@ it('shows what the web shows on a commit', function (): void {
         ->assertJsonPath('data.0.stars_count', 2)
         ->assertJsonPath('data.0.starred', true)
         ->assertJsonPath('data.0.is_pinned', true)
-        ->assertJsonPath('data.0.mentions', [['handle' => 'NunoMaduro', 'offset' => 4, 'length' => 11, 'kind' => 'user']])
+        ->assertJsonPath('data.0.mentions', [['handle' => 'NunoMaduro', 'offset' => 4, 'length' => 11, 'kind' => 'user', 'id' => null]])
         ->assertJsonPath('data.0.link_preview', [
             'url' => 'https://laravel.com',
             'title' => $linkPreview->title,
@@ -406,4 +412,97 @@ it('suggests commits on an empty following log, as the web does', function (): v
 
 it('rejects requests that are not signed', function (): void {
     $this->getJson(route('api-log.show', 'latest'))->assertUnauthorized();
+});
+
+it('says which joined guild brought a commit into the following log, as the web does', function (): void {
+    resolve(Features::class)->update(Feature::Guilds, true, adminOnly: false);
+    $rust = Guild::factory()->create(['handle' => 'rust']);
+    $rust->members()->attach($this->user, ['joined_at' => now()]);
+    $this->user->following()->attach($followed = User::factory()->create());
+
+    $board = Commit::factory()->for($rust)->create(['created_at' => now()->subMinutes(3)]);
+    $hashtag = Commit::factory()->create(['body' => 'Learning #RuSt', 'created_at' => now()->subMinutes(2)]);
+    $theirs = Commit::factory()->for($followed)->create(['body' => 'Shipping #rust', 'created_at' => now()->subMinute()]);
+    $mine = Commit::factory()->for($this->user)->create(['body' => 'My #rust']);
+
+    $data = collect(signedApiRequest($this->keyPair, 'GET', route('api-log.show', 'following'))->assertOk()->json('data'))->keyBy('id');
+
+    expect($data->keys()->all())->toBe([$mine->id, $theirs->id, $hashtag->id, $board->id])
+        ->and($data[$board->id]['joined_guild'])->toBe('rust')
+        ->and($data[$hashtag->id]['joined_guild'])->toBe('rust')
+        ->and($data[$theirs->id])->toHaveKey('joined_guild', null)
+        ->and($data[$mine->id])->toHaveKey('joined_guild', null);
+});
+
+it('leaves a muted guild out of the following log, naming no guild on what is left', function (): void {
+    resolve(Features::class)->update(Feature::Guilds, true, adminOnly: false);
+    $rust = Guild::factory()->create(['handle' => 'rust']);
+    $rust->members()->attach($this->user, ['joined_at' => now(), 'muted_at' => now()]);
+    Commit::factory()->for($rust)->create();
+    Commit::factory()->create(['body' => 'Learning #rust']);
+    $mine = Commit::factory()->for($this->user)->create(['created_at' => now()->subMinute()]);
+
+    $response = signedApiRequest($this->keyPair, 'GET', route('api-log.show', 'following'))
+        ->assertOk()
+        ->assertJsonPath('data.*.id', [$mine->id]);
+
+    expect($response->json('data.0'))->toHaveKey('joined_guild', null);
+});
+
+it('names no joined guild on the trending and latest logs', function (string $log): void {
+    resolve(Features::class)->update(Feature::Guilds, true, adminOnly: false);
+    Guild::factory()->create(['handle' => 'rust'])->members()->attach($this->user, ['joined_at' => now()]);
+    Commit::factory()->create(['body' => 'Learning #rust']);
+
+    $response = signedApiRequest($this->keyPair, 'GET', route('api-log.show', $log))->assertOk()->assertJsonCount(1, 'data');
+
+    expect($response->json('data.0'))->not->toHaveKey('joined_guild');
+})->with(['trending', 'latest']);
+
+it('names no joined guild once guilds are off', function (): void {
+    resolve(Features::class)->update(Feature::Guilds, true, adminOnly: false);
+    $rust = Guild::factory()->create(['handle' => 'rust']);
+    $rust->members()->attach($this->user, ['joined_at' => now()]);
+    $this->user->following()->attach($followed = User::factory()->create());
+    $theirs = Commit::factory()->for($followed)->create(['body' => 'Shipping #rust', 'created_at' => now()->subMinute()]);
+    $hashtag = Commit::factory()->create(['body' => 'Learning #rust']);
+
+    signedApiRequest($this->keyPair, 'GET', route('api-log.show', 'following'))
+        ->assertOk()
+        ->assertJsonPath('data.*.id', [$hashtag->id, $theirs->id])
+        ->assertJsonPath('data.0.joined_guild', 'rust');
+
+    resolve(Features::class)->update(Feature::Guilds, false);
+
+    $response = signedApiRequest($this->keyPair, 'GET', route('api-log.show', 'following'))
+        ->assertOk()
+        ->assertJsonPath('data.*.id', [$theirs->id]);
+
+    expect($response->json('data.0'))->toHaveKey('joined_guild', null);
+});
+
+it('does not query each commit or guild on the following log', function (): void {
+    Queue::fake([DetectCommitLanguage::class]);
+    resolve(Features::class)->update(Feature::Guilds, true, adminOnly: false);
+    $rust = Guild::factory()->create(['handle' => 'rust']);
+    $rust->members()->attach($this->user, ['joined_at' => now()]);
+    signedApiRequest($this->keyPair, 'GET', route('api-log.show', 'following'))->assertOk();
+
+    $queries = function (): int {
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+
+        signedApiRequest($this->keyPair, 'GET', route('api-log.show', 'following'))->assertOk();
+
+        return count(DB::getQueryLog());
+    };
+
+    Commit::factory()->for($rust)->create();
+    Commit::factory()->create(['body' => 'Learning #rust']);
+    $few = $queries();
+
+    Commit::factory()->for($rust)->count(4)->create();
+    Commit::factory()->count(4)->create(['body' => 'Learning #rust']);
+
+    expect($queries())->toBe($few);
 });

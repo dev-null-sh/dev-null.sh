@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api;
 
 use App\Http\Requests\CreateApiCommitPreviewRequest;
+use App\Http\Resources\ShownGuildMentions;
 use App\Queries\MentionedOrganizationsQuery;
 use App\Queries\MentionedUsersQuery;
 use App\Services\CommitBodies;
@@ -22,11 +23,13 @@ final readonly class CommitPreviewController
     public function store(CreateApiCommitPreviewRequest $request, EmojiShortcodes $emojiShortcodes, CommitBodies $commitBodies, Mentions $mentions, MentionedUsersQuery $mentionedUsers, MentionedOrganizationsQuery $mentionedOrganizations): JsonResponse
     {
         $body = $emojiShortcodes->replace($request->string('body')->value());
+        $users = $mentionedUsers->get($body);
 
         return response()->json(['data' => [
             'body' => $body,
             ...$commitBodies->segments($body),
-            'mentions' => $mentions->positions($body, $mentionedOrganizations->get($body, $mentionedUsers->get($body))),
+            'mentions' => $mentions->positions($body, $mentionedOrganizations->get($body, $users), $users),
+            'guild_mentions' => ShownGuildMentions::get([$body], $request->user()),
         ]]);
     }
 }

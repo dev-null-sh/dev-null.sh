@@ -27,9 +27,18 @@ final class ShowApiOrganizationRequest extends FormRequest
 
     /**
      * Only organizations that already have a page, so looking one up never asks GitHub.
+     *
+     * In a scenario where an organization was renamed on github and devnull, a mention opens
+     * the organization based on the captured id, not based on the old username.
      */
     public function organization(): ?Organization
     {
+        $id = $this->route('organization');
+
+        if (is_string($id)) {
+            return $this->organization ??= Organization::query()->find($id);
+        }
+
         $handle = $this->route('handle');
         assert(is_string($handle));
 

@@ -58,9 +58,9 @@ it('finds where every mention is, keeping its case', function (): void {
     $mentions = resolve(Mentions::class);
 
     expect($mentions->positions('@NunoMaduro and @taylorotwell, thanks! cc @nunomaduro'))->toBe([
-        ['handle' => 'NunoMaduro', 'offset' => 0, 'length' => 11, 'kind' => 'user'],
-        ['handle' => 'taylorotwell', 'offset' => 16, 'length' => 13, 'kind' => 'user'],
-        ['handle' => 'nunomaduro', 'offset' => 42, 'length' => 11, 'kind' => 'user'],
+        ['handle' => 'NunoMaduro', 'offset' => 0, 'length' => 11, 'kind' => 'user', 'id' => null],
+        ['handle' => 'taylorotwell', 'offset' => 16, 'length' => 13, 'kind' => 'user', 'id' => null],
+        ['handle' => 'nunomaduro', 'offset' => 42, 'length' => 11, 'kind' => 'user', 'id' => null],
     ]);
 });
 
@@ -68,7 +68,7 @@ it('counts offsets in characters, not bytes', function (): void {
     $mentions = resolve(Mentions::class);
 
     expect($mentions->positions('Café 🎉 with @nuno.'))->toBe([
-        ['handle' => 'nuno', 'offset' => 12, 'length' => 5, 'kind' => 'user'],
+        ['handle' => 'nuno', 'offset' => 12, 'length' => 5, 'kind' => 'user', 'id' => null],
     ]);
 });
 
@@ -82,8 +82,18 @@ it('skips mentions in inline code and code blocks when finding where they are', 
     $mentions = resolve(Mentions::class);
 
     expect($mentions->positions("thanks @taylorotwell for `@Override`, @nuno\n```java\n@Deprecated\nvoid run() {}\n```\ncc @jess-archer"))->toBe([
-        ['handle' => 'taylorotwell', 'offset' => 7, 'length' => 13, 'kind' => 'user'],
-        ['handle' => 'nuno', 'offset' => 38, 'length' => 5, 'kind' => 'user'],
-        ['handle' => 'jess-archer', 'offset' => 85, 'length' => 12, 'kind' => 'user'],
+        ['handle' => 'taylorotwell', 'offset' => 7, 'length' => 13, 'kind' => 'user', 'id' => null],
+        ['handle' => 'nuno', 'offset' => 38, 'length' => 5, 'kind' => 'user', 'id' => null],
+        ['handle' => 'jess-archer', 'offset' => 85, 'length' => 12, 'kind' => 'user', 'id' => null],
+    ]);
+});
+
+it('gives each mention the id of the user or organization it captured, whatever its case, and null for anyone else', function (): void {
+    $mentions = resolve(Mentions::class);
+
+    expect($mentions->positions('@Laravel @NunoMaduro @ghost', ['laravel' => 'organization-id'], ['nunomaduro' => 'user-id', 'replied-to' => 'other-id']))->toBe([
+        ['handle' => 'Laravel', 'offset' => 0, 'length' => 8, 'kind' => 'organization', 'id' => 'organization-id'],
+        ['handle' => 'NunoMaduro', 'offset' => 9, 'length' => 11, 'kind' => 'user', 'id' => 'user-id'],
+        ['handle' => 'ghost', 'offset' => 21, 'length' => 6, 'kind' => 'user', 'id' => null],
     ]);
 });

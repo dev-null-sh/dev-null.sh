@@ -39,10 +39,15 @@ final readonly class Mentions
      * the whole text and include the "@". The kind says whether it mentions one of the given organizations, by
      * lowercase handle, or anyone else.
      *
+     * The id is the organization's or user's id which the mention captured, by lowercase handle, as the web links it,
+     * so it still leads to them once they rename and someone else takes the handle. It is null for a handle that was
+     * nobody's on /dev/null.
+     *
      * @param  array<string, string>  $organizations
-     * @return list<array{handle: string, offset: int, length: int, kind: 'user'|'organization'}>
+     * @param  array<string, string>  $users
+     * @return list<array{handle: string, offset: int, length: int, kind: 'user'|'organization', id: string|null}>
      */
-    public function positions(string $text, array $organizations = []): array
+    public function positions(string $text, array $organizations = [], array $users = []): array
     {
         $positions = [];
         $offset = 0;
@@ -52,11 +57,15 @@ final readonly class Mentions
                 preg_match_all(self::Pattern, $part, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE);
 
                 foreach ($matches as $match) {
+                    $handle = mb_strtolower($match[1][0]);
+                    $isOrganization = array_key_exists($handle, $organizations);
+
                     $positions[] = [
                         'handle' => $match[1][0],
                         'offset' => $offset + mb_strlen(mb_strcut($part, 0, $match[0][1])),
                         'length' => mb_strlen($match[0][0]),
-                        'kind' => array_key_exists(mb_strtolower($match[1][0]), $organizations) ? 'organization' : 'user',
+                        'kind' => $isOrganization ? 'organization' : 'user',
+                        'id' => $isOrganization ? $organizations[$handle] : $users[$handle] ?? null,
                     ];
                 }
             }

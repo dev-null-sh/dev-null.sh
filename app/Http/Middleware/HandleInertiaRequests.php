@@ -7,6 +7,7 @@ namespace App\Http\Middleware;
 use App\Contracts\Services\HumanVerificationProvider;
 use App\Dto\ReaderClock;
 use App\Enums\EventTheme;
+use App\Enums\Feature;
 use App\Enums\Log;
 use App\Enums\RepliesPerPage;
 use App\Enums\UserUpdate;
@@ -19,15 +20,16 @@ use App\Queries\BioProfilesQuery;
 use App\Queries\ConversationsQuery;
 use App\Queries\DevelopersCountQuery;
 use App\Queries\HotTopicsQuery;
+use App\Queries\JoinedGuildsQuery;
 use App\Queries\LiveFollowingQuery;
 use App\Queries\NotificationGroupsQuery;
 use App\Queries\SuggestedUsersQuery;
 use App\Services\CommitTranslations;
+use App\Services\Features;
 use Carbon\CarbonInterface;
 use Closure;
 use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\PrivateChannel;
-use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\LiveProp;
@@ -53,24 +55,23 @@ final class HandleInertiaRequests extends Middleware
     }
 
     /**
-     * A deploy sends a page built for the previous version back for a full reload. That page already took the flashed
-     * data off the session, so it is flashed again for the reload: the composer learns its commit went through.
-     * The reload replaces the response that carried `Vary: X-Inertia`, so it is set again: without it a browser
-     * restoring the tab can serve this empty 409 as the page itself.
+     * A deploy sends a page built for the previous version back for a full reload before the page is built, as its
+     * props would be thrown away: a tab left open keeps asking in the background until it reloads. The flashed data
+     * stays on the session for the reload, so the composer learns its commit went through. Without `Vary: X-Inertia`
+     * a browser restoring the tab can serve this empty 409 as the page itself.
      */
-    public function onVersionChange(Request $request, Response $response): Response
+    public function handle(Request $request, Closure $next): Response
     {
-        /** @var array{flash?: array<string, mixed>} $page */
-        $page = $response instanceof JsonResponse ? $response->getData(true) : [];
+        Inertia::version(fn (): ?string => $this->version($request));
 
-        $response = parent::onVersionChange($request, $response);
-        $response->setVary(Header::INERTIA);
+        if ($request->header(Header::INERTIA) && $request->isMethod('GET') && $request->header(Header::VERSION, '') !== Inertia::getVersion()) {
+            $response = $this->onVersionChange($request, new Response());
+            $response->setVary(Header::INERTIA);
 
-        if (($page['flash'] ?? []) !== []) {
-            Inertia::flash($page['flash']);
+            return $response;
         }
 
-        return $response;
+        return parent::handle($request, $next);
     }
 
     /**
@@ -157,12 +158,16 @@ final class HandleInertiaRequests extends Middleware
             ],
             // Guests see how many developers are here, next to the sign-in button...
             'developersCount' => fn (): ?int => $user instanceof User ? null : resolve(DevelopersCountQuery::class)->get(),
-            'hasUnmoderatedCommits' => $isAdmin ? $live(fn (): bool => Commit::query()->pending()->exists(), UserUpdate::Moderation) : false,
+            'hasUnmoderatedCommits' => $isAdmin ? $live(fn (): bool => Commit::query()->awaitingModerator()->exists(), UserUpdate::Moderation) : false,
             // The lite mobile app, which draws its own tab bar (see resources/js/lib/lite-mobile-app.ts). Any browser can send this
             // token, so it only ever changes the UI...
             'isLiteMobileApp' => str_contains((string) $request->userAgent(), 'DevNullLite/'),
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'showsWhoToFollow' => $showsWhoToFollow,
+            'guildsEnabled' => $live(fn (): bool => $user instanceof User && resolve(Features::class)->available(Feature::Guilds, $user), UserUpdate::Guilds),
+            'joinedGuilds' => $user instanceof User
+                ? Inertia::once(fn (): array => resolve(JoinedGuildsQuery::class)->get($user))->until(60)->live(UserUpdate::Guilds->value, new PrivateChannel($user))
+                : [],
             ...$user instanceof User && $liveFollowing !== null ? [
                 // Drawn again when someone followed goes live or stops, never on its own, so it doesn't reshuffle.
                 'liveFollowing' => $liveFollowing,
