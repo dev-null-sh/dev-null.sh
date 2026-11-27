@@ -15,7 +15,7 @@ import { GuildIcon } from '@/components/guild-icon';
 import { UserPreview } from '@/components/user-preview';
 import { typedProse, withoutCode } from '@/lib/code';
 import type { Color } from '@/lib/colors';
-import { colorsIn } from '@/lib/colors';
+import { colorsIn, cssColor } from '@/lib/colors';
 import { hashtagPattern } from '@/lib/hashtags';
 import { mentionPattern } from '@/lib/mentions';
 import { pasteisParts } from '@/lib/pasteis';
@@ -780,7 +780,7 @@ function withHashtags(
 }
 
 /**
- * The hex colors found in the whole text that fall in this slice of it, as their value with a swatch of the color.
+ * The colors found in the whole text that fall in this slice of it, as their value with a swatch of the color.
  */
 function withColors(
     text: string,
@@ -816,7 +816,7 @@ function withColors(
                 <span
                     aria-hidden="true"
                     className="mr-0.5 inline-block size-[0.75em] rounded-sm border border-border align-[-0.05em]"
-                    style={{ backgroundColor: `#${color.value}` }}
+                    style={{ backgroundColor: cssColor(color) }}
                 />
                 {color.label}
             </span>,

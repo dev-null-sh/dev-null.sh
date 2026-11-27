@@ -938,6 +938,18 @@ test('shows the hex value and swatch without the color markup', () => {
     assert.equal(html.replace(/<[^>]*>/g, ''), 'Brand orange is #FF8A4C.');
 });
 
+test('shows a CSS color function as written with a swatch of it', () => {
+    const text = 'Brand orange is oklch(0.75 0.15 50) or rgb(255, 138, 76).';
+    const html = renderToStaticMarkup(
+        <LinkifiedText text={text} mentions={null} />,
+    );
+
+    assert.equal(html.match(/data-test="color"/g)?.length, 2);
+    assert.ok(html.includes('background-color:oklch(0.75 0.15 50)'));
+    assert.ok(html.includes('background-color:rgb(255, 138, 76)'));
+    assert.equal(html.replace(/<[^>]*>/g, ''), text);
+});
+
 test('shows no swatch for a color in code when given a whole body', () => {
     const html = renderToStaticMarkup(
         <LinkifiedText
