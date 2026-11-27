@@ -14,6 +14,8 @@ use App\Models\CommitImage;
 use App\Models\CommitReport;
 use App\Models\Conversation;
 use App\Models\ConversationParticipant;
+use App\Models\Guild;
+use App\Models\GuildSubmission;
 use App\Models\Headline;
 use App\Models\Message;
 use App\Models\MessageImage;
@@ -21,6 +23,7 @@ use App\Models\MessageVoice;
 use App\Models\Notification;
 use App\Models\ScheduledCommit;
 use App\Models\User;
+use App\Queries\AdminsQuery;
 use App\Queries\CommitBuilder;
 use App\Services\CommitTranslations;
 use Illuminate\Database\Eloquent\Builder;
@@ -72,7 +75,9 @@ final readonly class DeleteUser
             $this->touchedCommits($user)->orderBy('id')->lockForUpdate()->pluck('id');
 
             // Report creation holds shared reporter and commit locks until its attachment paths are saved.
-            $imagePaths = [...$this->reportImagePaths($user), ...$this->imagePaths($user), ...$this->scheduledImagePaths($user), ...$this->messageImagePaths($user), ...$this->messageVoicePaths($user)];
+            $guilds = Guild::query()->where('user_id', $user->id)->orderBy('id')->lockForUpdate()->get();
+            $guildMembers = DB::table('guild_preferences')->whereIn('guild_id', $guilds->modelKeys())->whereNot('user_id', $user->id)->pluck('user_id');
+            $imagePaths = [...$this->reportImagePaths($user), ...$this->imagePaths($user), ...$this->scheduledImagePaths($user), ...$this->messageImagePaths($user), ...$this->messageVoicePaths($user), ...$this->guildSubmissionIconPaths($user)];
             resolve(DeleteStoredFiles::class)->retain($imagePaths);
 
             DB::table('commit_topics')->whereIn('commit_id', $this->touchedCommits($user)->select('id'))->delete();
@@ -99,7 +104,6 @@ final readonly class DeleteUser
             $user->organizations()->detach();
             $user->followedOrganizations()->detach();
             DB::table('user_active_days')->where('user_id', $user->id)->delete();
-
             $user->delete();
             $user->profile->delete();
             DB::table('deleted_github_accounts')->insertOrIgnore(['github_id' => $user->github_id]);
@@ -107,6 +111,9 @@ final readonly class DeleteUser
             $vanishing->chunk(100)->each(fn (Collection $commits) => event(new CommitsUpdated($commits, CommitUpdate::Visibility)));
             event(new UsersUpdated($notified, UserUpdate::Notifications));
             event(new UsersUpdated($partners, UserUpdate::Inbox));
+            event(new UsersUpdated($guildMembers, UserUpdate::Guilds));
+            event(new UsersUpdated($guildMembers, UserUpdate::Relationships));
+            event(new UsersUpdated(resolve(AdminsQuery::class)->ids(), UserUpdate::Moderation));
 
             foreach ($translationKeys as $key) {
                 Cache::forget($key);
@@ -175,6 +182,18 @@ final readonly class DeleteUser
             ->orWhereIn('commit_id', Commit::query()->withTrashed()->whereIn('root_id', $user->commits()->withTrashed()->topLevel()->select('id'))->select('id'))
             ->get(['path'])
             ->map(fn (CommitImage $image): string => $image->path)
+            ->all();
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function guildSubmissionIconPaths(User $user): array
+    {
+        return GuildSubmission::query()
+            ->where('user_id', $user->id)
+            ->get(['icon_path'])
+            ->flatMap(fn (GuildSubmission $submission): array => $submission->icon_path === null ? [] : [$submission->icon_path])
             ->all();
     }
 

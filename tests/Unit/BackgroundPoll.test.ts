@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import type { HttpExceptionResponse } from '@inertiajs/core';
-import { backgroundPollOptions } from '../../resources/js/lib/background-poll.ts';
+import type { HttpExceptionResponse, PendingVisit } from '@inertiajs/core';
+import {
+    backgroundPollOptions,
+    reloadInBackground,
+    stopBackgroundReloads,
+} from '../../resources/js/lib/background-poll.ts';
 
 function response(status: number): HttpExceptionResponse {
     return {
@@ -90,4 +94,51 @@ void test('reads current request data on every poll and preserves callbacks', ()
     assert.deepEqual(next.only, ['newCommitsCount']);
     assert.equal(next.preserveUrl, true);
     assert.equal(next.onFinish, onFinish);
+});
+
+const logProbe: PendingVisit = {
+    id: 'log-probe',
+    url: new URL('https://dev-null.test/log/following'),
+    completed: false,
+    cancelled: false,
+    interrupted: false,
+    method: 'get',
+    data: {},
+    replace: false,
+    preserveScroll: true,
+    preserveState: true,
+    only: ['newCommitsCount'],
+    except: [],
+    headers: {},
+    errorBag: null,
+    forceFormData: false,
+    queryStringArrayFormat: 'brackets',
+    async: true,
+    showProgress: false,
+    prefetch: false,
+    fresh: false,
+    reset: [],
+    preserveUrl: true,
+    preserveErrors: false,
+    invalidateCacheTags: [],
+    viewTransition: false,
+    component: null,
+    pageProps: null,
+    cached: false,
+};
+
+void test('leaves the decision to send a background reload to the caller before a deploy', () => {
+    const options = backgroundPollOptions({ onBefore: () => false })();
+    const unguarded = backgroundPollOptions({})();
+
+    assert.equal(options.onBefore?.(logProbe), false);
+    assert.equal(unguarded.onBefore?.(logProbe), undefined);
+});
+
+void test('sends no background reload once a deploy has made the tab outdated', async () => {
+    stopBackgroundReloads();
+    const options = backgroundPollOptions({ onBefore: () => true })();
+
+    assert.equal(options.onBefore?.(logProbe), false);
+    await reloadInBackground({ only: ['newCommitsCount'] });
 });

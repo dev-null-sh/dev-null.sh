@@ -25,6 +25,7 @@ export function PageTabs({
         shortTitle?: string;
         href: NonNullable<InertiaLinkProps['href']>;
         isActive: boolean;
+        onClick?: InertiaLinkProps['onClick'];
     }[];
 }) {
     const indicatorName = `tab-indicator-${label.toLowerCase().replaceAll(/[^a-z0-9]+/gu, '-')}`;
@@ -35,6 +36,7 @@ export function PageTabs({
                 <Link
                     key={tab.title}
                     href={tab.href}
+                    onClick={tab.onClick}
                     prefetch={prefetch}
                     viewTransition
                     preserveScroll={preserveScroll}

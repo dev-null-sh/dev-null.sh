@@ -8,6 +8,7 @@ use App\Actions\CreateConversation;
 use App\Actions\CreateMessage;
 use App\Http\Requests\CreateConversationMessageRequest;
 use App\Http\Requests\ListConversationMessagesRequest;
+use App\Http\Resources\ShownGuildMentions;
 use App\Models\User;
 use App\Queries\ConversationThreadQuery;
 use Illuminate\Container\Attributes\CurrentUser;
@@ -17,10 +18,10 @@ final readonly class ConversationMessageController
 {
     public function index(ListConversationMessagesRequest $request, #[CurrentUser] User $user, User $partner, ConversationThreadQuery $threads): JsonResponse
     {
-        return response()->json([
+        return response()->json(ShownGuildMentions::of([
             'partner' => $partner,
             ...$threads->get($user, $partner, $request->afterId(), $request->beforeId(), $request->reactionsAfter()),
-        ])->header('Cache-Control', 'private, no-store');
+        ], $user))->header('Cache-Control', 'private, no-store');
     }
 
     public function store(CreateConversationMessageRequest $request, #[CurrentUser] User $user, User $partner, CreateConversation $createConversation, CreateMessage $action): JsonResponse
@@ -38,6 +39,6 @@ final readonly class ConversationMessageController
             $request->voiceWaveform(),
         );
 
-        return response()->json(['message' => $message], 201);
+        return response()->json(ShownGuildMentions::of(['message' => $message], $user), 201);
     }
 }

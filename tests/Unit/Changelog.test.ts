@@ -105,3 +105,12 @@ void test('keeps the first author occurrence even for many commits on the same d
     assert.equal(days[0].commits.length, 200);
     assert.deepEqual(days[0].authors.map(({ login }) => login), ['alice', 'bob']);
 });
+
+void test('keeps grouping when a commit has an invalid timestamp', () => {
+    const days = changelogDays(
+        [commit(1, 'not-a-date', 'alice'), commit(2, '2026-10-18T03:30:00Z', 'bob')],
+        'Europe/Budapest',
+    );
+
+    assert.deepEqual(days.map((day) => day.date), ['Invalid Date', '2026-10-18']);
+});

@@ -184,7 +184,7 @@ it('stops temporary retries within the original three-attempt budget', function 
 
     for ($attempt = $previousAttempts; $attempt < 3; $attempt++) {
         $this->artisan('queue:work', ['connection' => 'database', '--queue' => 'push-retries', '--once' => true])->assertSuccessful();
-        $this->travel(31)->seconds();
+        $this->travel(121)->seconds();
     }
 
     $this->assertDatabaseCount('jobs', 0);

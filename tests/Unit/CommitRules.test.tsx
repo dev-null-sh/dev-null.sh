@@ -34,19 +34,21 @@ test('a first-time poster is stopped by the rules on every attempt until they ag
     assert.equal(rules.beforeSubmit(), false);
     assert.deepEqual(showings, [true, true]);
 
-    rules.agree();
+    rules.agree('turnstile-token');
 
     assert.equal(rules.hasAccepted(), true);
+    assert.equal(rules.humanVerificationToken(), 'turnstile-token');
     assert.equal(rules.beforeSubmit(), true);
 });
 
 test('agreeing in one composer counts for the others on the page, which still have the stale prop', () => {
     auth = { user: { id: 'replier' }, mustReadCommitRules: true };
-    useCommitRules().agree();
+    useCommitRules().agree('replier-token');
 
     const reply = useCommitRules();
 
     assert.equal(reply.hasAccepted(), true);
+    assert.equal(reply.humanVerificationToken(), 'replier-token');
     assert.equal(reply.beforeSubmit(), true);
 });
 
@@ -56,6 +58,7 @@ test('everyone who already read the rules commits straight away', () => {
     const rules = useCommitRules();
 
     assert.equal(rules.hasAccepted(), true);
+    assert.equal(rules.humanVerificationToken(), '');
     assert.equal(rules.beforeSubmit(), true);
     assert.deepEqual(showings, []);
 });

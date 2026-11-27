@@ -8,6 +8,7 @@ use App\Actions\CreateCommit;
 use App\Actions\DeleteCommit;
 use App\Dto\ThreadContinuation;
 use App\Enums\CommitStatus;
+use App\Exceptions\GuildPaused;
 use App\Http\Requests\CreateCommitRequest;
 use App\Http\Requests\DeleteCommitRequest;
 use App\Http\Requests\ShowCommitRequest;
@@ -19,7 +20,9 @@ use App\Queries\CommitAncestorsQuery;
 use App\Queries\CommitContinuationQuery;
 use App\Queries\CommitPageQuery;
 use App\Queries\CommitRepliesQuery;
+use App\Queries\LinkCommitsQuery;
 use App\Queries\UserAchievementsQuery;
+use App\Services\LinkPages;
 use App\Services\PageMetadata;
 use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Http\RedirectResponse;
@@ -33,7 +36,7 @@ final readonly class CommitController
     /**
      * Commits are public, so guests and crawlers read the same page, with the commit's link preview and the replies shown under it as structured data.
      */
-    public function show(ShowCommitRequest $request, #[CurrentUser] ?User $currentUser, Profile $profile, Commit $commit, CommitPageQuery $page, CommitAncestorsQuery $ancestors, CommitContinuationQuery $continuation, CommitRepliesQuery $replies, PageMetadata $metadata): Response
+    public function show(ShowCommitRequest $request, #[CurrentUser] ?User $currentUser, Profile $profile, Commit $commit, CommitPageQuery $page, CommitAncestorsQuery $ancestors, CommitContinuationQuery $continuation, CommitRepliesQuery $replies, LinkCommitsQuery $linkCommits, LinkPages $linkPages, PageMetadata $metadata): Response
     {
         $focusedCommit = null;
         $getCommit = function () use (&$focusedCommit, $page, $commit, $currentUser): Commit {
@@ -60,6 +63,17 @@ final readonly class CommitController
             'ancestors' => fn (): array => ShownStreams::commits($ancestors->get($commit, $currentUser)),
             'continuation' => fn (): array => ShownStreams::continuation($getContinuation()),
             'replies' => fn (): ?CursorPaginator => $getContinuation()->commits->isEmpty() ? ShownStreams::page($getReplies()) : null,
+            'linkTopic' => Inertia::defer(function () use ($getCommit, $currentUser, $linkCommits, $linkPages): ?array {
+                $around = $getCommit()->trashed() ? null : $linkCommits->aroundCommit($getCommit(), $currentUser);
+
+                return $around === null ? null : [
+                    'url' => $around['link']->url,
+                    'page_url' => $linkPages->url($around['link']->url),
+                    'title' => $around['link']->title,
+                    'count' => $around['count'],
+                    'commits' => ShownStreams::commits($around['commits']),
+                ];
+            }),
         ])->withViewData(['preview' => $preview]);
     }
 
@@ -68,13 +82,18 @@ final readonly class CommitController
         $before = $achievements->unlockedBadgeNames($user);
 
         $organization = $request->organization();
-        $commit = $action->handle($user, $request->string('body')->value(), quotedCommit: $request->quotedCommit(), images: $request->images(), imageDescriptions: $request->imageDescriptions(), linkPreview: $request->linkPreview(), poll: $request->poll(), organization: $organization);
+        try {
+            $commit = $action->handle($user, $request->string('body')->value(), quotedCommit: $request->quotedCommit(), images: $request->images(), imageDescriptions: $request->imageDescriptions(), linkPreview: $request->linkPreview(), poll: $request->poll(), organization: $organization, guild: $request->guild());
+        } catch (GuildPaused) {
+            return back()->withErrors(['guild_handle' => 'This guild is paused until it has a moderator.']);
+        }
 
         $unlocked = $achievements->unlockedBadgeNames($user)->diff($before)->values();
 
         Inertia::flash('committed', [
             'id' => $commit->id,
             'body' => $commit->body,
+            'guild_handle' => $commit->guild?->handle,
             'author' => ['handle' => ($organization ?? $user)->handle],
         ]);
 

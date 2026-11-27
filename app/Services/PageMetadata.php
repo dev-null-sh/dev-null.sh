@@ -11,21 +11,18 @@ use App\Models\LinkPreview;
 use App\Models\Organization;
 use App\Models\Profile;
 use App\Models\User;
-use App\Queries\MacAppReleaseQuery;
-use Illuminate\Support\Arr;
-use Illuminate\Support\Number;
+use App\Queries\LinkCommitsQuery;
 use Illuminate\Support\Str;
 
 /**
- * @phpstan-type Image array{url: string, width: int, height: int, type: string, alt: string}
+ * @phpstan-type Image array{url: string, width?: int, height?: int, type?: string, alt: string}
  * @phpstan-type Feed array{url: string, title: string}
  * @phpstan-type WebsiteMetadata array{type: string, title: string, description: string, url: string, robots: string, images: list<Image>, structuredData: array<string, mixed>}
  * @phpstan-type CommitMetadata array{type: string, title: string, description: string, url: string, robots: string, images: list<Image>, publishedAt: string, author: string, feed?: Feed, structuredData: array<string, mixed>}
  * @phpstan-type UserMetadata array{type: string, title: string, description: string, url: string, robots: string, images: list<Image>, feed: Feed, handle: string, structuredData: array<string, mixed>}
  * @phpstan-type OrganizationMetadata array{type: string, title: string, description: string, url: string, robots: string, images: list<Image>, handle: string, structuredData: array<string, mixed>}
+ * @phpstan-type LinkMetadata array{type: string, title: string, description: string, url: string, robots: string, images: list<Image>, structuredData: array<string, mixed>}
  * @phpstan-type UnclaimedProfileMetadata array{type: string, title: string, description: string, url: string, robots: string, images: list<Image>, handle: string}
- *
- * @phpstan-import-type MacAppRelease from MacAppReleaseQuery
  */
 final readonly class PageMetadata
 {
@@ -128,50 +125,40 @@ final readonly class PageMetadata
     }
 
     /**
-     * The link preview and structured data of the apps page, with the Mac app described as software once it is published.
+     * The link preview and structured data of the partners page, with the ladder of its tiers as its image.
      *
-     * @param  MacAppRelease|null  $release
      * @return WebsiteMetadata
      */
-    public function apps(?array $release): array
+    public function partners(): array
     {
-        $url = route('app.index');
-        $page = $this->page(
-            'Apps - /dev/null',
-            '/dev/null for iOS, Android, and Mac: the log, your commits, and your remotes in native apps. The mobile apps are in public beta, and the Mac app is a free download.',
-            $url,
-        );
-
         return [
-            ...$page,
+            ...$this->page(
+                'Partners - /dev/null',
+                'The people and companies who sponsor /dev/null on GitHub, and where their money goes: hosting, AI, and getting the team together to build more.',
+                route('partner.index'),
+            ),
             'images' => [[
-                'url' => url('/images/apps/og.png'),
+                'url' => url('/images/partners/og.png'),
                 'width' => OpenGraphCanvas::WIDTH,
                 'height' => OpenGraphCanvas::HEIGHT,
                 'type' => 'image/png',
-                'alt' => '/dev/null for Mac, showing an org of developers talking in remotes',
+                'alt' => 'The /dev/null partners, from Distinguished to Junior',
             ]],
-            'structuredData' => [
-                '@context' => 'https://schema.org',
-                '@graph' => [
-                    Arr::except($page['structuredData'], '@context'),
-                    ...$release === null ? [] : [[
-                        '@type' => 'SoftwareApplication',
-                        'name' => '/dev/null for Mac',
-                        'url' => $url,
-                        'operatingSystem' => "macOS {$release['minimum_system_version']} or later",
-                        'applicationCategory' => 'SocialNetworkingApplication',
-                        'softwareVersion' => $release['version'],
-                        'datePublished' => $release['released_at'],
-                        'downloadUrl' => $release['download_url'],
-                        'fileSize' => Number::fileSize($release['size'], precision: 1),
-                        'image' => url('/images/apps/mac-icon-light.webp'),
-                        'screenshot' => url('/images/apps/mac.webp'),
-                        'offers' => ['@type' => 'Offer', 'price' => '0', 'priceCurrency' => 'USD'],
-                    ]],
-                ],
-            ],
         ];
+    }
+
+    /**
+     * The link preview and structured data of the apps page.
+     *
+     * @return WebsiteMetadata
+     */
+    public function apps(): array
+    {
+        return $this->page(
+            'Apps - /dev/null',
+            '/dev/null for iOS, Android, and your terminal: the log, your commits, and your remotes. The mobile apps are in public beta.',
+            route('app.index'),
+        );
     }
 
     /**
@@ -338,6 +325,50 @@ final readonly class PageMetadata
                         "https://github.com/{$organization->handle}",
                         ...filled($organization->website) ? [$organization->website] : [],
                     ],
+                ],
+            ],
+        ];
+    }
+
+    /**
+     * The link preview and structured data of a link's page, from the link's own card, its image shown as the page's
+     * without knowing its size. Search engines leave the page out until enough people talk about the link.
+     *
+     * @param  array{commits: int, people: int}  $stats
+     * @return LinkMetadata
+     */
+    public function link(string $url, string $pageUrl, ?LinkPreview $link, array $stats): array
+    {
+        $shown = $this->urls->shorten($this->urls->readable($url));
+        $name = filled($link?->title) ? $link->title : $shown;
+        $title = "{$name} on /dev/null";
+        $commits = $stats['commits'] === 1 ? '1 commit' : "{$stats['commits']} commits";
+        $people = $stats['people'] === 1 ? '1 person' : "{$stats['people']} people";
+
+        return [
+            'type' => 'website',
+            'title' => $title,
+            'description' => "Read {$commits} from {$people} about {$shown} on /dev/null, a social network for developers.",
+            'url' => $pageUrl,
+            'robots' => $stats['people'] >= LinkCommitsQuery::MIN_PEOPLE ? self::INDEXABLE : 'noindex',
+            'images' => [filled($link?->image_url) ? ['url' => $link->image_url, 'alt' => $name] : [
+                'url' => url('/og.png'),
+                'width' => OpenGraphCanvas::WIDTH,
+                'height' => OpenGraphCanvas::HEIGHT,
+                'type' => 'image/png',
+                'alt' => $title,
+            ]],
+            'structuredData' => [
+                '@context' => 'https://schema.org',
+                '@type' => 'CollectionPage',
+                'url' => $pageUrl,
+                'name' => $title,
+                'isPartOf' => ['@id' => route('home').'#website'],
+                'about' => [
+                    '@type' => 'WebPage',
+                    'url' => $url,
+                    'name' => $name,
+                    ...filled($link?->description) ? ['description' => $link->description] : [],
                 ],
             ],
         ];

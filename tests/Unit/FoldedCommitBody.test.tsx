@@ -5,10 +5,12 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { test } from 'vite-plus/test';
 import { FoldedCommitBody } from '../../resources/js/components/commit-body';
 import type { BodySegment } from '../../resources/js/types';
+import type { GuildMentions } from '../../resources/js/types/guild';
 
 function renderBody(
     segments: BodySegment[],
     previewSegments: BodySegment[] | null,
+    guildMentions?: GuildMentions,
 ) {
     return renderToStaticMarkup(
         <App
@@ -17,6 +19,7 @@ function renderBody(
                     segments={segments}
                     previewSegments={previewSegments}
                     mentions={null}
+                    guildMentions={guildMentions}
                 />
             )}
             initialPage={
@@ -41,6 +44,19 @@ const block = (html: string): BodySegment => ({
     language: 'bash',
     filename: null,
     html,
+});
+
+test('both folded and complete bodies keep their loaded guild badges inside quoted prose', () => {
+    const segments: BodySegment[] = [{ type: 'text', text: '> #rust' }];
+    const guildMentions = { rust: { handle: 'rust', name: 'Rustaceans', emoji: '🦀', icon_url: null } };
+
+    for (const preview of [null, segments]) {
+        const markup = renderBody(segments, preview, guildMentions);
+
+        assert.match(markup, /<blockquote/);
+        assert.match(markup, /data-test="guild-mention"/);
+        assert.match(markup, /Rustaceans/);
+    }
 });
 
 test('a shortened code preview uses its continuation cue without a loose ellipsis', () => {

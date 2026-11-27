@@ -79,9 +79,9 @@ export function GraphRail({
     // A fresh commit going on below another one, like a reply chained under the last commit of a thread, scales in once
     // the trunk has reached it.
     const waitsForTrunk = isFresh && previousLane !== undefined;
-    // The actions row is 24px tall, or 28px below md, where the secondary actions fold into a menu button. It ends the
+    // The actions row is 28px tall, as tall as its menu button, which takes its room even while hidden. It ends the
     // rail's row: what opens below it, like the reply composer, has a row of its own.
-    const endDotBottom = endsOnActions ? 'bottom-3.5 md:bottom-3' : 'bottom-5';
+    const endDotBottom = endsOnActions ? 'bottom-3.5' : 'bottom-5';
 
     return (
         <div
@@ -168,8 +168,7 @@ export function GraphRail({
                                 'top-auto h-5':
                                     (endsWithDot && !endsOnActions) ||
                                     nodePosition === 'bottom',
-                                'top-auto h-3.5 md:h-3':
-                                    endsWithDot && endsOnActions,
+                                'top-auto h-3.5': endsWithDot && endsOnActions,
                             },
                         )}
                         style={laneStrokeStyle('var(--lane)', {
@@ -390,6 +389,13 @@ export function RailDot({
     );
 }
 
+// The progress ring traces the avatar's outline clockwise from the top centre, inset by half its stroke within the 48px box.
+const roundRingPath = 'M24 1 A23 23 0 1 1 24 47 A23 23 0 1 1 24 1';
+
+// Organizations are square, so their ring follows the rounded-lg corners (8px, less the half stroke).
+const squareRingPath =
+    'M24 1 H40 A7 7 0 0 1 47 8 V40 A7 7 0 0 1 40 47 H8 A7 7 0 0 1 1 40 V8 A7 7 0 0 1 8 1 Z';
+
 export function RailAvatar({
     user,
     progress,
@@ -402,6 +408,7 @@ export function RailAvatar({
 }) {
     const isOrganization = 'type' in user && user.type === 'organization';
     const isLive = useLiveStream(isOrganization ? null : user) !== null;
+    const ringPath = isOrganization ? squareRingPath : roundRingPath;
 
     return (
         <span
@@ -425,7 +432,8 @@ export function RailAvatar({
                     <>
                         <span
                             className={cn(
-                                'pointer-events-none absolute -inset-0.5 rounded-full border-2 border-dashed transition-opacity duration-150 ease-out motion-reduce:transition-none',
+                                'pointer-events-none absolute -inset-0.5 border-2 border-dashed transition-opacity duration-150 ease-out motion-reduce:transition-none',
+                                isOrganization ? 'rounded-lg' : 'rounded-full',
                                 isLive ? 'border-red-600' : 'border-(--lane)',
                                 progress > 0 ? 'opacity-0' : 'opacity-100',
                             )}
@@ -433,16 +441,14 @@ export function RailAvatar({
                         <svg
                             viewBox="0 0 48 48"
                             className={cn(
-                                'pointer-events-none absolute -inset-0.5 size-12 -rotate-90 transition-opacity duration-150 ease-out motion-reduce:transition-none',
+                                'pointer-events-none absolute -inset-0.5 size-12 transition-opacity duration-150 ease-out motion-reduce:transition-none',
                                 progress > 0 ? 'opacity-100' : 'opacity-0',
                             )}
                             fill="none"
                             strokeWidth={2}
                         >
-                            <circle
-                                cx="24"
-                                cy="24"
-                                r="23"
+                            <path
+                                d={ringPath}
                                 className={cn(
                                     isLive
                                         ? 'stroke-red-600'
@@ -450,10 +456,8 @@ export function RailAvatar({
                                     'opacity-25',
                                 )}
                             />
-                            <circle
-                                cx="24"
-                                cy="24"
-                                r="23"
+                            <path
+                                d={ringPath}
                                 pathLength={1}
                                 strokeDasharray={1}
                                 strokeLinecap="round"

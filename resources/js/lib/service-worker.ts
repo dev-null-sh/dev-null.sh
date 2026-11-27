@@ -1,3 +1,9 @@
+export function serviceWorkerEnabled(): boolean {
+    return !document.querySelector(
+        'meta[name="service-worker"][content="disabled"]',
+    );
+}
+
 /**
  * Registers the service worker that makes the installed app work offline.
  *
@@ -7,13 +13,27 @@
  * caches. Nothing is registered in development, where Vite serves the assets.
  */
 export function registerServiceWorker(version: string | null): void {
-    if (
-        !import.meta.env.PROD ||
-        typeof navigator === 'undefined' ||
-        !('serviceWorker' in navigator)
-    ) {
+    if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) {
         return;
     }
+
+    if (!serviceWorkerEnabled()) {
+        void navigator.serviceWorker
+            .getRegistrations()
+            .then((registrations) =>
+                Promise.all(
+                    registrations.map((registration) =>
+                        registration.unregister(),
+                    ),
+                ),
+            )
+            .catch(() => {
+                // A restricted browser may refuse access to its registrations.
+            });
+        return;
+    }
+
+    if (!import.meta.env.PROD) return;
 
     const url = new URL('/sw.js', window.location.origin);
 

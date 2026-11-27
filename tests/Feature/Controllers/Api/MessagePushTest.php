@@ -95,7 +95,7 @@ it('replies to a message and picks the link card', function (): void {
         'link_preview_url' => 'https://pestphp.com',
     ])->assertCreated()
         ->assertJsonPath('data.reply_to_id', $question->id)
-        ->assertJsonPath('data.reply_to', ['id' => $question->id, 'user_id' => $this->nuno->id, 'body' => 'docs?', 'images_count' => 0, 'has_voice' => false])
+        ->assertJsonPath('data.reply_to', ['id' => $question->id, 'user_id' => $this->nuno->id, 'body' => 'docs?', 'images_count' => 0, 'has_voice' => false, 'guild_mentions' => []])
         ->assertJsonPath('data.link_preview.url', 'https://pestphp.com')
         ->assertJsonPath('data.link_preview.is_pending', true);
 

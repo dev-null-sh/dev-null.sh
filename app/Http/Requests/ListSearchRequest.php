@@ -27,4 +27,9 @@ final class ListSearchRequest extends FormRequest
     {
         return $this->string('q')->trim()->value();
     }
+
+    public function guildHandle(): ?string
+    {
+        return preg_match('/^#\p{L}[\p{L}\p{M}\p{N}_]{0,59}$/uD', $this->term()) === 1 ? mb_strtolower(mb_substr($this->term(), 1)) : null;
+    }
 }

@@ -7,11 +7,13 @@ import { bodyBlocks } from '@/lib/code';
 import { emojify } from '@/lib/emoji';
 import { cn } from '@/lib/utils';
 import type { BodySegment, Commit } from '@/types';
+import type { GuildMentions } from '@/types/guild';
 
 export function CommitBody({
     segments,
     mentions,
     organizationMentions = null,
+    guildMentions,
     className,
     isStatic = false,
     linksEveryMention = true,
@@ -19,6 +21,7 @@ export function CommitBody({
     segments: BodySegment[];
     mentions: Commit['mentions'];
     organizationMentions?: Commit['organization_mentions'];
+    guildMentions?: GuildMentions;
     className?: string;
     isStatic?: boolean;
     /**
@@ -44,6 +47,7 @@ export function CommitBody({
                             segments={block.segments}
                             mentions={mentions}
                             organizationMentions={organizationMentions}
+                            guildMentions={guildMentions}
                             isStatic={isStatic}
                             linksEveryMention={linksEveryMention}
                         />
@@ -54,6 +58,7 @@ export function CommitBody({
                         segments={block.segments}
                         mentions={mentions}
                         organizationMentions={organizationMentions}
+                        guildMentions={guildMentions}
                         isStatic={isStatic}
                         linksEveryMention={linksEveryMention}
                     />
@@ -67,12 +72,14 @@ export function BodySegments({
     segments,
     mentions,
     organizationMentions = null,
+    guildMentions,
     isStatic = false,
     linksEveryMention = true,
 }: {
     segments: BodySegment[];
     mentions: Commit['mentions'];
     organizationMentions?: Commit['organization_mentions'];
+    guildMentions?: GuildMentions;
     isStatic?: boolean;
     linksEveryMention?: boolean;
 }) {
@@ -89,6 +96,7 @@ export function BodySegments({
                                 text={emojify(segment.text)}
                                 mentions={mentions}
                                 organizationMentions={organizationMentions}
+                                guildMentions={guildMentions}
                                 pasteisMode={Boolean(auth.pasteis)}
                                 isStatic={isStatic}
                                 linksEveryMention={linksEveryMention}
@@ -128,12 +136,14 @@ export function FoldedCommitBody({
     previewSegments,
     mentions,
     organizationMentions = null,
+    guildMentions,
     className,
 }: {
     segments: BodySegment[];
     previewSegments: BodySegment[] | null;
     mentions: Commit['mentions'];
     organizationMentions?: Commit['organization_mentions'];
+    guildMentions?: GuildMentions;
     className?: string;
 }) {
     const [isUnfolded, setIsUnfolded] = useState(false);
@@ -145,6 +155,7 @@ export function FoldedCommitBody({
                 segments={segments}
                 mentions={mentions}
                 organizationMentions={organizationMentions}
+                guildMentions={guildMentions}
                 className={className}
             />
         );
@@ -176,6 +187,7 @@ export function FoldedCommitBody({
                 }
                 mentions={mentions}
                 organizationMentions={organizationMentions}
+                guildMentions={guildMentions}
                 className={className}
             />
             {!isUnfolded && (

@@ -10,6 +10,7 @@ use App\Actions\CreateMessage;
 use App\Actions\CreateOrganizationFollow;
 use App\Actions\CreateOrganizationMember;
 use App\Actions\CreateScheduledCommit;
+use App\Actions\CreateUserBan;
 use App\Actions\CreateUserBlock;
 use App\Actions\CreateUserFollow;
 use App\Actions\CreateUserTimeout;
@@ -17,7 +18,6 @@ use App\Actions\DeleteOrganization;
 use App\Actions\DeleteUser;
 use App\Actions\UpdateCommitStatuses;
 use App\Actions\UpdateConversationReadThrough;
-use App\Actions\UpdateFeature;
 use App\Actions\UpdateLinkPreview;
 use App\Actions\UpdateOrganizationLane;
 use App\Actions\UpdateOrgCall;
@@ -29,7 +29,6 @@ use App\Contracts\Services\LinkPreviewProvider;
 use App\Dto\AuthorizationCode;
 use App\Enums\CommitStatus;
 use App\Enums\CommitUpdate;
-use App\Enums\Feature;
 use App\Enums\Log;
 use App\Enums\ModerationReason;
 use App\Enums\NotificationType;
@@ -37,7 +36,6 @@ use App\Enums\RemoteStatus;
 use App\Enums\TimeoutDuration;
 use App\Enums\UserUpdate;
 use App\Events\CommitsUpdated;
-use App\Events\FeaturesUpdated;
 use App\Events\ProfilesUpdated;
 use App\Events\UsersUpdated;
 use App\Http\Middleware\HandleInertiaRequests;
@@ -460,18 +458,19 @@ function onUpdate(UserUpdate $update, Closure $read): Closure
     };
 }
 
-it('announces a scheduled commit, a device and a timeout only once they are stored', function (): void {
+it('announces a scheduled commit, a device, a timeout and a ban only once they are stored', function (): void {
     Event::fake([CommitsUpdated::class, ProfilesUpdated::class]);
     $user = User::factory()->create();
     $scheduled = onUpdate(UserUpdate::ScheduledCommits, fn (): int => ScheduledCommit::query()->where('user_id', $user->id)->count());
-    $account = onUpdate(UserUpdate::Account, fn (): array => [$user->devices()->count(), $user->timeouts()->count()]);
+    $account = onUpdate(UserUpdate::Account, fn (): array => [$user->devices()->count(), $user->timeouts()->count(), $user->banEvents()->count()]);
 
     resolve(CreateScheduledCommit::class)->handle($user, 'Later.', now()->addHour()->toImmutable());
     resolve(CreateDevice::class)->handle(new AuthorizationCode('authorization-code:test', $user->id, 'SHA256:fingerprint', 'Phone', 'challenge'));
     resolve(CreateUserTimeout::class)->handle($user, ModerationReason::Spam, TimeoutDuration::cases()[0]);
+    resolve(CreateUserBan::class)->handle($user, ModerationReason::Spam);
 
-    expect($scheduled())->toBe([1])
-        ->and($account())->toBe([[1, 0], [1, 1]]);
+    expect($scheduled())->toBe([1, 1])
+        ->and($account())->toBe([[1, 0, 0], [1, 1, 0], [1, 1, 1]]);
 });
 
 it('announces nothing when storing a scheduled commit fails', function (): void {
@@ -524,16 +523,14 @@ it('tells everyone showing an organization when its color, followers or admins c
         ->and(recipientsOf(usersUpdated(UserUpdate::Relationships)))->toBe([$follower->id]);
 });
 
-it("tells the user's other pages when the log they read, the terms they accepted or a feature changes", function (): void {
-    Event::fake([UsersUpdated::class, FeaturesUpdated::class]);
+it("tells the user's other pages when the log they read or the terms they accepted change", function (): void {
+    Event::fake([UsersUpdated::class]);
     $user = User::factory()->create();
 
     resolve(UpdateUserLog::class)->handle($user, Log::Latest);
     resolve(UpdateUserTermsAcceptance::class)->handle($user);
-    resolve(UpdateFeature::class)->handle(Feature::OrganizationCommits, true);
 
     expect(usersUpdated(UserUpdate::Account))->toHaveCount(2);
-    Event::assertDispatched(FeaturesUpdated::class);
 });
 
 it("refreshes an organization page from its public channel and the viewer's relationship to it from theirs", function (): void {

@@ -1,4 +1,5 @@
 import { Link, usePage } from '@inertiajs/react';
+import type { ReactNode } from 'react';
 import { useEffect, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import AppLogoIcon from '@/components/app-logo-icon';
@@ -7,7 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import type { RealtimeChannel } from '@/lib/realtime';
 import { coalesce, commitChannel, listen, userChannel } from '@/lib/realtime';
 import { commitLinkTo, hostname } from '@/lib/urls';
-import { shortHash } from '@/lib/utils';
+import { cn, shortHash } from '@/lib/utils';
 import type { LinkPreview as LinkPreviewData } from '@/types';
 
 const POLL_DELAYS = [1000, 2000, 3000, 5000, 8000, 13000];
@@ -203,11 +204,14 @@ export function LinkPreview({
     preview: initialPreview,
     isStatic = false,
     source,
+    footer,
 }: {
     refreshUrl: string;
     preview: LinkPreviewData;
     isStatic?: boolean;
     source?: LinkPreviewSource;
+    /** Shown inside the card, under the page it links to. */
+    footer?: ReactNode;
 }) {
     const { preview, isWaiting } = useFetchedLinkPreview(
         refreshUrl,
@@ -228,6 +232,7 @@ export function LinkPreview({
                 preview={preview}
                 embed={preview.embed}
                 isStatic={isStatic}
+                footer={footer}
             />
         );
     }
@@ -236,8 +241,12 @@ export function LinkPreview({
         return <LinkPreviewSkeleton isCommit={commitLink !== null} />;
     }
 
+    const shell = 'mt-3 overflow-hidden rounded-lg border';
+
     if (!preview.title) {
-        return null;
+        return footer ? (
+            <div className={cn(shell, '*:border-t-0')}>{footer}</div>
+        ) : null;
     }
 
     const content = (
@@ -295,37 +304,31 @@ export function LinkPreview({
         </>
     );
 
-    const linkClassName =
-        'mt-3 flex items-center overflow-hidden rounded-lg border transition-colors hover:bg-accent focus-visible:bg-accent';
+    const linkClassName = cn(
+        'flex items-center transition-colors hover:bg-accent focus-visible:bg-accent',
+        !footer && shell,
+    );
 
-    if (isStatic) {
-        return (
-            <div
-                className="mt-3 flex items-center overflow-hidden rounded-lg border"
-                data-test="link-preview"
-            >
-                {content}
-            </div>
-        );
-    }
-
-    if (commitLink) {
-        return (
-            <Link
-                href={CommitController.show({
-                    profile: commitLink.handle,
-                    commit: commitLink.commit,
-                })}
-                onClick={(event) => event.stopPropagation()}
-                className={linkClassName}
-                data-test="link-preview"
-            >
-                {content}
-            </Link>
-        );
-    }
-
-    return (
+    const card = isStatic ? (
+        <div
+            className={cn('flex items-center', !footer && shell)}
+            data-test="link-preview"
+        >
+            {content}
+        </div>
+    ) : commitLink ? (
+        <Link
+            href={CommitController.show({
+                profile: commitLink.handle,
+                commit: commitLink.commit,
+            })}
+            onClick={(event) => event.stopPropagation()}
+            className={linkClassName}
+            data-test="link-preview"
+        >
+            {content}
+        </Link>
+    ) : (
         <a
             href={preview.url}
             target="_blank"
@@ -336,5 +339,14 @@ export function LinkPreview({
         >
             {content}
         </a>
+    );
+
+    return footer ? (
+        <div className={shell}>
+            {card}
+            {footer}
+        </div>
+    ) : (
+        card
     );
 }
