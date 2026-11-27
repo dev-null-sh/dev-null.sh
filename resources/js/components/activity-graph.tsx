@@ -33,8 +33,16 @@ export const activityWindows: Record<ActivityScale, string> = {
     day: 'in the last 24 hours',
     week: 'in the last 7 days',
     month: 'in the last 30 days',
+    half: 'in the last 6 months',
     year: 'in the last year',
 };
+
+/**
+ * The scales drawn as a grid of weeks, one column per week, rather than a strip.
+ */
+export function isWeekGrid(scale: ActivityScale): boolean {
+    return scale === 'half' || scale === 'year';
+}
 
 function levelColor(level: number): string {
     return level === 0
@@ -85,7 +93,7 @@ export function activitySummary(
 ): string {
     const total = activityTotal(activity);
 
-    return total === 0 && activity.scale !== 'year'
+    return total === 0 && !isWeekGrid(activity.scale)
         ? `No ${noun[1]} yet`
         : `${count(total, noun)} ${activityWindows[activity.scale]}`;
 }
@@ -178,7 +186,7 @@ export function ActivityGraph({
     onPeriodHover?: (period: string | null) => void;
 }) {
     const total = activityTotal(activity);
-    const isEmpty = total === 0 && activity.scale !== 'year';
+    const isEmpty = total === 0 && !isWeekGrid(activity.scale);
 
     return (
         <section
@@ -278,8 +286,9 @@ export function ActivityCells({
             data-activity-cells
             style={{ '--lane': color } as CSSProperties}
         >
-            {scale === 'year' ? (
-                <YearGrid
+            {isWeekGrid(scale) ? (
+                <WeekGrid
+                    scale={scale}
                     buckets={buckets}
                     max={max}
                     summary={summary}
@@ -386,13 +395,20 @@ function Strip({
     );
 }
 
-function YearGrid({
+/**
+ * Shorter grids cap each week's column, so a few weeks don't stretch into oversized cells.
+ */
+const weekPitch = '1.5rem';
+
+function WeekGrid({
+    scale,
     buckets,
     max,
     summary,
     onEnter,
     onLeave,
-}: CellsProps & { summary: string }) {
+}: CellsProps & { scale: ActivityScale; summary: string }) {
+    const isYear = scale === 'year';
     const weekStarts = buckets.filter((_, index) => index % 7 === 0);
     const monthLabels = weekStarts.map((day, index) => {
         const changesMonth =
@@ -404,7 +420,9 @@ function YearGrid({
                 .slice(1, 3)
                 .some((week) => monthOf(week.date) !== monthOf(day.date));
 
-        return changesMonth && !nextLabelIsClose
+        const isLastWeek = index === weekStarts.length - 1;
+
+        return changesMonth && !nextLabelIsClose && !isLastWeek
             ? monthNames[monthOf(day.date)]
             : null;
     });
@@ -425,7 +443,17 @@ function YearGrid({
             <div
                 role="img"
                 aria-label={summary}
-                className="grid min-w-136 grid-cols-[auto_minmax(0,1fr)] gap-x-2 gap-y-1.5"
+                className={cn(
+                    'grid grid-cols-[auto_minmax(0,1fr)] gap-x-2 gap-y-1.5',
+                    isYear && 'min-w-136',
+                )}
+                style={
+                    isYear
+                        ? undefined
+                        : {
+                              maxWidth: `calc(${weekStarts.length} * ${weekPitch} + 2.5rem)`,
+                          }
+                }
             >
                 <span aria-hidden />
                 <div

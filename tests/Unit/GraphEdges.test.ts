@@ -588,3 +588,20 @@ void test('folds away the lines to and from folding replies, not the trunk runni
         false,
     );
 });
+
+void test('unrelated nodes do not affect the reply and continuation paths', () => {
+    const thread = [
+        node({ id: 'parent', y: 40 }),
+        node({ id: 'first', x: 100, y: 160, parent: 'parent' }),
+        node({ id: 'next', y: 400, after: 'parent' }),
+    ];
+    const baseline = graphEdges(thread).map((edge) => [edge.id, edge.d]);
+    const unrelated = Array.from({ length: 200 }, (_, index) =>
+        node({ id: `unrelated-${index}`, y: index * 10 }),
+    );
+
+    assert.deepEqual(
+        graphEdges([...thread, ...unrelated]).map((edge) => [edge.id, edge.d]),
+        baseline,
+    );
+});

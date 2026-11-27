@@ -51,8 +51,6 @@ export type Auth = {
      * The organizations the user is a member of, whose commits are theirs too.
      */
     organizations: OrganizationAuthor[];
-    // Whether members may post as their organization yet, while it is being rolled out.
-    canPostAsOrganization: boolean;
     isAdmin: boolean;
     automaticTranslation: boolean;
     /**

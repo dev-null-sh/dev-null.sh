@@ -12,14 +12,22 @@ enum ActivityScale: string
     case Day = 'day';
     case Week = 'week';
     case Month = 'month';
+    case Half = 'half';
     case Year = 'year';
 
     /**
-     * The smallest scale whose window still contains everything since the given moment.
+     * The scales shorter than a year that a profile's activity can fit into, smallest first.
      */
-    public static function since(CarbonInterface $since, CarbonImmutable $now): self
+    public const array FITTING = [self::Day, self::Week, self::Month, self::Half];
+
+    /**
+     * The smallest of the given scales whose window still contains everything since the given moment, or else the year.
+     *
+     * @param  list<self>  $scales
+     */
+    public static function since(CarbonInterface $since, CarbonImmutable $now, array $scales = self::FITTING): self
     {
-        foreach ([self::Day, self::Week, self::Month] as $scale) {
+        foreach ($scales as $scale) {
             if ($since->greaterThanOrEqualTo($scale->start($now))) {
                 return $scale;
             }
@@ -34,13 +42,14 @@ enum ActivityScale: string
             self::Day => $now->startOfHour()->subHours(23),
             self::Week => $now->startOfDay()->subDays(6),
             self::Month => $now->startOfDay()->subDays(29),
+            self::Half => $now->subWeeks(25)->startOfWeek(CarbonInterface::SUNDAY),
             self::Year => $now->subWeeks(52)->startOfWeek(CarbonInterface::SUNDAY),
         };
     }
 
     /**
      * The start of the window ending now, as the operations page has always counted: the last 24 hours, 7 days, or
-     * 30 days. The year keeps its whole weeks, since its grid needs them.
+     * 30 days. The week grids keep their whole weeks, since they need them.
      */
     public function rollingStart(CarbonImmutable $now): CarbonImmutable
     {
@@ -48,7 +57,7 @@ enum ActivityScale: string
             self::Day => $now->subDay(),
             self::Week => $now->subWeek(),
             self::Month => $now->subDays(30),
-            self::Year => $this->start($now),
+            self::Half, self::Year => $this->start($now),
         };
     }
 

@@ -5,15 +5,19 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Actions\DeleteUser;
+use App\Enums\Feature;
 use App\Enums\PushAccess;
 use App\Enums\UserUpdate;
 use App\Http\Requests\DeleteUserRequest;
 use App\Http\Requests\ShowUserRequest;
+use App\Http\Resources\GuildResource;
 use App\Http\Resources\ShownStreams;
+use App\Models\Guild;
 use App\Models\User;
 use App\Queries\BioProfilesQuery;
 use App\Queries\FollowersYouKnowQuery;
 use App\Queries\GitHubReadmeQuery;
+use App\Queries\GuildsQuery;
 use App\Queries\PinnedCommitQuery;
 use App\Queries\PushAccessQuery;
 use App\Queries\UserAchievementsQuery;
@@ -21,6 +25,7 @@ use App\Queries\UserActivityQuery;
 use App\Queries\UserCommitsQuery;
 use App\Queries\UserModerationQuery;
 use App\Queries\UserStreakQuery;
+use App\Services\Features;
 use App\Services\PageMetadata;
 use Closure;
 use Illuminate\Broadcasting\Channel;
@@ -38,7 +43,7 @@ final readonly class UserController
     /**
      * Profiles are public, so guests and crawlers read the same page, with the profile's link preview.
      */
-    public function show(ShowUserRequest $request, #[CurrentUser] ?User $currentUser, User $user, UserActivityQuery $activity, UserStreakQuery $streaks, UserAchievementsQuery $achievements, PushAccessQuery $pushAccess, UserCommitsQuery $commits, PinnedCommitQuery $pinned, UserModerationQuery $moderation, FollowersYouKnowQuery $followersYouKnow, GitHubReadmeQuery $readme, BioProfilesQuery $bioProfiles, PageMetadata $metadata): Response
+    public function show(ShowUserRequest $request, #[CurrentUser] ?User $currentUser, User $user, UserActivityQuery $activity, UserStreakQuery $streaks, UserAchievementsQuery $achievements, PushAccessQuery $pushAccess, UserCommitsQuery $commits, PinnedCommitQuery $pinned, UserModerationQuery $moderation, FollowersYouKnowQuery $followersYouKnow, GitHubReadmeQuery $readme, BioProfilesQuery $bioProfiles, PageMetadata $metadata, GuildsQuery $guilds, Features $features): Response
     {
         $blockerId = $currentUser?->blockerIdWith($user);
 
@@ -63,9 +68,14 @@ final readonly class UserController
         // viewer's relationship to them on the viewer's own.
         $profile = new Channel('profiles.'.$user->id);
         $relationship = fn (Closure $value): Closure|LiveProp => $currentUser instanceof User ? Inertia::live($value, UserUpdate::Account->value, new PrivateChannel($currentUser)) : $value;
+        $canSeeModerationHistory = $currentUser instanceof User && ($currentUser->is($user) || ($currentUser->isAdmin() && ! $user->isAdmin()));
 
         return Inertia::render('user/show', [
             'user' => Inertia::live(fn (): ?array => ShownStreams::user($getCountedUser()), 'profile', $profile),
+            'profileGuilds' => $currentUser instanceof User
+                ? Inertia::live(fn (): ?array => $features->available(Feature::Guilds, $currentUser) ? $guilds->joined($user, $currentUser)->map(fn (Guild $guild): array => ['id' => $guild->id, ...GuildResource::make($guild)->resolve($request)])->all() : null, 'profile', $profile)
+                    ->live(UserUpdate::Guilds->value, new PrivateChannel($currentUser))
+                : null,
             'bioProfiles' => fn (): array => $bioProfiles->get($user),
             'pasteisReceived' => Inertia::live(fn (): ?int => $currentUser?->pasteis_mode ? $user->pasteis_received : null, 'profile', $profile),
             'isFollowing' => $relationship(fn (): bool => $currentUser?->isFollowing($user) ?? false),
@@ -80,7 +90,14 @@ final readonly class UserController
             'activity' => fn (): array => $activity->get($user, $currentUser),
             'streaks' => $getStreaks,
             'achievements' => fn (): array => $achievements->get($user, $currentUser, $getStreaks()),
-            'moderation' => fn (): ?array => $currentUser?->isAdmin() === true && ! $user->isAdmin() ? $moderation->get([$user])[$user->id] : null,
+            'moderation' => $currentUser?->isAdmin() === true && ! $user->isAdmin()
+                ? fn (): array => $moderation->get([$user])[$user->id]
+                : null,
+            'moderationHistory' => match (true) {
+                $currentUser instanceof User && $currentUser->is($user) => Inertia::live(fn (): array => $moderation->history($user), UserUpdate::Account->value, new PrivateChannel($currentUser)),
+                $canSeeModerationHistory => fn (): array => $moderation->history($user),
+                default => fn (): null => null,
+            },
             'tab' => $request->tab(...),
             'pinnedCommit' => Inertia::live(fn (): ?array => ShownStreams::commit($request->tab() === 'commits' ? $pinned->get($user, $currentUser) : null), 'profile', $profile),
             'readme' => fn (): string|false|null => $request->tab() === 'readme' ? $readme->get($user) : null,

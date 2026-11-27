@@ -137,8 +137,8 @@ it('preserves existing sections if embedding or storing a replacement fails', fu
     $this->assertDatabaseCount('knowledge_base_sections', 1);
     expect($existing->fresh()->getAttributes())->toEqual($existing->getAttributes());
 })->with([
-    'provider failure' => [fn () => throw new RequestException(new Response(new Psr7Response(503))), RequestException::class],
-    'missing embedding' => [fn () => throw new UnexpectedValueException('OpenAI did not return an embedding for every input.'), UnexpectedValueException::class],
+    'provider failure' => [fn (): never => throw new RequestException(new Response(new Psr7Response(503))), RequestException::class],
+    'missing embedding' => [fn (): never => throw new UnexpectedValueException('OpenAI did not return an embedding for every input.'), UnexpectedValueException::class],
     'invalid vector after a valid insert' => [fn (): array => [embeddingVector(0), [0.5, 0.5]], QueryException::class],
 ]);
 

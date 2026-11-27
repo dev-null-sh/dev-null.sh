@@ -40,7 +40,7 @@ it('removes scripts, styles, event handlers and images from elsewhere', function
         <p style="position:fixed;inset:0" onclick="steal()">Hi<script>steal()</script></p>
         <a href="javascript:steal()">click</a>
         <img src="https://tracker.example.com/pixel.gif">
-        <img src="/relative.png">
+        <img src="//tracker.example.com/relative.png">
         <picture><source srcset="https://tracker.example.com/dark.png"><img src="https://camo.githubusercontent.com/light"></picture>
         <iframe src="https://example.com"></iframe>
         HTML);
@@ -55,6 +55,21 @@ it('removes scripts, styles, event handlers and images from elsewhere', function
         ->not->toContain('tracker.example.com')
         ->not->toContain('relative.png')
         ->not->toContain('iframe');
+});
+
+it('shows the images a readme keeps beside it, from the profile repository', function (): void {
+    $user = User::factory()->create();
+
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($user->github_id)->andReturn('octocat');
+    $github->shouldReceive('readme')->with('octocat')->andReturn(<<<'HTML'
+        <p align="center"><img src="./assets/banner.png" alt="banner" width="100%"></p>
+        <img src="/docs/logo.png" alt="logo">
+        HTML);
+
+    expect(resolve(GitHubReadmeQuery::class)->get($user))
+        ->toContain('<p align="center"><img src="https://raw.githubusercontent.com/octocat/octocat/HEAD/assets/banner.png" alt="banner" width="100%" /></p>')
+        ->toContain('<img src="https://raw.githubusercontent.com/octocat/octocat/HEAD/docs/logo.png" alt="logo" />');
 });
 
 it('remembers that there is no readme', function (): void {

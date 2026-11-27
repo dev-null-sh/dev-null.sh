@@ -18,6 +18,34 @@ final class CreateIssueRequest extends FormRequest
      */
     public const int MIN_BODY_LENGTH = 3;
 
+    /**
+     * The rules of every request that opens an issue, so the apps validate drafts as the web does.
+     *
+     * @return array<string, array<int, string|In>>
+     */
+    public static function issueRules(): array
+    {
+        return [
+            'command' => ['required', Rule::in(['/feature', '/bug'])],
+            'body' => ['required', 'string', 'min:'.self::MIN_BODY_LENGTH, 'max:'.Commit::MAX_BODY_LENGTH],
+            'environment' => ['nullable', 'array:'.implode(',', self::ENVIRONMENT_FIELDS)],
+            'environment.*' => ['nullable', 'string', 'max:100'],
+        ];
+    }
+
+    /**
+     * The environment fields the reporter filled, leaving out empty ones.
+     *
+     * @return array<string, string>
+     */
+    public static function filledEnvironment(FormRequest $request): array
+    {
+        /** @var array<string, string|null> $environment */
+        $environment = $request->array('environment');
+
+        return array_filter($environment, fn (?string $value): bool => $value !== null && $value !== '');
+    }
+
     public function prepareForValidation(): void
     {
         CreateCommitRequest::normalizeBody($this);
@@ -30,12 +58,7 @@ final class CreateIssueRequest extends FormRequest
      */
     public function rules(): array
     {
-        return [
-            'command' => ['required', Rule::in(['/feature', '/bug'])],
-            'body' => ['required', 'string', 'min:'.self::MIN_BODY_LENGTH, 'max:'.Commit::MAX_BODY_LENGTH],
-            'environment' => ['nullable', 'array:'.implode(',', self::ENVIRONMENT_FIELDS)],
-            'environment.*' => ['nullable', 'string', 'max:100'],
-        ];
+        return self::issueRules();
     }
 
     /**
@@ -43,9 +66,6 @@ final class CreateIssueRequest extends FormRequest
      */
     public function environment(): array
     {
-        /** @var array<string, string|null> $environment */
-        $environment = $this->array('environment');
-
-        return array_filter($environment, fn (?string $value): bool => $value !== null && $value !== '');
+        return self::filledEnvironment($this);
     }
 }

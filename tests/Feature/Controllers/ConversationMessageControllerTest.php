@@ -423,7 +423,7 @@ it('erases a stored voice note when its message is not saved', function (): void
     $mark = User::factory()->withRemotes()->create();
     $nuno = User::factory()->withRemotes()->create();
 
-    Event::listen('eloquent.created: '.MessageVoice::class, fn () => throw new RuntimeException('database went away'));
+    Event::listen('eloquent.created: '.MessageVoice::class, fn (): never => throw new RuntimeException('database went away'));
 
     $this->actingAs($mark)->post(route('conversation-message.store', $nuno), [
         'client_id' => Str::uuid()->toString(),

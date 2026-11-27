@@ -96,11 +96,11 @@ it('tells API clients which mentions are organizations', function (): void {
     signedApiRequest($keyPair, 'GET', route('api-log.show', 'latest'))
         ->assertOk()
         ->assertJsonPath('data.0.mentions', [
-            ['handle' => 'laravel', 'offset' => 0, 'length' => 8, 'kind' => 'organization'],
-            ['handle' => 'tom', 'offset' => 13, 'length' => 4, 'kind' => 'user'],
+            ['handle' => 'laravel', 'offset' => 0, 'length' => 8, 'kind' => 'organization', 'id' => $organization->id],
+            ['handle' => 'tom', 'offset' => 13, 'length' => 4, 'kind' => 'user', 'id' => null],
         ]);
 
     signedApiRequest($keyPair, 'POST', route('api-commit-preview.store'), ['body' => 'Hi @Laravel'])
         ->assertOk()
-        ->assertJsonPath('data.mentions', [['handle' => 'Laravel', 'offset' => 3, 'length' => 8, 'kind' => 'organization']]);
+        ->assertJsonPath('data.mentions', [['handle' => 'Laravel', 'offset' => 3, 'length' => 8, 'kind' => 'organization', 'id' => $organization->id]]);
 });

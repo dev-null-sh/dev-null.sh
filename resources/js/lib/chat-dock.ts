@@ -48,7 +48,10 @@ function subscribe(listener: () => void): () => void {
     listeners.add(listener);
 
     const onStorage = (event: StorageEvent) => {
-        if (event.key === storageKey) {
+        if (
+            event.storageArea === window.localStorage &&
+            (event.key === storageKey || event.key === null)
+        ) {
             dock = null;
             listener();
         }

@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Actions\CreateLocalUser;
+use App\Http\Requests\CreateHumanVerificationRequest;
 use App\Http\Requests\CreateLocalSessionRequest;
-use App\Services\AppSignIn;
+use App\Models\User;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
@@ -21,9 +23,13 @@ final readonly class LocalSessionController
     /**
      * Sign-in links lead back to the page the guest was reading, where a modal asks for the handle.
      */
-    public function create(): RedirectResponse
+    public function create(Request $request): RedirectResponse
     {
         Inertia::flash('localSignIn', true);
+
+        if ($request->session()->has(CreateHumanVerificationRequest::SessionKey)) {
+            return to_route('home');
+        }
 
         return back(fallback: route('home'));
     }
@@ -31,16 +37,16 @@ final readonly class LocalSessionController
     /**
      * Signing in loads the page in full, as signing in with GitHub does, so no state of the guest's page carries over.
      */
-    public function store(CreateLocalSessionRequest $request, CreateLocalUser $action, AppSignIn $appSignIn): SymfonyResponse
+    public function store(CreateLocalSessionRequest $request, CreateLocalUser $action): SymfonyResponse
     {
-        $user = $action->handle($request->string('handle')->value());
+        $handle = $request->string('handle')->value();
+        $isSigningUp = User::query()->whereRelation('profile', 'handle', $handle)->doesntExist();
 
-        // Signed in from the iOS app POC's sheet: the app's web view signs in, not this browser (temporary, see AppSignIn)...
-        $appCallbackUrl = $appSignIn->handOff($request, $user);
-
-        if ($appCallbackUrl !== null) {
-            return Inertia::location($appCallbackUrl);
+        if ($isSigningUp && $request->session()->pull(CreateHumanVerificationRequest::SessionKey) !== true) {
+            return Inertia::location(route('human-verification.show'));
         }
+
+        $user = $action->handle($handle);
 
         Auth::login($user, remember: true);
 

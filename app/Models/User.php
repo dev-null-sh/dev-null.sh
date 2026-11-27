@@ -319,6 +319,16 @@ final class User extends Authenticatable
     }
 
     /**
+     * The org messages that mentioned the user, until they open or clear them.
+     *
+     * @return BelongsToMany<Message, $this>
+     */
+    public function mentions(): BelongsToMany
+    {
+        return $this->belongsToMany(Message::class, 'message_mentions');
+    }
+
+    /**
      * Timeouts go by GitHub account, like bans, so they outlive the user and still apply if the same account signs up
      * again.
      *
@@ -327,6 +337,16 @@ final class User extends Authenticatable
     public function timeouts(): HasMany
     {
         return $this->hasMany(UserTimeout::class, 'github_id', 'github_id');
+    }
+
+    /**
+     * Ban decisions go by GitHub account, so they outlive the user and apply again after a new signup.
+     *
+     * @return HasMany<BanEvent, $this>
+     */
+    public function banEvents(): HasMany
+    {
+        return $this->hasMany(BanEvent::class, 'github_id', 'github_id');
     }
 
     /**

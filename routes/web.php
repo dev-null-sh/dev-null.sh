@@ -6,7 +6,6 @@ use App\Enums\Log;
 use App\Enums\ProfileType;
 use App\Http\Controllers\AboutController;
 use App\Http\Controllers\AppController;
-use App\Http\Controllers\AppSessionController;
 use App\Http\Controllers\BanController;
 use App\Http\Controllers\BannedController;
 use App\Http\Controllers\BrandController;
@@ -61,12 +60,26 @@ use App\Http\Controllers\FailedJobRetryController;
 use App\Http\Controllers\FailedJobsController;
 use App\Http\Controllers\FeatureController;
 use App\Http\Controllers\ForecastController;
+use App\Http\Controllers\GuildCommitPinController;
+use App\Http\Controllers\GuildController;
+use App\Http\Controllers\GuildIconController;
+use App\Http\Controllers\GuildMembershipController;
+use App\Http\Controllers\GuildModeratorController;
+use App\Http\Controllers\GuildMuteController;
+use App\Http\Controllers\GuildReadController;
+use App\Http\Controllers\GuildReportController;
+use App\Http\Controllers\GuildSubmissionApprovalController;
+use App\Http\Controllers\GuildSubmissionController;
+use App\Http\Controllers\GuildSubmissionIconController;
+use App\Http\Controllers\GuildSuggestionController;
 use App\Http\Controllers\HeadlineController;
+use App\Http\Controllers\HumanVerificationController;
 use App\Http\Controllers\InboxController;
 use App\Http\Controllers\IssueController;
 use App\Http\Controllers\IssueSuggestionController;
 use App\Http\Controllers\JoinLinkController;
 use App\Http\Controllers\LinkController;
+use App\Http\Controllers\LinkSitemapController;
 use App\Http\Controllers\LiveStreamController;
 use App\Http\Controllers\LocalSessionController;
 use App\Http\Controllers\LogController;
@@ -99,6 +112,7 @@ use App\Http\Controllers\OrgCallController;
 use App\Http\Controllers\OrgCallIceServerController;
 use App\Http\Controllers\OrgController;
 use App\Http\Controllers\OrgMemberController;
+use App\Http\Controllers\OrgMentionController;
 use App\Http\Controllers\OrgMessageController;
 use App\Http\Controllers\OrgMuteController;
 use App\Http\Controllers\OrgPinController;
@@ -163,6 +177,7 @@ use App\Http\Middleware\RequireCommitRules;
 use App\Http\Middleware\SerializePushSessions;
 use App\Http\Middleware\SerializePushSubscriptions;
 use App\Http\Middleware\ThrottleCommits;
+use App\Http\Middleware\ThrottleIssues;
 use App\Models\Profile;
 use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
 use Illuminate\Http\Request;
@@ -188,28 +203,24 @@ Route::middleware('guest')->group(function (): void {
         Route::post('login/local', [LocalSessionController::class, 'store'])->name('local-login.store');
     } else {
         Route::get('login', [SessionController::class, 'create'])
-            ->middleware('throttle:10,1')
+            ->middleware('throttle:10,1,login:')
             ->name('login');
     }
 
     Route::get('auth/github/callback', [SessionController::class, 'store'])
-        ->middleware('throttle:10,1')
+        ->middleware('throttle:10,1,login-callback:')
         ->name('login.store');
+
+    Route::get('human-verification', [HumanVerificationController::class, 'show'])->name('human-verification.show');
+    Route::post('human-verification', [HumanVerificationController::class, 'store'])
+        ->middleware('throttle:10,1,human-verification:')
+        ->name('human-verification.store');
 
     // A link by email, for a guest on a phone who'd rather join from their computer...
     Route::post('join-links', [JoinLinkController::class, 'store'])
         ->middleware('throttle:join-links')
         ->name('join-link.store');
 });
-
-// Signing in the iOS app POC (temporary, see AppSignIn): the sign-in starts in the system's sheet, signed in to /dev/null or not, and the code it
-// hands back signs in the app's web view, whoever was signed in there...
-Route::get('auth/app', [AppSessionController::class, 'create'])
-    ->middleware('throttle:10,1')
-    ->name('app-session.create');
-Route::get('auth/app/callback', [AppSessionController::class, 'store'])
-    ->middleware('throttle:10,1')
-    ->name('app-session.store');
 
 // Log, where guests read Trending and Latest...
 Route::get('log/everyone', fn () => to_route('log.show', Log::Trending, 301));
@@ -235,9 +246,8 @@ Route::get('partners', [PartnerController::class, 'index'])->name('partner.index
 // Logos, colors, and backgrounds, downloadable by everyone...
 Route::get('brand', [BrandController::class, 'show'])->name('brand.show');
 
-// The apps, downloadable by everyone, where the Mac app's first page used to be too...
+// The apps, downloadable by everyone...
 Route::get('apps', [AppController::class, 'index'])->name('app.index');
-Route::get('mac', fn () => to_route('app.index', status: 301));
 
 // What was merged into production, readable by everyone...
 Route::get('changelog', [ChangelogController::class, 'index'])->name('changelog.index');
@@ -279,6 +289,12 @@ Route::middleware([RememberIntendedUrl::class, RedirectToHandleCase::class])->gr
         ->name('commit-photo.show');
 });
 
+// Every commit about a link, at the link without its scheme...
+Route::get('link/{url}', [LinkController::class, 'show'])
+    ->where('url', '.+')
+    ->middleware(RememberIntendedUrl::class)
+    ->name('link.show');
+
 // Sitemaps, the same for everyone, so they skip the web group's session and cookies, which would keep a cache from sharing them...
 Route::withoutMiddleware('web')->middleware('cache.headers:public;max_age=3600;etag')->group(function (): void {
     Route::get('sitemap.xml', [SitemapController::class, 'index'])->name('sitemap.index');
@@ -291,6 +307,8 @@ Route::withoutMiddleware('web')->middleware('cache.headers:public;max_age=3600;e
     Route::get('sitemaps/commits-{day}.xml', [CommitSitemapController::class, 'show'])
         ->where('day', '[0-9]{4}-[0-9]{2}-[0-9]{2}')
         ->name('commit-sitemap.show');
+    Route::get('sitemaps/links.xml', [LinkSitemapController::class, 'index'])
+        ->name('link-sitemap.index');
 });
 
 // User...
@@ -355,6 +373,22 @@ Route::get('search', [SearchController::class, 'index'])
     ->middleware('auth')
     ->name('search.index');
 
+Route::middleware('auth')->group(function (): void {
+    Route::get('search/guilds', [GuildSuggestionController::class, 'index'])->middleware('throttle:people')->name('guild-suggestions.index');
+    Route::get('guilds', [GuildController::class, 'index'])->name('guild.index');
+    Route::get('guilds/{guild:handle}', [GuildController::class, 'show'])->name('guild.show');
+    Route::get('guilds/{guild:handle}/members', [GuildMembershipController::class, 'index'])->name('guild-membership.index');
+    Route::get('guilds/{guild:handle}/icon', [GuildIconController::class, 'show'])->name('guild-icon.show');
+    Route::post('guilds', [GuildController::class, 'store'])->middleware([PreventPostingInTimeout::class, 'throttle:10,1'])->name('guild.store');
+    Route::put('guilds/{guild:handle}', [GuildController::class, 'update'])->middleware([PreventPostingInTimeout::class, 'throttle:10,1'])->name('guild.update');
+    Route::put('guilds/{guild:handle}/commits/{commit}/pin', [GuildCommitPinController::class, 'update'])
+        ->whereUuid('commit')->withTrashed()->middleware('throttle:pins')->name('guild-commit-pin.update');
+    Route::put('guild-memberships/{guild}', [GuildMembershipController::class, 'update'])->whereUuid('guild')->middleware('throttle:follows')->name('guild-membership.update');
+    Route::put('guild-mutes/{guild}', [GuildMuteController::class, 'update'])->whereUuid('guild')->middleware('throttle:follows')->name('guild-mute.update');
+    Route::put('guild-reads/{guild}', [GuildReadController::class, 'update'])->whereUuid('guild')->middleware('throttle:120,1,guild-reads:')->name('guild-read.update');
+    Route::post('guild-reports/{guild}', [GuildReportController::class, 'store'])->whereUuid('guild')->middleware('throttle:10,1')->name('guild-report.store');
+});
+
 // Profile Search: developers and organizations by name or handle...
 Route::get('search/profiles', [ProfileSearchController::class, 'index'])
     ->middleware('throttle:people')
@@ -367,17 +401,17 @@ Route::get('search/commits', [CommitSearchController::class, 'index'])
 
 Route::get('headlines/{headline}', [HeadlineController::class, 'show'])
     ->whereUuid('headline')
-    ->middleware(['auth', 'throttle:search'])
+    ->middleware('auth')
     ->name('headline.show');
 
 Route::middleware('auth')->group(function (): void {
     Route::post('issues', [IssueController::class, 'store'])
-        ->middleware([PreventPostingInTimeout::class, 'throttle:10,1'])
+        ->middleware([PreventPostingInTimeout::class, 'throttle:10,1,issues:', ThrottleIssues::class])
         ->name('issue.store');
 
     // Session...
     Route::get('push-subscriptions', [PushSubscriptionController::class, 'index'])->name('push-subscription.index');
-    Route::post('push-subscriptions', [PushSubscriptionController::class, 'store'])->middleware(['throttle:30,1', SerializePushSessions::class, SerializePushSubscriptions::class])->name('push-subscription.store');
+    Route::post('push-subscriptions', [PushSubscriptionController::class, 'store'])->middleware(['throttle:30,1,push-subscriptions:', SerializePushSessions::class, SerializePushSubscriptions::class])->name('push-subscription.store');
     Route::delete('push-subscriptions', [PushSubscriptionController::class, 'destroy'])->middleware(SerializePushSessions::class)->name('push-subscription.destroy');
 
     // Live updates, on the user's own private channel...
@@ -402,7 +436,7 @@ Route::middleware('auth')->group(function (): void {
     // Claiming an organization's page, which GitHub confirms the user belongs to...
     Route::post('organizations/{organization}/claim', [OrganizationAdminController::class, 'store'])
         ->whereUuid('organization')
-        ->middleware('throttle:10,1')
+        ->middleware('throttle:10,1,organization-claims:')
         ->name('organization-admin.store');
 
     // Organization Members, which admins manage in the organization's settings...
@@ -411,7 +445,7 @@ Route::middleware('auth')->group(function (): void {
         ->name('organization-member.index');
     Route::post('organizations/{organization}/settings/members', [OrganizationMemberController::class, 'store'])
         ->whereUuid('organization')
-        ->middleware('throttle:30,1')
+        ->middleware('throttle:30,1,organization-members:')
         ->name('organization-member.store');
     Route::put('organizations/{organization}/settings/members/{member:handle}', [OrganizationMemberController::class, 'update'])
         ->whereUuid('organization')
@@ -440,9 +474,6 @@ Route::middleware('auth')->group(function (): void {
 
     // Private starred commits...
     Route::get('starred', [StarredCommitController::class, 'index'])->name('starred.index');
-
-    // Every commit about a link, a prototype only reachable by its URL...
-    Route::get('links', [LinkController::class, 'index'])->name('link.index');
 
     // Commit...
     Route::get('scheduled-commits', [ScheduledCommitController::class, 'index'])->name('scheduled-commit.index');
@@ -478,7 +509,7 @@ Route::middleware('auth')->group(function (): void {
         ->middleware('throttle:stars')
         ->name('commit-star.store');
     Route::post('commits/{commit}/pasteis', [CommitPastelController::class, 'store'])
-        ->middleware('throttle:60,1')
+        ->middleware('throttle:60,1,pasteis:')
         ->name('commit-pastel.store');
     Route::post('commits/{commit}/reports', [CommitReportController::class, 'store'])
         ->middleware('throttle:commit-reports')
@@ -535,6 +566,7 @@ Route::middleware('auth')->group(function (): void {
         Route::delete('remotes/orgs/{org}/call', [OrgCallController::class, 'destroy'])->whereUuid('org')->name('org-call.destroy');
         Route::get('remotes/orgs/{org}/messages', [OrgMessageController::class, 'index'])->whereUuid('org')->name('org-message.index');
         Route::put('remotes/orgs/{org}/read', [OrgReadController::class, 'update'])->whereUuid('org')->name('org-read.update');
+        Route::delete('remotes/orgs/{org}/mentions', [OrgMentionController::class, 'destroy'])->whereUuid('org')->name('org-mention.destroy');
         Route::put('remotes/orgs/{org}/typing', [OrgTypingController::class, 'update'])->whereUuid('org')->name('org-typing.update');
         Route::post('remotes/orgs/{org}/archive', [OrgArchiveController::class, 'store'])->whereUuid('org')->name('org-archive.store');
         Route::delete('remotes/orgs/{org}/archive', [OrgArchiveController::class, 'destroy'])->whereUuid('org')->name('org-archive.destroy');
@@ -603,6 +635,12 @@ Route::middleware('auth')->group(function (): void {
 
     // Moderation...
     Route::get('moderation', [ModerationController::class, 'show'])->name('moderation.show');
+    Route::get('moderation/guilds', [GuildReportController::class, 'index'])->name('guild-report.index');
+    Route::delete('moderation/guilds/{guild}/moderator', [GuildModeratorController::class, 'destroy'])->whereUuid('guild')->name('guild-moderator.destroy');
+    Route::delete('moderation/guild-reports/{report}', [GuildReportController::class, 'destroy'])->whereUuid('report')->name('guild-report.destroy');
+    Route::get('moderation/guild-submissions/{submission}/icon', [GuildSubmissionIconController::class, 'show'])->whereUuid('submission')->name('guild-submission-icon.show');
+    Route::post('moderation/guild-submissions/{submission}/approval', [GuildSubmissionApprovalController::class, 'store'])->whereUuid('submission')->name('guild-submission-approval.store');
+    Route::delete('moderation/guild-submissions/{submission}', [GuildSubmissionController::class, 'destroy'])->whereUuid('submission')->name('guild-submission.destroy');
     Route::get('moderation/reports/{report}/images/{image}', [CommitReportImageController::class, 'show'])->whereUuid('report')->whereIn('image', ['0', '1', '2'])->name('commit-report-image.show');
     Route::get('moderation/reports', [ReportedCommitController::class, 'index'])->name('reported-commit.index');
     Route::delete('moderation/reports/{report}', [CommitReportController::class, 'destroy'])->name('commit-report.destroy');
@@ -637,7 +675,7 @@ Route::middleware('auth')->group(function (): void {
     Route::post('operations/emails/test', [TestEmailController::class, 'store'])->name('test-email.store');
     Route::post('operations/emails/preview', [EmailPreviewController::class, 'store'])->name('email-preview.store');
     Route::post('operations/emails/draft', [EmailDraftController::class, 'store'])
-        ->middleware('throttle:10,1')
+        ->middleware('throttle:10,1,email-drafts:')
         ->name('email-draft.store');
 
     // Mention Suggestions...
