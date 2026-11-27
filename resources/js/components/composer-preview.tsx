@@ -5,6 +5,7 @@ import { useEffect, useEffectEvent, useId, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import CommitPreviewController from '@/actions/App/Http/Controllers/CommitPreviewController';
 import { ActionTooltip } from '@/components/action-tooltip';
+import AppLogoIcon from '@/components/app-logo-icon';
 import { CommitBody } from '@/components/commit-body';
 import { objectUrlFor } from '@/components/commit-image-picker';
 import { CommitImages } from '@/components/commit-images';
@@ -15,7 +16,8 @@ import { Button } from '@/components/ui/button';
 import { useNow } from '@/hooks/use-now';
 import { bodySegments, hasCodeBlock } from '@/lib/code';
 import { hasModKey, useKeyLabels } from '@/lib/keyboard';
-import { cn } from '@/lib/utils';
+import { commitLinkTo } from '@/lib/urls';
+import { cn, shortHash } from '@/lib/utils';
 import type { BodySegment } from '@/types';
 import type { GuildMentions } from '@/types/guild';
 
@@ -300,6 +302,8 @@ export function ComposerPreviewBody({
     url: string | null;
     className?: string;
 }) {
+    const commitLink = url ? commitLinkTo(url) : null;
+
     return (
         <div
             id={preview.previewId}
@@ -338,16 +342,26 @@ export function ComposerPreviewBody({
                     className="mt-3 flex items-center gap-3 rounded-lg border border-dashed px-3 py-2"
                     data-test="link-card-preview"
                 >
-                    <Link2
-                        aria-hidden
-                        className="size-4 shrink-0 text-muted-foreground"
-                    />
+                    {commitLink ? (
+                        <AppLogoIcon
+                            aria-hidden
+                            className="size-4 shrink-0 fill-foreground"
+                        />
+                    ) : (
+                        <Link2
+                            aria-hidden
+                            className="size-4 shrink-0 text-muted-foreground"
+                        />
+                    )}
                     <div className="min-w-0">
                         <p className="truncate font-mono text-[13px]">
-                            {url.replace(/^https?:\/\//i, '')}
+                            {commitLink
+                                ? `${commitLink.handle}/${shortHash(commitLink.commit)}`
+                                : url.replace(/^https?:\/\//i, '')}
                         </p>
                         <p className="text-sm leading-snug text-muted-foreground">
-                            Unfurls into a link card after you commit.
+                            Unfurls into a {commitLink ? 'commit' : 'link'} card
+                            after you commit.
                         </p>
                     </div>
                 </div>
