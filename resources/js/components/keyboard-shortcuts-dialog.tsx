@@ -27,6 +27,10 @@ const groups = (
                 { keys: [['r']], label: 'Reply' },
                 { keys: [['q']], label: 'Quote' },
                 { keys: [['s']], label: 'Star or unstar' },
+                {
+                    keys: [['f']],
+                    label: "Follow or unfollow the focused commit's author",
+                },
                 { keys: [['o']], label: 'Show or hide replies' },
                 { keys: [['y']], label: 'Copy link' },
             ],
