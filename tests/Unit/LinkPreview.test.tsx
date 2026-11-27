@@ -2,6 +2,7 @@
 
 import assert from 'node:assert/strict';
 import { createInertiaApp } from '@inertiajs/react';
+import type { ReactNode } from 'react';
 import { renderToString } from 'react-dom/server';
 import { test } from 'vite-plus/test';
 import { LinkPreview } from '../../resources/js/components/link-preview';
@@ -22,6 +23,7 @@ const commitCard = {
 async function render(
     preview: LinkPreviewData,
     isStatic = false,
+    footer?: ReactNode,
 ): Promise<string> {
     const result = await createInertiaApp({
         page: {
@@ -40,6 +42,7 @@ async function render(
                 refreshUrl="/link-preview"
                 preview={preview}
                 isStatic={isStatic}
+                footer={footer}
             />
         ),
         render: renderToString,
@@ -76,6 +79,19 @@ test('shows a dev/null commit link card without a link inside a quote', async ()
     assert.match(body, />shipping it</);
 });
 
+test('keeps the footer of a dev/null commit link card in the same border', async () => {
+    const body = await render(commitCard, false, <p>2 more commits</p>);
+
+    assert.match(
+        body,
+        new RegExp(
+            `id="app"><div class="mt-3 overflow-hidden rounded-lg border"><a[^>]*href="/@nunomaduro/commits/${id}"`,
+        ),
+    );
+    assert.doesNotMatch(body, /<a[^>]*rounded-lg/);
+    assert.match(body, /<\/a><p>2 more commits<\/p><\/div><\/div>$/);
+});
+
 test('leaves every other link card as it was', async () => {
     const body = await render({
         ...commitCard,
@@ -86,7 +102,10 @@ test('leaves every other link card as it was', async () => {
         site_name: 'Laravel',
     });
 
-    assert.match(body, /<a[^>]*href="https:\/\/laravel.com"[^>]*target="_blank"/);
+    assert.match(
+        body,
+        /<a[^>]*href="https:\/\/laravel.com"[^>]*target="_blank"/,
+    );
     assert.match(body, />Laravel</);
     assert.match(body, /<img[^>]*src="https:\/\/laravel.com\/og.png"/);
 });
