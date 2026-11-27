@@ -61,8 +61,10 @@ const viewportMargin = 8;
 // Where the centre of the preview's avatar sits: border, padding and half of the size-14 avatar.
 const avatarCentre = 45;
 const cache = new Map<string, PreviewData>();
+let cacheGeneration = 0;
 
 async function fetchPreview(url: string): Promise<PreviewData> {
+    const generation = cacheGeneration;
     const response = await fetch(url, {
         headers: {
             Accept: 'application/json',
@@ -77,9 +79,19 @@ async function fetchPreview(url: string): Promise<PreviewData> {
     }
 
     const data = (await response.json()) as PreviewData;
+
+    if (generation !== cacheGeneration) {
+        throw new Error(`Dropped ${url} from before the previews were cleared`);
+    }
+
     cache.set(url, data);
 
     return data;
+}
+
+export function clearUserPreviews(): void {
+    cacheGeneration++;
+    cache.clear();
 }
 
 export type Relationship = Pick<
@@ -393,11 +405,10 @@ function UserPreviewContent({
     const stream = useLiveStream(user);
 
     const { isJustToggled, markToggled, onMouseLeave } = useFollowHover();
-    const { isFollowing, callbacks } = useFollow(
-        user,
-        data?.isFollowing ?? false,
-    );
-    const [isMuting] = useIsMuting(user, data?.isMuting ?? false);
+    const follow = useFollow(user, data?.isFollowing ?? false);
+    const isFollowing = auth.user !== null && follow.isFollowing;
+    const [isMutingNow] = useIsMuting(user, data?.isMuting ?? false);
+    const isMuting = auth.user !== null && isMutingNow;
     const followsDelta =
         Number(isFollowing) - Number(data?.isFollowing ?? false);
 
@@ -421,7 +432,7 @@ function UserPreviewContent({
                 preserveState: true,
                 async: true,
                 ...followVisitOptions(component, log, commits),
-                ...callbacks,
+                ...follow.callbacks,
                 onSuccess: () => router.flushAll(),
             },
         );

@@ -12,6 +12,7 @@ let component = 'user/show';
 let log: string | undefined;
 let loadedCommits: { data: { id: string }[] } | undefined;
 let suggestedUsers: SuggestedUser[] | undefined;
+let viewer: { id: string } | null = { id: 'viewer' };
 type VisitOptions = {
     only?: string[];
     headers?: Record<string, string>;
@@ -59,7 +60,7 @@ vi.doMock('@inertiajs/react', async () => ({
     usePage: () => ({
         component,
         props: {
-            auth: { user: { id: 'viewer' } },
+            auth: { user: viewer },
             log,
             commits: loadedCommits,
             showsWhoToFollow: true,
@@ -127,6 +128,7 @@ afterEach(() => {
     log = undefined;
     loadedCommits = undefined;
     suggestedUsers = undefined;
+    viewer = { id: 'viewer' };
     refreshSharedState(
         new Map<string, boolean | number | string>([
             ['who-to-follow-dismissing', 0],
@@ -776,6 +778,32 @@ test('a cached preview counts a follow made elsewhere, and stops counting it onc
     visits.at(-1)?.onStart?.();
 
     assert.equal(previewFollowersCount(user, false), '0');
+});
+
+test('after logging out a preview offers to follow someone the last account followed, without counting that follow', () => {
+    const user = suggestion('previous');
+    followFromProfile(user);
+    viewer = null;
+
+    assert.equal(
+        previewFollowButton(user, false).props['aria-label'],
+        'Follow @previous',
+    );
+    assert.equal(previewFollowersCount(user, false), '0');
+});
+
+test('after logging out a preview stops showing that the last account muted them', () => {
+    const user = suggestion('hushed');
+    const showsMuted = () =>
+        find(previewContent(user), (props) => props.children === 'Muted') !==
+        null;
+    refreshSharedState(new Map([[`is_muting:${user.id}`, true]]));
+
+    assert.ok(showsMuted());
+
+    viewer = null;
+
+    assert.ok(!showsMuted());
 });
 
 test('a preview unfollow that fails after a block keeps who to follow unfollowed', () => {
