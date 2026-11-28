@@ -1,20 +1,62 @@
 import { Form, Head, router } from '@inertiajs/react';
+import { Eye, EyeOff } from 'lucide-react';
 import type { CSSProperties } from 'react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import OrganizationLaneController from '@/actions/App/Http/Controllers/OrganizationLaneController';
+import OrganizationPeopleVisibilityController from '@/actions/App/Http/Controllers/OrganizationPeopleVisibilityController';
 import Heading from '@/components/heading';
 import InputError from '@/components/input-error';
 import { LaneOptions } from '@/components/lane-picker';
 import { OrganizationAvatar } from '@/components/organization-avatar';
+import { SegmentedControl } from '@/components/segmented-control';
 import { Button } from '@/components/ui/button';
+import { usePicked } from '@/hooks/use-picked';
 import AppLayout from '@/layouts/app-layout';
 import OrganizationSettingsLayout from '@/layouts/organization-settings/layout';
 import { organizationLaneColor, withViewTransition } from '@/lib/utils';
 import type { Lane, Organization } from '@/types';
 
-export default function Edit({ organization }: { organization: Organization }) {
+export default function Edit({
+    organization,
+    showsPeople,
+}: {
+    organization: Organization;
+    showsPeople: boolean;
+}) {
     const { lane } = organization;
     const [selected, setSelected] = useState<Lane | null>(lane);
+    const { picked, pick } = usePicked<boolean>();
+    const peopleShown = picked ?? showsPeople;
+    // One visibility write at a time, so the server can't save an older pick after a newer one.
+    const pending = useRef(false);
+
+    const selectPeopleShown = (value: boolean): void => {
+        if (value === peopleShown || pending.current) {
+            return;
+        }
+
+        pending.current = true;
+        let finish = (): void => {};
+
+        void withViewTransition(() => {
+            finish = pick(value);
+        }).then(() =>
+            router.put(
+                OrganizationPeopleVisibilityController.update.url(
+                    organization.id,
+                ),
+                { shows_people: value },
+                {
+                    preserveScroll: true,
+                    onFinish: () => {
+                        pending.current = false;
+                        finish();
+                    },
+                    onSuccess: () => router.flushAll(),
+                },
+            ),
+        );
+    };
 
     return (
         <>
@@ -97,6 +139,23 @@ export default function Edit({ organization }: { organization: Organization }) {
                         </>
                     )}
                 </Form>
+            </section>
+
+            <section className="border-t px-4 py-6 sm:px-6">
+                <Heading
+                    title="People"
+                    description={`A People tab on @${organization.handle}'s page, listing its members to everyone. Hidden until you show it: only members see who the members are.`}
+                />
+                <SegmentedControl
+                    label="People"
+                    name="shows-people"
+                    options={[
+                        { value: true, icon: Eye, label: 'Show' },
+                        { value: false, icon: EyeOff, label: 'Hide' },
+                    ]}
+                    value={peopleShown}
+                    onChange={selectPeopleShown}
+                />
             </section>
         </>
     );
