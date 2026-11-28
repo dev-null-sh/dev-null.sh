@@ -60,7 +60,7 @@ it('omits an authorless parent from the metadata of a surviving reply', function
     expect($metadata['structuredData'])->not->toHaveKey('isPartOf');
 });
 
-it('describes a commit from an organization, which has no feed', function (): void {
+it('describes a commit from an organization, with its feed', function (): void {
     $organization = Organization::factory()->create(['handle' => 'laravel', 'name' => 'Laravel']);
     $commit = Commit::factory()->create(['author_id' => $organization->id])->loadPublicPreview()->loadCount('stars');
 
@@ -68,7 +68,10 @@ it('describes a commit from an organization, which has no feed', function (): vo
 
     expect($metadata['title'])->toStartWith('Laravel (@laravel) on /dev/null: “')
         ->and($metadata['url'])->toBe(route('commit.show', ['profile' => 'laravel', 'commit' => $commit]))
-        ->and($metadata)->not->toHaveKey('feed')
+        ->and($metadata['feed'])->toBe([
+            'url' => route('user-feed.show', ['profile' => 'laravel']),
+            'title' => 'Laravel (@laravel) on /dev/null',
+        ])
         ->and($metadata['structuredData']['author'])->toBe([
             '@type' => 'Organization',
             'name' => 'Laravel',
@@ -104,6 +107,10 @@ it('describes an organization from its GitHub profile', function (): void {
         'title' => 'Laravel (@laravel) on /dev/null',
         'description' => 'The PHP framework for web artisans.',
         'url' => route('user.show', 'laravel'),
+        'feed' => [
+            'url' => route('user-feed.show', ['profile' => 'laravel']),
+            'title' => 'Laravel (@laravel) on /dev/null',
+        ],
         'handle' => 'laravel',
     ])
         ->and($metadata['images'][0]['url'])->toBe(route('user-open-graph-image.show', ['profile' => 'laravel', 'v' => $organization->openGraphImageVersion()]))
