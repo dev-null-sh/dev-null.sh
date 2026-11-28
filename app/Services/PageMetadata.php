@@ -18,9 +18,9 @@ use Illuminate\Support\Str;
  * @phpstan-type Image array{url: string, width?: int, height?: int, type?: string, alt: string}
  * @phpstan-type Feed array{url: string, title: string}
  * @phpstan-type WebsiteMetadata array{type: string, title: string, description: string, url: string, robots: string, images: list<Image>, structuredData: array<string, mixed>}
- * @phpstan-type CommitMetadata array{type: string, title: string, description: string, url: string, robots: string, images: list<Image>, publishedAt: string, author: string, feed?: Feed, structuredData: array<string, mixed>}
+ * @phpstan-type CommitMetadata array{type: string, title: string, description: string, url: string, robots: string, images: list<Image>, publishedAt: string, author: string, feed: Feed, structuredData: array<string, mixed>}
  * @phpstan-type UserMetadata array{type: string, title: string, description: string, url: string, robots: string, images: list<Image>, feed: Feed, handle: string, structuredData: array<string, mixed>}
- * @phpstan-type OrganizationMetadata array{type: string, title: string, description: string, url: string, robots: string, images: list<Image>, handle: string, structuredData: array<string, mixed>}
+ * @phpstan-type OrganizationMetadata array{type: string, title: string, description: string, url: string, robots: string, images: list<Image>, feed: Feed, handle: string, structuredData: array<string, mixed>}
  * @phpstan-type LinkMetadata array{type: string, title: string, description: string, url: string, robots: string, images: list<Image>, structuredData: array<string, mixed>}
  * @phpstan-type UnclaimedProfileMetadata array{type: string, title: string, description: string, url: string, robots: string, images: list<Image>, handle: string}
  */
@@ -219,7 +219,7 @@ final readonly class PageMetadata
             'images' => $images,
             'publishedAt' => $commit->created_at->toIso8601String(),
             'author' => route('user.show', $profile),
-            ...$profile->user instanceof User ? ['feed' => $this->feed($profile->user)] : [],
+            'feed' => $this->feed($profile),
             'structuredData' => [
                 '@context' => 'https://schema.org',
                 '@type' => 'SocialMediaPosting',
@@ -261,7 +261,7 @@ final readonly class PageMetadata
             'url' => route('user.show', $user),
             'robots' => self::INDEXABLE,
             'images' => [$this->profileImage($user, $title)],
-            'feed' => $this->feed($user),
+            'feed' => $this->feed($user->profile),
             'handle' => $user->handle,
             'structuredData' => [
                 '@context' => 'https://schema.org',
@@ -309,6 +309,7 @@ final readonly class PageMetadata
                 'type' => 'image/png',
                 'alt' => $title,
             ]],
+            'feed' => $this->feed($organization->profile),
             'handle' => $organization->handle,
             'structuredData' => [
                 '@context' => 'https://schema.org',
@@ -428,15 +429,15 @@ final readonly class PageMetadata
     }
 
     /**
-     * The Atom feed of the user's commits.
+     * The Atom feed of the commits of a user or an organization.
      *
      * @return Feed
      */
-    private function feed(User $user): array
+    private function feed(Profile $profile): array
     {
         return [
-            'url' => route('user-feed.show', $user),
-            'title' => "{$user->nameWithHandle()} on /dev/null",
+            'url' => route('user-feed.show', $profile),
+            'title' => "{$profile->nameWithHandle()} on /dev/null",
         ];
     }
 

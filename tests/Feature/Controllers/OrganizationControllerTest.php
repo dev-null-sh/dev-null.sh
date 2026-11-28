@@ -116,6 +116,7 @@ it('shows guests the link preview of the organization', function (): void {
         ->assertSee('<meta property="og:url" content="'.route('user.show', 'laravel').'">', false)
         ->assertSee('<meta property="og:image" content="'.route('user-open-graph-image.show', ['profile' => 'laravel', 'v' => $laravel->openGraphImageVersion()]).'">', false)
         ->assertSee('<meta property="profile:username" content="laravel">', false)
+        ->assertSee('<link rel="alternate" type="application/atom+xml" title="Laravel (@laravel) on /dev/null" href="'.route('user-feed.show', ['profile' => 'laravel']).'">', false)
         ->assertSee('application/ld+json', false);
 });
 

@@ -5,20 +5,20 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Models\Commit;
-use App\Models\User;
+use App\Models\Profile;
 use Illuminate\Support\Str;
 use XMLWriter;
 
-final readonly class CreateUserFeed
+final readonly class CreateProfileFeed
 {
     public const int LIMIT = 50;
 
     /**
-     * Renders the user's latest public top-level commits as an Atom feed.
+     * Renders the latest public top-level commits of a user or an organization as an Atom feed.
      */
-    public function handle(User $user): string
+    public function handle(Profile $profile): string
     {
-        $commits = $user->commits()
+        $commits = $profile->commits()
             ->whereNull('guild_id')
             ->approved()
             ->topLevel()
@@ -34,25 +34,26 @@ final readonly class CreateUserFeed
         $xml->startDocument('1.0', 'UTF-8');
         $xml->startElementNs(null, 'feed', 'http://www.w3.org/2005/Atom');
 
-        $xml->writeElement('id', "urn:uuid:{$user->id}");
-        $xml->writeElement('title', $this->text("{$user->nameWithHandle()} on /dev/null"));
+        $xml->writeElement('id', "urn:uuid:{$profile->id}");
+        $xml->writeElement('title', $this->text("{$profile->nameWithHandle()} on /dev/null"));
 
-        if ($user->bio !== null) {
-            $xml->writeElement('subtitle', $this->text($user->bio));
+        if ($profile->bio !== null) {
+            $xml->writeElement('subtitle', $this->text($profile->bio));
         }
 
-        $lastUpdatedAt = $commits->first()->created_at ?? $user->created_at;
-        $xml->writeElement('updated', $lastUpdatedAt->max($user->updated_at)->toAtomString());
-        $this->link($xml, 'self', route('user-feed.show', $user), 'application/atom+xml');
-        $this->link($xml, 'alternate', route('user.show', $user), 'text/html');
+        $owner = $profile->owner() ?? $profile;
+        $lastUpdatedAt = $commits->first()->created_at ?? $owner->created_at;
+        $xml->writeElement('updated', $lastUpdatedAt->max($owner->updated_at)->toAtomString());
+        $this->link($xml, 'self', route('user-feed.show', $profile), 'application/atom+xml');
+        $this->link($xml, 'alternate', route('user.show', $profile), 'text/html');
 
         $xml->startElement('author');
-        $xml->writeElement('name', $this->text($user->name));
-        $xml->writeElement('uri', route('user.show', $user));
+        $xml->writeElement('name', $this->text($profile->name));
+        $xml->writeElement('uri', route('user.show', $profile));
         $xml->endElement();
 
         foreach ($commits as $commit) {
-            $this->entry($xml, $user, $commit);
+            $this->entry($xml, $profile, $commit);
         }
 
         $xml->endElement();
@@ -61,12 +62,12 @@ final readonly class CreateUserFeed
         return $xml->outputMemory();
     }
 
-    private function entry(XMLWriter $xml, User $user, Commit $commit): void
+    private function entry(XMLWriter $xml, Profile $profile, Commit $commit): void
     {
         $xml->startElement('entry');
         $xml->writeElement('id', "urn:uuid:{$commit->id}");
         $xml->writeElement('title', $this->text(Str::limit(Str::squish($commit->body), 72, '…', preserveWords: true)));
-        $this->link($xml, 'alternate', route('commit.show', [$user, $commit]), 'text/html');
+        $this->link($xml, 'alternate', route('commit.show', [$profile, $commit]), 'text/html');
 
         foreach ($commit->images as $image) {
             $this->link($xml, 'enclosure', $image->url(), 'image/webp');

@@ -5,6 +5,8 @@ declare(strict_types=1);
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\Guild;
+use App\Models\Organization;
+use App\Models\Profile;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Testing\TestResponse;
@@ -209,6 +211,65 @@ it('serves an empty feed for users without public commits', function (): void {
 
     expect($feed->entry)->toHaveCount(0)
         ->and((string) $feed->updated)->toBe(now()->subYear()->toAtomString());
+});
+
+it('serves the public top-level commits of an organization as an atom feed', function (): void {
+    $organization = Organization::factory()->create([
+        'handle' => 'laravel',
+        'name' => 'Laravel',
+        'bio' => 'The PHP framework for web artisans.',
+    ]);
+    $member = User::factory()->create(['handle' => 'taylorotwell']);
+
+    $older = Commit::factory()->for($member)->create([
+        'author_id' => $organization->id,
+        'body' => 'Laravel 13 is out',
+        'created_at' => now()->subDay(),
+    ]);
+    $newer = Commit::factory()->for($member)->create(['author_id' => $organization->id, 'body' => 'Laravel Cloud is out']);
+    Commit::factory()->for($member)->for(Guild::factory())->create(['author_id' => $organization->id, 'body' => 'Only on the guild board']);
+    Commit::factory()->for($member)->pending()->create(['author_id' => $organization->id, 'body' => 'Pending commit']);
+    Commit::factory()->for($member)->create(['body' => 'From the member']);
+
+    $response = $this->get('/@laravel/feed.atom');
+
+    $response->assertOk()
+        ->assertHeader('Content-Type', 'application/atom+xml; charset=UTF-8')
+        ->assertDontSee('Only on the guild board')
+        ->assertDontSee('Pending commit')
+        ->assertDontSee('From the member');
+
+    $feed = atomFeed($response);
+
+    expect((string) $feed->id)->toBe("urn:uuid:{$organization->id}")
+        ->and((string) $feed->title)->toBe('Laravel (@laravel) on /dev/null')
+        ->and((string) $feed->subtitle)->toBe('The PHP framework for web artisans.')
+        ->and((string) $feed->author->name)->toBe('Laravel')
+        ->and((string) $feed->author->uri)->toBe(route('user.show', 'laravel'))
+        ->and((string) $feed->link[0]['href'])->toBe(route('user-feed.show', ['profile' => 'laravel']))
+        ->and((string) $feed->link[1]['href'])->toBe(route('user.show', 'laravel'))
+        ->and($feed->entry)->toHaveCount(2)
+        ->and((string) $feed->entry[0]->id)->toBe("urn:uuid:{$newer->id}")
+        ->and((string) $feed->entry[1]->id)->toBe("urn:uuid:{$older->id}")
+        ->and((string) $feed->entry[1]->link['href'])->toBe(route('commit.show', ['profile' => 'laravel', 'commit' => $older]));
+});
+
+it('leaves the commits posted as an organization out of the feed of the member who posted them', function (): void {
+    $organization = Organization::factory()->create(['handle' => 'laravel']);
+    $member = User::factory()->create(['handle' => 'taylorotwell']);
+    Commit::factory()->for($member)->create(['author_id' => $organization->id, 'body' => 'Posted as Laravel']);
+
+    $this->get('/@taylorotwell/feed.atom')
+        ->assertOk()
+        ->assertDontSee('Posted as Laravel');
+});
+
+it('serves an empty feed for developers who have not joined', function (): void {
+    Profile::factory()->create(['handle' => 'octocat']);
+
+    $feed = atomFeed($this->get('/@octocat/feed.atom'));
+
+    expect($feed->entry)->toHaveCount(0);
 });
 
 it('returns not found for unknown handles', function (): void {

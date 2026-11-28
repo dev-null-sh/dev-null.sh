@@ -123,6 +123,7 @@ use App\Http\Controllers\PartnerController;
 use App\Http\Controllers\PendingFollowController;
 use App\Http\Controllers\PrivacyController;
 use App\Http\Controllers\ProductMetricsController;
+use App\Http\Controllers\ProfileFeedController;
 use App\Http\Controllers\ProfileLookupController;
 use App\Http\Controllers\ProfileOpenGraphImageController;
 use App\Http\Controllers\ProfileSearchController;
@@ -151,7 +152,6 @@ use App\Http\Controllers\UserAutomaticTranslationController;
 use App\Http\Controllers\UserBanController;
 use App\Http\Controllers\UserBlockController;
 use App\Http\Controllers\UserController;
-use App\Http\Controllers\UserFeedController;
 use App\Http\Controllers\UserFollowController;
 use App\Http\Controllers\UserFollowersController;
 use App\Http\Controllers\UserFollowersYouKnowController;
@@ -327,7 +327,7 @@ Route::get('@{user:handle}/preview', [UserPreviewController::class, 'show'])
     ->name('user-preview.show');
 Route::get('@{profile:handle}/og.png', [ProfileOpenGraphImageController::class, 'show'])
     ->name('user-open-graph-image.show');
-Route::get('@{user:handle}/feed.atom', [UserFeedController::class, 'show'])
+Route::get('@{profile:handle}/feed.atom', [ProfileFeedController::class, 'show'])
     ->middleware('cache.headers:public;max_age=300;etag')
     ->name('user-feed.show');
 
